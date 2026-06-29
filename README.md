@@ -137,6 +137,8 @@ docker run -p 8000:8000 auction-arb      # http://localhost:8000
 |---|---|
 | `/` | 차익 큐레이션 목록 (스코어순, 갭미터·스코어뱃지) + 필터 폼(스코어/종류/지역/정렬) |
 | `/property/<사건번호>` | 물건 상세 — 갭미터 특대·차익 근거·권리 안전성(하드게이트 사유)·환금성 |
+| `/methodology` | **투명성** — 차익 스코어 공식·가중치 + 백테스트 캘리브레이션(스코어↔실현수익) 공개 |
+| `/digest` | 이번 주 차익 TOP N |
 | `/api/listings?min_score=80&type=아파트&region=서울&sort=profit` | JSON API (필터 쿼리) |
 | `/api/listings/<사건번호>` | 단건 JSON |
 | `/health` | 헬스체크 |

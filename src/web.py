@@ -14,7 +14,7 @@ from pathlib import Path
 
 from flask import Flask, abort, jsonify, render_template, request
 
-from . import digest, pipeline, query, report, score
+from . import backtest, digest, pipeline, query, report, score
 
 ROOT = Path(__file__).resolve().parent.parent
 
@@ -105,6 +105,13 @@ def create_app() -> Flask:
         ]
         filters = {"min_score": request.args.get("min_score", ""), "type": "", "region": "", "sort": "score"}
         return render_template("listings.html", rows=rows, count=len(items), filters=filters)
+
+    @app.get("/methodology")
+    def methodology():
+        rows = backtest.evaluate()
+        cal = backtest.calibration(rows)
+        prec = {t: backtest.precision_at(rows, t) for t in (80, 60, 40)}
+        return render_template("methodology.html", cfg=score.CONFIG, cal=cal, prec=prec, won=report.won)
 
     return app
 

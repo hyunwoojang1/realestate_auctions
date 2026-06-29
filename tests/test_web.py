@@ -93,3 +93,18 @@ def test_index_filter_form_and_selection():
 def test_index_has_filter_form():
     body = _client().get("/").get_data(as_text=True)
     assert 'name="min_score"' in body and 'name="type"' in body and 'name="sort"' in body
+
+
+def test_methodology_page():
+    r = _client().get("/methodology")
+    assert r.status_code == 200
+    body = r.get_data(as_text=True)
+    assert "차익 스코어 방법론" in body
+    assert "가격갭" in body and "하드게이트" in body   # 공식·게이트
+    assert "적중률" in body and "precision" in body      # 백테스트 캘리브레이션
+
+
+def test_methodology_shows_calibration_values():
+    body = _client().get("/methodology").get_data(as_text=True)
+    # 백테스트 구간 라벨이 렌더됨
+    assert "확실한차익" in body or "확실한 차익" in body

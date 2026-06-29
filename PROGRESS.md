@@ -60,11 +60,17 @@ PoC → 브라우저 열람·필터 가능한 Flask 사이트로. `/`(큐레이�
 
 - **[X2] 법정동코드 매핑 + 지역명 검색** — data/lawd_codes.json(서울 25구+샘플 지역 LAWD_CD) + src/region.py(name_to_code·code_to_name·sido_of·matches_region). query 필터를 matches_region으로 강화(시도+시군구 둘 다). 드롭다운에 시군구 옵션 추가. 테스트 5건 → **70 테스트 통과, ruff 클린**. `--region 강남구` 동작 확인. (실제 크롤러·라이브의 지역 키 인프라)
 
-## In progress
-- **X3** 방법론·투명성 페이지(/methodology) — 스코어 공식 + 백테스트 캘리브레이션 (마지막)
+- **[X3] 방법론·투명성 페이지 `/methodology`** — templates/methodology.html: 차익 스코어 공식·가중치(CONFIG)·하드게이트 규칙·취득세 구간·신뢰사다리·등급경계 + 백테스트 캘리브레이션 표(적중률·평균실현차익) + precision@80/60/40. 목록 헤더·README 링크. 테스트 2건 → **72 테스트 통과, ruff 클린**. (투명성=해자, 백테스트를 사이트에 연결)
 
-## Next
-- X3 완료 시 → AGENT_STOP (Phase 3 종료)
+## In progress
+- (없음 — Phase 3 X1~X3 전부 완료)
+
+## ✅ Phase 3(X1~X3) 완료 (2026-06-29) — 루프 정지
+매칭품질(X1)·법정동코드/지역검색(X2)·방법론 페이지(X3) 완료. 테스트 72건·ruff·CI 그린. **AGENT_STOP 정지.**
+
+## Next (운영자 대기 — 무인 불가)
+- **F10** 국토부 API 키 → 라이브 시세 + 백테스트 실데이터화
+- **실제 크롤러**(courtauction) — anti-bot/합법성 결정 필요
 
 ## 운영자 대기 (무인 불가)
 - **F10** 국토부 API 키 → 라이브 시세 + 백테스트 실데이터화
