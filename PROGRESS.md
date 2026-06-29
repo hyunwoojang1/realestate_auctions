@@ -24,12 +24,13 @@
 
 - **[P1] molit 클라이언트 프로덕션 강화** — MolitApiError(인증오류 시 'Decoding 키 확인' 안내) + check_api_error(OpenAPI fault/resultCode 감지) + 페이지네이션(max_pages) + 지수백오프 재시도 + logging. 오류감지 테스트 3건 추가 → 20 테스트 통과. 샘플 회귀 OK.
 - **[P2] `--live` 통합테스트** — 로컬 mock HTTP 서버(http.server 스레드)가 fixture 서빙 + ENDPOINTS monkeypatch로 fetch_trades·pipeline.run(use_live=True)를 실제 키 없이 end-to-end 검증. tests/test_live_integration.py 4건 → **24 테스트 통과**. 라이브 경로(F10) 사전검증 완료 — 키 도착 시 그대로 동작.
+- **[P3] 스코어 config 외부화** — 모든 튜닝 파라미터(가중치·취득세 구간·명도/수리비·페널티·하드게이트·type_base·gap_points·신뢰사다리·등급경계)를 src/config.py의 ScoreConfig로 분리. data/score_config.json 있으면 덮어씀(없으면 기본=현 동작 동일). score.py가 CONFIG 참조하도록 리팩터. config 로드/오버라이드 테스트 2건 → **26 테스트 통과**, 샘플 결과 동일(회귀 없음). data/score_config.example.json 템플릿 추가.
 
 ## In progress
-- **P3** 스코어 파라미터 config 외부화 (가중치·취득세율·페널티·부대비용·GATE_CEILING)
+- **P4** GitHub Actions CI(push 시 pytest) + ruff 린트 설정
 
 ## Next
-- **P4** GitHub Actions CI + ruff 린트 → **P5** CLI 필터(--min-score/--type/--region)·JSON 출력
+- **P5** CLI 필터(--min-score/--type/--region)·정렬·JSON 출력
 - **F10** 🔒 운영자 국토부 API 키 (나중) — .env에 키 넣으면 라이브 자동검증
 - **v1** 실제 법원경매 크롤러 — anti-bot 리스크로 무인 제외, 운영자 결정 대기
 - **F10** 🔒 운영자 국토부 API 키 발급 → `.env` MOLIT_API_KEY → `python run.py --live` 검증

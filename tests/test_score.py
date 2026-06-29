@@ -46,7 +46,7 @@ def test_hard_gate_high_assumed_amount():
     assert score.rights_score(lst) == 0.0
     s = score.score_listing(lst, est_market_price=950_000_000, matched_trades=2)
     assert s.rights_score == 0.0
-    assert s.arb_score <= score.GATE_CEILING   # 표면 갭 커도 상위 못 옴
+    assert s.arb_score <= score.CONFIG.gate_ceiling   # 표면 갭 커도 상위 못 옴
     assert s.grade == "위험"
 
 
@@ -57,7 +57,7 @@ def test_fatal_special_right_hard_gate():
     assert score.is_hard_gated(lst) is True
     assert score.rights_score(lst) == 0.0
     s = score.score_listing(lst, est_market_price=280_000_000, matched_trades=3)
-    assert s.arb_score <= score.GATE_CEILING
+    assert s.arb_score <= score.CONFIG.gate_ceiling
     assert s.grade == "위험"
 
 
@@ -82,3 +82,24 @@ def test_confidence_ladder():
     assert score.confidence_from_matches(2) == 0.85
     assert score.confidence_from_matches(1) == 0.70
     assert score.confidence_from_matches(0) == 0.60
+
+
+def test_load_config_applies_json_override(tmp_path):
+    """data/score_config.json 형식 오버라이드가 적용되고, 미지정 필드는 기본값 유지."""
+    from src import config
+    p = tmp_path / "score_config.json"
+    p.write_text('{"w_gap": 0.9, "gate_ceiling": 5}', encoding="utf-8")
+    cfg = config.load_config(p)
+    assert cfg.w_gap == 0.9
+    assert cfg.gate_ceiling == 5
+    assert cfg.w_rights == 0.30   # 미지정 → 기본값
+
+
+def test_config_override_changes_behavior(monkeypatch):
+    """CONFIG를 바꾸면 코드 수정 없이 스코어 동작이 바뀐다(튜닝 가능)."""
+    from src import config
+    monkeypatch.setattr(score, "CONFIG", config.ScoreConfig(gate_ceiling=10.0))
+    lst = _base(special_rights=["유치권"], min_bid_price=147_000_000, property_type="다세대")
+    s = score.score_listing(lst, est_market_price=280_000_000, matched_trades=3)
+    assert s.arb_score <= 10.0   # 상한이 25→10으로 낮아짐
+    assert s.grade == "위험"
