@@ -14,7 +14,7 @@ from pathlib import Path
 
 from flask import Flask, abort, jsonify, render_template, request
 
-from . import pipeline, query, report, score
+from . import digest, pipeline, query, report, score
 
 ROOT = Path(__file__).resolve().parent.parent
 
@@ -92,6 +92,19 @@ def create_app() -> Flask:
             won=report.won, pct=report.pct,
             gated=gated, gate_reason=", ".join(gate_reasons),
         )
+
+    @app.get("/digest")
+    def digest_page():
+        n = request.args.get("n", default=10, type=int)
+        min_score = request.args.get("min_score", type=float)
+        items = digest.top_listings(_scored(), n=n, min_score=min_score)
+        rows = [
+            {"s": s, "badge": report.score_badge_html(s),
+             "meter": report.gap_meter_html(s), "profit": report.won(s.expected_profit)}
+            for s in items
+        ]
+        filters = {"min_score": request.args.get("min_score", ""), "type": "", "region": "", "sort": "score"}
+        return render_template("listings.html", rows=rows, count=len(items), filters=filters)
 
     return app
 

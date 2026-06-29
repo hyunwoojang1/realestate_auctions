@@ -47,11 +47,18 @@ PoC → 브라우저 열람·필터 가능한 Flask 사이트로. `/`(큐레이�
 
 - **[V2] 워치리스트 + 차익 알림** — src/watchlist.py: 관심물건(data/watchlist.json) add/remove + 스냅샷(data/score_snapshot.json) 비교. detect_changes 순수함수 → 차익 임계 돌파/스코어 상승/최저가 하락(유찰) 감지. run_alerts.py CLI(첫 실행 기준선, 이후 변동→콘솔+evidence/alerts.txt). 워치리스트 있으면 관심물건만. 런타임 상태파일은 gitignore. 테스트 6건 → **56 테스트 통과, ruff 클린**. 시연: 스냅샷 변형 후 4건(임계돌파·유찰) 감지 확인.
 
-## In progress
-- **V3** 주간 차익 TOP N 다이제스트 (markdown/HTML)
+- **[V3] 주간 차익 TOP N 다이제스트** — src/digest.py(top_listings·to_markdown) + run_digest.py(--n/--min-score, evidence/digest.md+html, report.to_html 재사용) + web.py `GET /digest`. 테스트 5건 → **61 테스트 통과, ruff 클린**.
 
-## Next
-- V3 완료 시 → AGENT_STOP (Phase 2 종료)
+## In progress
+- (없음 — Phase 2 V1~V3 전부 완료)
+
+## ✅ Phase 2(V1~V3) 완료 (2026-06-29) — 루프 정지
+백테스트 하네스(V1)·워치리스트+알림(V2)·주간 다이제스트(V3) 완료. PoC→프로덕션 강화(P1~P5)→
+사이트화(W1~W4)→검증·알림(V1~V3) 한 바퀴 완성. 테스트 61건·ruff·CI 그린. **AGENT_STOP 정지.**
+
+## Next (운영자 대기 — 무인 불가)
+- **F10** 국토부 API 키 → `.env` MOLIT_API_KEY → 라이브 시세 + 백테스트 실데이터화
+- **실제 크롤러**(courtauction) — anti-bot/합법성 결정 필요
 
 ## 운영자 대기 (무인 불가)
 - **F10** 국토부 API 키(나중에 발급 예정) → 라이브 시세 전환
