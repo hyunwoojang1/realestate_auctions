@@ -15,6 +15,16 @@
 
 ---
 
+## 2026-06-29 17:14 KST — V3: 주간 차익 TOP N 다이제스트 — Phase 2 완료 → 루프 정지
+- 무엇: src/digest.py(top_listings·to_markdown) + run_digest.py(--n/--min-score → evidence/digest.md+html,
+  report.to_html 재사용) + web.py `GET /digest`. 차익 스코어순 상위 N.
+- 증거: pytest 61건 통과(digest 5건), ruff 클린. run_digest --n 5 → 상계주공(95)·역삼(81)… 정렬 확인.
+- 평가자: 자체검증 + CI.
+- 커밋: 40417d1 / GitHub push.
+- 종료: **Phase 2(V1 백테스트·V2 알림·V3 다이제스트) 완료.** PoC→프로덕션강화(P1~P5)→사이트화
+  (W1~W4)→검증·알림(V1~V3) 한 바퀴 완성. **AGENT_STOP 생성하고 정지.** 재개: .env에 MOLIT_API_KEY
+  넣고 AGENT_STOP 삭제→루프 재실행(F10 라이브). 실제 크롤러는 운영자 결정 대기.
+
 ## 2026-06-29 17:06 KST — V2: 워치리스트 + 차익 변동 알림
 - 무엇: src/watchlist.py — 관심물건(data/watchlist.json) add/remove + 직전 스냅샷
   (data/score_snapshot.json) 대비 detect_changes(순수함수): 차익 임계 돌파/스코어 상승/최저가
