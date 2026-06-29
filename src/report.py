@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import csv
+import json
 from collections.abc import Iterable
 from pathlib import Path
 
@@ -42,6 +43,15 @@ def to_csv(items: Iterable[ScoredListing], path: str | Path) -> Path:
         w.writeheader()
         w.writerows(rows)
     return path
+
+
+def to_json(items: Iterable[ScoredListing], path: str | Path | None = None) -> str:
+    """채점 결과를 JSON 문자열로(필요 시 파일 저장). 웹 API·CLI --json에서 재사용."""
+    data = [s.to_row() for s in items]
+    text = json.dumps(data, ensure_ascii=False, indent=2)
+    if path is not None:
+        Path(path).write_text(text, encoding="utf-8")
+    return text
 
 
 _GRADE_COLOR = {

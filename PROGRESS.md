@@ -25,10 +25,11 @@
 - **[P1] molit 클라이언트 프로덕션 강화** — MolitApiError(인증오류 시 'Decoding 키 확인' 안내) + check_api_error(OpenAPI fault/resultCode 감지) + 페이지네이션(max_pages) + 지수백오프 재시도 + logging. 오류감지 테스트 3건 추가 → 20 테스트 통과. 샘플 회귀 OK.
 - **[P2] `--live` 통합테스트** — 로컬 mock HTTP 서버(http.server 스레드)가 fixture 서빙 + ENDPOINTS monkeypatch로 fetch_trades·pipeline.run(use_live=True)를 실제 키 없이 end-to-end 검증. tests/test_live_integration.py 4건 → **24 테스트 통과**. 라이브 경로(F10) 사전검증 완료 — 키 도착 시 그대로 동작.
 - **[P3] 스코어 config 외부화** — 모든 튜닝 파라미터(가중치·취득세 구간·명도/수리비·페널티·하드게이트·type_base·gap_points·신뢰사다리·등급경계)를 src/config.py의 ScoreConfig로 분리. data/score_config.json 있으면 덮어씀(없으면 기본=현 동작 동일). score.py가 CONFIG 참조하도록 리팩터. config 로드/오버라이드 테스트 2건 → **26 테스트 통과**, 샘플 결과 동일(회귀 없음). data/score_config.example.json 템플릿 추가.
-- **[P4] CI + 린트** — .github/workflows/ci.yml(push/PR(main) 시 ruff check + pytest). pyproject.toml ruff 설정(E/W/F/I/B/UP, E501 무시, tests·run.py E402 면제). ruff --fix로 24건 정리(Optional→`|None`, import 정렬, zip strict 등) → **ruff 클린(exit 0) + 26 테스트 통과**. push 시 GitHub Actions 자동 실행.
+- **[P4] CI + 린트** — .github/workflows/ci.yml(push/PR(main) 시 ruff check + pytest). pyproject.toml ruff 설정(E/W/F/I/B/UP, E501 무시, tests·run.py E402 면제) + pytest pythonpath=["."]. ruff --fix로 24건 정리 → **ruff 클린 + CI 그린**.
+- **[P5] CLI 필터·정렬·JSON** — src/query.py(apply_filters: min_score/type/region, sort_items: score/profit/gap 순수함수). report.to_json. run.py에 `--min-score`/`--type`/`--region`/`--sort`/`--json`. 전체는 DB 저장, 필터는 표시에 적용. 테스트 6건 → **32 테스트 통과, ruff 클린**. CLI 동작 확인(--min-score 80 → 95·81점만, --type 오피스텔 --json → 깨끗한 JSON).
 
 ## In progress
-- **P5** CLI 필터(--min-score/--type/--region)·정렬·JSON 출력
+- **W1** Flask JSON API (/api/listings 필터·/api/listings/<case_no>·/health)
 
 ## Next — 웹 레이어 (운영자 결정: 사이트화, Flask+Jinja2)
 - **W1** Flask JSON API → **W2** 큐레이션 페이지(/) → **W3** 물건 상세(/property/<case_no>) → **W4** 필터UI·반응형·Dockerfile·CI web smoke
