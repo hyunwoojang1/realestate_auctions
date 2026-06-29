@@ -15,6 +15,16 @@
 
 ---
 
+## 2026-06-29 16:11 KST — W1: Flask JSON API (사이트화 시작)
+- 무엇: src/web.py — Flask 앱. `GET /health`, `GET /api/listings`(min_score/type/region/sort 쿼리
+  → query.apply_filters/sort_items 재사용), `GET /api/listings/<case_no>`(404). ensure_ascii=False로
+  한글 그대로. requirements에 flask>=3.0(순수 파이썬, 3.14 안전). FastAPI/pydantic 미사용.
+- 증거: pytest 39건 통과(test_web.py 7건 추가), ruff 클린. test_client로 /health·/api/listings 200,
+  필터·404 확인.
+- 평가자: 자체검증 + CI.
+- 커밋: 1a736af / GitHub push.
+- 다음: W2 큐레이션 페이지(/) Jinja2.
+
 ## 2026-06-29 16:05 KST — P5: CLI 필터·정렬·JSON 출력
 - 무엇: src/query.py(apply_filters: min_score/type/region, sort_items: score/profit/gap — 순수함수,
   웹에서도 재사용). report.to_json 추가. run.py에 `--min-score`/`--type`/`--region`/`--sort`/`--json`.
