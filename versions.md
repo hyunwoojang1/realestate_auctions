@@ -15,6 +15,16 @@
 
 ---
 
+## 2026-06-29 16:05 KST — P5: CLI 필터·정렬·JSON 출력
+- 무엇: src/query.py(apply_filters: min_score/type/region, sort_items: score/profit/gap — 순수함수,
+  웹에서도 재사용). report.to_json 추가. run.py에 `--min-score`/`--type`/`--region`/`--sort`/`--json`.
+  전체는 DB 저장, 필터는 표시(콘솔/CSV/HTML/JSON)에만 적용. --json은 모드라인 억제해 깨끗한 출력.
+- 증거: pytest 32건 통과(query 6건 추가), ruff 클린. CLI 확인: `--min-score 80`→95·81점만,
+  `--type 오피스텔 --json`→유효 JSON.
+- 평가자: 자체검증 + CI.
+- 커밋: 08dbe13 / GitHub push.
+- 다음: 웹 레이어 W1(Flask JSON API). 안전 프로덕션(P*)은 P5로 마무리, 이제 사이트화.
+
 ## 2026-06-29 15:52 KST — P4 후속: CI 그린 (pytest pythonpath 수정)
 - 무엇: 첫 CI 실패(ModuleNotFoundError: No module named 'src' — `pytest` 콘솔스크립트는 cwd를
   import 경로에 안 넣음, 로컬 `python -m pytest`와 달라서). pyproject.toml
