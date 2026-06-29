@@ -7,13 +7,18 @@
 params: serviceKey, LAWD_CD(법정동코드 5자리), DEAL_YMD(YYYYMM), pageNo, numOfRows
 응답: XML. 거래금액은 '만원' 단위 + 콤마 → 원으로 환산.
 
-라이브 호출은 운영자 API 키(MOLIT_API_KEY)가 있어야 한다(F10). 파서는 fixture로 단위테스트 가능.
+프로덕션 강화(P1): API 오류 명확한 예외(MolitApiError), 페이지네이션, 재시도/백오프, 로깅.
+라이브 호출은 운영자 API 키(MOLIT_API_KEY)가 있어야 한다(F10). 파서·오류감지는 fixture로 테스트.
 """
 from __future__ import annotations
 
+import logging
+import time
 import xml.etree.ElementTree as ET
 
 from .models import Trade
+
+logger = logging.getLogger(__name__)
 
 ENDPOINTS = {
     "apt": "http://apis.data.go.kr/1613000/RTMSDataSvcAptTradeDev/getRTMSDataSvcAptTradeDev",
@@ -36,6 +41,11 @@ _COMMON_TAGS = {
     "dong": ("법정동", "umdNm"),
     "floor": ("층", "floor"),
 }
+_SUCCESS_CODES = {"00", "000"}
+
+
+class MolitApiError(RuntimeError):
+    """국토부 API가 오류를 반환했을 때(잘못된 키·트래픽 초과 등)."""
 
 
 def _find(item: ET.Element, keys: tuple[str, ...]) -> str:
@@ -57,9 +67,38 @@ def _to_won(amount_manwon: str) -> int:
         return 0
 
 
-def _parse(xml_text: str, kind: str) -> list[Trade]:
+def check_api_error(xml_text: str) -> ET.Element:
+    """응답을 파싱해 root를 돌려준다. API 오류면 MolitApiError를 던진다.
+
+    공공데이터포털 오류 형태:
+      1) OpenAPI fault: <returnAuthMsg>SERVICE_KEY_IS_NOT_REGISTERED_ERROR</returnAuthMsg>
+      2) 정상이지만 resultCode != 00/000
+    """
+    try:
+        root = ET.fromstring(xml_text)
+    except ET.ParseError as e:
+        raise MolitApiError(f"응답 XML 파싱 실패: {e}") from e
+
+    auth_msg = root.findtext(".//returnAuthMsg")
+    if auth_msg:
+        reason = root.findtext(".//returnReasonCode") or "?"
+        raise MolitApiError(f"국토부 API 인증/요청 오류: {auth_msg} (code={reason}). "
+                            f"인증키가 'Decoding' 키인지, 활용신청이 승인됐는지 확인하세요.")
+
+    code = root.findtext(".//resultCode")
+    if code is not None and code not in _SUCCESS_CODES:
+        msg = root.findtext(".//resultMsg") or ""
+        raise MolitApiError(f"국토부 API 오류 resultCode={code} {msg}")
+    return root
+
+
+def _total_count(root: ET.Element) -> int | None:
+    tc = root.findtext(".//totalCount")
+    return int(tc) if tc and tc.strip().isdigit() else None
+
+
+def _parse_root(root: ET.Element, kind: str) -> list[Trade]:
     name_keys = _NAME_TAGS.get(kind, _NAME_TAGS["apt"])
-    root = ET.fromstring(xml_text)
     trades: list[Trade] = []
     for item in root.iter("item"):
         amount = _to_won(_find(item, _COMMON_TAGS["amount"]))
@@ -88,6 +127,10 @@ def _parse(xml_text: str, kind: str) -> list[Trade]:
     return trades
 
 
+def _parse(xml_text: str, kind: str) -> list[Trade]:
+    return _parse_root(ET.fromstring(xml_text), kind)
+
+
 def parse_apt_trades_xml(xml_text: str) -> list[Trade]:
     """아파트 매매 실거래 XML → Trade 리스트 (순수 함수)."""
     return _parse(xml_text, "apt")
@@ -103,22 +146,53 @@ def parse_offi_trades_xml(xml_text: str) -> list[Trade]:
     return _parse(xml_text, "officetel")
 
 
+def _get_with_retry(session, url: str, params: dict, timeout: int, retries: int) -> str:
+    """일시적 네트워크 오류는 지수 백오프로 재시도. 마지막 실패는 그대로 올린다."""
+    last_exc = None
+    for attempt in range(1, retries + 1):
+        try:
+            resp = session.get(url, params=params, timeout=timeout)
+            resp.raise_for_status()
+            return resp.text
+        except Exception as e:  # noqa: BLE001 — requests 예외 전반(연결/타임아웃/HTTP)
+            last_exc = e
+            if attempt < retries:
+                backoff = 2 ** (attempt - 1)
+                logger.warning("국토부 호출 실패(%d/%d), %ds 후 재시도: %s", attempt, retries, backoff, e)
+                time.sleep(backoff)
+    raise MolitApiError(f"국토부 호출 {retries}회 모두 실패: {last_exc}") from last_exc
+
+
 def fetch_trades(kind: str, lawd_cd: str, deal_ymd: str, api_key: str,
-                 num_rows: int = 1000, timeout: int = 15) -> list[Trade]:
-    """라이브 호출 (F10 — 운영자 키 필요). kind: apt|rh|officetel."""
+                 num_rows: int = 1000, timeout: int = 15,
+                 max_pages: int = 10, retries: int = 3) -> list[Trade]:
+    """라이브 호출 (F10 — 운영자 키 필요). kind: apt|rh|officetel. 페이지네이션·재시도 포함."""
     import requests  # noqa: PLC0415
 
     endpoint = ENDPOINTS.get(kind, ENDPOINTS["apt"])
-    params = {
-        "serviceKey": api_key,
-        "LAWD_CD": lawd_cd,
-        "DEAL_YMD": deal_ymd,
-        "pageNo": "1",
-        "numOfRows": str(num_rows),
-    }
-    resp = requests.get(endpoint, params=params, timeout=timeout)
-    resp.raise_for_status()
-    return _parse(resp.text, kind)
+    session = requests.Session()
+    all_trades: list[Trade] = []
+    page = 1
+    while page <= max_pages:
+        params = {
+            "serviceKey": api_key,
+            "LAWD_CD": lawd_cd,
+            "DEAL_YMD": deal_ymd,
+            "pageNo": str(page),
+            "numOfRows": str(num_rows),
+        }
+        text = _get_with_retry(session, endpoint, params, timeout, retries)
+        root = check_api_error(text)          # 오류면 MolitApiError
+        page_trades = _parse_root(root, kind)
+        all_trades.extend(page_trades)
+        total = _total_count(root)
+        # 마지막 페이지 판정: 이번 페이지가 꽉 안 찼거나, 누적이 totalCount 도달
+        if len(page_trades) < num_rows or (total is not None and len(all_trades) >= total):
+            break
+        page += 1
+    logger.info("국토부 실거래 %d건 수집 (kind=%s lawd=%s ymd=%s, %d page)",
+                len(all_trades), kind, lawd_cd, deal_ymd, page)
+    return all_trades
 
 
 def fetch_apt_trades(lawd_cd: str, deal_ymd: str, api_key: str,

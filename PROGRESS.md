@@ -19,16 +19,18 @@
 - **[사이클3] 오피스텔 실거래 클라이언트 연동** — pipeline 아파트+빌라+오피스텔 합본, 오피스텔 fixture + 검증용 오피스텔 경매(강남역삼) 추가. 17 테스트 통과. 결과: 역삼 오피스텔 시세 3억 → 81점 확실한차익(2위)로 end-to-end 작동.
 - **[사이클4] HTML 리포트 시각화** — 갭미터 3중 막대(최저가→시세 갭을 시그널그린으로) + 원형 차익 스코어 뱃지(등급색) + 범례. 잉크블루+시그널그린, tabular-nums. evidence/result.html 재생성·확인.
 
+## 루프 재개 (2026-06-29 — 프로덕션 강화 단계, 키 불요)
+운영자가 F10(API 키)을 나중으로 미룸 → 키 없이 가능한 **프로덕션 강화(P1~P5)**로 루프 재개.
+
+- **[P1] molit 클라이언트 프로덕션 강화** — MolitApiError(인증오류 시 'Decoding 키 확인' 안내) + check_api_error(OpenAPI fault/resultCode 감지) + 페이지네이션(max_pages) + 지수백오프 재시도 + logging. 오류감지 테스트 3건 추가 → 20 테스트 통과. 샘플 회귀 OK.
+
 ## In progress
-- (없음 — 무인 안전작업 전부 완료)
+- **P2** 로컬 mock HTTP 서버로 `--live` 경로 통합테스트 (실제 키 없이 F10 사전검증)
 
-## ✅ 밤샘 루프 종료 (2026-06-29 14:19 KST)
-안전 무인작업(F1~F9 + 빌라/오피스텔 클라이언트 + 하드게이트 보강 + 리포트 시각화) **전부 완료**.
-AGENT_STOP 생성하고 루프 정지. 더 이상 자동 예약 없음.
-
-## Next (운영자 대기 — 무인 진행 불가)
-- **F10** 🔒 운영자 국토부 API 키 발급 → `.env`의 MOLIT_API_KEY 입력 → `python run.py --live --ym YYYYMM` 라이브 검증. (.env에 키가 있으면 AGENT_STOP 지우고 루프 재개 시 자동 처리)
-- **v1** 실제 법원경매(courtauction.go.kr) 크롤러 — anti-bot/JS 렌더 리스크로 무인 루프 제외. 운영자 결정(헤드리스 브라우저 도입 여부·합법성) 필요.
+## Next
+- **P3** 스코어 config 외부화 → **P4** GitHub Actions CI → **P5** CLI 필터·JSON
+- **F10** 🔒 운영자 국토부 API 키 (나중) — .env에 키 넣으면 라이브 자동검증
+- **v1** 실제 법원경매 크롤러 — anti-bot 리스크로 무인 제외, 운영자 결정 대기
 - **F10** 🔒 운영자 국토부 API 키 발급 → `.env` MOLIT_API_KEY → `python run.py --live` 검증
 - **v1** 실제 법원경매(courtauction.go.kr) 크롤러 — anti-bot/JS 리스크로 무인 루프 제외, 운영자 결정 대기
 

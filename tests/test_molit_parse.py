@@ -1,8 +1,11 @@
 """국토부 실거래 XML 파서 테스트."""
 from pathlib import Path
 
+import pytest
+
 from src.molit_client import (
     parse_apt_trades_xml, parse_rh_trades_xml, parse_offi_trades_xml, _to_won,
+    check_api_error, MolitApiError,
 )
 
 DATA = Path(__file__).resolve().parent.parent / "data"
@@ -45,6 +48,33 @@ def test_parse_offi_fixture_yields_officetel_trades():
     assert any(t.dong == "역삼동" for t in trades)
     assert any("강남역삼푸르지오시티" in t.apt_name for t in trades)
     assert all(t.price > 0 and t.area_m2 > 0 for t in trades)
+
+
+def test_check_api_error_raises_on_auth_fault():
+    """잘못된 키 등 OpenAPI fault → MolitApiError(키 안내 포함)."""
+    fault = """<OpenAPI_ServiceResponse><cmmMsgHeader>
+      <errMsg>SERVICE ERROR</errMsg>
+      <returnAuthMsg>SERVICE_KEY_IS_NOT_REGISTERED_ERROR</returnAuthMsg>
+      <returnReasonCode>30</returnReasonCode>
+    </cmmMsgHeader></OpenAPI_ServiceResponse>"""
+    with pytest.raises(MolitApiError) as ei:
+        check_api_error(fault)
+    assert "SERVICE_KEY_IS_NOT_REGISTERED_ERROR" in str(ei.value)
+
+
+def test_check_api_error_raises_on_bad_resultcode():
+    bad = "<response><header><resultCode>99</resultCode><resultMsg>오류</resultMsg></header></response>"
+    with pytest.raises(MolitApiError):
+        check_api_error(bad)
+
+
+def test_check_api_error_passes_success():
+    """정상 응답(resultCode 000)은 통과하고 root를 돌려준다."""
+    ok = FIXTURE.read_text(encoding="utf-8")
+    root = check_api_error(ok)
+    assert root is not None
+    # 통과한 root로 파싱도 정상
+    assert len(parse_apt_trades_xml(ok)) >= 10
 
 
 def test_parse_english_tags():

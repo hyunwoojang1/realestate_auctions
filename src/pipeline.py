@@ -5,9 +5,12 @@ PoC 기본은 샘플 fixture. --live + 키가 있으면 국토부 라이브 호�
 from __future__ import annotations
 
 import json
+import logging
 import os
 from pathlib import Path
 from typing import Optional
+
+logger = logging.getLogger(__name__)
 
 from .models import AuctionListing, Trade
 from .matcher import estimate_market_price
@@ -54,8 +57,8 @@ def load_live_trades(listings: list[AuctionListing], api_key: str,
         for kind in ("apt", "rh", "officetel"):
             try:
                 trades.extend(fetch_trades(kind, lst.lawd_cd, deal_ymd, api_key))
-            except Exception as e:  # noqa: BLE001 — PoC: 한 지역/유형 실패가 전체를 막지 않게
-                print(f"[warn] 라이브 호출 실패 kind={kind} lawd={lst.lawd_cd}: {e}")
+            except Exception as e:  # noqa: BLE001 — 한 지역/유형 실패가 전체를 막지 않게
+                logger.warning("라이브 호출 실패 kind=%s lawd=%s: %s", kind, lst.lawd_cd, e)
     return trades
 
 

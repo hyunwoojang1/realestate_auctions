@@ -18,6 +18,14 @@
 - [ ] **F9 docs+tests** — README 실행법 + `pytest` 전체 통과
 - [ ] **F10 live-molit** — 🔒 BLOCKED: 국토부 API 키(운영자 발급) 받으면 라이브 연동·검증
 
+## 프로덕션 강화 (키 불요 — 무인 진행 가능)
+키가 도착했을 때 라이브가 견고하게 돌도록, 그리고 유지보수·신뢰성을 높이는 작업.
+- [ ] **P1 molit-hardening** — 국토부 클라이언트 프로덕션화: API 오류(resultCode/인증오류) 명확한 예외, 페이지네이션, 재시도/백오프, 로깅. 오류감지 단위테스트.
+- [ ] **P2 live-integration-test** — 로컬 mock HTTP 서버로 `--live` 경로 end-to-end 통합테스트(실제 키 없이 F10 사전검증).
+- [ ] **P3 config-externalize** — 스코어 파라미터(취득세율·가중치·페널티·부대비용)를 config로 분리해 코드수정 없이 튜닝 가능.
+- [ ] **P4 CI** — GitHub Actions(push 시 pytest) + ruff 린트 설정.
+- [ ] **P5 cli-filters** — CLI 필터(최소 스코어·지역·물건종류)·정렬·JSON 출력 옵션.
+
 ## 차익 스코어 공식 (artifact 기준)
 ```
 score = ( 가격갭×0.50 + 권리×0.30 + 환금성×0.20 ) × 신뢰계수(0.6~1.0)
