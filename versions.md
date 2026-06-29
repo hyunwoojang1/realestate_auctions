@@ -15,6 +15,16 @@
 
 ---
 
+## 2026-06-29 18:05 KST — X3: 방법론·투명성 페이지 /methodology — Phase 3 완료 → 루프 정지
+- 무엇: web.py `GET /methodology` + templates/methodology.html — 차익 스코어 공식·가중치(CONFIG)·
+  하드게이트 규칙·취득세 구간·신뢰사다리·등급경계 + 백테스트 캘리브레이션 표(적중률·평균실현차익)
+  + precision@80/60/40. 목록 헤더·README에 링크. (투명성=해자, V1 백테스트를 사이트에 노출)
+- 증거: pytest 72건 통과(methodology 2건), ruff 클린. /methodology 200 + 공식·캘리브레이션 마크업 확인.
+- 평가자: 자체검증 + CI.
+- 커밋: 58c7847 / GitHub push.
+- 종료: **Phase 3(X1 매칭품질·X2 지역검색·X3 방법론) 완료.** 정확도·신뢰·인프라까지 강화 완료.
+  **AGENT_STOP 생성·정지.** 재개: .env에 MOLIT_API_KEY+AGENT_STOP 삭제+루프 재실행(F10), 또는 크롤러 등 새 지시.
+
 ## 2026-06-29 17:57 KST — X2: 법정동코드 매핑 + 지역명(시군구) 검색
 - 무엇: data/lawd_codes.json(서울 25개구 + 샘플 지역 LAWD_CD 5자리) + src/region.py
   (name_to_code·code_to_name·sido_of·matches_region). query.apply_filters 지역필터를
