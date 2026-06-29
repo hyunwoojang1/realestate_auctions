@@ -15,6 +15,15 @@
 
 ---
 
+## 2026-06-29 17:57 KST — X2: 법정동코드 매핑 + 지역명(시군구) 검색
+- 무엇: data/lawd_codes.json(서울 25개구 + 샘플 지역 LAWD_CD 5자리) + src/region.py
+  (name_to_code·code_to_name·sido_of·matches_region). query.apply_filters 지역필터를
+  matches_region으로 강화(시도 prefix + 시군구 부분일치 모두). 드롭다운에 시군구 옵션 추가.
+- 증거: pytest 70건 통과(region 5건), ruff 클린. `python run.py --region 강남구 --json` → 역삼 오피스텔만.
+- 평가자: 자체검증 + CI.
+- 커밋: 8d8678e / GitHub push.
+- 다음: X3 방법론·투명성 페이지(/methodology) — Phase 3 마지막.
+
 ## 2026-06-29 17:50 KST — X1: 매칭 품질(이상치·최근성·다월) — Phase 3 시작
 - 무엇: matcher에 filter_recent(최근 N개월)·trim_outliers(표본 4건↑ 상·하단 1건씩 제거)를 넣어
   추정시세를 안정화(신뢰계수용 매칭건수는 트림 전 원 매칭 수 유지). molit_client에 recent_ymds·
