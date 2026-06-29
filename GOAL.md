@@ -39,6 +39,11 @@
 - [ ] **V2 watchlist-alerts** — 관심물건(watchlist, sqlite/파일) 저장 + 직전 스냅샷 대비 차익 임계치 돌파/스코어 상승/유찰 감지 → 알림(파일·콘솔). 순수함수로 diff 로직 분리 + 테스트.
 - [ ] **V3 weekly-digest** — "이번 주 차익 TOP N" 다이제스트(markdown/HTML) 생성 + CLI(또는 /api/digest). report 재사용.
 
+## Phase 3 — 정확도·신뢰·운영 (키 불요, 운영자 "더 해봐")
+- [ ] **X1 matching-quality** — 시세 추정 정교화: 이상치 제거(IQR/트림) + 최근성 가중(최근 거래 우선) + 다월(최근 K개월) 수집 지원. matcher/molit_client 보강 + 품질 테스트. 기본 동작 회귀 없게.
+- [ ] **X2 lawd-region** — 법정동코드(LAWD_CD) 시군구 매핑(data/lawd_codes.json) + 지역명↔코드 조회 모듈. 웹/CLI region 필터를 시군구 기반으로. (실제 크롤러·라이브 수집의 전제)
+- [ ] **X3 methodology-page** — `GET /methodology`: 차익 스코어 공식·가중치 + 최신 백테스트 캘리브레이션(V1) 표 노출 = 투명성 해자. README 링크.
+
 ## 차익 스코어 공식 (artifact 기준)
 ```
 score = ( 가격갭×0.50 + 권리×0.30 + 환금성×0.20 ) × 신뢰계수(0.6~1.0)
