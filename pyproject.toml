@@ -14,4 +14,4 @@ ignore = ["E501"]
 
 [tool.ruff.lint.per-file-ignores]
 "tests/*" = ["E402"]   # 테스트는 경로 조정 후 import 허용
-"run.py" = ["E402"]    # sys.path 추가 후 import
+"run*.py" = ["E402"]   # run.py·run_backtest.py: sys.path 추가 후 import

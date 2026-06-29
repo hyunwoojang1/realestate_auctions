@@ -43,12 +43,13 @@ PoC → 브라우저 열람·필터 가능한 Flask 사이트로. `/`(큐레이�
 ## 🔁 Phase 2 재개 (2026-06-29 — 운영자 요청, 키는 나중에)
 사이트화 완료 후 운영자가 Phase 2 선택 → AGENT_STOP 해제하고 검증·알림 단계 진행.
 
+- **[V1] 백테스트 하네스** ⭐ — src/backtest.py: 낙찰결과 outcomes(합성 fixture data/backtest_outcomes.json) × scored 조인 → 실현차익=실현매도가−(낙찰가+부대비용), 스코어 구간별 적중률·평균 실현차익 캘리브레이션 + precision@임계. run_backtest.py CLI(콘솔+evidence/backtest.csv). 검증결과: ≥80=적중100%/+0.95억, 40–59=50%, <40=0%/−0.33억, precision@80=100%·@40=75% (단조). 테스트 4건 → **50 테스트 통과, ruff 클린**. ※실제 낙찰결과 들어오면 fixture만 교체.
+
 ## In progress
-- **V1** 백테스트/스코어 검증 하네스 (스코어 구간별 실현차익 적중률)
+- **V2** 워치리스트 + 차익 알림(스냅샷 diff)
 
 ## Next
-- **V2** 워치리스트 + 차익 알림(스냅샷 diff) → **V3** 주간 차익 TOP N 다이제스트
-- V3까지 완료 시 → AGENT_STOP
+- **V3** 주간 차익 TOP N 다이제스트 → V3 완료 시 AGENT_STOP
 
 ## 운영자 대기 (무인 불가)
 - **F10** 국토부 API 키(나중에 발급 예정) → 라이브 시세 전환
