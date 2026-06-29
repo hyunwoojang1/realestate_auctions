@@ -81,3 +81,15 @@ def test_property_detail_shows_hard_gate_reason():
     assert r.status_code == 200
     body = r.get_data(as_text=True)
     assert "하드게이트" in body and "유치권" in body
+
+
+def test_index_filter_form_and_selection():
+    body = _client().get("/?type=오피스텔").get_data(as_text=True)
+    assert 'value="오피스텔" selected' in body  # 선택값 유지
+    assert "강남역삼푸르지오시티" in body          # 오피스텔만 노출
+    assert "상계주공" not in body                # 아파트는 빠짐
+
+
+def test_index_has_filter_form():
+    body = _client().get("/").get_data(as_text=True)
+    assert 'name="min_score"' in body and 'name="type"' in body and 'name="sort"' in body

@@ -48,7 +48,13 @@ def create_app() -> Flask:
              "meter": report.gap_meter_html(s), "profit": report.won(s.expected_profit)}
             for s in items
         ]
-        return render_template("listings.html", rows=rows, count=len(items))
+        filters = {
+            "min_score": request.args.get("min_score", ""),
+            "type": request.args.get("type", ""),
+            "region": request.args.get("region", ""),
+            "sort": request.args.get("sort", "score"),
+        }
+        return render_template("listings.html", rows=rows, count=len(items), filters=filters)
 
     @app.get("/health")
     def health():

@@ -120,6 +120,31 @@ python run.py --live --ym 202605
 
 ---
 
+## 웹 서버 (사이트)
+
+브라우저에서 차익 매물을 열람·필터하는 Flask 사이트.
+
+```bash
+# 로컬 실행
+python -m flask --app src.web run        # http://127.0.0.1:5000
+
+# Docker
+docker build -t auction-arb .
+docker run -p 8000:8000 auction-arb      # http://localhost:8000
+```
+
+| 경로 | 설명 |
+|---|---|
+| `/` | 차익 큐레이션 목록 (스코어순, 갭미터·스코어뱃지) + 필터 폼(스코어/종류/지역/정렬) |
+| `/property/<사건번호>` | 물건 상세 — 갭미터 특대·차익 근거·권리 안전성(하드게이트 사유)·환금성 |
+| `/api/listings?min_score=80&type=아파트&region=서울&sort=profit` | JSON API (필터 쿼리) |
+| `/api/listings/<사건번호>` | 단건 JSON |
+| `/health` | 헬스체크 |
+
+> 데이터는 PoC 샘플. 국토부 키(`.env`의 `MOLIT_API_KEY`)를 넣으면 라이브 시세로 전환됩니다(F10).
+
+---
+
 ## 데이터 소스 (라이브, F10)
 
 | 데이터 | 소스 | 비용 | 비고 |

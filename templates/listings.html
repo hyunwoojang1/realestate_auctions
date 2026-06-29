@@ -47,6 +47,17 @@ box-shadow:0 2px 6px color-mix(in oklab, var(--c) 45%, transparent)}
 .gm-gv{color:var(--g4);font-weight:700;font-variant-numeric:tabular-nums}
 .gm-na2{color:var(--muted);font-weight:600}
 .foot{margin-top:18px;color:var(--muted);font-size:12px;line-height:1.6}
+.filters{display:flex;flex-wrap:wrap;gap:12px;align-items:flex-end;max-width:1080px;margin:0 auto 16px;
+background:#fff;border:1px solid var(--border);border-radius:12px;padding:14px 16px}
+.filters label{display:flex;flex-direction:column;gap:4px;font-size:11px;color:var(--muted);font-weight:700;text-transform:uppercase;letter-spacing:.03em}
+.filters input,.filters select{font:inherit;font-size:13px;padding:7px 10px;border:1px solid var(--border);border-radius:8px;background:var(--paper);color:var(--ink)}
+.filters input{width:100px}
+.filters select{min-width:118px}
+.filters button{font:inherit;font-size:13px;font-weight:700;padding:9px 20px;border:none;border-radius:8px;background:var(--brand);color:#fff;cursor:pointer}
+.filters button:hover{background:#23407f}
+.filters .reset{font-size:12.5px;color:var(--muted);text-decoration:none;padding:9px 4px}
+.filters .reset:hover{color:var(--brand)}
+@media (max-width:560px){.filters label,.filters input,.filters select{flex:1 1 100%;width:auto}}
 </style>
 </head>
 <body>
@@ -55,6 +66,36 @@ box-shadow:0 2px 6px color-mix(in oklab, var(--c) 45%, transparent)}
   <p class="sub">최저입찰가 vs 추정 실거래시세 <b>차익 스코어(0~100)</b> 높은 순. 갭미터의
   <b style="color:var(--g4)">초록 구간</b>이 예상 차익(부대비용 차감 순차익). 총 <span class="count">{{ count }}</span>건.</p>
 </header>
+<form class="filters" method="get" action="/">
+  <label>최소 스코어
+    <input type="number" name="min_score" min="0" max="100" step="5" value="{{ filters.min_score }}" placeholder="0">
+  </label>
+  <label>물건종류
+    <select name="type">
+      <option value="">전체</option>
+      {% for t in ['아파트','오피스텔','다세대'] %}
+      <option value="{{ t }}" {% if filters.type == t %}selected{% endif %}>{{ t }}</option>
+      {% endfor %}
+    </select>
+  </label>
+  <label>지역
+    <select name="region">
+      <option value="">전체</option>
+      {% for r in ['서울','경기','부산','대전'] %}
+      <option value="{{ r }}" {% if filters.region == r %}selected{% endif %}>{{ r }}</option>
+      {% endfor %}
+    </select>
+  </label>
+  <label>정렬
+    <select name="sort">
+      {% for k, lab in [('score','차익 스코어'),('profit','예상차익'),('gap','갭률')] %}
+      <option value="{{ k }}" {% if filters.sort == k %}selected{% endif %}>{{ lab }}</option>
+      {% endfor %}
+    </select>
+  </label>
+  <button type="submit">필터 적용</button>
+  <a class="reset" href="/">초기화</a>
+</form>
 <div class="wrap">
 <div class="scroll"><table>
 <thead><tr><th>#</th><th>스코어</th><th>등급</th><th>단지 / 소재지</th>
