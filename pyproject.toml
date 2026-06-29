@@ -1,3 +1,7 @@
+[tool.pytest.ini_options]
+# 프로젝트 루트를 import 경로에 추가 → `pytest`(콘솔스크립트)·CI에서도 `from src...` 동작
+pythonpath = ["."]
+
 [tool.ruff]
 line-length = 110
 target-version = "py311"
