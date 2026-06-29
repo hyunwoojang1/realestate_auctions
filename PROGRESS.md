@@ -30,8 +30,10 @@
 ## In progress
 - **P5** CLI 필터(--min-score/--type/--region)·정렬·JSON 출력
 
-## Next
-- (P5 완료 시 안전 프로덕션 작업 소진 → AGENT_STOP. F10·v1은 운영자 대기)
+## Next — 웹 레이어 (운영자 결정: 사이트화, Flask+Jinja2)
+- **W1** Flask JSON API → **W2** 큐레이션 페이지(/) → **W3** 물건 상세(/property/<case_no>) → **W4** 필터UI·반응형·Dockerfile·CI web smoke
+- W4까지 완료 시 → AGENT_STOP. (F10 키·v1 크롤러는 운영자 대기)
+- ※ FastAPI/pydantic-core 금지(Python 3.14 빌드 리스크) — 순수 파이썬 Flask 사용
 - **F10** 🔒 운영자 국토부 API 키 (나중) — .env에 키 넣으면 라이브 자동검증
 - **v1** 실제 법원경매 크롤러 — anti-bot 리스크로 무인 제외, 운영자 결정 대기
 - **F10** 🔒 운영자 국토부 API 키 발급 → `.env` MOLIT_API_KEY → `python run.py --live` 검증

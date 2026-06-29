@@ -26,6 +26,14 @@
 - [ ] **P4 CI** — GitHub Actions(push 시 pytest) + ruff 린트 설정.
 - [ ] **P5 cli-filters** — CLI 필터(최소 스코어·지역·물건종류)·정렬·JSON 출력 옵션.
 
+## 웹 레이어 — 사이트화 (키 불요, Flask+Jinja2 기반)
+운영자 결정: PoC를 "브라우저에서 열람 가능한 사이트"로. Python 3.14 빌드 리스크 회피 위해 순수
+파이썬 Flask 사용(FastAPI/pydantic-core 금지). 샘플/mock 데이터로 진행, 키 도착 시 라이브 전환.
+- [ ] **W1 web-api** — Flask 앱 + JSON API: `GET /api/listings`(min_score·type·region 쿼리 필터), `GET /api/listings/<case_no>`, `GET /health`. report.to_json 재사용. Flask test_client 테스트.
+- [ ] **W2 web-ui** — `GET /` 큐레이션 페이지(report.py의 잉크블루+시그널그린·갭미터·스코어뱃지 디자인을 Jinja2 템플릿으로 재사용).
+- [ ] **W3 detail-page** — `GET /property/<case_no>` 상세 페이지(갭미터 특대·차익 스코어 게이지·권리 안전성·시세 근거). SSR(SEO).
+- [ ] **W4 web-polish** — 필터 UI(스코어 슬라이더·종류/지역 드롭다운) + 반응형 + Dockerfile + CI에 web smoke test 추가.
+
 ## 차익 스코어 공식 (artifact 기준)
 ```
 score = ( 가격갭×0.50 + 권리×0.30 + 환금성×0.20 ) × 신뢰계수(0.6~1.0)
