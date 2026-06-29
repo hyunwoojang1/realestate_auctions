@@ -15,6 +15,16 @@
 
 ---
 
+## 2026-06-29 16:27 KST — W3: 물건 상세 페이지 /property/<case_no> (SSR)
+- 무엇: templates/detail.html — 갭미터 특대·스코어(96px)·등급·예상순차익·차익 근거(추정시세·
+  실질취득원가·매칭·신뢰계수)·권리 안전성(권리점수, 하드게이트면 사유=인수금액비율/유치권 빨강박스)·
+  환금성·종합 카드. web.py /property 라우트(ScoredListing+AuctionListing 매칭, 없으면 404).
+- 증거: pytest 44건 통과(detail 3건 — 200·404·하드게이트 사유 노출). ruff 클린. 실제 렌더 확인:
+  상계주공(확실한차익) / 화곡빌라(위험·유치권 게이트). 목록 단지명 링크 활성화.
+- 평가자: 자체검증 + CI.
+- 커밋: fdd297c / GitHub push.
+- 다음: W4 필터 UI·반응형·Dockerfile (마지막 → AGENT_STOP).
+
 ## 2026-06-29 16:19 KST — W2: 큐레이션 페이지 /
 - 무엇: templates/listings.html(Jinja2). report.py의 갭미터·원형 스코어뱃지·금액 포맷을 공개
   별칭(score_badge_html/gap_meter_html/won/pct)으로 노출해 재사용(CSS만 템플릿에 동봉, 로직 중복 0).
