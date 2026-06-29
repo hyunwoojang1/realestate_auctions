@@ -15,6 +15,15 @@
 
 ---
 
+## 2026-06-29 15:33 KST — P2: --live 경로 mock 통합테스트 (F10 사전검증)
+- 무엇: 로컬 mock HTTP 서버(http.server 스레드)가 fixture XML을 서빙하고 molit_client.ENDPOINTS를
+  monkeypatch하여, 실제 국토부 키 없이 fetch_trades(apt/rh/officetel)와 pipeline.run(use_live=True)
+  전체 라이브 경로를 end-to-end 검증. tests/test_live_integration.py(4건) 추가.
+- 증거: pytest 24건 통과(EXIT=0). 라이브 파이프라인이 상계주공을 '확실한 차익'으로 산출 확인.
+- 평가자: 자체검증.
+- 커밋: 8e1bdee / GitHub push.
+- 다음: P3 스코어 config 외부화.
+
 ## 2026-06-29 15:27 KST — P1: 국토부 클라이언트 프로덕션 강화 (루프 재개)
 - 무엇: 운영자가 API 키를 나중으로 미뤄, 키 불요 프로덕션 강화(P1~P5)로 루프 재개. P1 =
   MolitApiError + check_api_error(OpenAPI fault·resultCode 감지, 인증오류 시 'Decoding 키 확인' 안내),
