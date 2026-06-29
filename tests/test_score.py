@@ -1,6 +1,6 @@
 """차익 스코어 엔진 단위테스트."""
-from src.models import AuctionListing
 from src import score
+from src.models import AuctionListing
 
 
 def _base(**kw) -> AuctionListing:

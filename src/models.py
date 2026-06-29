@@ -1,8 +1,7 @@
 """도메인 모델 — 경매 물건 / 실거래 / 채점 결과."""
 from __future__ import annotations
 
-from dataclasses import dataclass, field, asdict
-from typing import Optional
+from dataclasses import asdict, dataclass, field
 
 
 @dataclass
@@ -60,16 +59,16 @@ class ScoredListing:
     fail_count: int
     sale_date: str
     # ---- 추정/계산 ----
-    est_market_price: Optional[int]   # 추정 실거래 시세(원). 매칭 0건이면 None
+    est_market_price: int | None   # 추정 실거래 시세(원). 매칭 0건이면 None
     matched_trades: int
     confidence: float                 # 신뢰계수 0.6~1.0
     real_acquisition_cost: int        # 실질취득원가(부대비용 포함)
-    expected_profit: Optional[int]    # 예상 순차익(원)
-    gap_rate: Optional[float]         # 시세 대비 할인율
+    expected_profit: int | None    # 예상 순차익(원)
+    gap_rate: float | None         # 시세 대비 할인율
     gap_score: float
     rights_score: float
     liquidity_score: float
-    arb_score: Optional[float]        # 최종 차익 스코어 0~100. 시세추정불가면 None
+    arb_score: float | None        # 최종 차익 스코어 0~100. 시세추정불가면 None
     grade: str                        # 확실한 차익 / 양호 / 관심 / 주의 / 시세추정불가
 
     def to_row(self) -> dict:

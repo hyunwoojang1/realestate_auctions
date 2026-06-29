@@ -8,7 +8,6 @@
 from __future__ import annotations
 
 import statistics
-from typing import Optional
 
 from .models import AuctionListing, Trade
 
@@ -44,7 +43,7 @@ def match_trades(listing: AuctionListing, trades: list[Trade]) -> list[Trade]:
     return by_dong
 
 
-def estimate_market_price(listing: AuctionListing, trades: list[Trade]) -> tuple[Optional[int], int]:
+def estimate_market_price(listing: AuctionListing, trades: list[Trade]) -> tuple[int | None, int]:
     """(추정시세_원, 매칭건수) 반환. 매칭 0건이면 (None, 0)."""
     matched = match_trades(listing, trades)
     if not matched:

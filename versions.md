@@ -15,6 +15,15 @@
 
 ---
 
+## 2026-06-29 15:48 KST — P4: GitHub Actions CI + ruff 린트
+- 무엇: .github/workflows/ci.yml(push/PR main 시 ruff check + pytest). pyproject.toml에 ruff 설정
+  (select E/W/F/I/B/UP, E501 무시, tests·run.py E402 면제). `ruff --fix`로 24건 자동정리
+  (Optional→`X | None`, import 정렬, collections.abc, zip strict 등) + B905 수동 1건.
+- 증거: `ruff check .` 클린(exit 0), pytest 26건 통과. push 시 GitHub Actions 자동 실행.
+- 평가자: 자체검증 + CI(GitHub Actions)가 객관 검증.
+- 커밋: (이 항목 직후) / GitHub push.
+- 다음: P5 CLI 필터·JSON 출력(마지막 안전작업) → 완료 시 AGENT_STOP.
+
 ## 2026-06-29 15:42 KST — P3: 스코어 파라미터 config 외부화
 - 무엇: 모든 튜닝 파라미터(가중치·취득세 구간·명도/수리비·권리 페널티·하드게이트·type_base·
   gap_points·신뢰사다리·등급경계)를 src/config.py ScoreConfig로 분리. data/score_config.json이

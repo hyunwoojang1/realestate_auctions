@@ -8,23 +8,24 @@ import json
 import logging
 import os
 from pathlib import Path
-from typing import Optional
+
+from .matcher import estimate_market_price
+from .models import AuctionListing, ScoredListing, Trade
+from .molit_client import (
+    fetch_trades,
+    parse_apt_trades_xml,
+    parse_offi_trades_xml,
+    parse_rh_trades_xml,
+)
+from .score import score_listing
 
 logger = logging.getLogger(__name__)
-
-from .models import AuctionListing, Trade
-from .matcher import estimate_market_price
-from .score import score_listing
-from .molit_client import (
-    parse_apt_trades_xml, parse_rh_trades_xml, parse_offi_trades_xml, fetch_trades,
-)
-from .models import ScoredListing
 
 ROOT = Path(__file__).resolve().parent.parent
 DATA = ROOT / "data"
 
 
-def load_sample_auctions(path: Optional[Path] = None) -> list[AuctionListing]:
+def load_sample_auctions(path: Path | None = None) -> list[AuctionListing]:
     p = path or (DATA / "sample_auctions.json")
     raw = json.loads(p.read_text(encoding="utf-8"))
     return [AuctionListing(**r) for r in raw]
@@ -62,9 +63,9 @@ def load_live_trades(listings: list[AuctionListing], api_key: str,
     return trades
 
 
-def run(use_live: bool = False, deal_ymd: Optional[str] = None,
-        auctions: Optional[list[AuctionListing]] = None,
-        trades: Optional[list[Trade]] = None) -> list[ScoredListing]:
+def run(use_live: bool = False, deal_ymd: str | None = None,
+        auctions: list[AuctionListing] | None = None,
+        trades: list[Trade] | None = None) -> list[ScoredListing]:
     listings = auctions if auctions is not None else load_sample_auctions()
 
     if trades is not None:

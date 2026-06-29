@@ -1,0 +1,13 @@
+[tool.ruff]
+line-length = 110
+target-version = "py311"
+
+[tool.ruff.lint]
+# E/W: pycodestyle, F: pyflakes, I: isort, B: bugbear, UP: pyupgrade
+select = ["E", "W", "F", "I", "B", "UP"]
+# E501(라인 길이)은 한글 주석이 많아 무시. B008/PLC 등 의도적 패턴 허용.
+ignore = ["E501"]
+
+[tool.ruff.lint.per-file-ignores]
+"tests/*" = ["E402"]   # 테스트는 경로 조정 후 import 허용
+"run.py" = ["E402"]    # sys.path 추가 후 import

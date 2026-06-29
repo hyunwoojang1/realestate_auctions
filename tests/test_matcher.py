@@ -1,6 +1,6 @@
 """매칭 / 시세 추정 테스트."""
+from src.matcher import estimate_market_price, match_trades
 from src.models import AuctionListing, Trade
-from src.matcher import match_trades, estimate_market_price
 
 
 def _lst(**kw) -> AuctionListing:

@@ -9,8 +9,6 @@ score = ( 가격갭×w_gap + 권리×w_rights + 환금성×w_liq ) × 신뢰계�
 """
 from __future__ import annotations
 
-from typing import Optional
-
 from .config import CONFIG
 from .models import AuctionListing, ScoredListing
 
@@ -51,7 +49,7 @@ def gap_score_from_rate(gap_rate: float) -> float:
         return pts[0][1]
     if gap_rate >= pts[-1][0]:
         return pts[-1][1]
-    for (x0, y0), (x1, y1) in zip(pts, pts[1:]):
+    for (x0, y0), (x1, y1) in zip(pts, pts[1:], strict=False):
         if x0 <= gap_rate <= x1:
             t = (gap_rate - x0) / (x1 - x0) if x1 != x0 else 0
             return round(y0 + t * (y1 - y0), 1)
@@ -96,7 +94,7 @@ def liquidity_score(listing: AuctionListing, matched_trades: int = 0) -> float:
     return max(0.0, min(100.0, round(base * region + turnover_bonus, 1)))
 
 
-def grade_of(arb: Optional[float]) -> str:
+def grade_of(arb: float | None) -> str:
     if arb is None:
         return "시세추정불가"
     for min_score, label in CONFIG.grade_thresholds:   # 내림차순
@@ -105,7 +103,7 @@ def grade_of(arb: Optional[float]) -> str:
     return CONFIG.grade_thresholds[-1][1]
 
 
-def score_listing(listing: AuctionListing, est_market_price: Optional[int], matched_trades: int) -> ScoredListing:
+def score_listing(listing: AuctionListing, est_market_price: int | None, matched_trades: int) -> ScoredListing:
     """한 물건을 채점해 ScoredListing 반환."""
     conf = confidence_from_matches(matched_trades)
     cost = real_acquisition_cost(listing)
