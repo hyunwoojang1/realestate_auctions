@@ -14,7 +14,7 @@ from pathlib import Path
 
 from flask import Flask, abort, jsonify, render_template, request
 
-from . import pipeline, query, report
+from . import pipeline, query, report, score
 
 ROOT = Path(__file__).resolve().parent.parent
 
@@ -64,6 +64,28 @@ def create_app() -> Flask:
         if match is None:
             abort(404)
         return jsonify(match.to_row())
+
+    @app.get("/property/<case_no>")
+    def property_detail(case_no: str):
+        s = next((x for x in _scored() if x.case_no == case_no), None)
+        listing = next((a for a in pipeline.load_sample_auctions() if a.case_no == case_no), None)
+        if s is None or listing is None:
+            abort(404)
+        gated = score.is_hard_gated(listing)
+        gate_reasons = []
+        if gated:
+            ratio = listing.assumed_amount / listing.min_bid_price if listing.min_bid_price else 1.0
+            if ratio > score.CONFIG.assumed_ratio_gate:
+                gate_reasons.append(f"인수금액 비율 {ratio * 100:.0f}% (>{score.CONFIG.assumed_ratio_gate * 100:.0f}%)")
+            fatal = [r for r in listing.special_rights if r in score.CONFIG.fatal_special]
+            if fatal:
+                gate_reasons.append("·".join(fatal) + " 신고")
+        return render_template(
+            "detail.html", s=s, listing=listing,
+            badge=report.score_badge_html(s), meter=report.gap_meter_html(s),
+            won=report.won, pct=report.pct,
+            gated=gated, gate_reason=", ".join(gate_reasons),
+        )
 
     return app
 

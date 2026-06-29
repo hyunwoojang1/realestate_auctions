@@ -1,0 +1,117 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>{{ s.apt_name }} — 차익 분석</title>
+<style>
+:root{--ink:#1C2230;--brand:#2B4A9B;--paper:#FCFCFD;--muted:#6B7280;--border:#E3E5EB;
+--g2:#5FBF93;--g3:#1F9D6B;--g4:#178a5a;--risk:#D1453B;--sunk:#F4F5F8;}
+*{box-sizing:border-box}
+body{margin:0;background:var(--paper);color:var(--ink);
+font-family:"Pretendard",-apple-system,"Apple SD Gothic Neo","Malgun Gothic",system-ui,sans-serif;
+padding:clamp(20px,4vw,40px)}
+.wrap{max-width:920px;margin:0 auto}
+a.back{color:var(--muted);text-decoration:none;font-size:13px}
+a.back:hover{color:var(--brand)}
+.head{margin:14px 0 22px}
+h1{font-size:clamp(22px,3vw,30px);letter-spacing:-.02em;margin:0 0 6px}
+.addr{color:var(--muted);font-size:14px}
+.meta{color:var(--muted);font-size:12.5px;margin-top:8px;font-family:"SFMono-Regular",ui-monospace,Consolas,monospace}
+.hero{display:flex;gap:26px;align-items:center;flex-wrap:wrap;background:#fff;border:1px solid var(--border);
+border-radius:16px;padding:26px;box-shadow:0 4px 14px rgba(40,60,120,.06)}
+.hero .scorebadge{width:96px;height:96px;font-size:36px}
+.scorebadge{display:inline-flex;align-items:center;justify-content:center;border-radius:50%;
+background:var(--c);color:#fff;font-weight:800;font-variant-numeric:tabular-nums;
+font-family:"SFMono-Regular",ui-monospace,Consolas,monospace;
+box-shadow:0 3px 10px color-mix(in oklab, var(--c) 45%, transparent)}
+.heroinfo{flex:1;min-width:240px}
+.grade{font-size:20px;font-weight:800;letter-spacing:-.01em}
+.profit{font-size:clamp(26px,4vw,40px);font-weight:800;color:var(--g4);
+font-variant-numeric:tabular-nums;letter-spacing:-.02em;margin:2px 0 0}
+.profit.neg{color:var(--risk)}
+.profit small{font-size:14px;color:var(--muted);font-weight:600;margin-left:8px}
+.meterbig{margin-top:16px}
+.gapmeter .gm-track{position:relative;height:22px;background:var(--sunk);border-radius:99px;overflow:hidden}
+.gm-min{position:absolute;left:0;top:0;height:100%;background:var(--brand)}
+.gm-gap{position:absolute;top:0;height:100%;background:linear-gradient(90deg,var(--g2),var(--g4))}
+.gm-appr{position:absolute;top:-3px;width:2px;height:28px;background:var(--ink);opacity:.45}
+.gm-lab{display:flex;justify-content:space-between;gap:8px;font-size:12px;color:var(--muted);margin-top:6px}
+.gm-gv{color:var(--g4);font-weight:700}
+.cards{display:grid;grid-template-columns:repeat(auto-fit,minmax(260px,1fr));gap:16px;margin-top:18px}
+.card{background:#fff;border:1px solid var(--border);border-radius:14px;padding:20px}
+.card h2{font-size:13px;text-transform:uppercase;letter-spacing:.05em;color:var(--muted);margin:0 0 14px}
+.kv{display:flex;justify-content:space-between;gap:12px;padding:7px 0;border-bottom:1px solid var(--sunk);font-size:14px}
+.kv:last-child{border-bottom:none}
+.kv .k{color:var(--muted)}
+.kv .v{font-weight:700;font-variant-numeric:tabular-nums;font-family:"SFMono-Regular",ui-monospace,Consolas,monospace}
+.gate{background:#FDECEA;border:1px solid #f3b5ae;color:#a3322a;border-radius:10px;padding:12px 14px;font-size:13.5px;font-weight:600;margin-bottom:12px}
+.safe{background:#EAF7F0;border:1px solid #aee0c7;color:var(--g4);border-radius:10px;padding:12px 14px;font-size:13.5px;font-weight:600;margin-bottom:12px}
+.foot{margin-top:22px;color:var(--muted);font-size:12px;line-height:1.6}
+.tags{display:flex;gap:6px;flex-wrap:wrap;margin-top:6px}
+.tag{font-size:11.5px;font-weight:700;padding:3px 9px;border-radius:99px;background:var(--sunk);color:var(--muted)}
+.tag.warn{background:#FDECEA;color:#a3322a}
+</style>
+</head>
+<body>
+<div class="wrap">
+<a class="back" href="/">← 차익 큐레이션 목록</a>
+<div class="head">
+  <h1>{{ s.apt_name }}</h1>
+  <div class="addr">{{ s.address }}</div>
+  <div class="meta">{{ s.case_no }} · {{ s.court if listing else '' }} · {{ s.property_type }} · {{ '%.1f'|format(s.area_m2) }}㎡ · 유찰 {{ s.fail_count }}회 · 매각기일 {{ s.sale_date }}</div>
+</div>
+
+<div class="hero">
+  {{ badge|safe }}
+  <div class="heroinfo">
+    <div class="grade">{{ s.grade }}</div>
+    {% if s.expected_profit is not none %}
+      <div class="profit {% if s.expected_profit < 0 %}neg{% endif %}">{{ won(s.expected_profit) }}<small>예상 순차익 · 갭 {{ pct(s.gap_rate) }}</small></div>
+    {% else %}
+      <div class="profit" style="color:var(--muted);font-size:22px">시세 추정 불가<small>매칭 실거래 0건</small></div>
+    {% endif %}
+    <div class="meterbig">{{ meter|safe }}</div>
+  </div>
+</div>
+
+<div class="cards">
+  <div class="card">
+    <h2>차익 근거</h2>
+    <div class="kv"><span class="k">추정 실거래 시세</span><span class="v">{{ won(s.est_market_price) }}</span></div>
+    <div class="kv"><span class="k">최저입찰가</span><span class="v">{{ won(s.min_bid_price) }}</span></div>
+    <div class="kv"><span class="k">실질취득원가(부대비용 포함)</span><span class="v">{{ won(s.real_acquisition_cost) }}</span></div>
+    <div class="kv"><span class="k">감정가</span><span class="v">{{ won(s.appraisal_price) }}</span></div>
+    <div class="kv"><span class="k">매칭 실거래 / 신뢰계수</span><span class="v">{{ s.matched_trades }}건 · {{ '%.2f'|format(s.confidence) }}</span></div>
+  </div>
+
+  <div class="card">
+    <h2>권리 안전성</h2>
+    {% if gated %}
+      <div class="gate">⚠ 하드게이트 발동 — 권리 점수 0으로 강등<br>사유: {{ gate_reason }}</div>
+    {% else %}
+      <div class="safe">✓ 치명적 인수권리 없음 (권리 점수 {{ '%.0f'|format(s.rights_score) }}/100)</div>
+    {% endif %}
+    <div class="kv"><span class="k">권리 점수</span><span class="v">{{ '%.0f'|format(s.rights_score) }} / 100</span></div>
+    <div class="kv"><span class="k">인수금액</span><span class="v">{{ won(listing.assumed_amount) if listing.assumed_amount else '없음' }}</span></div>
+    <div class="kv"><span class="k">대항력 임차인</span><span class="v">{{ '있음' if listing.tenant_opposable else '없음' }}</span></div>
+    <div class="kv"><span class="k">점유</span><span class="v">{{ listing.occupant_type }}</span></div>
+    {% if listing.special_rights %}
+    <div class="tags">{% for r in listing.special_rights %}<span class="tag warn">{{ r }}</span>{% endfor %}</div>
+    {% endif %}
+  </div>
+
+  <div class="card">
+    <h2>환금성 · 종합</h2>
+    <div class="kv"><span class="k">환금성 점수</span><span class="v">{{ '%.0f'|format(s.liquidity_score) }} / 100</span></div>
+    <div class="kv"><span class="k">가격갭 점수</span><span class="v">{{ '%.0f'|format(s.gap_score) }} / 100</span></div>
+    <div class="kv"><span class="k">차익 스코어(종합)</span><span class="v">{{ '%.0f'|format(s.arb_score) if s.arb_score is not none else '—' }} / 100</span></div>
+    <div class="kv"><span class="k">등급</span><span class="v">{{ s.grade }}</span></div>
+  </div>
+</div>
+
+<p class="foot">⚠ PoC 샘플 데이터 기반. 차익·권리는 투자판단 보조이며 전문가(법무사 등) 상담을 대체하지 않습니다.
+실질취득원가 = 최저입찰가 + 취득세 + 명도비 + 수리비 + 인수금액. 라이브 시세는 국토부 실거래가 API 연동(F10) 후 적용됩니다.</p>
+</div>
+</body>
+</html>

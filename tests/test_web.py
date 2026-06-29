@@ -62,3 +62,22 @@ def test_index_min_score_filter():
     body = _client().get("/?min_score=80").get_data(as_text=True)
     assert "상계주공" in body        # 95점 → 통과
     assert "화곡동 다세대" not in body  # 25점 → 필터됨
+
+
+def test_property_detail_found():
+    r = _client().get("/property/2024타경51234")  # 상계주공
+    assert r.status_code == 200
+    body = r.get_data(as_text=True)
+    assert "상계주공" in body and "차익 근거" in body and "권리 안전성" in body
+
+
+def test_property_detail_404():
+    assert _client().get("/property/없는사건").status_code == 404
+
+
+def test_property_detail_shows_hard_gate_reason():
+    # 화곡동 다세대(유치권) → 하드게이트 사유 노출
+    r = _client().get("/property/2024타경44102")
+    assert r.status_code == 200
+    body = r.get_data(as_text=True)
+    assert "하드게이트" in body and "유치권" in body
