@@ -88,5 +88,23 @@
     "special_rights": [],
     "tenant_opposable": false,
     "occupant_type": "소유자점유"
+  },
+  {
+    "case_no": "2025타경60777",
+    "court": "서울중앙지방법원",
+    "address": "서울 강남구 역삼동",
+    "lawd_cd": "11680",
+    "dong": "역삼동",
+    "apt_name": "강남역삼푸르지오시티",
+    "property_type": "오피스텔",
+    "area_m2": 30.0,
+    "appraisal_price": 320000000,
+    "min_bid_price": 224000000,
+    "fail_count": 2,
+    "sale_date": "2026-07-25",
+    "assumed_amount": 0,
+    "special_rights": [],
+    "tenant_opposable": false,
+    "occupant_type": "공실"
   }
 ]

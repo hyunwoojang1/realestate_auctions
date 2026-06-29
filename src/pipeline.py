@@ -12,7 +12,9 @@ from typing import Optional
 from .models import AuctionListing, Trade
 from .matcher import estimate_market_price
 from .score import score_listing
-from .molit_client import parse_apt_trades_xml, parse_rh_trades_xml, fetch_trades
+from .molit_client import (
+    parse_apt_trades_xml, parse_rh_trades_xml, parse_offi_trades_xml, fetch_trades,
+)
 from .models import ScoredListing
 
 ROOT = Path(__file__).resolve().parent.parent
@@ -26,14 +28,17 @@ def load_sample_auctions(path: Optional[Path] = None) -> list[AuctionListing]:
 
 
 def load_sample_trades() -> list[Trade]:
-    """샘플 실거래: 아파트 + 연립다세대(빌라) fixture 합본."""
+    """샘플 실거래: 아파트 + 연립다세대(빌라) + 오피스텔 fixture 합본."""
     trades: list[Trade] = []
-    apt = DATA / "sample_molit_apt.xml"
-    rh = DATA / "sample_rh_trades.xml"
-    if apt.exists():
-        trades.extend(parse_apt_trades_xml(apt.read_text(encoding="utf-8")))
-    if rh.exists():
-        trades.extend(parse_rh_trades_xml(rh.read_text(encoding="utf-8")))
+    sources = [
+        ("sample_molit_apt.xml", parse_apt_trades_xml),
+        ("sample_rh_trades.xml", parse_rh_trades_xml),
+        ("sample_offi_trades.xml", parse_offi_trades_xml),
+    ]
+    for fname, parser in sources:
+        p = DATA / fname
+        if p.exists():
+            trades.extend(parser(p.read_text(encoding="utf-8")))
     return trades
 
 
@@ -46,7 +51,7 @@ def load_live_trades(listings: list[AuctionListing], api_key: str,
         if lst.lawd_cd in seen:
             continue
         seen.add(lst.lawd_cd)
-        for kind in ("apt", "rh"):
+        for kind in ("apt", "rh", "officetel"):
             try:
                 trades.extend(fetch_trades(kind, lst.lawd_cd, deal_ymd, api_key))
             except Exception as e:  # noqa: BLE001 — PoC: 한 지역/유형 실패가 전체를 막지 않게
