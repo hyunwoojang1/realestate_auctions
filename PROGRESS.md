@@ -28,8 +28,10 @@
 - **[P4] CI + 린트** — .github/workflows/ci.yml(push/PR(main) 시 ruff check + pytest). pyproject.toml ruff 설정(E/W/F/I/B/UP, E501 무시, tests·run.py E402 면제) + pytest pythonpath=["."]. ruff --fix로 24건 정리 → **ruff 클린 + CI 그린**.
 - **[P5] CLI 필터·정렬·JSON** — src/query.py(apply_filters: min_score/type/region, sort_items: score/profit/gap 순수함수). report.to_json. run.py에 `--min-score`/`--type`/`--region`/`--sort`/`--json`. 전체는 DB 저장, 필터는 표시에 적용. 테스트 6건 → **32 테스트 통과, ruff 클린**. CLI 동작 확인(--min-score 80 → 95·81점만, --type 오피스텔 --json → 깨끗한 JSON).
 
+- **[W1] Flask JSON API** — src/web.py: `GET /health`, `GET /api/listings`(min_score/type/region/sort 쿼리 → query 재사용), `GET /api/listings/<case_no>`(없으면 404). app.json.ensure_ascii=False(한글). flask>=3.0 requirements 추가. tests/test_web.py 7건 → **39 테스트 통과, ruff 클린**.
+
 ## In progress
-- **W1** Flask JSON API (/api/listings 필터·/api/listings/<case_no>·/health)
+- **W2** `GET /` 큐레이션 페이지 (Jinja2, 갭미터·스코어뱃지 디자인 재사용)
 
 ## Next — 웹 레이어 (운영자 결정: 사이트화, Flask+Jinja2)
 - **W1** Flask JSON API → **W2** 큐레이션 페이지(/) → **W3** 물건 상세(/property/<case_no>) → **W4** 필터UI·반응형·Dockerfile·CI web smoke
