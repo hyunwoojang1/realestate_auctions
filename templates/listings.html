@@ -81,7 +81,7 @@ background:#fff;border:1px solid var(--border);border-radius:12px;padding:14px 1
   <label>지역
     <select name="region">
       <option value="">전체</option>
-      {% for r in ['서울','경기','부산','대전'] %}
+      {% for r in ['서울','경기','부산','대전','서울 강남구','서울 노원구','부산 해운대구'] %}
       <option value="{{ r }}" {% if filters.region == r %}selected{% endif %}>{{ r }}</option>
       {% endfor %}
     </select>

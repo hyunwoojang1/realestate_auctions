@@ -58,11 +58,13 @@ PoC → 브라우저 열람·필터 가능한 Flask 사이트로. `/`(큐레이�
 ## 🔁 Phase 3 재개 (2026-06-29 — 운영자 "더 해봐", 키 불요·정확도/신뢰/운영)
 - **[X1] 매칭 품질** — matcher: filter_recent(최근 N개월)·trim_outliers(표본 4건↑ 상·하단 트림) → estimate_market_price 안정화(신뢰계수용 매칭건수는 트림 전 유지). molit_client recent_ymds·fetch_trades_months, 라이브는 최근 3개월(LIVE_MONTHS) 수집. 테스트 4건 → **65 통과, ruff 클린, 샘플 회귀 없음**(표본 ≤3이라 트림 미발동).
 
+- **[X2] 법정동코드 매핑 + 지역명 검색** — data/lawd_codes.json(서울 25구+샘플 지역 LAWD_CD) + src/region.py(name_to_code·code_to_name·sido_of·matches_region). query 필터를 matches_region으로 강화(시도+시군구 둘 다). 드롭다운에 시군구 옵션 추가. 테스트 5건 → **70 테스트 통과, ruff 클린**. `--region 강남구` 동작 확인. (실제 크롤러·라이브의 지역 키 인프라)
+
 ## In progress
-- **X2** 법정동코드 매핑 + 지역명 검색
+- **X3** 방법론·투명성 페이지(/methodology) — 스코어 공식 + 백테스트 캘리브레이션 (마지막)
 
 ## Next
-- **X3** 방법론·투명성 페이지(/methodology) → X3 완료 시 AGENT_STOP
+- X3 완료 시 → AGENT_STOP (Phase 3 종료)
 
 ## 운영자 대기 (무인 불가)
 - **F10** 국토부 API 키 → 라이브 시세 + 백테스트 실데이터화

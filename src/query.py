@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 from .models import ScoredListing
+from .region import matches_region
 
 SORT_KEYS = ("score", "profit", "gap")
 
@@ -15,7 +16,7 @@ def apply_filters(items: list[ScoredListing], min_score: float | None = None,
     if property_type:
         out = [s for s in out if s.property_type == property_type]
     if region:
-        out = [s for s in out if s.address.startswith(region)]
+        out = [s for s in out if matches_region(s.address, region)]
     return out
 
 
