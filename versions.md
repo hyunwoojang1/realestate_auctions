@@ -15,6 +15,17 @@
 
 ---
 
+## 2026-06-29 17:06 KST — V2: 워치리스트 + 차익 변동 알림
+- 무엇: src/watchlist.py — 관심물건(data/watchlist.json) add/remove + 직전 스냅샷
+  (data/score_snapshot.json) 대비 detect_changes(순수함수): 차익 임계 돌파/스코어 상승/최저가
+  하락(유찰) 감지. run_alerts.py CLI(첫 실행 기준선, 이후 변동→콘솔+evidence/alerts.txt).
+  워치리스트 있으면 관심물건만. 런타임 상태파일은 .gitignore.
+- 증거: pytest 56건 통과(watchlist 6건), ruff 클린. 시연(스냅샷 변형 후 2회차): 4건 감지
+  — 상계주공 65→95·역삼 51→81 임계돌파 + 양쪽 최저가 하락(유찰).
+- 평가자: 자체검증 + CI.
+- 커밋: ff2eac3 / GitHub push.
+- 다음: V3 주간 차익 TOP N 다이제스트 (완료 시 AGENT_STOP).
+
 ## 2026-06-29 16:59 KST — V1: 백테스트/스코어 검증 하네스 (Phase 2 시작)
 - 무엇: src/backtest.py — 낙찰결과 outcomes(합성 fixture data/backtest_outcomes.json) × scored를
   case_no로 조인, 실현차익=실현매도가−(낙찰가+부대비용[score 재사용]) 계산, 스코어 구간별 적중률·
