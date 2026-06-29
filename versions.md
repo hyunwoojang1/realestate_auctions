@@ -15,6 +15,16 @@
 
 ---
 
+## 2026-06-29 15:42 KST — P3: 스코어 파라미터 config 외부화
+- 무엇: 모든 튜닝 파라미터(가중치·취득세 구간·명도/수리비·권리 페널티·하드게이트·type_base·
+  gap_points·신뢰사다리·등급경계)를 src/config.py ScoreConfig로 분리. data/score_config.json이
+  있으면 덮어씀(없으면 기본값=현 동작 동일). score.py가 CONFIG 참조하도록 리팩터.
+- 증거: pytest 26건 통과(config 로드/오버라이드 테스트 2건 추가). 샘플 파이프라인 결과가 P2와
+  동일(회귀 없음) — 리팩터가 동작 보존 확인. data/score_config.example.json 템플릿 추가.
+- 평가자: 자체검증.
+- 커밋: e9a2f49 / GitHub push.
+- 다음: P4 GitHub Actions CI + ruff.
+
 ## 2026-06-29 15:33 KST — P2: --live 경로 mock 통합테스트 (F10 사전검증)
 - 무엇: 로컬 mock HTTP 서버(http.server 스레드)가 fixture XML을 서빙하고 molit_client.ENDPOINTS를
   monkeypatch하여, 실제 국토부 키 없이 fetch_trades(apt/rh/officetel)와 pipeline.run(use_live=True)
