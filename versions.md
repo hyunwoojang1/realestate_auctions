@@ -15,6 +15,16 @@
 
 ---
 
+## 2026-06-29 17:50 KST — X1: 매칭 품질(이상치·최근성·다월) — Phase 3 시작
+- 무엇: matcher에 filter_recent(최근 N개월)·trim_outliers(표본 4건↑ 상·하단 1건씩 제거)를 넣어
+  추정시세를 안정화(신뢰계수용 매칭건수는 트림 전 원 매칭 수 유지). molit_client에 recent_ymds·
+  fetch_trades_months 추가, pipeline.load_live_trades가 라이브 시 최근 3개월(LIVE_MONTHS) 수집.
+- 증거: pytest 65건 통과(matcher 4건 추가), ruff 클린. 샘플 6건 결과 동일(표본 ≤3이라 트림 미발동 →
+  회귀 없음). 이상치 13억 섞은 4건 표본에서 추정치가 정상값(6.0~6.6억)으로 트림 확인.
+- 평가자: 자체검증 + CI.
+- 커밋: 78c695d / GitHub push.
+- 다음: X2 법정동코드 매핑 + 지역명 검색.
+
 ## 2026-06-29 17:14 KST — V3: 주간 차익 TOP N 다이제스트 — Phase 2 완료 → 루프 정지
 - 무엇: src/digest.py(top_listings·to_markdown) + run_digest.py(--n/--min-score → evidence/digest.md+html,
   report.to_html 재사용) + web.py `GET /digest`. 차익 스코어순 상위 N.
