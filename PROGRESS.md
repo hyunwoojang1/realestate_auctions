@@ -23,12 +23,13 @@
 운영자가 F10(API 키)을 나중으로 미룸 → 키 없이 가능한 **프로덕션 강화(P1~P5)**로 루프 재개.
 
 - **[P1] molit 클라이언트 프로덕션 강화** — MolitApiError(인증오류 시 'Decoding 키 확인' 안내) + check_api_error(OpenAPI fault/resultCode 감지) + 페이지네이션(max_pages) + 지수백오프 재시도 + logging. 오류감지 테스트 3건 추가 → 20 테스트 통과. 샘플 회귀 OK.
+- **[P2] `--live` 통합테스트** — 로컬 mock HTTP 서버(http.server 스레드)가 fixture 서빙 + ENDPOINTS monkeypatch로 fetch_trades·pipeline.run(use_live=True)를 실제 키 없이 end-to-end 검증. tests/test_live_integration.py 4건 → **24 테스트 통과**. 라이브 경로(F10) 사전검증 완료 — 키 도착 시 그대로 동작.
 
 ## In progress
-- **P2** 로컬 mock HTTP 서버로 `--live` 경로 통합테스트 (실제 키 없이 F10 사전검증)
+- **P3** 스코어 파라미터 config 외부화 (가중치·취득세율·페널티·부대비용·GATE_CEILING)
 
 ## Next
-- **P3** 스코어 config 외부화 → **P4** GitHub Actions CI → **P5** CLI 필터·JSON
+- **P4** GitHub Actions CI + ruff 린트 → **P5** CLI 필터(--min-score/--type/--region)·JSON 출력
 - **F10** 🔒 운영자 국토부 API 키 (나중) — .env에 키 넣으면 라이브 자동검증
 - **v1** 실제 법원경매 크롤러 — anti-bot 리스크로 무인 제외, 운영자 결정 대기
 - **F10** 🔒 운영자 국토부 API 키 발급 → `.env` MOLIT_API_KEY → `python run.py --live` 검증
