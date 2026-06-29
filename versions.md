@@ -15,6 +15,14 @@
 
 ---
 
+## 2026-06-29 15:52 KST — P4 후속: CI 그린 (pytest pythonpath 수정)
+- 무엇: 첫 CI 실패(ModuleNotFoundError: No module named 'src' — `pytest` 콘솔스크립트는 cwd를
+  import 경로에 안 넣음, 로컬 `python -m pytest`와 달라서). pyproject.toml
+  [tool.pytest.ini_options] pythonpath=["."] 추가로 수정.
+- 증거: GitHub Actions run 28354018352 = **success**(완료). 로컬 `pytest` 콘솔스크립트 26건 통과로 사전 재현.
+- 커밋: 1f90452.
+- 다음: P5 CLI 필터·JSON(마지막 안전작업).
+
 ## 2026-06-29 15:48 KST — P4: GitHub Actions CI + ruff 린트
 - 무엇: .github/workflows/ci.yml(push/PR main 시 ruff check + pytest). pyproject.toml에 ruff 설정
   (select E/W/F/I/B/UP, E501 무시, tests·run.py E402 면제). `ruff --fix`로 24건 자동정리
