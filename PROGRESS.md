@@ -40,10 +40,19 @@
 PoC → 브라우저 열람·필터 가능한 Flask 사이트로. `/`(큐레이션)·`/property/<사건번호>`(상세)·`/api/*`(JSON)·`/health`.
 프로덕션 강화(P1~P5)+사이트화(W1~W4) 전부 끝. **AGENT_STOP 생성하고 루프 정지.**
 
-## Next (운영자 대기 — 무인 진행 불가)
-- **F10** 국토부 API 키 → `.env` MOLIT_API_KEY → 라이브 시세 전환 (.env에 키 넣고 AGENT_STOP 지우면 라이브 자동검증)
-- **v1** 실제 법원경매(courtauction) 크롤러 — anti-bot/합법성 결정 필요
-- **(선택) Phase 2** 백테스트 하네스·차익 알림·워치리스트 — 운영자 요청 시 루프 재개
+## 🔁 Phase 2 재개 (2026-06-29 — 운영자 요청, 키는 나중에)
+사이트화 완료 후 운영자가 Phase 2 선택 → AGENT_STOP 해제하고 검증·알림 단계 진행.
+
+## In progress
+- **V1** 백테스트/스코어 검증 하네스 (스코어 구간별 실현차익 적중률)
+
+## Next
+- **V2** 워치리스트 + 차익 알림(스냅샷 diff) → **V3** 주간 차익 TOP N 다이제스트
+- V3까지 완료 시 → AGENT_STOP
+
+## 운영자 대기 (무인 불가)
+- **F10** 국토부 API 키(나중에 발급 예정) → 라이브 시세 전환
+- **실제 크롤러**(courtauction) — anti-bot/합법성 결정 필요
 
 ## Next — 웹 레이어 (운영자 결정: 사이트화, Flask+Jinja2)
 - **W1** Flask JSON API → **W2** 큐레이션 페이지(/) → **W3** 물건 상세(/property/<case_no>) → **W4** 필터UI·반응형·Dockerfile·CI web smoke

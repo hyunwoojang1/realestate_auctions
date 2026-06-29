@@ -34,6 +34,11 @@
 - [ ] **W3 detail-page** — `GET /property/<case_no>` 상세 페이지(갭미터 특대·차익 스코어 게이지·권리 안전성·시세 근거). SSR(SEO).
 - [ ] **W4 web-polish** — 필터 UI(스코어 슬라이더·종류/지역 드롭다운) + 반응형 + Dockerfile + CI에 web smoke test 추가.
 
+## Phase 2 — 검증·알림 (운영자 요청, 키 불요)
+- [ ] **V1 backtest-harness** ⭐ — 차익 스코어가 실제 수익으로 이어지는지 검증. 낙찰결과 outcomes(현재 합성 fixture data/backtest_outcomes.json, 추후 실데이터)와 scored를 조인 → 스코어 구간별 적중률(실현차익>0 비율)·평균 실현차익 캘리브레이션 리포트(콘솔/CSV). 제품 신뢰의 근거.
+- [ ] **V2 watchlist-alerts** — 관심물건(watchlist, sqlite/파일) 저장 + 직전 스냅샷 대비 차익 임계치 돌파/스코어 상승/유찰 감지 → 알림(파일·콘솔). 순수함수로 diff 로직 분리 + 테스트.
+- [ ] **V3 weekly-digest** — "이번 주 차익 TOP N" 다이제스트(markdown/HTML) 생성 + CLI(또는 /api/digest). report 재사용.
+
 ## 차익 스코어 공식 (artifact 기준)
 ```
 score = ( 가격갭×0.50 + 권리×0.30 + 환금성×0.20 ) × 신뢰계수(0.6~1.0)
