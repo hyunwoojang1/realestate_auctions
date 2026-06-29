@@ -1,6 +1,7 @@
 """매칭 / 시세 추정 테스트."""
-from src.matcher import estimate_market_price, match_trades
+from src.matcher import estimate_market_price, filter_recent, match_trades, trim_outliers
 from src.models import AuctionListing, Trade
+from src.molit_client import recent_ymds
 
 
 def _lst(**kw) -> AuctionListing:
@@ -43,3 +44,35 @@ def test_estimate_returns_reasonable_price():
 def test_no_match_returns_none():
     est, n = estimate_market_price(_lst(apt_name="존재하지않는단지", dong="없는동"), TRADES)
     assert est is None and n == 0
+
+
+# ---- X1: 매칭 품질(이상치·최근성·다월) ----
+
+def test_trim_outliers():
+    assert trim_outliers([1, 2, 3, 100]) == [2, 3]   # 4건↑ → 상·하단 1건씩 제거
+    assert trim_outliers([5, 10, 15]) == [5, 10, 15]  # 4건 미만 → 그대로
+
+
+def test_filter_recent_excludes_old():
+    ts = [Trade("X", 84.9, 600_000_000, "202605", "상계동"),
+          Trade("X", 84.9, 300_000_000, "201501", "상계동")]
+    recent = filter_recent(ts, window=12)
+    assert len(recent) == 1 and recent[0].deal_ym == "202605"
+
+
+def test_estimate_ignores_outlier():
+    lst = _lst()  # 상계주공 84.9
+    trades = [
+        Trade("상계주공", 84.9, 630_000_000, "202605", "상계동"),
+        Trade("상계주공", 84.9, 620_000_000, "202605", "상계동"),
+        Trade("상계주공", 84.9, 640_000_000, "202604", "상계동"),
+        Trade("상계주공", 84.9, 1_300_000_000, "202605", "상계동"),  # 이상치(2배)
+    ]
+    est, n = estimate_market_price(lst, trades)
+    assert n == 4
+    assert 6.0e8 <= est <= 6.6e8   # 13억 이상치에 안 끌려감
+
+
+def test_recent_ymds():
+    assert recent_ymds("202605", 3) == ["202605", "202604", "202603"]
+    assert recent_ymds("202602", 3) == ["202602", "202601", "202512"]  # 연도 롤오버

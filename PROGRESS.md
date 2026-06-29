@@ -56,12 +56,13 @@ PoC → 브라우저 열람·필터 가능한 Flask 사이트로. `/`(큐레이�
 백테스트 하네스(V1)·워치리스트+알림(V2)·주간 다이제스트(V3) 완료. 테스트 61건·ruff·CI 그린.
 
 ## 🔁 Phase 3 재개 (2026-06-29 — 운영자 "더 해봐", 키 불요·정확도/신뢰/운영)
+- **[X1] 매칭 품질** — matcher: filter_recent(최근 N개월)·trim_outliers(표본 4건↑ 상·하단 트림) → estimate_market_price 안정화(신뢰계수용 매칭건수는 트림 전 유지). molit_client recent_ymds·fetch_trades_months, 라이브는 최근 3개월(LIVE_MONTHS) 수집. 테스트 4건 → **65 통과, ruff 클린, 샘플 회귀 없음**(표본 ≤3이라 트림 미발동).
+
 ## In progress
-- **X1** 매칭 품질(이상치 제거·최근성 가중·다월 수집)
+- **X2** 법정동코드 매핑 + 지역명 검색
 
 ## Next
-- **X2** 법정동코드 매핑 + 지역명 검색 → **X3** 방법론·투명성 페이지(/methodology)
-- X3 완료 시 → AGENT_STOP
+- **X3** 방법론·투명성 페이지(/methodology) → X3 완료 시 AGENT_STOP
 
 ## 운영자 대기 (무인 불가)
 - **F10** 국토부 API 키 → 라이브 시세 + 백테스트 실데이터화

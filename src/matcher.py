@@ -43,14 +43,51 @@ def match_trades(listing: AuctionListing, trades: list[Trade]) -> list[Trade]:
     return by_dong
 
 
+RECENCY_WINDOW_MONTHS = 12   # 최근 N개월 거래만 사용(오래된 거래는 시세 신선도↓)
+TRIM_MIN_SAMPLES = 4         # 표본 4건 이상이면 상·하단 이상치 1건씩 트림
+
+
+def _ym_to_int(ym: str) -> int | None:
+    if not ym or len(ym) < 6:
+        return None
+    try:
+        return int(ym[:4]) * 12 + int(ym[4:6])
+    except ValueError:
+        return None
+
+
+def filter_recent(trades: list[Trade], window: int = RECENCY_WINDOW_MONTHS) -> list[Trade]:
+    """가장 최근 거래월 기준 window개월 이내만 남긴다(날짜 없는 거래는 보존)."""
+    months = [(_ym_to_int(t.deal_ym), t) for t in trades]
+    valid = [m for m, _ in months if m is not None]
+    if not valid:
+        return trades
+    cutoff = max(valid) - window
+    return [t for m, t in months if m is None or m >= cutoff]
+
+
+def trim_outliers(values: list[float]) -> list[float]:
+    """표본이 충분하면(4건↑) 정렬 후 최소·최대 1건씩 제거해 이상치 영향 축소."""
+    if len(values) < TRIM_MIN_SAMPLES:
+        return values
+    return sorted(values)[1:-1]
+
+
 def estimate_market_price(listing: AuctionListing, trades: list[Trade]) -> tuple[int | None, int]:
-    """(추정시세_원, 매칭건수) 반환. 매칭 0건이면 (None, 0)."""
+    """(추정시세_원, 매칭건수) 반환. 매칭 0건이면 (None, 0).
+
+    매칭 → 최근성 필터 → 평단가 이상치 트림 → 중앙값 × 전용면적.
+    신뢰계수 산정용 매칭건수는 트림 전 원 매칭 수를 유지한다(품질 보정이 신뢰를 부풀리지 않게).
+    """
     matched = match_trades(listing, trades)
     if not matched:
         return None, 0
-    ppm2_list = [t.price_per_m2() for t in matched if t.area_m2 > 0]
+    matched_count = len(matched)
+    recent = filter_recent(matched)
+    ppm2_list = [t.price_per_m2() for t in recent if t.area_m2 > 0]
     if not ppm2_list:
         return None, 0
+    ppm2_list = trim_outliers(ppm2_list)
     median_ppm2 = statistics.median(ppm2_list)
     est = int(round(median_ppm2 * listing.area_m2))
-    return est, len(matched)
+    return est, matched_count

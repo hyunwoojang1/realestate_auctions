@@ -12,10 +12,11 @@ from pathlib import Path
 from .matcher import estimate_market_price
 from .models import AuctionListing, ScoredListing, Trade
 from .molit_client import (
-    fetch_trades,
+    fetch_trades_months,
     parse_apt_trades_xml,
     parse_offi_trades_xml,
     parse_rh_trades_xml,
+    recent_ymds,
 )
 from .score import score_listing
 
@@ -23,6 +24,7 @@ logger = logging.getLogger(__name__)
 
 ROOT = Path(__file__).resolve().parent.parent
 DATA = ROOT / "data"
+LIVE_MONTHS = 3   # 라이브 시세는 최근 3개월 실거래를 모아 표본 확대
 
 
 def load_sample_auctions(path: Path | None = None) -> list[AuctionListing]:
@@ -55,9 +57,10 @@ def load_live_trades(listings: list[AuctionListing], api_key: str,
         if lst.lawd_cd in seen:
             continue
         seen.add(lst.lawd_cd)
+        ymds = recent_ymds(deal_ymd, LIVE_MONTHS)
         for kind in ("apt", "rh", "officetel"):
             try:
-                trades.extend(fetch_trades(kind, lst.lawd_cd, deal_ymd, api_key))
+                trades.extend(fetch_trades_months(kind, lst.lawd_cd, ymds, api_key))
             except Exception as e:  # noqa: BLE001 — 한 지역/유형 실패가 전체를 막지 않게
                 logger.warning("라이브 호출 실패 kind=%s lawd=%s: %s", kind, lst.lawd_cd, e)
     return trades

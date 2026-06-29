@@ -199,3 +199,27 @@ def fetch_apt_trades(lawd_cd: str, deal_ymd: str, api_key: str,
                      num_rows: int = 1000, timeout: int = 15) -> list[Trade]:
     """하위호환 — 아파트 라이브 호출."""
     return fetch_trades("apt", lawd_cd, deal_ymd, api_key, num_rows, timeout)
+
+
+def recent_ymds(latest_ymd: str, k: int) -> list[str]:
+    """latest_ymd('YYYYMM')부터 직전 k개월의 YYYYMM 목록(최신순). 표본 확대용."""
+    try:
+        y, m = int(latest_ymd[:4]), int(latest_ymd[4:6])
+    except (ValueError, IndexError):
+        return [latest_ymd]
+    out: list[str] = []
+    for _ in range(max(1, k)):
+        out.append(f"{y}{m:02d}")
+        m -= 1
+        if m == 0:
+            m, y = 12, y - 1
+    return out
+
+
+def fetch_trades_months(kind: str, lawd_cd: str, ymds: list[str], api_key: str,
+                        num_rows: int = 1000, timeout: int = 15) -> list[Trade]:
+    """여러 연월(ymds)의 실거래를 모아 수집(표본 확대 → 시세 추정 안정화)."""
+    trades: list[Trade] = []
+    for ymd in ymds:
+        trades.extend(fetch_trades(kind, lawd_cd, ymd, api_key, num_rows, timeout))
+    return trades
