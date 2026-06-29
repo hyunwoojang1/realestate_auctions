@@ -51,25 +51,51 @@ _GRADE_COLOR = {
 }
 
 
+def _score_badge(s: ScoredListing) -> str:
+    color = _GRADE_COLOR.get(s.grade, "var(--muted)")
+    val = "—" if s.arb_score is None else f"{s.arb_score:.0f}"
+    return f'<span class="scorebadge" style="--c:{color}">{val}</span>'
+
+
+def _gap_meter(s: ScoredListing) -> str:
+    """감정가/최저가/추정시세 3중 막대 — 최저가→시세 갭을 시그널그린으로 강조."""
+    base = max(s.appraisal_price, s.min_bid_price, s.est_market_price or 0)
+    if base <= 0:
+        return '<div class="gm-na2">—</div>'
+    min_pct = s.min_bid_price / base * 100
+    appr_pct = s.appraisal_price / base * 100
+    if s.est_market_price:
+        mkt_pct = s.est_market_price / base * 100
+        gap_pct = max(0.0, mkt_pct - min_pct)
+        return (
+            '<div class="gapmeter"><div class="gm-track">'
+            f'<div class="gm-min" style="width:{min_pct:.1f}%"></div>'
+            f'<div class="gm-gap" style="left:{min_pct:.1f}%;width:{gap_pct:.1f}%"></div>'
+            f'<span class="gm-appr" style="left:{appr_pct:.1f}%" title="감정가 {_won(s.appraisal_price)}"></span>'
+            '</div>'
+            f'<div class="gm-lab"><span>최저 {_won(s.min_bid_price)}</span>'
+            f'<span class="gm-gv">{_pct(s.gap_rate)} 갭 · 시세 {_won(s.est_market_price)}</span></div></div>'
+        )
+    return (
+        '<div class="gapmeter"><div class="gm-track">'
+        f'<div class="gm-min" style="width:{min_pct:.1f}%"></div></div>'
+        f'<div class="gm-lab"><span>최저 {_won(s.min_bid_price)}</span>'
+        '<span class="gm-na2">시세추정불가</span></div></div>'
+    )
+
+
 def to_html(items: list[ScoredListing], path: str | Path) -> Path:
     path = Path(path)
     rows_html = []
     for i, s in enumerate(items, 1):
-        score = "—" if s.arb_score is None else f"{s.arb_score:.0f}"
-        color = _GRADE_COLOR.get(s.grade, "var(--muted)")
         rows_html.append(f"""<tr>
-  <td class="num">{i}</td>
-  <td><span class="score" style="background:{color}">{score}</span></td>
-  <td><b>{s.grade}</b></td>
-  <td>{s.apt_name}<div class="addr">{s.address}</div></td>
-  <td>{s.property_type}</td>
-  <td class="num">{s.area_m2:.1f}㎡</td>
-  <td class="num">{_won(s.min_bid_price)}</td>
-  <td class="num">{_won(s.est_market_price)}</td>
+  <td class="num rank">{i}</td>
+  <td>{_score_badge(s)}</td>
+  <td><b>{s.grade}</b><div class="ty">{s.property_type} · {s.area_m2:.0f}㎡ · 유찰{s.fail_count}</div></td>
+  <td class="name">{s.apt_name}<div class="addr">{s.address}</div></td>
+  <td class="meter">{_gap_meter(s)}</td>
   <td class="num profit">{_won(s.expected_profit)}</td>
-  <td class="num">{_pct(s.gap_rate)}</td>
-  <td class="num">유찰 {s.fail_count}</td>
-  <td class="num">{s.confidence:.2f}</td>
+  <td class="num conf">{s.confidence:.2f}</td>
 </tr>""")
     html = f"""<!doctype html><html lang="ko"><head><meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
@@ -79,31 +105,56 @@ def to_html(items: list[ScoredListing], path: str | Path) -> Path:
 --g2:#5FBF93;--g3:#1F9D6B;--g4:#178a5a;--risk:#D1453B;--sunk:#F4F5F8;}}
 *{{box-sizing:border-box}}
 body{{margin:0;background:var(--paper);color:var(--ink);
-font-family:"Pretendard",-apple-system,"Malgun Gothic",system-ui,sans-serif;padding:32px}}
-h1{{font-size:26px;letter-spacing:-.02em;margin:0 0 4px}}
-.sub{{color:var(--muted);font-size:14px;margin:0 0 24px}}
+font-family:"Pretendard",-apple-system,"Apple SD Gothic Neo","Malgun Gothic",system-ui,sans-serif;padding:clamp(20px,4vw,40px)}}
+h1{{font-size:clamp(22px,3vw,28px);letter-spacing:-.02em;margin:0 0 4px}}
+.sub{{color:var(--muted);font-size:14px;margin:0 0 24px;max-width:760px;line-height:1.5}}
 .tag{{display:inline-block;background:#EAF7F0;color:var(--g4);font-size:12px;font-weight:700;
 padding:4px 10px;border-radius:99px;margin-left:8px}}
-table{{border-collapse:collapse;width:100%;font-size:13.5px;background:#fff;
-border:1px solid var(--border);border-radius:12px;overflow:hidden}}
-th,td{{padding:11px 12px;border-bottom:1px solid var(--border);text-align:left;vertical-align:middle}}
-thead th{{background:var(--sunk);font-size:11px;text-transform:uppercase;letter-spacing:.04em;color:var(--muted)}}
+.scroll{{overflow-x:auto;border:1px solid var(--border);border-radius:14px}}
+table{{border-collapse:collapse;width:100%;min-width:720px;font-size:13.5px;background:#fff}}
+th,td{{padding:13px 14px;border-bottom:1px solid var(--border);text-align:left;vertical-align:middle}}
+tbody tr:last-child td{{border-bottom:none}}
+thead th{{background:var(--sunk);font-size:11px;text-transform:uppercase;letter-spacing:.04em;color:var(--muted);position:sticky;top:0}}
 tbody tr:hover{{background:var(--sunk)}}
-.num{{font-variant-numeric:tabular-nums;font-family:"SFMono-Regular",Consolas,monospace}}
-.score{{display:inline-block;min-width:34px;text-align:center;color:#fff;font-weight:800;
-padding:3px 8px;border-radius:7px;font-family:"SFMono-Regular",Consolas,monospace}}
-.addr{{color:var(--muted);font-size:11.5px}}
-.profit{{color:var(--g4);font-weight:700}}
-.foot{{margin-top:18px;color:var(--muted);font-size:12px}}
+.num{{font-variant-numeric:tabular-nums;font-family:"SFMono-Regular",ui-monospace,Consolas,monospace}}
+.rank{{color:var(--muted);width:28px}}
+.name{{font-weight:700}}
+.addr{{color:var(--muted);font-size:11.5px;font-weight:400}}
+.ty{{color:var(--muted);font-size:11px;font-weight:400;margin-top:2px}}
+.profit{{color:var(--g4);font-weight:800}}
+.conf{{color:var(--muted)}}
+.scorebadge{{display:inline-flex;align-items:center;justify-content:center;width:46px;height:46px;
+border-radius:50%;background:var(--c);color:#fff;font-weight:800;font-size:16px;
+font-variant-numeric:tabular-nums;font-family:"SFMono-Regular",ui-monospace,Consolas,monospace;
+box-shadow:0 2px 6px color-mix(in oklab, var(--c) 45%, transparent)}}
+.meter{{min-width:200px}}
+.gapmeter{{min-width:190px}}
+.gm-track{{position:relative;height:13px;background:var(--sunk);border-radius:99px;overflow:hidden}}
+.gm-min{{position:absolute;left:0;top:0;height:100%;background:var(--brand)}}
+.gm-gap{{position:absolute;top:0;height:100%;background:linear-gradient(90deg,var(--g2),var(--g4))}}
+.gm-appr{{position:absolute;top:-2px;width:2px;height:17px;background:var(--ink);opacity:.45}}
+.gm-lab{{display:flex;justify-content:space-between;gap:8px;font-size:10.5px;color:var(--muted);margin-top:4px}}
+.gm-gv{{color:var(--g4);font-weight:700;font-variant-numeric:tabular-nums}}
+.gm-na2{{color:var(--muted);font-weight:600}}
+.legend{{display:flex;gap:16px;flex-wrap:wrap;margin:14px 2px 0;font-size:11.5px;color:var(--muted)}}
+.legend span{{display:inline-flex;align-items:center;gap:6px}}
+.sw{{width:13px;height:10px;border-radius:3px;display:inline-block}}
+.foot{{margin-top:18px;color:var(--muted);font-size:12px;line-height:1.6}}
 </style></head><body>
 <h1>차익 큐레이션 — PoC 결과<span class="tag">샘플 데이터</span></h1>
-<p class="sub">최저입찰가 vs 추정 실거래시세 차익 스코어 (0~100) · 높은 순 · 부대비용(취득세·명도·수리·인수금액) 차감 후 순차익</p>
-<table>
-<thead><tr><th>#</th><th>스코어</th><th>등급</th><th>단지 / 소재지</th><th>유형</th><th>전용</th>
-<th>최저가</th><th>추정시세</th><th>예상차익</th><th>갭</th><th>유찰</th><th>신뢰</th></tr></thead>
+<p class="sub">최저입찰가 vs 추정 실거래시세 차익 스코어(0~100) 높은 순. 갭미터의 <b style="color:var(--g4)">초록 구간</b>이
+최저가→시세 사이 예상 차익이며, 부대비용(취득세·명도·수리·인수금액)을 차감한 순차익을 표시합니다.</p>
+<div class="scroll"><table>
+<thead><tr><th>#</th><th>스코어</th><th>등급</th><th>단지 / 소재지</th>
+<th>갭미터 (최저가 → 시세)</th><th>예상차익</th><th>신뢰</th></tr></thead>
 <tbody>
 {''.join(rows_html)}
-</tbody></table>
+</tbody></table></div>
+<div class="legend">
+  <span><i class="sw" style="background:var(--brand)"></i>최저입찰가(실질취득)</span>
+  <span><i class="sw" style="background:linear-gradient(90deg,var(--g2),var(--g4))"></i>예상 차익(시세 갭)</span>
+  <span><i class="sw" style="background:var(--ink);opacity:.45;width:2px"></i>감정가</span>
+</div>
 <p class="foot">⚠ PoC 샘플 데이터 기반. 차익·권리는 투자판단 보조이며 전문가 상담을 대체하지 않습니다.
 라이브 시세는 국토부 실거래가 API 키 연동(F10) 후 적용됩니다.</p>
 </body></html>"""
