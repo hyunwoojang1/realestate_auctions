@@ -15,6 +15,16 @@
 
 ---
 
+## 2026-06-29 16:59 KST — V1: 백테스트/스코어 검증 하네스 (Phase 2 시작)
+- 무엇: src/backtest.py — 낙찰결과 outcomes(합성 fixture data/backtest_outcomes.json) × scored를
+  case_no로 조인, 실현차익=실현매도가−(낙찰가+부대비용[score 재사용]) 계산, 스코어 구간별 적중률·
+  평균 실현차익 캘리브레이션 + precision@임계. run_backtest.py CLI(콘솔+evidence/backtest.csv).
+- 증거: pytest 50건 통과(backtest 4건), ruff 클린. 백테스트 결과 — ≥80 적중률 100%/+0.95억,
+  40–59 50%, <40 0%/−0.33억, precision@80=100%·@40=75% (스코어↑ → 실현수익↑ 단조).
+- 평가자: 자체검증 + CI.
+- 커밋: cec75dd / GitHub push.
+- 다음: V2 워치리스트+차익 알림. ※합성 fixture — 실제 낙찰결과 들어오면 교체해 진짜 적중률 측정.
+
 ## 2026-06-29 16:35 KST — W4: 필터 UI·Docker·README — 사이트화 완료 → 루프 정지
 - 무엇: listings.html 상단 필터 폼(min_score/type/region/sort GET, 선택값 유지)+모바일 wrap.
   Dockerfile(python:3.12-slim, flask :8000)+.dockerignore. README 웹 서버·Docker 섹션.
