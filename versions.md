@@ -15,6 +15,17 @@
 
 ---
 
+## 2026-06-29 16:19 KST — W2: 큐레이션 페이지 /
+- 무엇: templates/listings.html(Jinja2). report.py의 갭미터·원형 스코어뱃지·금액 포맷을 공개
+  별칭(score_badge_html/gap_meter_html/won/pct)으로 노출해 재사용(CSS만 템플릿에 동봉, 로직 중복 0).
+  차익 스코어순 테이블, 단지명→/property 링크. min_score/type/region 쿼리는 _filtered 헬퍼로
+  /api/listings와 공유.
+- 증거: pytest 41건 통과(index 렌더·필터 테스트 2건 추가), ruff 클린. test_client로 / 200 +
+  '상계주공'·scorebadge·gapmeter 마크업 확인.
+- 평가자: 자체검증 + CI.
+- 커밋: 5a4af6b / GitHub push.
+- 다음: W3 물건 상세 /property/<case_no> (SSR).
+
 ## 2026-06-29 16:11 KST — W1: Flask JSON API (사이트화 시작)
 - 무엇: src/web.py — Flask 앱. `GET /health`, `GET /api/listings`(min_score/type/region/sort 쿼리
   → query.apply_filters/sort_items 재사용), `GET /api/listings/<case_no>`(404). ensure_ascii=False로
