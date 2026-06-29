@@ -24,6 +24,7 @@ FATAL_SPECIAL = {"유치권"}            # 확정 시 하드게이트
 ASSUMED_RATIO_GATE = 0.30            # 인수금액/최저가 임계
 OCCUPANT_PENALTY = {"공실": 0, "임차인": 10, "소유자점유": 15, "다수점유": 25}
 TENANT_OPPOSABLE_PENALTY = 30        # 대항력 임차인(배당 불가)
+GATE_CEILING = 25.0                  # 하드게이트 물건의 최종 스코어 상한(상위 노출 차단)
 
 # ---- 환금성 ----
 TYPE_BASE = {"아파트": 90, "오피스텔": 75, "다세대": 60, "빌라": 60, "연립": 60, "상가": 45, "토지": 35}
@@ -83,15 +84,22 @@ def gap_score_from_rate(gap_rate: float) -> float:
     return 0.0
 
 
-# ---- 권리 점수 ----
-def rights_score(listing: AuctionListing) -> float:
-    # 하드게이트
+# ---- 하드게이트 판정 ----
+def is_hard_gated(listing: AuctionListing) -> bool:
+    """인수금액 비율 > 임계 또는 치명적 특수권리(유치권) → 하드게이트."""
     ratio = listing.assumed_amount / listing.min_bid_price if listing.min_bid_price else 1.0
     if ratio > ASSUMED_RATIO_GATE:
-        return 0.0
+        return True
     if any(s in FATAL_SPECIAL for s in listing.special_rights):
-        return 0.0
+        return True
+    return False
 
+
+# ---- 권리 점수 ----
+def rights_score(listing: AuctionListing) -> float:
+    if is_hard_gated(listing):
+        return 0.0
+    ratio = listing.assumed_amount / listing.min_bid_price if listing.min_bid_price else 1.0
     score = 100.0
     score -= ratio * 100                                  # 인수금액 비율만큼 직접 차감
     score -= sum(SPECIAL_PENALTY.get(s, 10) for s in listing.special_rights)
@@ -156,9 +164,17 @@ def score_listing(listing: AuctionListing, est_market_price: Optional[int], matc
     arb = round(raw * conf, 1)
     profit = est_market_price - cost
 
-    # 순차익이 0 이하면 권리·환금이 좋아도 '차익'은 없다 — 큐레이션 엔진이므로 솔직히 표기.
+    # 하드게이트: 권리 점수만 0으로는 부족하다. 가격갭(50%)이 커도 상위에 못 오게
+    # 최종 스코어를 상한으로 끌어내리고 '위험' 등급으로 강등한다.
+    gated = is_hard_gated(listing)
+    if gated:
+        arb = min(arb, GATE_CEILING)
+
     grade = grade_of(arb)
-    if gap_rate <= 0:
+    if gated:
+        grade = "위험"
+    elif gap_rate <= 0:
+        # 순차익이 0 이하면 권리·환금이 좋아도 '차익'은 없다 — 솔직히 표기.
         grade = "차익없음"
 
     return ScoredListing(

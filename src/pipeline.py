@@ -12,7 +12,7 @@ from typing import Optional
 from .models import AuctionListing, Trade
 from .matcher import estimate_market_price
 from .score import score_listing
-from .molit_client import parse_apt_trades_xml, fetch_apt_trades
+from .molit_client import parse_apt_trades_xml, parse_rh_trades_xml, fetch_trades
 from .models import ScoredListing
 
 ROOT = Path(__file__).resolve().parent.parent
@@ -25,24 +25,32 @@ def load_sample_auctions(path: Optional[Path] = None) -> list[AuctionListing]:
     return [AuctionListing(**r) for r in raw]
 
 
-def load_sample_trades(path: Optional[Path] = None) -> list[Trade]:
-    p = path or (DATA / "sample_molit_apt.xml")
-    return parse_apt_trades_xml(p.read_text(encoding="utf-8"))
+def load_sample_trades() -> list[Trade]:
+    """샘플 실거래: 아파트 + 연립다세대(빌라) fixture 합본."""
+    trades: list[Trade] = []
+    apt = DATA / "sample_molit_apt.xml"
+    rh = DATA / "sample_rh_trades.xml"
+    if apt.exists():
+        trades.extend(parse_apt_trades_xml(apt.read_text(encoding="utf-8")))
+    if rh.exists():
+        trades.extend(parse_rh_trades_xml(rh.read_text(encoding="utf-8")))
+    return trades
 
 
 def load_live_trades(listings: list[AuctionListing], api_key: str,
                      deal_ymd: str) -> list[Trade]:
-    """물건들의 법정동코드(LAWD_CD)별로 라이브 호출해 실거래 수집."""
+    """물건들의 법정동코드(LAWD_CD)별로 아파트+연립다세대 실거래를 라이브 수집."""
     trades: list[Trade] = []
     seen: set[str] = set()
     for lst in listings:
         if lst.lawd_cd in seen:
             continue
         seen.add(lst.lawd_cd)
-        try:
-            trades.extend(fetch_apt_trades(lst.lawd_cd, deal_ymd, api_key))
-        except Exception as e:  # noqa: BLE001 — PoC: 한 지역 실패가 전체를 막지 않게
-            print(f"[warn] 라이브 호출 실패 lawd={lst.lawd_cd}: {e}")
+        for kind in ("apt", "rh"):
+            try:
+                trades.extend(fetch_trades(kind, lst.lawd_cd, deal_ymd, api_key))
+            except Exception as e:  # noqa: BLE001 — PoC: 한 지역/유형 실패가 전체를 막지 않게
+                print(f"[warn] 라이브 호출 실패 kind={kind} lawd={lst.lawd_cd}: {e}")
     return trades
 
 

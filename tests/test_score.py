@@ -39,18 +39,26 @@ def test_clean_listing_scores_high():
 
 
 def test_hard_gate_high_assumed_amount():
-    """인수금액 비율 > 30% → 권리 점수 0 (하드게이트)."""
+    """인수금액 비율 > 30% → 권리 0 + 최종 스코어 상한 + '위험' 등급."""
     lst = _base(min_bid_price=576_000_000, assumed_amount=200_000_000, tenant_opposable=True,
                 occupant_type="임차인")
+    assert score.is_hard_gated(lst) is True
     assert score.rights_score(lst) == 0.0
     s = score.score_listing(lst, est_market_price=950_000_000, matched_trades=2)
     assert s.rights_score == 0.0
-    assert s.arb_score < 60  # 표면 갭 커도 권리 폭탄이면 상위 못 옴
+    assert s.arb_score <= score.GATE_CEILING   # 표면 갭 커도 상위 못 옴
+    assert s.grade == "위험"
 
 
 def test_fatal_special_right_hard_gate():
-    lst = _base(special_rights=["유치권"])
+    """유치권: 가격갭이 아무리 커도 '위험'으로 강등되어 상위 노출 안 됨."""
+    lst = _base(special_rights=["유치권"], min_bid_price=147_000_000, occupant_type="다수점유",
+                property_type="다세대")
+    assert score.is_hard_gated(lst) is True
     assert score.rights_score(lst) == 0.0
+    s = score.score_listing(lst, est_market_price=280_000_000, matched_trades=3)
+    assert s.arb_score <= score.GATE_CEILING
+    assert s.grade == "위험"
 
 
 def test_no_market_estimate_is_honest():

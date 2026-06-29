@@ -1,9 +1,11 @@
 """국토부 실거래 XML 파서 테스트."""
 from pathlib import Path
 
-from src.molit_client import parse_apt_trades_xml, _to_won
+from src.molit_client import parse_apt_trades_xml, parse_rh_trades_xml, _to_won
 
-FIXTURE = Path(__file__).resolve().parent.parent / "data" / "sample_molit_apt.xml"
+DATA = Path(__file__).resolve().parent.parent / "data"
+FIXTURE = DATA / "sample_molit_apt.xml"
+RH_FIXTURE = DATA / "sample_rh_trades.xml"
 
 
 def test_to_won_handles_comma_and_space():
@@ -21,6 +23,16 @@ def test_parse_fixture_yields_trades():
     # 모든 거래가 원 단위로 환산됐는지
     assert all(t.price >= 100_000_000 for t in trades)
     assert all(t.area_m2 > 0 for t in trades)
+
+
+def test_parse_rh_fixture_yields_villa_trades():
+    """연립다세대(빌라) 실거래 파서 — 건물명 태그가 <연립다세대>여도 처리."""
+    trades = parse_rh_trades_xml(RH_FIXTURE.read_text(encoding="utf-8"))
+    assert len(trades) >= 3
+    assert any(t.dong == "화곡동" for t in trades)
+    assert all(t.price > 0 and t.area_m2 > 0 for t in trades)
+    # 건물명이 비어있지 않게 추출됐는지(연립다세대 태그)
+    assert any(t.apt_name for t in trades)
 
 
 def test_parse_english_tags():

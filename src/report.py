@@ -46,7 +46,8 @@ def to_csv(items: Iterable[ScoredListing], path: str | Path) -> Path:
 
 _GRADE_COLOR = {
     "확실한 차익": "var(--g4)", "양호": "var(--g3)", "관심": "var(--g2)",
-    "주의": "var(--risk)", "차익없음": "var(--muted)", "시세추정불가": "var(--muted)",
+    "주의": "var(--risk)", "위험": "var(--risk)",
+    "차익없음": "var(--muted)", "시세추정불가": "var(--muted)",
 }
 
 
