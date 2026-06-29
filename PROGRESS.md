@@ -45,11 +45,13 @@ PoC → 브라우저 열람·필터 가능한 Flask 사이트로. `/`(큐레이�
 
 - **[V1] 백테스트 하네스** ⭐ — src/backtest.py: 낙찰결과 outcomes(합성 fixture data/backtest_outcomes.json) × scored 조인 → 실현차익=실현매도가−(낙찰가+부대비용), 스코어 구간별 적중률·평균 실현차익 캘리브레이션 + precision@임계. run_backtest.py CLI(콘솔+evidence/backtest.csv). 검증결과: ≥80=적중100%/+0.95억, 40–59=50%, <40=0%/−0.33억, precision@80=100%·@40=75% (단조). 테스트 4건 → **50 테스트 통과, ruff 클린**. ※실제 낙찰결과 들어오면 fixture만 교체.
 
+- **[V2] 워치리스트 + 차익 알림** — src/watchlist.py: 관심물건(data/watchlist.json) add/remove + 스냅샷(data/score_snapshot.json) 비교. detect_changes 순수함수 → 차익 임계 돌파/스코어 상승/최저가 하락(유찰) 감지. run_alerts.py CLI(첫 실행 기준선, 이후 변동→콘솔+evidence/alerts.txt). 워치리스트 있으면 관심물건만. 런타임 상태파일은 gitignore. 테스트 6건 → **56 테스트 통과, ruff 클린**. 시연: 스냅샷 변형 후 4건(임계돌파·유찰) 감지 확인.
+
 ## In progress
-- **V2** 워치리스트 + 차익 알림(스냅샷 diff)
+- **V3** 주간 차익 TOP N 다이제스트 (markdown/HTML)
 
 ## Next
-- **V3** 주간 차익 TOP N 다이제스트 → V3 완료 시 AGENT_STOP
+- V3 완료 시 → AGENT_STOP (Phase 2 종료)
 
 ## 운영자 대기 (무인 불가)
 - **F10** 국토부 API 키(나중에 발급 예정) → 라이브 시세 전환

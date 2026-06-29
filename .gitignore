@@ -4,6 +4,11 @@ __pycache__/
 .env
 *.db
 .pytest_cache/
+.ruff_cache/
 evidence/*.csv
 evidence/*.html
+evidence/*.txt
+evidence/*.md
+data/watchlist.json
+data/score_snapshot.json
 !evidence/.gitkeep
