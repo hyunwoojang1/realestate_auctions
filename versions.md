@@ -15,6 +15,16 @@
 
 ---
 
+## 2026-06-29 16:35 KST — W4: 필터 UI·Docker·README — 사이트화 완료 → 루프 정지
+- 무엇: listings.html 상단 필터 폼(min_score/type/region/sort GET, 선택값 유지)+모바일 wrap.
+  Dockerfile(python:3.12-slim, flask :8000)+.dockerignore. README 웹 서버·Docker 섹션.
+- 증거: pytest 46건 통과(필터 폼 테스트 2건), ruff 클린. 실서버 스모크(이전 사이클) /·/api/*·상세 200.
+- 평가자: 자체검증 + CI.
+- 커밋: baeb11b / GitHub push.
+- 종료: **사이트화(W1~W4) 완료** — PoC가 브라우저 열람·필터 가능한 Flask 사이트로. 프로덕션 강화
+  (P1~P5)+사이트화(W1~W4) 모두 끝. **AGENT_STOP 생성하고 루프 정지(더 예약 없음).**
+  재개: .env에 MOLIT_API_KEY 넣고 AGENT_STOP 삭제 → 라이브 F10. 또는 Phase 2(백테스트·알림) 요청 시.
+
 ## 2026-06-29 16:27 KST — W3: 물건 상세 페이지 /property/<case_no> (SSR)
 - 무엇: templates/detail.html — 갭미터 특대·스코어(96px)·등급·예상순차익·차익 근거(추정시세·
   실질취득원가·매칭·신뢰계수)·권리 안전성(권리점수, 하드게이트면 사유=인수금액비율/유치권 빨강박스)·
