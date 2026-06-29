@@ -1,0 +1,79 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>차익 큐레이션 — 부동산 경매</title>
+<style>
+:root{--ink:#1C2230;--brand:#2B4A9B;--paper:#FCFCFD;--muted:#6B7280;--border:#E3E5EB;
+--g2:#5FBF93;--g3:#1F9D6B;--g4:#178a5a;--risk:#D1453B;--sunk:#F4F5F8;}
+*{box-sizing:border-box}
+body{margin:0;background:var(--paper);color:var(--ink);
+font-family:"Pretendard",-apple-system,"Apple SD Gothic Neo","Malgun Gothic",system-ui,sans-serif;
+padding:clamp(20px,4vw,40px)}
+a{color:var(--brand);text-decoration:none}
+a:hover{text-decoration:underline}
+.wrap{max-width:1080px;margin:0 auto}
+header.hero{max-width:1080px;margin:0 auto 22px}
+h1{font-size:clamp(22px,3vw,30px);letter-spacing:-.02em;margin:0 0 6px}
+.tag{display:inline-block;background:#EAF7F0;color:var(--g4);font-size:12px;font-weight:700;
+padding:4px 10px;border-radius:99px;margin-left:8px;vertical-align:middle}
+.sub{color:var(--muted);font-size:14px;margin:0;max-width:760px;line-height:1.5}
+.count{font-family:"SFMono-Regular",ui-monospace,Consolas,monospace;color:var(--brand);font-weight:800}
+.scroll{overflow-x:auto;border:1px solid var(--border);border-radius:14px;background:#fff}
+table{border-collapse:collapse;width:100%;min-width:720px;font-size:13.5px;background:#fff}
+th,td{padding:13px 14px;border-bottom:1px solid var(--border);text-align:left;vertical-align:middle}
+tbody tr:last-child td{border-bottom:none}
+thead th{background:var(--sunk);font-size:11px;text-transform:uppercase;letter-spacing:.04em;color:var(--muted);position:sticky;top:0}
+tbody tr:hover{background:var(--sunk)}
+.num{font-variant-numeric:tabular-nums;font-family:"SFMono-Regular",ui-monospace,Consolas,monospace}
+.rank{color:var(--muted);width:28px}
+.name{font-weight:700}
+.addr{color:var(--muted);font-size:11.5px;font-weight:400}
+.ty{color:var(--muted);font-size:11px;font-weight:400;margin-top:2px}
+.profit{color:var(--g4);font-weight:800}
+.conf{color:var(--muted)}
+.scorebadge{display:inline-flex;align-items:center;justify-content:center;width:46px;height:46px;
+border-radius:50%;background:var(--c);color:#fff;font-weight:800;font-size:16px;
+font-variant-numeric:tabular-nums;font-family:"SFMono-Regular",ui-monospace,Consolas,monospace;
+box-shadow:0 2px 6px color-mix(in oklab, var(--c) 45%, transparent)}
+.meter{min-width:200px}
+.gapmeter{min-width:190px}
+.gm-track{position:relative;height:13px;background:var(--sunk);border-radius:99px;overflow:hidden}
+.gm-min{position:absolute;left:0;top:0;height:100%;background:var(--brand)}
+.gm-gap{position:absolute;top:0;height:100%;background:linear-gradient(90deg,var(--g2),var(--g4))}
+.gm-appr{position:absolute;top:-2px;width:2px;height:17px;background:var(--ink);opacity:.45}
+.gm-lab{display:flex;justify-content:space-between;gap:8px;font-size:10.5px;color:var(--muted);margin-top:4px}
+.gm-gv{color:var(--g4);font-weight:700;font-variant-numeric:tabular-nums}
+.gm-na2{color:var(--muted);font-weight:600}
+.foot{margin-top:18px;color:var(--muted);font-size:12px;line-height:1.6}
+</style>
+</head>
+<body>
+<header class="hero">
+  <h1>차익 큐레이션<span class="tag">샘플 데이터</span></h1>
+  <p class="sub">최저입찰가 vs 추정 실거래시세 <b>차익 스코어(0~100)</b> 높은 순. 갭미터의
+  <b style="color:var(--g4)">초록 구간</b>이 예상 차익(부대비용 차감 순차익). 총 <span class="count">{{ count }}</span>건.</p>
+</header>
+<div class="wrap">
+<div class="scroll"><table>
+<thead><tr><th>#</th><th>스코어</th><th>등급</th><th>단지 / 소재지</th>
+<th>갭미터 (최저가 → 시세)</th><th>예상차익</th><th>신뢰</th></tr></thead>
+<tbody>
+{% for row in rows %}
+<tr>
+  <td class="num rank">{{ loop.index }}</td>
+  <td>{{ row.badge|safe }}</td>
+  <td><b>{{ row.s.grade }}</b><div class="ty">{{ row.s.property_type }} · {{ '%.0f'|format(row.s.area_m2) }}㎡ · 유찰{{ row.s.fail_count }}</div></td>
+  <td class="name"><a href="/property/{{ row.s.case_no }}">{{ row.s.apt_name }}</a><div class="addr">{{ row.s.address }}</div></td>
+  <td class="meter">{{ row.meter|safe }}</td>
+  <td class="num profit">{{ row.profit }}</td>
+  <td class="num conf">{{ '%.2f'|format(row.s.confidence) }}</td>
+</tr>
+{% endfor %}
+</tbody></table></div>
+<p class="foot">⚠ PoC 샘플 데이터 기반. 차익·권리는 투자판단 보조이며 전문가 상담을 대체하지 않습니다.
+라이브 시세는 국토부 실거래가 API 키 연동(F10) 후 적용됩니다.</p>
+</div>
+</body>
+</html>

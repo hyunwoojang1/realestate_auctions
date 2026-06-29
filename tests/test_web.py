@@ -46,3 +46,19 @@ def test_detail_found():
 
 def test_detail_404():
     assert _client().get("/api/listings/없는사건번호").status_code == 404
+
+
+def test_index_page_renders():
+    r = _client().get("/")
+    assert r.status_code == 200
+    body = r.get_data(as_text=True)
+    assert "차익 큐레이션" in body
+    assert "상계주공" in body        # 실데이터 렌더
+    assert "scorebadge" in body      # 스코어 뱃지 마크업
+    assert "gapmeter" in body        # 갭미터 마크업
+
+
+def test_index_min_score_filter():
+    body = _client().get("/?min_score=80").get_data(as_text=True)
+    assert "상계주공" in body        # 95점 → 통과
+    assert "화곡동 다세대" not in body  # 25점 → 필터됨

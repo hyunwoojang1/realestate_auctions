@@ -29,9 +29,10 @@
 - **[P5] CLI 필터·정렬·JSON** — src/query.py(apply_filters: min_score/type/region, sort_items: score/profit/gap 순수함수). report.to_json. run.py에 `--min-score`/`--type`/`--region`/`--sort`/`--json`. 전체는 DB 저장, 필터는 표시에 적용. 테스트 6건 → **32 테스트 통과, ruff 클린**. CLI 동작 확인(--min-score 80 → 95·81점만, --type 오피스텔 --json → 깨끗한 JSON).
 
 - **[W1] Flask JSON API** — src/web.py: `GET /health`, `GET /api/listings`(min_score/type/region/sort 쿼리 → query 재사용), `GET /api/listings/<case_no>`(없으면 404). app.json.ensure_ascii=False(한글). flask>=3.0 requirements 추가. tests/test_web.py 7건 → **39 테스트 통과, ruff 클린**.
+- **[W2] 큐레이션 페이지 `/`** — templates/listings.html(Jinja2). report.py의 갭미터·원형 스코어뱃지·금액 포맷을 공개 별칭(score_badge_html/gap_meter_html/won)으로 노출해 재사용(중복 0). 잉크블루+시그널그린, 차익 스코어순 테이블, 단지명→상세 링크. min_score/type/region 쿼리 연동(_filtered 헬퍼로 API와 공유). index 테스트 2건 → **41 테스트 통과, ruff 클린**.
 
 ## In progress
-- **W2** `GET /` 큐레이션 페이지 (Jinja2, 갭미터·스코어뱃지 디자인 재사용)
+- **W3** `GET /property/<case_no>` 상세 페이지(SSR)
 
 ## Next — 웹 레이어 (운영자 결정: 사이트화, Flask+Jinja2)
 - **W1** Flask JSON API → **W2** 큐레이션 페이지(/) → **W3** 물건 상세(/property/<case_no>) → **W4** 필터UI·반응형·Dockerfile·CI web smoke

@@ -94,6 +94,13 @@ def _gap_meter(s: ScoredListing) -> str:
     )
 
 
+# 웹 템플릿(src/web.py)에서 재사용하는 공개 별칭 — 갭미터·스코어뱃지·금액 포맷 로직 공유
+score_badge_html = _score_badge
+gap_meter_html = _gap_meter
+won = _won
+pct = _pct
+
+
 def to_html(items: list[ScoredListing], path: str | Path) -> Path:
     path = Path(path)
     rows_html = []

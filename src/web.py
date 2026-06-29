@@ -10,9 +10,13 @@
 """
 from __future__ import annotations
 
-from flask import Flask, abort, jsonify, request
+from pathlib import Path
 
-from . import pipeline, query
+from flask import Flask, abort, jsonify, render_template, request
+
+from . import pipeline, query, report
+
+ROOT = Path(__file__).resolve().parent.parent
 
 
 def _scored():
@@ -20,10 +24,31 @@ def _scored():
     return pipeline.run()
 
 
+def _filtered(args):
+    """요청 쿼리(min_score/type/region/sort)로 필터·정렬된 목록."""
+    min_score = args.get("min_score", type=float)
+    ptype = args.get("type")
+    region = args.get("region")
+    sort = args.get("sort", "score")
+    if sort not in query.SORT_KEYS:
+        sort = "score"
+    return query.sort_items(query.apply_filters(_scored(), min_score, ptype, region), sort)
+
+
 def create_app() -> Flask:
-    app = Flask(__name__)
+    app = Flask(__name__, template_folder=str(ROOT / "templates"))
     app.json.ensure_ascii = False   # 한글 그대로 직렬화
     app.json.sort_keys = False
+
+    @app.get("/")
+    def index():
+        items = _filtered(request.args)
+        rows = [
+            {"s": s, "badge": report.score_badge_html(s),
+             "meter": report.gap_meter_html(s), "profit": report.won(s.expected_profit)}
+            for s in items
+        ]
+        return render_template("listings.html", rows=rows, count=len(items))
 
     @app.get("/health")
     def health():
@@ -31,16 +56,7 @@ def create_app() -> Flask:
 
     @app.get("/api/listings")
     def listings():
-        min_score = request.args.get("min_score", type=float)
-        ptype = request.args.get("type")
-        region = request.args.get("region")
-        sort = request.args.get("sort", "score")
-        if sort not in query.SORT_KEYS:
-            sort = "score"
-        view = query.sort_items(
-            query.apply_filters(_scored(), min_score, ptype, region), sort,
-        )
-        return jsonify([s.to_row() for s in view])
+        return jsonify([s.to_row() for s in _filtered(request.args)])
 
     @app.get("/api/listings/<case_no>")
     def listing_detail(case_no: str):
