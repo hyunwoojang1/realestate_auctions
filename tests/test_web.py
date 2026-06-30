@@ -140,3 +140,14 @@ def test_falls_back_to_sample_when_no_env(monkeypatch):
     monkeypatch.delenv("AUCTION_DB", raising=False)
     data = create_app().test_client().get("/api/listings").get_json()
     assert len(data) == 6   # 샘플 6건
+
+
+def test_property_detail_renders_for_db_listing_not_in_samples(tmp_path, monkeypatch):
+    # courtauction 등 DB 서빙 매물(샘플에 없음)도 상세페이지가 404 아니라 렌더돼야 함
+    dbp = str(tmp_path / "live.db")
+    _seed_db(dbp)
+    monkeypatch.setenv("AUCTION_DB", dbp)
+    r = create_app().test_client().get("/property/LIVE-1")
+    assert r.status_code == 200
+    body = r.get_data(as_text=True)
+    assert "라이브단지" in body

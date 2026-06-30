@@ -48,6 +48,50 @@ def test_load_courtauction_search_mode_when_no_cash():
     assert listings[0].case_no == "2025타경1352"
 
 
+class ShardFakeClient:
+    """시도별로 다른 record를 주는 더블. block_at 시도에서 CourtAuctionBlocked."""
+    def __init__(self, per_sido, block_at=None):
+        self.per_sido = per_sido            # {sido_cd: [records]}
+        self.block_at = block_at
+        self.warmed = []
+
+    def affordable_search(self, cash_won, appraisal_buffer=3.0, extra=None,
+                          max_pages=25, warm=True):
+        from src.courtauction_client import CourtAuctionBlocked
+        sd = extra.sido_cd if extra else ""
+        self.warmed.append(warm)
+        if sd == self.block_at:
+            raise CourtAuctionBlocked(f"차단 시뮬 {sd}")
+        return self.per_sido.get(sd, [])
+
+
+def _mini(docid, case):
+    return parse_row({"docid": docid, "srnSaNo": case, "gamevalAmt": "100000000",
+                      "minmaePrice": "40000000", "yuchalCnt": "1", "maemulSer": "1"})
+
+
+def test_nationwide_shards_and_dedupes():
+    # 서울 2건, 부산 2건(그중 하나는 서울과 같은 docid=중복) → 합쳐서 3건
+    per = {
+        "11": [_mini("S1", "2025타경1"), _mini("S2", "2025타경2")],
+        "26": [_mini("S2", "2025타경2"), _mini("B1", "2025타경3")],
+    }
+    fake = ShardFakeClient(per)
+    recs = pipeline.load_courtauction_nationwide(cash_won=80_000_000, client=fake, sidos=["11", "26"])
+    assert {r.doc_id for r in recs} == {"S1", "S2", "B1"}     # 중복 S2 제거
+    # 첫 시도만 warm=True(세션 재사용)
+    assert fake.warmed == [True, False]
+
+
+def test_nationwide_partial_on_block():
+    per = {"11": [_mini("S1", "2025타경1")], "26": [_mini("B1", "2025타경3")]}
+    fake = ShardFakeClient(per, block_at="26")
+    recs = pipeline.load_courtauction_nationwide(cash_won=80_000_000, client=fake,
+                                                 sidos=["11", "26", "27"])
+    # 11 수집 후 26에서 차단 → 부분(서울만) 반환
+    assert {r.doc_id for r in recs} == {"S1"}
+
+
 def test_courtauction_listings_flow_through_scoring():
     """실매물을 pipeline.run에 넣어 ScoredListing까지 — 샘플 시세로 채점(시세 없으면 추정불가)."""
     fake = FakeClient(_records())

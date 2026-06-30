@@ -17,6 +17,7 @@ from pathlib import Path
 from flask import Flask, abort, jsonify, render_template, request
 
 from . import backtest, digest, pipeline, query, report, score, store
+from .models import AuctionListing
 
 logger = logging.getLogger(__name__)
 
@@ -95,9 +96,18 @@ def create_app() -> Flask:
     @app.get("/property/<case_no>")
     def property_detail(case_no: str):
         s = next((x for x in _scored() if x.case_no == case_no), None)
-        listing = next((a for a in pipeline.load_sample_auctions() if a.case_no == case_no), None)
-        if s is None or listing is None:
+        if s is None:
             abort(404)
+        listing = next((a for a in pipeline.load_sample_auctions() if a.case_no == case_no), None)
+        if listing is None:
+            # DB 서빙(courtauction 등 비-샘플) 매물 — 스코어 행에서 최소 listing 복원.
+            # 권리 필드(특수권리/인수금액/점유)는 물건상세 미수집이라 기본값(게이트 비적용).
+            listing = AuctionListing(
+                case_no=s.case_no, court="", address=s.address, lawd_cd="", dong="",
+                apt_name=s.apt_name, property_type=s.property_type, area_m2=s.area_m2,
+                appraisal_price=s.appraisal_price, min_bid_price=s.min_bid_price,
+                fail_count=s.fail_count, sale_date=s.sale_date,
+            )
         gated = score.is_hard_gated(listing)
         gate_reasons = []
         if gated:

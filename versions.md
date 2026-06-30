@@ -15,6 +15,22 @@
 
 ---
 
+## 2026-07-01 07:54 KST — 전국 저가매물 확장(지역샤딩+캐시diff) + 웹 라이브서빙 연결
+- 무엇:
+  - **전국 샤딩**: `pipeline.load_courtauction_nationwide(cash, sidos, max_pages_per_sido)` — 17개 시도 순회,
+    한 client 공유(일일상한·지터·세션 누적), docid 중복제거, 차단 시 부분결과 반환. `collect_courtauction_records`로 단일/전국 공통화.
+  - **증분 캐시 diff**: `src/courtauction_cache.py` — docid키 스냅샷(사건/최저가/감정가/유찰/기일/주소, 개인정보 없음),
+    신규/변경(유찰→최저가하락·기일변경)/유지/소멸 분류. `data/courtauction_cache.json`(gitignore).
+  - **run.py**: `--nationwide`·`--cache` 추가. courtauction 소스는 records→캐시diff 리포트→AuctionListing→채점→DB적재.
+  - **웹 라이브서빙**: web.py `/property/<사건>`이 샘플에만 매물조회해 courtauction 매물이 404나던 버그 수정
+    (DB 스코어행에서 최소 AuctionListing 복원, 권리필드는 미수집이라 기본값). 목록/상세/큐레이션 전부 DB서빙.
+- 증거: pytest **120 PASS**(신규 8: cache diff 6 + 전국샤딩/부분차단 2 + 웹 DB상세 1 + …), ruff 클린. (Read 확인)
+  **라이브 end-to-end**(`evidence/courtauction_nationwide_web.txt`): 서울+부산 샤딩 37건, 캐시 첫실행37신규/재실행37유지,
+  관악구 2건 라이브채점→DB→웹 `/api/listings` 청룡오피스텔 **98점 확실한차익**, `/property/…` HTTP200(404버그 수정 확인), `/` 200.
+- 평가자: 자체검증(테스트+라이브). 바운디드(2시도·관악구 한정).
+- 커밋: (이번 커밋) · push 예정.
+- 다음: 신뢰계수 다월표본 보정(매칭 1건 문제), 물건상세(권리/감정평가서) 보강, 전국 정기 새로고침(스케줄러), 이용약관 확인(사용자).
+
 ## 2026-06-30 21:41 KST — 차익 파이프라인에 courtauction 실매물 연결 (end-to-end 라이브 성공)
 - 무엇: 크롤러를 차익 스코어 파이프라인에 연결 + 이용약관 정찰 + stop_file 충돌 수정.
   - `pipeline.load_courtauction_auctions(cash_won/sido/buffer/max_pages, client/extra 주입)` → affordable/search → `to_auction_listing` → run.

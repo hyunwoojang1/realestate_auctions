@@ -36,6 +36,10 @@ def main(argv=None) -> int:
     ap.add_argument("--max-pages", type=int, default=10, help="courtauction 페이지 상한(1p=40건)")
     ap.add_argument("--appraisal-buffer", type=float, default=3.0,
                     help="affordable 감정가 상한 배수(현금×버퍼). 다회유찰 저가매물 누락 방지(기본 3)")
+    ap.add_argument("--nationwide", action="store_true",
+                    help="courtauction 전국 17개 시도 샤딩 수집(--sido 무시)")
+    ap.add_argument("--cache", default=None,
+                    help="courtauction 증분 캐시 경로(기본 data/courtauction_cache.json). 신규/변경/소멸 리포트")
     ap.add_argument("--db", default=str(ROOT / "auction.db"), help="SQLite 경로")
     ap.add_argument("--min-score", type=float, default=None, help="차익 스코어 하한 필터")
     ap.add_argument("--type", dest="ptype", default=None, help="물건종류 필터(아파트/오피스텔/다세대 등)")
@@ -53,9 +57,26 @@ def main(argv=None) -> int:
         print(f"▶ 물건소스: {src} · 시세: {mode}\n")
 
     if args.source == "courtauction":
-        listings = pipeline.load_courtauction_auctions(
-            cash_won=args.cash, sido_cd=args.sido,
-            appraisal_buffer=args.appraisal_buffer, max_pages=args.max_pages)
+        from src import courtauction_cache as cc  # noqa: PLC0415
+        from src.courtauction_fields import to_auction_listing  # noqa: PLC0415
+
+        if args.nationwide:
+            records = pipeline.load_courtauction_nationwide(
+                cash_won=args.cash, appraisal_buffer=args.appraisal_buffer,
+                max_pages_per_sido=args.max_pages)
+        else:
+            records = pipeline.collect_courtauction_records(
+                cash_won=args.cash, sido_cd=args.sido,
+                appraisal_buffer=args.appraisal_buffer, max_pages=args.max_pages)
+
+        # 증분 캐시 diff(신규/변경/소멸) 리포트 후 현재 스냅샷 저장
+        cache_path = args.cache or cc.DEFAULT_CACHE
+        diff = cc.diff_records(records, cc.load_cache(cache_path))
+        cc.save_cache(records, cache_path)
+        if not args.json:
+            print(f"  courtauction 수집 {len(records)}건 — {diff.summary} (캐시 {cache_path})")
+
+        listings = [to_auction_listing(r) for r in records]
         scored = pipeline.run(use_live=args.live, deal_ymd=args.ym, auctions=listings)
     else:
         scored = pipeline.run(use_live=args.live, deal_ymd=args.ym)

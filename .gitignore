@@ -11,4 +11,6 @@ evidence/*.txt
 evidence/*.md
 data/watchlist.json
 data/score_snapshot.json
+data/courtauction_cache.json
+COURTAUCTION_STOP
 !evidence/.gitkeep

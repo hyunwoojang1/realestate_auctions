@@ -33,29 +33,65 @@ def load_sample_auctions(path: Path | None = None) -> list[AuctionListing]:
     return [AuctionListing(**r) for r in raw]
 
 
-def load_courtauction_auctions(cash_won: int | None = None, sido_cd: str = "",
-                               appraisal_buffer: float = 3.0, max_pages: int = 10,
-                               client=None, extra=None) -> list[AuctionListing]:
-    """대법원 courtauction 라이브 검색 → AuctionListing 리스트(차익 파이프라인 입력).
+def collect_courtauction_records(cash_won: int | None = None, sido_cd: str = "",
+                                 appraisal_buffer: float = 3.0, max_pages: int = 10,
+                                 client=None, extra=None, warm: bool = True) -> list:
+    """courtauction 라이브 검색 → CourtAuctionRecord 리스트(원본 전체 보존, 캐시 diff용).
 
     - cash_won 지정: affordable_search(서버 감정가버퍼로 볼륨축소 + 로컬 '최저가≤현금' 정밀필터).
     - 미지정: 일반 search(지역 등 필터만).
-    - client/extra는 테스트 주입용. 개인정보는 courtauction_fields.sanitize_row가 제거.
-    저빈도·안전장치는 CourtAuctionClient가 담당(지터·회로차단기·일일상한 등).
+    개인정보는 courtauction_fields.sanitize_row가 제거. 안전장치는 CourtAuctionClient가 담당.
     """
     from .courtauction_client import CourtAuctionClient, SearchFilter  # noqa: PLC0415
-    from .courtauction_fields import to_auction_listing  # noqa: PLC0415
 
     c = client or CourtAuctionClient()
     flt = extra if extra is not None else SearchFilter(sido_cd=sido_cd)
     if cash_won:
-        recs = c.affordable_search(cash_won, appraisal_buffer=appraisal_buffer,
-                                   extra=flt, max_pages=max_pages)
-    else:
-        recs = list(c.search(flt, max_pages=max_pages))
+        return c.affordable_search(cash_won, appraisal_buffer=appraisal_buffer,
+                                   extra=flt, max_pages=max_pages, warm=warm)
+    return list(c.search(flt, max_pages=max_pages, warm=warm))
+
+
+def load_courtauction_auctions(cash_won: int | None = None, sido_cd: str = "",
+                               appraisal_buffer: float = 3.0, max_pages: int = 10,
+                               client=None, extra=None) -> list[AuctionListing]:
+    """단일 검색 → AuctionListing 리스트(차익 파이프라인 입력). client/extra는 테스트 주입용."""
+    from .courtauction_fields import to_auction_listing  # noqa: PLC0415
+
+    recs = collect_courtauction_records(cash_won, sido_cd, appraisal_buffer, max_pages, client, extra)
     listings = [to_auction_listing(r) for r in recs]
     logger.info("courtauction 실매물 %d건 → AuctionListing 변환", len(listings))
     return listings
+
+
+def load_courtauction_nationwide(cash_won: int | None = None, appraisal_buffer: float = 3.0,
+                                 max_pages_per_sido: int = 10, client=None,
+                                 sidos: list[str] | None = None) -> list:
+    """전국 17개 시도를 샤딩 수집 → CourtAuctionRecord 리스트(docid 기준 중복제거).
+
+    한 client를 공유해 일일상한·지터·세션이 시도 전체에 누적 적용된다(밴 회피).
+    중간에 차단(CourtAuctionBlocked) 시 그때까지 모은 부분결과를 반환하고 중단한다.
+    시도별로 페이지를 나눠 '1→700 순차순회' 봇 패턴을 피하고 구간을 작게 유지한다.
+    """
+    from .courtauction_client import CourtAuctionBlocked, CourtAuctionClient  # noqa: PLC0415
+    from .courtauction_fields import SIDO_CODES  # noqa: PLC0415
+
+    c = client or CourtAuctionClient()
+    codes = sidos if sidos is not None else list(SIDO_CODES)
+    merged: dict[str, object] = {}
+    for i, sd in enumerate(codes):
+        try:
+            recs = collect_courtauction_records(
+                cash_won=cash_won, sido_cd=sd, appraisal_buffer=appraisal_buffer,
+                max_pages=max_pages_per_sido, client=c, warm=(i == 0))
+        except CourtAuctionBlocked as e:
+            logger.warning("시도 %s(%s)에서 중단(%s) — 부분수집 %d건 반환",
+                           sd, SIDO_CODES.get(sd, ""), e, len(merged))
+            break
+        for r in recs:
+            merged[r.doc_id or r.case_no] = r
+        logger.info("시도 %s(%s): +%d → 누적 %d건", sd, SIDO_CODES.get(sd, ""), len(recs), len(merged))
+    return list(merged.values())
 
 
 def load_sample_trades() -> list[Trade]:
