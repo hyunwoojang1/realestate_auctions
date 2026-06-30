@@ -15,6 +15,19 @@
 
 ---
 
+## 2026-06-30 17:50 KST — courtauction.go.kr 1차 정찰 (requests로 JSON 추출 가능 확정)
+- 무엇: 실제 경매 매물 소스(대법원 courtauction) 접근 방식 정찰. docs/courtauction_recon.md 작성.
+  발견: (1) WAF 있어 맨 요청 차단 → **브라우저 헤더(UA/Accept-Language) 필수**, (2) WebSquare5+
+  eGovFrame, 데이터는 `/pgj/pgjXXX/selectXXX.on` POST→JSON, (3) GET /pgj/index.on이 세션쿠키
+  (JSESSIONID/WMONID) 발급. **결론: 헤드리스 불필요, requests로 충분.**
+- 증거: `POST /pgj/pgj111/selectRletYrDspslStats.on`(브라우저헤더+쿠키+Referer, body {}) →
+  **HTTP 200 + JSON** `{"status":200,"message":"정상","data":{...}}` 실측. (selectNtcMtrPouUpItemList.on은
+  302→올바른 dataset 필요). egress=한국 로컬 IP라 지오차단 없음.
+- 평가자: 자체검증(실호출). 저빈도 원칙으로 총 ~6요청만.
+- 커밋: (대기)
+- 다음: 부동산 물건 검색 .on 엔드포인트+페이로드 매핑(검색페이지 WebSquare XML) → src/courtauction_client.py PoC
+  (세션워밍→검색POST→JSON파싱→AuctionListing, 개인정보 필드 화이트리스트). 합법=공공누리4유형 비영리·저빈도·개인정보배제.
+
 ## 2026-06-30 17:44 KST — 절대 규칙 도입: 편집 시 versions.md 기입 강제(CLAUDE.md + 전역 훅)
 - 무엇: 사용자 지시로 "이 프로젝트 파일을 작성/편집하면 무조건 versions.md에 기입" 규칙을 명시·강제화.
   (1) CLAUDE.md 최상단에 "## 0. 절대 규칙 — versions.md 기입" 섹션 추가(예외 없음, versions.md 자신 제외).
