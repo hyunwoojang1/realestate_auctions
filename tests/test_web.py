@@ -1,4 +1,6 @@
 """Flask 웹 API 테스트 (W1)."""
+from src import store
+from src.models import ScoredListing
 from src.web import create_app
 
 
@@ -108,3 +110,33 @@ def test_methodology_shows_calibration_values():
     body = _client().get("/methodology").get_data(as_text=True)
     # 백테스트 구간 라벨이 렌더됨
     assert "확실한차익" in body or "확실한 차익" in body
+
+
+# ---- 라이브 DB 서빙(AUCTION_DB) ----
+
+def _seed_db(path: str) -> None:
+    conn = store.connect(path)
+    store.upsert(conn, [ScoredListing(
+        case_no="LIVE-1", apt_name="라이브단지", address="서울 강남구 역삼동",
+        property_type="아파트", area_m2=84.0, appraisal_price=900_000_000,
+        min_bid_price=500_000_000, fail_count=1, sale_date="2026-08-01",
+        est_market_price=950_000_000, matched_trades=7, confidence=1.0,
+        real_acquisition_cost=560_000_000, expected_profit=390_000_000,
+        gap_rate=0.47, gap_score=47.0, rights_score=30.0, liquidity_score=20.0,
+        arb_score=92.0, grade="확실한 차익")])
+    conn.close()
+
+
+def test_serves_from_db_when_env_set(tmp_path, monkeypatch):
+    dbp = str(tmp_path / "live.db")
+    _seed_db(dbp)
+    monkeypatch.setenv("AUCTION_DB", dbp)
+    data = create_app().test_client().get("/api/listings").get_json()
+    assert len(data) == 1
+    assert data[0]["apt_name"] == "라이브단지"   # 샘플이 아니라 DB가 서빙됨
+
+
+def test_falls_back_to_sample_when_no_env(monkeypatch):
+    monkeypatch.delenv("AUCTION_DB", raising=False)
+    data = create_app().test_client().get("/api/listings").get_json()
+    assert len(data) == 6   # 샘플 6건

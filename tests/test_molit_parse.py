@@ -81,6 +81,16 @@ def test_check_api_error_passes_success():
     assert len(parse_apt_trades_xml(ok)) >= 10
 
 
+def test_parsers_tag_kind():
+    """파서가 물건유형(kind)을 태깅해야 매칭 단계에서 유형 분리가 가능하다."""
+    apt = parse_apt_trades_xml(FIXTURE.read_text(encoding="utf-8"))
+    rh = parse_rh_trades_xml(RH_FIXTURE.read_text(encoding="utf-8"))
+    offi = parse_offi_trades_xml(OFFI_FIXTURE.read_text(encoding="utf-8"))
+    assert apt and all(t.kind == "apt" for t in apt)
+    assert rh and all(t.kind == "rh" for t in rh)
+    assert offi and all(t.kind == "officetel" for t in offi)
+
+
 def test_parse_english_tags():
     xml = """<response><body><items>
       <item><dealAmount>34,500</dealAmount><aptNm>테스트아파트</aptNm>

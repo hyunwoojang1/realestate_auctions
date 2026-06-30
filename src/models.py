@@ -41,6 +41,7 @@ class Trade:
     deal_ym: str      # YYYYMM
     dong: str = ""
     floor: int = 0
+    kind: str = ""    # 실거래 물건유형: apt | rh | officetel (유형 분리 매칭용)
 
     def price_per_m2(self) -> float:
         return self.price / self.area_m2 if self.area_m2 else 0.0

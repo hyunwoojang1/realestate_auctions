@@ -76,3 +76,33 @@ def test_estimate_ignores_outlier():
 def test_recent_ymds():
     assert recent_ymds("202605", 3) == ["202605", "202604", "202603"]
     assert recent_ymds("202602", 3) == ["202602", "202601", "202512"]  # 연도 롤오버
+
+
+# ---- 유형 분리 매칭(다세대를 아파트 시세로 평가하지 않게) ----
+
+def test_match_excludes_other_property_type():
+    """화곡동 다세대는 같은 동·면적의 '아파트' 실거래를 끌어오면 안 된다."""
+    villa = _lst(apt_name="화곡동 다세대", property_type="다세대",
+                 dong="화곡동", lawd_cd="11500", area_m2=84.0)
+    trades = [
+        Trade("화곡래미안", 84.0, 750_000_000, "202605", "화곡동", kind="apt"),  # 아파트 → 제외
+        Trade("화곡그린빌", 83.0, 320_000_000, "202605", "화곡동", kind="rh"),   # 빌라 → 채택
+    ]
+    matched = match_trades(villa, trades)
+    assert len(matched) == 1
+    assert matched[0].kind == "rh"
+
+
+def test_match_villa_no_villa_comps_returns_empty():
+    """빌라 매물인데 빌라 실거래가 없으면(아파트만 있으면) 매칭 0 → 시세추정불가."""
+    villa = _lst(apt_name="화곡동 다세대", property_type="다세대",
+                 dong="화곡동", lawd_cd="11500", area_m2=84.0)
+    apt_only = [Trade("화곡래미안", 84.0, 750_000_000, "202605", "화곡동", kind="apt")]
+    est, n = estimate_market_price(villa, apt_only)
+    assert est is None and n == 0
+
+
+def test_untagged_trades_still_match_backward_compat():
+    """kind 미태깅(="") 거래는 기존처럼 매칭된다(하위호환)."""
+    matched = match_trades(_lst(), TRADES)  # TRADES는 kind 미지정
+    assert len(matched) == 3

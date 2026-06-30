@@ -123,6 +123,7 @@ def _parse_root(root: ET.Element, kind: str) -> list[Trade]:
             deal_ym=f"{year}{month}" if year else "",
             dong=_find(item, _COMMON_TAGS["dong"]),
             floor=floor,
+            kind=kind,
         ))
     return trades
 

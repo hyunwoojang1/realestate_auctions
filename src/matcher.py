@@ -13,9 +13,30 @@ from .models import AuctionListing, Trade
 
 AREA_BAND = 0.10  # ±10% 전용면적
 
+# 경매 물건유형 → 국토부 실거래 API 종류(apt/rh/officetel).
+# 핵심: 다세대를 아파트 실거래로 평가하지 않도록 유형을 분리한다.
+_PROPERTY_KIND = {
+    "아파트": "apt",
+    "오피스텔": "officetel",
+    "다세대": "rh",
+    "연립다세대": "rh",
+    "연립": "rh",
+    "빌라": "rh",
+}
+
 
 def _norm(s: str) -> str:
     return s.replace(" ", "").lower()
+
+
+def expected_kind(property_type: str) -> str | None:
+    """물건유형 문자열 → 실거래 종류. 매핑 없는 유형(상가/토지 등)은 None(유형필터 미적용)."""
+    return _PROPERTY_KIND.get((property_type or "").strip())
+
+
+def _kind_ok(trade: Trade, want: str | None) -> bool:
+    """유형 일치 필터. 미지원 유형(None)이거나 태깅 안 된 거래(kind="")는 통과(하위호환)."""
+    return want is None or not trade.kind or trade.kind == want
 
 
 def _area_ok(a: float, b: float, band: float = AREA_BAND) -> bool:
@@ -25,19 +46,21 @@ def _area_ok(a: float, b: float, band: float = AREA_BAND) -> bool:
 
 
 def match_trades(listing: AuctionListing, trades: list[Trade]) -> list[Trade]:
-    """단지명+면적 우선, 부족하면 법정동+면적 폴백."""
+    """유형(아파트/빌라/오피스텔) 분리 → 단지명+면적 우선, 부족하면 법정동+면적 폴백."""
+    want = expected_kind(listing.property_type)
+    pool = [t for t in trades if _kind_ok(t, want)]
     name = _norm(listing.apt_name)
     by_name = [
-        t for t in trades
+        t for t in pool
         if name and _norm(t.apt_name) and (name in _norm(t.apt_name) or _norm(t.apt_name) in name)
         and _area_ok(t.area_m2, listing.area_m2)
     ]
     if by_name:
         return by_name
-    # 폴백: 같은 법정동 + 면적대
+    # 폴백: 같은 법정동 + 면적대 (유형 분리는 유지 — 다세대↔아파트 혼입 방지)
     dong = _norm(listing.dong)
     by_dong = [
-        t for t in trades
+        t for t in pool
         if dong and _norm(t.dong) == dong and _area_ok(t.area_m2, listing.area_m2)
     ]
     return by_dong

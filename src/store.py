@@ -50,3 +50,17 @@ def fetch_ranked(conn: sqlite3.Connection) -> list[dict]:
         "SELECT * FROM scored_listings ORDER BY arb_score IS NULL, arb_score DESC"
     )
     return [dict(r) for r in cur.fetchall()]
+
+
+def load_scored(conn: sqlite3.Connection) -> list[ScoredListing]:
+    """DB에 저장된 채점결과를 ScoredListing 객체로 복원(차익 스코어순).
+
+    웹 서버가 매 요청마다 라이브 API를 호출하지 않고, 새로고침 작업이
+    적재해둔 결과를 그대로 서빙하기 위한 읽기 경로.
+    """
+    return [ScoredListing(**{c: r[c] for c in _COLS}) for r in fetch_ranked(conn)]
+
+
+def has_rows(conn: sqlite3.Connection) -> bool:
+    cur = conn.execute("SELECT 1 FROM scored_listings LIMIT 1")
+    return cur.fetchone() is not None

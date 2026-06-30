@@ -10,17 +10,38 @@
 """
 from __future__ import annotations
 
+import logging
+import os
 from pathlib import Path
 
 from flask import Flask, abort, jsonify, render_template, request
 
-from . import backtest, digest, pipeline, query, report, score
+from . import backtest, digest, pipeline, query, report, score, store
+
+logger = logging.getLogger(__name__)
 
 ROOT = Path(__file__).resolve().parent.parent
+DB_ENV = "AUCTION_DB"   # 설정 시 라이브 적재 DB에서 서빙, 미설정 시 샘플 계산
 
 
 def _scored():
-    """현재 채점된 매물 목록. PoC: 샘플 데이터(요청마다 계산 — 가볍다)."""
+    """채점된 매물 목록.
+
+    AUCTION_DB 환경변수가 가리키는 DB에 적재된 결과가 있으면 그것을 서빙한다
+    (새로고침 작업이 `run.py --live`로 채워둔 라이브 결과 — 매 요청 API 호출 회피).
+    DB가 없거나 비었으면 샘플 데이터로 폴백(개발/테스트 결정성 유지).
+    """
+    db_path = os.environ.get(DB_ENV)
+    if db_path:
+        try:
+            conn = store.connect(db_path)
+            try:
+                if store.has_rows(conn):
+                    return store.load_scored(conn)
+            finally:
+                conn.close()
+        except Exception as e:  # noqa: BLE001 — DB 문제 시 샘플로 안전 폴백
+            logger.warning("DB 서빙 실패(%s) → 샘플 폴백: %s", db_path, e)
     return pipeline.run()
 
 
