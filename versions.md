@@ -15,6 +15,55 @@
 
 ---
 
+## 2026-06-30 21:41 KST — 차익 파이프라인에 courtauction 실매물 연결 (end-to-end 라이브 성공)
+- 무엇: 크롤러를 차익 스코어 파이프라인에 연결 + 이용약관 정찰 + stop_file 충돌 수정.
+  - `pipeline.load_courtauction_auctions(cash_won/sido/buffer/max_pages, client/extra 주입)` → affordable/search → `to_auction_listing` → run.
+  - `run.py` 플래그 `--source courtauction --cash --sido --max-pages --appraisal-buffer` 추가.
+  - **stop_file 기본값 AGENT_STOP→`COURTAUCTION_STOP`**(루프 잔류 AGENT_STOP과 충돌해 크롤이 막히던 footgun 수정).
+  - search 종료로그: max_pages 의도적 제한(INFO) vs 전페이지 순회후 부족(WARNING) 구분(오해 소지 제거).
+  - 이용약관 정찰: 약관/저작권 팝업(PGJ111P01~06)은 **SPA 클라이언트 렌더라 본문 텍스트 추출 불가** → "자동수집 금지 조항 여부"는 **여전히 사용자 브라우저 확인 필요**(미결, 단정 불가).
+- 증거: pytest **112 PASS**(신규 3: load_courtauction affordable/search/스코어연결), ruff 클린. (Read 확인)
+  **라이브 end-to-end**(`evidence/courtauction_pipeline_live.txt`): 서울 관악구 11건 국토부 시세 매칭 →
+  파로스프라자 오피스텔 최저7,600만 vs 시세2.09억=**98점 확실한차익**, 우현빌리지 다세대 최저5,320만 vs 3.38억=95점 등 11건 전부 매칭.
+- 평가자: 자체검증(테스트+라이브). courtauction 2요청 + MOLIT 1개구 한정.
+- 커밋: (이번 커밋)
+- 다음: 전국 지역샤딩+로컬캐시 diff(증분수집), 신뢰계수 다월표본 보정, 물건상세(권리/감정평가서) 보강, 웹 라이브서빙 연결.
+
+## 2026-06-30 19:26 KST — 크롤러 3관점 코드리뷰 후 CRITICAL/HIGH 일괄 수정
+- 무엇: code-reviewer/security-reviewer/silent-failure-hunter 병렬 리뷰(CRITICAL2·HIGH5·다수 MED/LOW) 반영.
+  - **CR-HIGH** `_request_count` 재시도 중복 → 상한검사 루프 내 이동·실제 전송수 카운트.
+  - **CR-HIGH** `affordable_search`가 호출자 SearchFilter 변이 → `dataclasses.replace`로 복사(불변성).
+  - **SEC-HIGH** PII 토큰 확장(owner/debtor/creditor/obligor/dpry 변형) + `mulBigo` 자유텍스트 성명 마스킹(`mask_personal_names`).
+  - **SFH-CRIT** `_extract_ip` bare except 무음 → 로깅. `_post` 네트워크예외만 재시도(`requests.exceptions.RequestException`), 직렬화는 루프밖 1회(프로그래밍오류 즉시 전파).
+  - **SFH-HIGH** `to_won/to_int` 소수점 처리+실패 경고로그(조용한 0 반환 방지). `_validate_payload` dma_pageInfo 검증. 중간페이지 0행=ERROR로그+누락률 경고. yielded>=total 조기종료.
+  - **SEC-MED** client_ip는 DEBUG·부분마스킹, 오류본문은 예외에 안 싣고 DEBUG로그만. Retry-After HTTP-date 파싱(`_parse_retry_after`).
+  - 보류(근거): stop_file 경로가드(운용자 설정값이라 비대상), raw private화(churn·sanitize_row 단일게이트로 충분), 스트림중 IP변동 자동재워밍(v1 한계·회로차단기 커버) — docstring 명시.
+- 증거: pytest **109 PASS**(신규 28, +retry카운트/dma_pageInfo/소수점/PII확장/비고마스킹), ruff 클린(src+tests). (Read 확인)
+  라이브 스모크: 카나리 OK(서울1668) + 1페이지 26행·117필드보존·요청카운트 정확(조기종료로 page2 안감).
+- 평가자: 자체검증(테스트+라이브). 저빈도 2요청.
+- 커밋: (대기)
+- 다음: 19:16 항목과 동일(이용약관 확인 → pipeline 연결 → 지역샤딩+캐시 → 물건상세 권리보강).
+
+## 2026-06-30 19:16 KST — courtauction 물건검색 크롤러 구현·라이브검증 (전 필드 보존, 안전장치 내장)
+- 무엇: 2차 정찰로 **실물건 검색 엔드포인트 확정** 후 크롤러 작성.
+  - 엔드포인트: `POST /pgj/pgjsearch/searchControllerMain.on`, body=`{dma_pageInfo, dma_srchGdsDtlSrchInfo}` JSON.
+    (검색UI `PGJ151M01.xml` 역분석 → submission `sbm_selectGdsDtlSrch` 페이로드 매핑)
+  - 서버필터 실효성 실측: ✅지역/감정가(aeeEvlAmt)/최저가율(lwsDspslPrcRate)/면적/유찰(flbdNcnt),
+    ❌**절대 최저가(rletLwsDspslPrc)는 무시됨** → affordable은 감정가버퍼로 볼륨축소+로컬 최저가필터.
+  - `src/courtauction_fields.py`: 117필드 카탈로그·한글라벨, `CourtAuctionRecord`(개인정보 제외 raw 전체 보존),
+    PII 가드(sanitize_row), `to_auction_listing`(matcher 연결).
+  - `src/courtauction_client.py`: SearchFilter + CourtAuctionClient(세션워밍·IP추출, 3~8s 지터 레이트리밋,
+    concurrency=1, 일일상한, 지수백오프(429/5xx), 403/리다이렉트=즉시중단, **콘텐츠 회로차단기**(200인데 HTML/스키마붕괴=조용한차단 감지),
+    카나리, kill-switch(stop_file), 페이지네이션, affordable_search).
+- 증거: pytest **106 PASS**(신규 25: fields 11 + client 14), ruff 클린. (Read 확인)
+  라이브: `evidence/courtauction_live_verify.json` — 카나리 OK(서울 1668), 현금6천만→affordable 15건(요청 3회),
+  **감정가1.4억·16회유찰→최저499만 매물 포착**(감정가프록시 단독이면 누락됐을 알짜 → 적대적검토 수정 실증), 117필드 보존.
+  fixture: `data/sample_courtauction.json`(서울 감정가≤1억 26건 실응답).
+- 평가자: 자체검증(테스트+라이브 실호출). 저빈도(3요청)·개인정보배제·공공누리4유형 비영리 전제.
+- 커밋: (대기)
+- 다음: ① 사용자: courtauction 이용약관 "자동수집 금지" 조항 여부 브라우저 확인(법적 토대). ② pipeline에 라이브 경매소스로 연결
+  (load_sample_auctions → affordable_search). ③ 전국 지역샤딩 수집 + 로컬캐시 diff(증분). ④ 물건상세(감정평가서/권리)로 권리필드 보강.
+
 ## 2026-06-30 17:50 KST — courtauction.go.kr 1차 정찰 (requests로 JSON 추출 가능 확정)
 - 무엇: 실제 경매 매물 소스(대법원 courtauction) 접근 방식 정찰. docs/courtauction_recon.md 작성.
   발견: (1) WAF 있어 맨 요청 차단 → **브라우저 헤더(UA/Accept-Language) 필수**, (2) WebSquare5+

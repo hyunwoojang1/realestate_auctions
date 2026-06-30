@@ -2,6 +2,48 @@
 
 대법원 법원경매정보 사이트에서 **경매 물건 데이터를 어떻게 합법·저빈도로 가져올지** 확인한 1차 정찰.
 
+---
+
+## 2차 정찰 — 물건검색 엔드포인트 확정 + 필터 실효성 (2026-06-30 19:16) ✅ 크롤러 구현완료
+
+검색 UI `PGJ151M01.xml`(부동산 상세검색) 역분석으로 **실물건 검색을 확정**하고 크롤러를 구현·라이브검증했다.
+
+### 검색 엔드포인트
+- `POST /pgj/pgjsearch/searchControllerMain.on` — 헤더 라우팅 없이 순수 JSON body.
+- body = `{"dma_pageInfo":{pageNo,pageSize,totalYn,...}, "dma_srchGdsDtlSrchInfo":{검색조건 ~45필드}}`
+- 응답 = `{"status":200,"data":{"dma_pageInfo":{...,"totalCnt"},"ipcheck":true,"dlt_srchResult":[117필드 행...]}}`
+- **필수**: `cortAuctnSrchCondCd="0004601"`(부동산). 없으면 HTTP 550 "요청된 데이터가 없습니다".
+- 페이지 크기 상한 **40**(200은 HTTP400). 전국 totalCnt **28,006**(그룹 16,736).
+
+### 서버사이드 필터 실효성 (실측)
+| 필터 | 키 | 작동 |
+|---|---|---|
+| 지역(시도/시군구) | rprsAdongSdCd/SggCd | ✅ |
+| 감정가 | aeeEvlAmtMin/Max | ✅ (서울 ≤1억 → 26건) |
+| 최저가율 | lwsDspslPrcRateMin/Max | ✅ |
+| 면적 | objctArDtsMin/Max | ✅ |
+| 유찰횟수 | flbdNcntMin/Max | ✅ |
+| **절대 최저매각가** | **rletLwsDspslPrcMin/Max** | ❌ **무시됨**(원·만원 단위 다 실패) |
+
+→ "내 현금으로 살 수 있는 매물"은 **서버에선 감정가Max로 볼륨만 줄이고, `최저가 ≤ 현금`은 로컬에서 정밀필터**.
+  (감정가Max = 현금×버퍼. 감정가프록시 단독은 다회유찰로 싸진 고감정가 알짜를 누락 — 적대적검토 지적.)
+
+### IP 추적·밴 신호 (실측)
+- 응답마다 `data.ipcheck=true`, 쿠키 `wcCookieV2`에 **클라이언트 IP 박힘**(`<IP>_T_..._WC`) → IP기반 추적/WAF 실재.
+- 회피: 요청 총량 최소화(필터) + concurrency=1 + 3~8s 지터 + 일일상한 + 지수백오프 + **콘텐츠 회로차단기**(200인데 HTML/스키마붕괴=조용한차단 감지) + 카나리 + kill-switch. **프록시/VPN 금지**(법적·기술적 역효과).
+
+### 구현
+- `src/courtauction_fields.py` — 117필드 카탈로그·한글라벨, `CourtAuctionRecord`(개인정보 제외 raw 전체 보존), PII 가드, `to_auction_listing`.
+- `src/courtauction_client.py` — `SearchFilter`(작동필터만 노출), `CourtAuctionClient`(위 안전장치 전부), `search()`/`affordable_search()`.
+- 검증: pytest 106 PASS(신규 25), ruff 클린. 라이브 `evidence/courtauction_live_verify.json`
+  (현금6천만→15건, 요청3회, 감정가1.4억·16회유찰→최저499만 포착, 117필드 보존). fixture `data/sample_courtauction.json`.
+
+### 미해결/다음
+- 🔴 **이용약관 "자동수집 금지" 조항 여부**(사용자 브라우저 확인 — SPA라 자동 도달 불가).
+- 전국 지역샤딩 + 로컬캐시 diff(증분), pipeline 연결, 물건상세(권리/감정평가서) 보강.
+
+---
+
 ## 핵심 결론
 - **헤드리스 브라우저 불필요. Python `requests`로 충분.** `.on` 엔드포인트가 POST에 **JSON**으로 응답함(실증됨).
 - 단, **WAF(웹방화벽)** 때문에 **브라우저 헤더 필수** + **세션 쿠키 + Referer** 필요.

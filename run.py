@@ -6,6 +6,8 @@
   python run.py --type 아파트 --region 서울  # 필터
   python run.py --sort profit --json     # 예상차익순, JSON 출력
   python run.py --live --ym 202605       # 국토부 라이브(키 필요, F10)
+  python run.py --source courtauction --cash 60000000 --sido 11 --live --ym 202605
+                                         # 대법원 실경매 매물(가용현금 6천만·서울) → 시세매칭 차익 큐레이션
 결과: 콘솔 랭킹표 + evidence/result.csv + evidence/result.html (--json이면 stdout JSON)
 """
 from __future__ import annotations
@@ -26,6 +28,14 @@ def main(argv=None) -> int:
     ap = argparse.ArgumentParser(description="경매 최저가 vs 실거래 시세 차익 큐레이션 PoC")
     ap.add_argument("--live", action="store_true", help="국토부 라이브 API 사용(MOLIT_API_KEY 필요)")
     ap.add_argument("--ym", help="조회 연월 YYYYMM (라이브 전용)")
+    ap.add_argument("--source", choices=["sample", "courtauction"], default="sample",
+                    help="경매물건 소스: sample(기본) | courtauction(대법원 실매물 라이브 크롤)")
+    ap.add_argument("--cash", type=int, default=None,
+                    help="가용현금(원). courtauction 소스에서 '최저가<=현금' 매물만(감정가버퍼로 서버축소)")
+    ap.add_argument("--sido", default="", help="courtauction 시도코드(11=서울 …). 미지정=전국")
+    ap.add_argument("--max-pages", type=int, default=10, help="courtauction 페이지 상한(1p=40건)")
+    ap.add_argument("--appraisal-buffer", type=float, default=3.0,
+                    help="affordable 감정가 상한 배수(현금×버퍼). 다회유찰 저가매물 누락 방지(기본 3)")
     ap.add_argument("--db", default=str(ROOT / "auction.db"), help="SQLite 경로")
     ap.add_argument("--min-score", type=float, default=None, help="차익 스코어 하한 필터")
     ap.add_argument("--type", dest="ptype", default=None, help="물건종류 필터(아파트/오피스텔/다세대 등)")
@@ -38,10 +48,17 @@ def main(argv=None) -> int:
     _load_dotenv(ROOT / ".env")
 
     if not args.json:
-        mode = "라이브(국토부 API)" if args.live else "샘플 데이터"
-        print(f"▶ 모드: {mode}\n")
+        src = "대법원 courtauction 실매물" if args.source == "courtauction" else "샘플 물건"
+        mode = "라이브(국토부 시세)" if args.live else "샘플 시세"
+        print(f"▶ 물건소스: {src} · 시세: {mode}\n")
 
-    scored = pipeline.run(use_live=args.live, deal_ymd=args.ym)
+    if args.source == "courtauction":
+        listings = pipeline.load_courtauction_auctions(
+            cash_won=args.cash, sido_cd=args.sido,
+            appraisal_buffer=args.appraisal_buffer, max_pages=args.max_pages)
+        scored = pipeline.run(use_live=args.live, deal_ymd=args.ym, auctions=listings)
+    else:
+        scored = pipeline.run(use_live=args.live, deal_ymd=args.ym)
 
     conn = store.connect(args.db)
     n = store.upsert(conn, scored)   # 전체 저장

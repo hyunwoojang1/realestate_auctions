@@ -1,0 +1,392 @@
+"""courtauction(대법원 법원경매) 물건검색 크롤러 — 정중·안전 우선.
+
+엔드포인트(실측): POST https://www.courtauction.go.kr/pgj/pgjsearch/searchControllerMain.on
+  body = {"dma_pageInfo":{...}, "dma_srchGdsDtlSrchInfo":{...}} (JSON)
+  응답 = {"status":200,"data":{"dma_pageInfo":{...,"totalCnt"},"dlt_srchResult":[...]}}
+  전제: GET /pgj/index.on 세션쿠키 + 브라우저 헤더 + Referer.
+
+밴 회피 설계(리서치+적대적검토 반영):
+  1) 요청 총량 최소화 — 작동하는 서버필터(지역/감정가/최저가율/면적/유찰)로 후보만 받음.
+  2) concurrency=1, 요청 간 3~8초 랜덤 지터, 토큰버킷/일일 상한.
+  3) 세션쿠키 재사용 + 정확한 헤더 + Referer/Origin. IP 변동 시 세션 재취득(쿠키에 IP 박힘).
+  4) 지수 백오프(429/5xx). 403/차단 의심 → 즉시 중단(우회 금지).
+  5) 콘텐츠 회로차단기 — 200인데 스키마 깨짐/HTML/리다이렉트 = 조용한 차단 감지 → 중단.
+  6) 카나리 요청(반드시 결과 나오는 쿼리)로 정상 응답형태 사전 확인.
+  7) kill-switch 파일 존재 시 즉시 종료.
+
+합법 전제: 공공누리 제4유형(비영리·개인용). 개인정보 필드 미저장(courtauction_fields가 처리).
+서버 부하 미발생 수준 저빈도. 차단되면 우회하지 말고 중단 후 합법대안(CODEF 등) 검토.
+"""
+from __future__ import annotations
+
+import json
+import logging
+import random
+import time
+from collections.abc import Iterator
+from dataclasses import dataclass, field, replace
+from email.utils import parsedate_to_datetime
+from pathlib import Path
+
+import requests
+
+from .courtauction_fields import (
+    SRCH_COND_REAL_ESTATE,
+    CourtAuctionRecord,
+    parse_row,
+)
+
+logger = logging.getLogger(__name__)
+
+_RETRY_AFTER_MIN = 60.0   # 429 시 최소 대기(서버가 더 길게 요청하면 그 값 사용)
+
+BASE = "https://www.courtauction.go.kr"
+INDEX_URL = f"{BASE}/pgj/index.on"
+SEARCH_URL = f"{BASE}/pgj/pgjsearch/searchControllerMain.on"
+
+# 브라우저 위장 헤더(실측상 필수 6종 + 보강). requests 기본 UA는 즉시 봇 차단됨.
+_UA = ("Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 "
+       "(KHTML, like Gecko) Chrome/126.0.0.0 Safari/537.36")
+_BASE_HEADERS = {
+    "User-Agent": _UA,
+    "Accept-Language": "ko-KR,ko;q=0.9,en;q=0.8",
+    "Accept-Encoding": "gzip, deflate, br",
+}
+_POST_HEADERS = {
+    **_BASE_HEADERS,
+    "Content-Type": "application/json;charset=UTF-8",
+    "Accept": "application/json, text/plain, */*",
+    "Referer": INDEX_URL,
+    "Origin": BASE,
+    "X-Requested-With": "XMLHttpRequest",
+}
+
+PAGE_SIZE = 40            # 실측 상한(200은 HTTP400). 초과 금지.
+_PII_NOTE = "개인정보 필드는 courtauction_fields.sanitize_row가 제거"
+
+
+class CourtAuctionError(RuntimeError):
+    """일반 호출 실패(네트워크·파싱)."""
+
+
+class CourtAuctionBlocked(CourtAuctionError):
+    """차단/조용한차단 감지 — 즉시 중단해야 하는 상황(403, 스키마 붕괴, kill-switch)."""
+
+
+# ---------------------------------------------------------------------------
+# 검색 필터 — '작동 확인된' 서버사이드 필터만 노출(절대 최저가는 무시되므로 제외)
+# ---------------------------------------------------------------------------
+@dataclass
+class SearchFilter:
+    """물건 검색조건. 빈 값은 미적용. (실측: 지역/감정가/최저가율/면적/유찰만 서버에서 동작)"""
+    sido_cd: str = ""              # rprsAdongSdCd  예) "11"=서울 ("" = 전국)
+    sigu_cd: str = ""              # rprsAdongSggCd 시군구(선택)
+    appraisal_min: int = 0         # aeeEvlAmtMin (원)
+    appraisal_max: int = 0         # aeeEvlAmtMax (원) — 가용현금 프록시의 핵심 레버
+    price_rate_min: int = 0        # lwsDspslPrcRateMin (%) 최저가율 하한
+    price_rate_max: int = 0        # lwsDspslPrcRateMax (%)
+    area_min: float = 0.0          # objctArDtsMin (㎡)
+    area_max: float = 0.0          # objctArDtsMax (㎡)
+    fail_count_min: int = 0        # flbdNcntMin 유찰 하한
+    fail_count_max: int = 0        # flbdNcntMax
+    usage_lcls: str = ""           # lclDspslGdsLstUsgCd 용도대분류
+    usage_mcls: str = ""           # mclDspslGdsLstUsgCd
+    usage_scls: str = ""           # sclDspslGdsLstUsgCd
+
+    # 검색대상 키 전체(서버가 빈 값도 요구) — searchControllerMain 페이로드 골격
+    _ALL_KEYS = (
+        "rletDspslSpcCondCd", "bidDvsCd", "mvprpRletDvsCd", "cortAuctnSrchCondCd",
+        "rprsAdongSdCd", "rprsAdongSggCd", "rprsAdongEmdCd", "rdnmSdCd", "rdnmSggCd", "rdnmNo",
+        "mvprpDspslPlcAdongSdCd", "mvprpDspslPlcAdongSggCd", "mvprpDspslPlcAdongEmdCd",
+        "rdDspslPlcAdongSdCd", "rdDspslPlcAdongSggCd", "rdDspslPlcAdongEmdCd",
+        "cortOfcCd", "jdbnCd", "execrOfcDvsCd",
+        "lclDspslGdsLstUsgCd", "mclDspslGdsLstUsgCd", "sclDspslGdsLstUsgCd", "cortAuctnMbrsId",
+        "aeeEvlAmtMin", "aeeEvlAmtMax", "rletLwsDspslPrcMin", "rletLwsDspslPrcMax",
+        "mvprpLwsDspslPrcMin", "mvprpLwsDspslPrcMax", "lwsDspslPrcRateMin", "lwsDspslPrcRateMax",
+        "flbdNcntMin", "flbdNcntMax", "objctArDtsMin", "objctArDtsMax",
+        "mvprpArtclKndCd", "mvprpArtclNm", "mvprpAtchmPlcTypCd", "notifyLoc",
+        "lafjOrderBy", "pgmId", "csNo", "cortStDvs", "statNum", "bidBgngYmd", "bidEndYmd",
+    )
+
+    def to_payload(self) -> dict:
+        """dma_srchGdsDtlSrchInfo dict 생성(전 키 빈값 + 설정값 덮어쓰기)."""
+        d = {k: "" for k in self._ALL_KEYS}
+        d["cortAuctnSrchCondCd"] = SRCH_COND_REAL_ESTATE  # 부동산
+        d["notifyLoc"] = "Y"
+        d["pgmId"] = "PGJ151M01"
+        if self.sido_cd:
+            d["rprsAdongSdCd"] = self.sido_cd
+        if self.sigu_cd:
+            d["rprsAdongSggCd"] = self.sigu_cd
+        if self.appraisal_min:
+            d["aeeEvlAmtMin"] = str(self.appraisal_min)
+        if self.appraisal_max:
+            d["aeeEvlAmtMax"] = str(self.appraisal_max)
+        if self.price_rate_min:
+            d["lwsDspslPrcRateMin"] = str(self.price_rate_min)
+        if self.price_rate_max:
+            d["lwsDspslPrcRateMax"] = str(self.price_rate_max)
+        if self.area_min:
+            d["objctArDtsMin"] = str(self.area_min)
+        if self.area_max:
+            d["objctArDtsMax"] = str(self.area_max)
+        if self.fail_count_min:
+            d["flbdNcntMin"] = str(self.fail_count_min)
+        if self.fail_count_max:
+            d["flbdNcntMax"] = str(self.fail_count_max)
+        if self.usage_lcls:
+            d["lclDspslGdsLstUsgCd"] = self.usage_lcls
+        if self.usage_mcls:
+            d["mclDspslGdsLstUsgCd"] = self.usage_mcls
+        if self.usage_scls:
+            d["sclDspslGdsLstUsgCd"] = self.usage_scls
+        return d
+
+
+def _page_info(page_no: int, total_yn: str = "Y") -> dict:
+    return {"pageNo": str(page_no), "pageSize": str(PAGE_SIZE), "bfPageNo": "",
+            "startRowNo": "", "totalCnt": "", "totalYn": total_yn}
+
+
+# ---------------------------------------------------------------------------
+# 클라이언트
+# ---------------------------------------------------------------------------
+@dataclass
+class CourtAuctionClient:
+    """저빈도·안전 크롤러. with 블록 또는 직접 사용. 라이브 호출은 외부망 필요."""
+    min_interval: float = 3.0          # 요청 간 최소 지연(초)
+    max_interval: float = 8.0          # 최대 지연 → 그 사이 랜덤(고정간격=봇)
+    daily_cap: int = 500               # 1일 총 요청 상한(서킷)
+    max_retries: int = 4               # 429/5xx 재시도 횟수
+    backoff_base: float = 2.0          # 백오프 기준(2→4→8…)
+    backoff_cap: float = 120.0
+    timeout: int = 30
+    stop_file: str | None = "COURTAUCTION_STOP"   # 존재하면 즉시 중단(kill-switch). 전용 파일명(루프의 AGENT_STOP과 분리)
+    session: object = None             # requests.Session (None이면 lazy 생성)
+    _request_count: int = field(default=0, init=False)
+    _client_ip: str = field(default="", init=False)
+    _last_request_ts: float = field(default=0.0, init=False)
+
+    # --- 세션/IP ---
+    def _ensure_session(self):
+        if self.session is None:
+            self.session = requests.Session()
+            self.session.headers.update(_BASE_HEADERS)
+        return self.session
+
+    def _warm_session(self) -> None:
+        """GET /pgj/index.on — 세션쿠키 발급. wcCookieV2에서 클라이언트 IP 기록.
+
+        주의: 가정용 동적 IP가 search() 진행 중 바뀌면 쿠키(IP 박힘)가 무효화될 수 있다.
+        그 경우 다음 요청이 403/리다이렉트/스키마붕괴로 드러나 회로차단기가 중단시킨다
+        (스트림 도중 자동 재워밍은 v1 미구현 — 의도적 한계).
+        """
+        s = self._ensure_session()
+        r = s.get(INDEX_URL, timeout=self.timeout)
+        if r.status_code != 200:
+            raise CourtAuctionError(f"세션 워밍 실패 HTTP {r.status_code}")
+        ip = self._extract_ip(r)
+        if ip:
+            self._client_ip = ip
+        # IP는 운용자 자신의 주소 — DEBUG로만, 앞부분만 남겨 로그 유출 최소화.
+        logger.debug("세션 워밍 완료 (client_ip=%s)", (self._client_ip[:7] + "…") if self._client_ip else "?")
+
+    @staticmethod
+    def _extract_ip(resp) -> str:
+        """wcCookieV2('59.6.135.109_T_..._WC')에서 IP 추출. 실패는 무음이 아니라 로그."""
+        try:
+            cookie = resp.headers.get("Set-Cookie", "") or ""
+        except Exception as e:  # noqa: BLE001
+            logger.warning("Set-Cookie 헤더 읽기 실패(IP 추출 불가): %s", e)
+            return ""
+        for part in cookie.split(","):
+            if "wcCookieV2=" in part:
+                val = part.split("wcCookieV2=", 1)[1].split(";", 1)[0]
+                ip = val.split("_", 1)[0]
+                if not ip:
+                    logger.warning("wcCookieV2 파싱했으나 IP 부분이 빔")
+                return ip
+        logger.debug("Set-Cookie에 wcCookieV2 없음 — IP 미기록 응답")
+        return ""
+
+    # --- 안전장치 ---
+    def _check_kill_switch(self) -> None:
+        if self.stop_file and Path(self.stop_file).exists():
+            raise CourtAuctionBlocked(f"kill-switch '{self.stop_file}' 존재 — 즉시 중단")
+
+    def _throttle(self) -> None:
+        """요청 간 랜덤 지터 지연(고정 간격=봇 신호이므로 매번 난수). 상한검사는 _post가 담당."""
+        if self._last_request_ts:
+            elapsed = time.monotonic() - self._last_request_ts
+            wait = random.uniform(self.min_interval, self.max_interval) - elapsed
+            if wait > 0:
+                time.sleep(wait)
+
+    def _post(self, body: dict) -> dict:
+        """검색 POST 1회(재시도 포함) — 스로틀·백오프·차단감지 내장. 정상 JSON dict 반환.
+
+        _request_count는 '실제 서버로 보낸 요청 수'(재시도 포함)를 센다 — WAF가 보는 트래픽과 일치.
+        직렬화는 루프 밖에서 1회만(직렬화/프로그래밍 오류는 재시도 없이 즉시 전파).
+        """
+        self._check_kill_switch()
+        self._throttle()
+        s = self._ensure_session()
+        payload = json.dumps(body)   # 직렬화 오류는 여기서 즉시 전파(재시도 대상 아님)
+        attempt = 0
+        while True:
+            attempt += 1
+            if self._request_count >= self.daily_cap:
+                raise CourtAuctionBlocked(f"요청 상한({self.daily_cap}, 인스턴스 누적) 도달 — 중단")
+            self._last_request_ts = time.monotonic()
+            self._request_count += 1
+            try:
+                resp = s.post(SEARCH_URL, headers=_POST_HEADERS, data=payload,
+                              timeout=self.timeout, allow_redirects=False)
+            except requests.exceptions.RequestException as e:
+                # 네트워크/HTTP 라이브러리 오류만 재시도. 그 외(프로그래밍 오류)는 전파됨.
+                if attempt > self.max_retries:
+                    raise CourtAuctionError(f"네트워크 오류 {self.max_retries}회 실패: {e}") from e
+                self._sleep_backoff(attempt, f"네트워크 오류: {type(e).__name__}")
+                continue
+
+            status = resp.status_code
+            # 403/리다이렉트 = 차단/세션이상 → 우회 금지, 즉시 중단
+            if status == 403:
+                raise CourtAuctionBlocked("HTTP 403 — 차단 의심. 즉시 중단(우회 금지).")
+            if status in (301, 302, 303, 307, 308):
+                raise CourtAuctionBlocked(f"HTTP {status} 리다이렉트(→index) — 세션무효/차단 의심.")
+            if status == 429 or 500 <= status < 600:
+                if attempt > self.max_retries:
+                    raise CourtAuctionBlocked(f"HTTP {status} {self.max_retries}회 — 중단.")
+                self._sleep_backoff(attempt, f"HTTP {status}", retry_after=resp.headers.get("Retry-After"))
+                continue
+            if status != 200:
+                # 응답 본문은 민감정보(쿠키·내부오류·PII) 포함 가능 → 예외엔 안 싣고 DEBUG 로그만.
+                logger.debug("예상치 못한 HTTP %s 응답본문: %.200s", status, resp.text)
+                raise CourtAuctionError(f"예상치 못한 HTTP {status} (본문은 DEBUG 로그 참조)")
+            return self._validate_payload(resp)
+
+    def _sleep_backoff(self, attempt: int, why: str, retry_after: str | None = None) -> None:
+        delay = self._parse_retry_after(retry_after)
+        if delay is None:
+            delay = min(self.backoff_cap, self.backoff_base * (2 ** (attempt - 1)))
+        delay += random.uniform(0, 2)
+        logger.warning("%s — %.1fs 백오프 후 재시도(%d/%d)", why, delay, attempt, self.max_retries)
+        time.sleep(delay)
+
+    @staticmethod
+    def _parse_retry_after(retry_after: str | None) -> float | None:
+        """Retry-After(초 또는 HTTP-date) → 대기초(최소 _RETRY_AFTER_MIN). 없으면 None."""
+        if not retry_after:
+            return None
+        ra = str(retry_after).strip()
+        if ra.isdigit():
+            return max(_RETRY_AFTER_MIN, float(ra))
+        try:  # HTTP-date 형식
+            when = parsedate_to_datetime(ra)
+            return max(_RETRY_AFTER_MIN, when.timestamp() - time.time())
+        except (TypeError, ValueError):
+            return None
+
+    def _validate_payload(self, resp) -> dict:
+        """콘텐츠 회로차단기: 200이라도 스키마 깨지면 '조용한 차단'으로 간주."""
+        ctype = resp.headers.get("Content-Type", "")
+        if "json" not in ctype.lower():
+            raise CourtAuctionBlocked(f"200인데 비-JSON({ctype}) — 위장차단 의심. 중단.")
+        try:
+            j = resp.json()
+        except Exception as e:  # noqa: BLE001
+            raise CourtAuctionBlocked(f"200인데 JSON 파싱불가 — 위장차단 의심: {e}") from e
+        if not isinstance(j, dict) or "data" not in j or not isinstance(j.get("data"), dict):
+            errs = j.get("errors") if isinstance(j, dict) else None
+            raise CourtAuctionBlocked(f"응답 스키마 이상(data 없음). errors={errs}")
+        data = j["data"]
+        if "dlt_srchResult" not in data:
+            raise CourtAuctionBlocked("응답에 dlt_srchResult 없음 — 스키마 붕괴/차단 의심.")
+        if "dma_pageInfo" not in data:
+            raise CourtAuctionBlocked("응답에 dma_pageInfo 없음 — 스키마 붕괴/차단 의심.")
+        return j
+
+    # --- 공개 API ---
+    def canary(self) -> int:
+        """반드시 결과가 나오는 알려진 쿼리(서울 부동산 1페이지)로 정상성 확인. totalCnt 반환."""
+        self._warm_session()
+        body = {"dma_pageInfo": _page_info(1), "dma_srchGdsDtlSrchInfo": SearchFilter(sido_cd="11").to_payload()}
+        data = self._post(body)["data"]
+        total = int(data["dma_pageInfo"].get("totalCnt") or 0)
+        rows = len(data.get("dlt_srchResult") or [])
+        if rows == 0 or total == 0:
+            raise CourtAuctionBlocked("카나리 0건 — 정상 응답형태 아님(조용한 차단 의심). 작업 중단.")
+        logger.info("카나리 OK (서울 totalCnt=%d, rows=%d)", total, rows)
+        return total
+
+    def search(self, flt: SearchFilter, max_pages: int = 25,
+               warm: bool = True) -> Iterator[CourtAuctionRecord]:
+        """검색조건으로 매물을 페이지네이션하며 yield. 개인정보는 raw에서 제거됨.
+
+        max_pages로 안전 상한(기본 25p=1000행). totalCnt 도달 시 조기 종료.
+        """
+        if warm and not self._client_ip:
+            self._warm_session()
+        payload = flt.to_payload()
+        first = self._post({"dma_pageInfo": _page_info(1), "dma_srchGdsDtlSrchInfo": payload})["data"]
+        total = int(first["dma_pageInfo"].get("totalCnt") or 0)
+        yielded = 0
+        for row in (first.get("dlt_srchResult") or []):
+            yielded += 1
+            yield parse_row(row)
+        if total == 0:
+            logger.info("검색 결과 0건 (sido=%s appMax=%s)", flt.sido_cd, flt.appraisal_max)
+            return
+        if yielded >= total:        # 1페이지로 끝난 경우 추가 요청 안 함
+            logger.info("검색 완료 %d행 수집 (총 %d, 1페이지)", yielded, total)
+            return
+        last_page = min(max_pages, -(-total // PAGE_SIZE))  # ceil
+        for page in range(2, last_page + 1):
+            data = self._post({"dma_pageInfo": _page_info(page, total_yn="N"),
+                               "dma_srchGdsDtlSrchInfo": payload})["data"]
+            rows = data.get("dlt_srchResult") or []
+            if not rows:
+                # 잔여가 있는데 빈 페이지 = 서버 일시장애/조용한 차단 의심 → 누락을 ERROR로 드러냄
+                remaining = total - yielded
+                if remaining > 0:
+                    logger.error("page %d 0행 — 조기종료, 잔여 %d건 누락(수집 %d/총 %d). "
+                                 "서버 일시장애/조용한차단 의심.", page, remaining, yielded, total)
+                else:
+                    logger.warning("page %d 0행 — 조기종료(잔여 없음 추정)", page)
+                break
+            for row in rows:
+                yielded += 1
+                yield parse_row(row)
+            if yielded >= total:     # 목표 도달 → 불필요 요청 방지
+                break
+        full_pages = -(-total // PAGE_SIZE)
+        if last_page < full_pages:
+            # max_pages 상한으로 의도적으로 일부만 수집 — 손실 아님(INFO)
+            logger.info("검색 일부수집 %d행 (max_pages=%d 제한, 총 %d중 %d페이지)",
+                        yielded, max_pages, total, last_page)
+        elif yielded < total * 0.9:
+            # 전 페이지를 돌았는데도 10%+ 부족 = 진짜 누락(서버이상/조용한차단) → 경고
+            logger.warning("검색 종료 %d행 — 전 페이지 순회했으나 totalCnt %d 대비 누락률 %.0f%%",
+                           yielded, total, (1 - yielded / total) * 100)
+        else:
+            logger.info("검색 완료 %d행 수집 (총 %d, %d페이지)", yielded, total, last_page)
+
+    def affordable_search(self, cash_won: int, appraisal_buffer: float = 3.0,
+                          extra: SearchFilter | None = None,
+                          max_pages: int = 25, warm: bool = True) -> list[CourtAuctionRecord]:
+        """'내 가용현금으로 살 수 있는' 매물.
+
+        절대 최저가 서버필터가 막혀 있으므로(실측): 서버에선 감정가Max로 볼륨만 줄이고
+        (감정가 = cash×buffer까지 — 다회유찰로 싸진 고감정가 매물 누락 방지),
+        '최저가 ≤ 가용현금' 정밀 필터는 로컬에서 수행한다(적대적검토 반영).
+        """
+        # 호출자의 SearchFilter를 변이하지 않도록 복사(불변성).
+        flt = replace(extra if extra is not None else SearchFilter(),
+                      appraisal_max=int(cash_won * appraisal_buffer))
+        out: list[CourtAuctionRecord] = []
+        for rec in self.search(flt, max_pages=max_pages, warm=warm):
+            if 0 < rec.min_bid_price <= cash_won:
+                out.append(rec)
+        logger.info("affordable: 현금 %d원 → %d건(감정가버퍼 ×%.1f)", cash_won, len(out), appraisal_buffer)
+        return out

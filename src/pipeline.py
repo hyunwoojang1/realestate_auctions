@@ -33,6 +33,31 @@ def load_sample_auctions(path: Path | None = None) -> list[AuctionListing]:
     return [AuctionListing(**r) for r in raw]
 
 
+def load_courtauction_auctions(cash_won: int | None = None, sido_cd: str = "",
+                               appraisal_buffer: float = 3.0, max_pages: int = 10,
+                               client=None, extra=None) -> list[AuctionListing]:
+    """대법원 courtauction 라이브 검색 → AuctionListing 리스트(차익 파이프라인 입력).
+
+    - cash_won 지정: affordable_search(서버 감정가버퍼로 볼륨축소 + 로컬 '최저가≤현금' 정밀필터).
+    - 미지정: 일반 search(지역 등 필터만).
+    - client/extra는 테스트 주입용. 개인정보는 courtauction_fields.sanitize_row가 제거.
+    저빈도·안전장치는 CourtAuctionClient가 담당(지터·회로차단기·일일상한 등).
+    """
+    from .courtauction_client import CourtAuctionClient, SearchFilter  # noqa: PLC0415
+    from .courtauction_fields import to_auction_listing  # noqa: PLC0415
+
+    c = client or CourtAuctionClient()
+    flt = extra if extra is not None else SearchFilter(sido_cd=sido_cd)
+    if cash_won:
+        recs = c.affordable_search(cash_won, appraisal_buffer=appraisal_buffer,
+                                   extra=flt, max_pages=max_pages)
+    else:
+        recs = list(c.search(flt, max_pages=max_pages))
+    listings = [to_auction_listing(r) for r in recs]
+    logger.info("courtauction 실매물 %d건 → AuctionListing 변환", len(listings))
+    return listings
+
+
 def load_sample_trades() -> list[Trade]:
     """샘플 실거래: 아파트 + 연립다세대(빌라) + 오피스텔 fixture 합본."""
     trades: list[Trade] = []
