@@ -15,6 +15,36 @@
 
 ---
 
+## 2026-06-30 17:44 KST — 절대 규칙 도입: 편집 시 versions.md 기입 강제(CLAUDE.md + 전역 훅)
+- 무엇: 사용자 지시로 "이 프로젝트 파일을 작성/편집하면 무조건 versions.md에 기입" 규칙을 명시·강제화.
+  (1) CLAUDE.md 최상단에 "## 0. 절대 규칙 — versions.md 기입" 섹션 추가(예외 없음, versions.md 자신 제외).
+  (2) 전역 PostToolUse 훅(`~/.claude/settings.json` + `~/.claude/hooks/auction-versions-reminder.js`,
+      node 실행) — Write/Edit/MultiEdit가 `.../dev/auction-arbitrage/` 내 파일(versions.md 제외)을
+      건드리면 모델 컨텍스트에 "versions.md 갱신 필수" 리마인더를 주입. 프로젝트 밖·versions.md는 무음.
+- 증거: 훅 스크립트 pipe-test 3종(프로젝트파일=리마인더O / versions.md=무음 / 프로젝트밖=무음) 통과,
+  settings.json node로 JSON 유효성·스크립트 경로 존재 확인, **이 CLAUDE.md 편집 시 훅이 실제로 발화**
+  (system-reminder로 additionalContext 주입 확인). 기존 전역설정(plugins/mcpServers/theme) 보존.
+- 평가자: 자체검증(훅 발화 실측).
+- 커밋: (대기 — CLAUDE.md·versions.md 변경, 사용자 확인 후. 훅/settings는 프로젝트 밖이라 비대상)
+- 다음: courtauction 크롤러 착수(정찰 우선) 또는 단독/상업/토지+건축물대장 클라이언트 추가.
+
+## 2026-06-30 17:30 KST — 전 API 라이브 접속 검증 (국토부 7종 + V-World 지오코더)
+- 무엇: 운영자가 data.go.kr에서 국토부 7종(아파트상세·연립다세대·오피스텔·**단독다가구·상업업무용·토지**
+  +건축HUB 건축물대장) 활용신청 완료 → **단일 키(MOLIT_API_KEY)로 7종 전부 실호출 검증**.
+  V-World 인증키(VWORLD_API_KEY)도 .env 저장 후 지오코더 검증. (검증 스크립트는 scratchpad, 비영속)
+- 증거: 강남구(11680)/202403 라이브 응답 —
+  - 아파트상세(15126468) **OK totalCount=242**
+  - 연립다세대(15126467) 첫 호출 HTTP502(일시) → 재시도 **OK totalCount=37**
+  - 오피스텔(15126464) **OK 71** / 단독다가구(15126465) **OK 8** / 상업업무용(15126463) **OK 65** / 토지(15126466) **OK 33**
+  - 건축물대장 건축HUB(15134735) getBrTitleInfo 역삼동 **OK totalCount=1**
+  - V-World 지오코더 getCoord(테헤란로152) **HTTP200 status=OK** — domain 미설정에도 작동
+- 결론: data.go.kr 7종 모두 같은 키로 접속 가능, 추가 활용신청 불요. **클라이언트엔 apt/rh/officetel 3종만
+  구현됨** → 단독/상업/토지 3종 + 건축물대장 fetch/파서 미구현(다음). 등기부(CODEF/틸코·유료)·실제 경매
+  매물(courtauction·크롤링)은 data.go.kr 영역 밖이라 별도. V-World WMS/WFS(용도지역)는 미검증(domain 필요 가능).
+- 평가자: 자체검증(실호출).
+- 커밋: (코드변경 없음 — 검증·문서만)
+- 다음: courtauction 크롤러 착수(사용자 지시). 병행 가능: molit_client에 단독/상업/토지 endpoint + 건축물대장 클라이언트 추가.
+
 ## 2026-06-30 10:58 KST — F10 라이브 검증 성공 + 유형분리 매칭 버그 수정 + 웹 라이브 서빙
 - 무엇:
   (1) **F10 라이브 검증** — 운영자가 국토부 실거래가 API 키 발급(아파트 상세 15126468·연립다세대
