@@ -15,6 +15,27 @@
 
 ---
 
+## 2026-07-01 17:41 KST — [F] 터널 접속 가이드 (사이클1, feat/deploy-prep)
+- 무엇:
+  - **원격 접속 문서**(docs/remote-access.md): 올-로컬 waitress 서버(127.0.0.1:8000)를 폰 등
+    외부에서 안전하게 접속하는 두 방식 정리 — (A) Tailscale 사설 VPN(비공개·권장),
+    (B) Cloudflare Tunnel quick tunnel(즉석 공개 HTTPS URL). 각 방식의 설치·기동·접속 절차,
+    바인드 주소 차이(127.0.0.1 로컬프록시 vs 0.0.0.0 -BindAll 직접접속), 방화벽 규칙,
+    보안(무인증 서버 위험도 표 + Cloudflare 공개 시 접근제한 필수), 트러블슈팅 표, 체크리스트.
+  - **연결 확인 스크립트**(scripts/check-tunnel.ps1): 순수 로컬 진단(외부 호출 0).
+    [1] tailscale 설치·로그인·tailnet IP, [2] cloudflared 설치·버전,
+    [3] 로컬 포트 LISTEN 여부 + 바인드주소 해석(127.0.0.1/0.0.0.0), [4] 방화벽 인바운드 규칙을
+    OK/WARN/MISSING 으로 표시하고 권장 다음 단계 출력. -Port/-OutFile 파라미터.
+    (Windows PowerShell 5.1 한글 파싱 위해 UTF-8 BOM 로 저장 — 기존 scripts 규약과 정합)
+- 증거: evidence/tunnel_guide.txt (실제 실행 2회: 서버 미기동→[3] WARN, python -m src.serve 기동 후
+  →[3] OK LISTEN 127.0.0.1:8000. tailscale/cloudflared 미설치→MISSING 정상 표시. 외부호출 0)
+- 검증: `PYTHONUTF8=1 .venv/Scripts/python.exe -m pytest -q` → 162 passed(무회귀),
+  `ruff check .` → All checks passed.
+- 평가자: PASS (2인 패널 모두 PASS)
+- 커밋: (커밋 에이전트 처리)
+- 다음: 아침에 사람이 실제 Tailscale/cloudflared 설치 후 폰 접속 라이브 확인 →
+  MagicDNS/HTTPS(tailscale serve) 또는 Cloudflare named tunnel + Access 인증게이트 문서 보강.
+
 ## 2026-07-01 17:34 KST — [E] 시세유형 확대 뼈대 (사이클1, feat/deploy-prep)
 - 무엇:
   - **확장 실거래 클라이언트**(src/molit_extra_client.py): 기존 아파트/연립/오피스텔(molit_client)에
