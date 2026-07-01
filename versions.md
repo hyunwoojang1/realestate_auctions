@@ -15,6 +15,19 @@
 
 ---
 
+## 2026-07-01 17:44 KST — 🏁 밤샘 배포준비 루프 마감 요약 (feat/deploy-prep)
+- 무엇: GOAL_DEPLOY 밤샘루프 종료. 코어 A·B·C 3종 + 스트레치 D·E·F 3종 전부 구현·커밋 완료.
+  - 코어(모두 PASS): A 정기 새로고침 스케줄러(Disabled 등록, b987529) / B 프로덕션 서빙 waitress(97b1ff3) /
+    C 신뢰계수 표본 개선·튜닝 외부화(77b10d8).
+  - 스트레치(모두 PASS): D 권리필드 파서 뼈대 / E 시세유형 확대(단독·상업·토지+건축물대장) / F 터널 접속 가이드.
+- 증거: evidence/ 전량 존재(scheduler_dryrun·serving_health·confidence_samples·rights_parser·molit_types·tunnel_guide),
+  전부 오프라인 실행(courtauction/국토부 실서버 무호출 — 밤샘 정책 준수).
+- 검증: `PYTHONUTF8=1 .venv/Scripts/python.exe -m pytest -q` → **162 passed**(무회귀), `ruff check .` → All checks passed.
+- 평가자: 코어 A·B·C 신선-컨텍스트 패널 2인 모두 PASS. 스트레치 D·E·F PASS.
+- 커밋: 6건 로컬 커밋(feat/deploy-prep, 9dc9add~d774a5c). **push 안 함(밤샘 정책=아침 사용자 리뷰 후 push).**
+- 다음(사용자 아침 작업): ① feat/deploy-prep 리뷰 후 push, ② 통제된 라이브 1회로 D/E 파서·건축물대장 실응답 구조 확인,
+  ③ Tailscale/cloudflared 설치 후 폰 접속 확인, ④ 약관 확인 후 `Enable-ScheduledTask`로 스케줄러 활성화.
+
 ## 2026-07-01 17:41 KST — [F] 터널 접속 가이드 (사이클1, feat/deploy-prep)
 - 무엇:
   - **원격 접속 문서**(docs/remote-access.md): 올-로컬 waitress 서버(127.0.0.1:8000)를 폰 등

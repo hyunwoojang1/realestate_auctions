@@ -1,95 +1,54 @@
-# PROGRESS — auction-arbitrage PoC
+# PROGRESS — auction-arbitrage 배포준비(feat/deploy-prep)
 
 > 매 세션 시작 시 이 파일을 먼저 읽는다. 한 번에 기능 하나. 완료 시 증거 확인 → 커밋 → versions.md 기록.
+> 이번 세션 범위 = GOAL_DEPLOY.md 밤샘 배포준비 루프(코어 A·B·C + 스트레치 D·E·F).
+> 그 이전(F1~F9, P1~P5, W1~W4, V1~V3, X1~X3, courtauction 크롤러)은 완료 상태이며 상세는 versions.md 참조.
 
 ## Done
-- **F1 scaffold** — venv(Python 3.14) + requests/pytest 설치, `python run.py` 동작
-- **F2 score-engine** — 차익 스코어(가격갭50/권리30/환금20 ×신뢰), 하드게이트(인수>30%·유치권→권리0), 단위테스트
-- **F3 molit-client** — 국토부 실거래 API 클라이언트 + XML 파서(한글/영문 태그·만원→원), 파서 테스트
-- **F4 sample-data** — 경매 5건 fixture(확실한차익/신건/권리폭탄/시세추정불가/보통) + 실거래 11건 XML
-- **F5 matcher** — 단지명+면적±10% → 법정동 폴백, 평단가 중앙값 추정시세, 테스트
-- **F6 store** — SQLite 저장/조회(차익순 정렬, NULL 후순위)
-- **F7 pipeline** — 샘플 end-to-end 완주
-- **F8 report** — 콘솔 랭킹표 + CSV + HTML(잉크블루+시그널그린)
-- **F9 docs+tests** — README + pytest 15건 통과
-- (평가자 피드백 반영) 순차익 음수 → "차익없음" 등급으로 정직 표기
-- **[사이클2] 연립다세대(빌라) 실거래 클라이언트** — molit_client 다물건유형 일반화(apt/rh/officetel), 화곡 빌라 시세추정불가 해소(→2.8억). 파서 테스트 추가.
-- **[사이클2] 하드게이트 보강(중요)** — 빌라 추가로 드러난 허점 수정: 권리점수만 0이면 가격갭(50%)이 커서 유치권 물건이 '양호'로 상위 노출되던 버그 → 최종 스코어 상한(GATE_CEILING 25)+ '위험' 등급으로 강등. 화곡(유치권,갭40%)·해운대(인수34.7%) 모두 25 위험으로 정상 강등. 16 테스트 통과.
+밤샘 배포준비 루프에서 완료(전부 오프라인 검증 — courtauction/국토부 실서버 무호출, feat/deploy-prep 로컬 커밋).
 
-- **[사이클3] 오피스텔 실거래 클라이언트 연동** — pipeline 아파트+빌라+오피스텔 합본, 오피스텔 fixture + 검증용 오피스텔 경매(강남역삼) 추가. 17 테스트 통과. 결과: 역삼 오피스텔 시세 3억 → 81점 확실한차익(2위)로 end-to-end 작동.
-- **[사이클4] HTML 리포트 시각화** — 갭미터 3중 막대(최저가→시세 갭을 시그널그린으로) + 원형 차익 스코어 뱃지(등급색) + 범례. 잉크블루+시그널그린, tabular-nums. evidence/result.html 재생성·확인.
+- **[A] 정기 새로고침 스케줄러** (b987529) — `scripts/refresh-daily.ps1`(run.py --source courtauction
+  --nationwide --cash --live 래퍼, AUCTION_DB·PYTHONUTF8, 로그를 evidence/), `install-scheduler.ps1`(작업
+  스케줄러에 **Disabled 상태로** 등록, 활성화는 사용자 수동), `uninstall-scheduler.ps1`. run.py `--from-cache`
+  오프라인 dry-run 경로 추가(캐시/fixture만, 프로덕션 캐시 미오염 *.dryrun.json 분리). 증거 scheduler_dryrun.txt.
+- **[B] 프로덕션 서빙(waitress)** (97b1ff3) — `src/serve.py`(waitress.serve, debug/reloader 구조적 off),
+  `src/web.py` __main__ 가드(AUCTION_DEBUG env flag로만 debug on), requirements.txt waitress>=3.0,
+  Dockerfile CMD를 flask dev server → `python -m src.serve`로 교체, `scripts/start.ps1`(기본 127.0.0.1
+  로컬전용, -BindAll 시에만 0.0.0.0). 증거 serving_health.txt — 실 서브프로세스 부팅 → GET /health 200,
+  /api/listings 200 JSON, debug=False.
+- **[C] 신뢰계수 표본 개선** (77b10d8) — 원인 규명(docs/confidence-analysis.md: 라이브 매칭 빈약 원인=
+  matcher 면적밴드 과필터 + 수집 개월수 하드코딩. 신뢰계수 공식 자체는 이미 표본수에 단조 비감소). 튜닝
+  외부화(src/config.py SampleConfig: live_months/area_band, 우선순위 CLI>env>JSON>기본값). run.py
+  `--live-months`/`--area-band`. 증거 confidence_samples.txt.
+- **[D] 권리필드 파서 뼈대** (스트레치) — `src/courtauction_rights.py`(물건상세 3문서→인수금액/특수권리/
+  대항력/점유유형/감정가 추출, detector·apply_rights 불변패턴·gate_reasons). fixture 5종. 증거 rights_parser.txt.
+- **[E] 시세유형 확대** (스트레치) — `src/molit_extra_client.py`(단독다가구 sh·상업업무 nrg·토지 land
+  endpoint + 파서), `src/building_register_client.py`(건축물대장 표제부: 노후도·위반건축물). fixture 4종.
+  증거 molit_types.txt.
+- **[F] 터널 접속 가이드** (스트레치, d774a5c) — `docs/remote-access.md`(Tailscale 사설VPN / Cloudflare
+  Tunnel 두 방식, 바인드주소·방화벽·보안·트러블슈팅), `scripts/check-tunnel.ps1`(순수 로컬 진단, 외부호출 0).
+  증거 tunnel_guide.txt.
 
-## 루프 재개 (2026-06-29 — 프로덕션 강화 단계, 키 불요)
-운영자가 F10(API 키)을 나중으로 미룸 → 키 없이 가능한 **프로덕션 강화(P1~P5)**로 루프 재개.
-
-- **[P1] molit 클라이언트 프로덕션 강화** — MolitApiError(인증오류 시 'Decoding 키 확인' 안내) + check_api_error(OpenAPI fault/resultCode 감지) + 페이지네이션(max_pages) + 지수백오프 재시도 + logging. 오류감지 테스트 3건 추가 → 20 테스트 통과. 샘플 회귀 OK.
-- **[P2] `--live` 통합테스트** — 로컬 mock HTTP 서버(http.server 스레드)가 fixture 서빙 + ENDPOINTS monkeypatch로 fetch_trades·pipeline.run(use_live=True)를 실제 키 없이 end-to-end 검증. tests/test_live_integration.py 4건 → **24 테스트 통과**. 라이브 경로(F10) 사전검증 완료 — 키 도착 시 그대로 동작.
-- **[P3] 스코어 config 외부화** — 모든 튜닝 파라미터(가중치·취득세 구간·명도/수리비·페널티·하드게이트·type_base·gap_points·신뢰사다리·등급경계)를 src/config.py의 ScoreConfig로 분리. data/score_config.json 있으면 덮어씀(없으면 기본=현 동작 동일). score.py가 CONFIG 참조하도록 리팩터. config 로드/오버라이드 테스트 2건 → **26 테스트 통과**, 샘플 결과 동일(회귀 없음). data/score_config.example.json 템플릿 추가.
-- **[P4] CI + 린트** — .github/workflows/ci.yml(push/PR(main) 시 ruff check + pytest). pyproject.toml ruff 설정(E/W/F/I/B/UP, E501 무시, tests·run.py E402 면제) + pytest pythonpath=["."]. ruff --fix로 24건 정리 → **ruff 클린 + CI 그린**.
-- **[P5] CLI 필터·정렬·JSON** — src/query.py(apply_filters: min_score/type/region, sort_items: score/profit/gap 순수함수). report.to_json. run.py에 `--min-score`/`--type`/`--region`/`--sort`/`--json`. 전체는 DB 저장, 필터는 표시에 적용. 테스트 6건 → **32 테스트 통과, ruff 클린**. CLI 동작 확인(--min-score 80 → 95·81점만, --type 오피스텔 --json → 깨끗한 JSON).
-
-- **[W1] Flask JSON API** — src/web.py: `GET /health`, `GET /api/listings`(min_score/type/region/sort 쿼리 → query 재사용), `GET /api/listings/<case_no>`(없으면 404). app.json.ensure_ascii=False(한글). flask>=3.0 requirements 추가. tests/test_web.py 7건 → **39 테스트 통과, ruff 클린**.
-- **[W2] 큐레이션 페이지 `/`** — templates/listings.html(Jinja2). report.py의 갭미터·원형 스코어뱃지·금액 포맷을 공개 별칭(score_badge_html/gap_meter_html/won)으로 노출해 재사용(중복 0). 잉크블루+시그널그린, 차익 스코어순 테이블, 단지명→상세 링크. min_score/type/region 쿼리 연동(_filtered 헬퍼로 API와 공유). index 테스트 2건 → **41 테스트 통과, ruff 클린**.
-- **[W3] 물건 상세 `/property/<case_no>`(SSR)** — templates/detail.html. 갭미터 특대·스코어(96px)·등급·예상순차익·차익 근거(추정시세·실질취득원가·매칭·신뢰)·권리 안전성(권리점수·하드게이트 사유=인수금액비율/유치권)·환금성·종합 카드. 없는 case_no 404. detail 테스트 3건(하드게이트 사유 노출 포함) → **44 테스트 통과, ruff 클린**.
-- **[W4] 필터 UI·반응형·Docker** — listings.html 상단 필터 폼(min_score/type/region/sort GET, 선택값 유지), 모바일 wrap. Dockerfile(python:3.12-slim, flask :8000)+.dockerignore. README 웹 서버·Docker 섹션. 필터 폼 테스트 2건 → **46 테스트 통과, ruff 클린**.
+- **무회귀/린트**: `pytest -q` → **162 passed**(밤샘 시작 120대 → 신규 테스트 누적), `ruff check .` → 클린.
+- **평가자**: 코어 A·B·C 신선-컨텍스트 패널 2인 모두 PASS. 스트레치 D·E·F PASS.
 
 ## In progress
-- (없음 — 사이트화 W1~W4 전부 완료)
+- (없음 — 밤샘 배포준비 루프 A·B·C·D·E·F 전부 PASS·로컬 커밋 완료. 루프 종료.)
 
-## ✅ 사이트화(W1~W4) 완료 (2026-06-29)
-PoC → 브라우저 열람·필터 가능한 Flask 사이트로. `/`(큐레이션)·`/property/<사건번호>`(상세)·`/api/*`(JSON)·`/health`.
-프로덕션 강화(P1~P5)+사이트화(W1~W4) 전부 끝. **AGENT_STOP 생성하고 루프 정지.**
-
-## 🔁 Phase 2 재개 (2026-06-29 — 운영자 요청, 키는 나중에)
-사이트화 완료 후 운영자가 Phase 2 선택 → AGENT_STOP 해제하고 검증·알림 단계 진행.
-
-- **[V1] 백테스트 하네스** ⭐ — src/backtest.py: 낙찰결과 outcomes(합성 fixture data/backtest_outcomes.json) × scored 조인 → 실현차익=실현매도가−(낙찰가+부대비용), 스코어 구간별 적중률·평균 실현차익 캘리브레이션 + precision@임계. run_backtest.py CLI(콘솔+evidence/backtest.csv). 검증결과: ≥80=적중100%/+0.95억, 40–59=50%, <40=0%/−0.33억, precision@80=100%·@40=75% (단조). 테스트 4건 → **50 테스트 통과, ruff 클린**. ※실제 낙찰결과 들어오면 fixture만 교체.
-
-- **[V2] 워치리스트 + 차익 알림** — src/watchlist.py: 관심물건(data/watchlist.json) add/remove + 스냅샷(data/score_snapshot.json) 비교. detect_changes 순수함수 → 차익 임계 돌파/스코어 상승/최저가 하락(유찰) 감지. run_alerts.py CLI(첫 실행 기준선, 이후 변동→콘솔+evidence/alerts.txt). 워치리스트 있으면 관심물건만. 런타임 상태파일은 gitignore. 테스트 6건 → **56 테스트 통과, ruff 클린**. 시연: 스냅샷 변형 후 4건(임계돌파·유찰) 감지 확인.
-
-- **[V3] 주간 차익 TOP N 다이제스트** — src/digest.py(top_listings·to_markdown) + run_digest.py(--n/--min-score, evidence/digest.md+html, report.to_html 재사용) + web.py `GET /digest`. 테스트 5건 → **61 테스트 통과, ruff 클린**.
-
-## In progress
-- (없음 — Phase 2 V1~V3 전부 완료)
-
-## ✅ Phase 2(V1~V3) 완료 (2026-06-29)
-백테스트 하네스(V1)·워치리스트+알림(V2)·주간 다이제스트(V3) 완료. 테스트 61건·ruff·CI 그린.
-
-## 🔁 Phase 3 재개 (2026-06-29 — 운영자 "더 해봐", 키 불요·정확도/신뢰/운영)
-- **[X1] 매칭 품질** — matcher: filter_recent(최근 N개월)·trim_outliers(표본 4건↑ 상·하단 트림) → estimate_market_price 안정화(신뢰계수용 매칭건수는 트림 전 유지). molit_client recent_ymds·fetch_trades_months, 라이브는 최근 3개월(LIVE_MONTHS) 수집. 테스트 4건 → **65 통과, ruff 클린, 샘플 회귀 없음**(표본 ≤3이라 트림 미발동).
-
-- **[X2] 법정동코드 매핑 + 지역명 검색** — data/lawd_codes.json(서울 25구+샘플 지역 LAWD_CD) + src/region.py(name_to_code·code_to_name·sido_of·matches_region). query 필터를 matches_region으로 강화(시도+시군구 둘 다). 드롭다운에 시군구 옵션 추가. 테스트 5건 → **70 테스트 통과, ruff 클린**. `--region 강남구` 동작 확인. (실제 크롤러·라이브의 지역 키 인프라)
-
-- **[X3] 방법론·투명성 페이지 `/methodology`** — templates/methodology.html: 차익 스코어 공식·가중치(CONFIG)·하드게이트 규칙·취득세 구간·신뢰사다리·등급경계 + 백테스트 캘리브레이션 표(적중률·평균실현차익) + precision@80/60/40. 목록 헤더·README 링크. 테스트 2건 → **72 테스트 통과, ruff 클린**. (투명성=해자, 백테스트를 사이트에 연결)
-
-## In progress
-- (없음 — Phase 3 X1~X3 전부 완료)
-
-## ✅ Phase 3(X1~X3) 완료 (2026-06-29) — 루프 정지
-매칭품질(X1)·법정동코드/지역검색(X2)·방법론 페이지(X3) 완료. 테스트 72건·ruff·CI 그린. **AGENT_STOP 정지.**
-
-## Next (운영자 대기 — 무인 불가)
-- **F10** 국토부 API 키 → 라이브 시세 + 백테스트 실데이터화
-- **실제 크롤러**(courtauction) — anti-bot/합법성 결정 필요
-
-## 운영자 대기 (무인 불가)
-- **F10** 국토부 API 키 → 라이브 시세 + 백테스트 실데이터화
-- **실제 크롤러**(courtauction) — anti-bot/합법성 결정 필요
-
-## 운영자 대기 (무인 불가)
-- **F10** 국토부 API 키(나중에 발급 예정) → 라이브 시세 전환
-- **실제 크롤러**(courtauction) — anti-bot/합법성 결정 필요
-
-## Next — 웹 레이어 (운영자 결정: 사이트화, Flask+Jinja2)
-- **W1** Flask JSON API → **W2** 큐레이션 페이지(/) → **W3** 물건 상세(/property/<case_no>) → **W4** 필터UI·반응형·Dockerfile·CI web smoke
-- W4까지 완료 시 → AGENT_STOP. (F10 키·v1 크롤러는 운영자 대기)
-- ※ FastAPI/pydantic-core 금지(Python 3.14 빌드 리스크) — 순수 파이썬 Flask 사용
-- **F10** 🔒 운영자 국토부 API 키 (나중) — .env에 키 넣으면 라이브 자동검증
-- **v1** 실제 법원경매 크롤러 — anti-bot 리스크로 무인 제외, 운영자 결정 대기
-- **F10** 🔒 운영자 국토부 API 키 발급 → `.env` MOLIT_API_KEY → `python run.py --live` 검증
-- **v1** 실제 법원경매(courtauction.go.kr) 크롤러 — anti-bot/JS 리스크로 무인 루프 제외, 운영자 결정 대기
+## Next
+루프는 끝났고, 남은 것은 **사람만 할 수 있는 작업**(무인 불가):
+- **push** — `feat/deploy-prep`(9dc9add~d774a5c 6커밋) 아침 리뷰 후 push. **밤샘 중 push 안 함(정책).**
+- **라이브 1회 검증** — 통제된 단일 라이브 실행으로 D 권리파서(물건상세 HTML)·E 확장 실거래 XML/건축물대장
+  실응답 태그 구조 확인 → 파서 정규식/키워드 실데이터 보강, matcher·score에 배선.
+- **터널 라이브** — Tailscale 또는 cloudflared 설치 후 폰 접속 확인(check-tunnel.ps1로 사전 진단).
+- **스케줄러 활성화** — 이용약관 확인 후 `Enable-ScheduledTask`로 매일 새벽 새로고침 켜기(현재 Disabled 등록).
+- **후속 튜닝** — 라이브 표본수·신뢰계수 분포 확인 후 area_band/live_months 실튜닝.
 
 ## Notes
-- 환경: Windows 11, Python 3.14.5. venv = `.venv`. 실행 시 `$env:PYTHONUTF8="1"` 권장.
-- 검증 결과(증거): 상계주공 95점(확실한차익) / 해운대마린시티 인수2억→하드게이트→38점(주의) / 화곡빌라 매칭0→시세추정불가. **핵심 가설(차익 큰데 권리 폭탄을 걸러냄) 작동 확인.**
-- 종료조건: F1~F9 PASS·커밋 완료 → 사이클1 종료. 다음은 F10(키 대기) 또는 v1 크롤러. 연속 3회 무변화/막힘 → AGENT_STOP.
+- 환경: Windows 11, Python 3.14.5(.venv). 실행 시 `PYTHONUTF8=1` 권장. PS5.1 한글 파싱 위해 scripts/*.ps1은 UTF-8 BOM.
+- 브랜치: `feat/deploy-prep`. 밤샘 정책 = build/test는 오프라인(캐시·fixture)만, 실서버 무호출. push는 아침에.
+- 밤샘 정지조건(GOAL_DEPLOY): 각 코어 빌더↔평가자 최대 3회, AGENT_STOP 파일 있으면 즉시 중단. 이번 세션은
+  AGENT_STOP 없이 A·B·C·D·E·F 전부 PASS로 정상 종료.
+- 명령: 테스트 `PYTHONUTF8=1 .venv/Scripts/python.exe -m pytest -q` / 린트 `.venv/Scripts/python.exe -m ruff check .`
+- 이전 단계 요약: 코어 엔진(F1~F9)·프로덕션 강화(P1~P5)·사이트화(W1~W4)·검증알림(V1~V3)·정확도운영(X1~X3)·
+  courtauction 실경매 크롤러+전국샤딩+웹서빙 전부 완료(main 이전, push fac2265). 상세는 versions.md.
