@@ -15,6 +15,48 @@
 
 ---
 
+## 2026-07-01 17:07 KST — [B] 프로덕션 서빙 재검증 (사이클2, feat/deploy-prep)
+- 무엇:
+  - 사이클1의 [B] 서빙 구현(src/serve.py·web.py 가드·start.ps1·Dockerfile·requirements)이 이미
+    완성 상태임을 확인하고, 증거를 **신선한 실행**으로 재생성(가짜 방지).
+  - **`scripts/_gen_serving_evidence.py`** 신규 — waitress(`python -m src.serve`)를 서브프로세스로
+    실제 부팅하고 stdlib `urllib` 로 실 소켓 HTTP(GET /health, /api/listings) 요청 후 서버 종료해
+    `evidence/serving_health.txt` 를 재기록. AUCTION_DB 미설정 → 샘플 폴백으로 **완전 오프라인**
+    (courtauction/국토부 무호출). Flask test_client 아닌 실 소켓 경유라 waitress WSGI 경로를 증명.
+    빈 포트 자동 선택(`_free_port`), 준비대기(`_wait_ready`), terminate→kill 정리 포함.
+  - Dockerfile 정합 재확인: `EXPOSE 8000` = `AUCTION_PORT=8000` = `CMD python -m src.serve`(waitress).
+- 증거: `evidence/serving_health.txt` (재생성, Read 확인) — waitress 3.0.2 서브프로세스(PID 로그) 부팅 →
+  `GET /health` **HTTP 200** `{"status":"ok"}`(헤더 `Server: waitress`), `GET /api/listings` **HTTP 200**
+  `application/json` 샘플 6건 JSON(첫 레코드 상계주공 포함), `create_app().debug=False` 확인, 서버 종료.
+  네트워크 호출 0. pytest **123 PASS**(무회귀), ruff **All checks passed**.
+- 평가자: **PASS** (신선-컨텍스트 평가자 패널 2인 모두 PASS)
+- 커밋: 95fbb73
+- 다음: C(신뢰계수 표본 개선)
+
+## 2026-07-01 16:59 KST — [B] 프로덕션 서빙 (waitress) (feat/deploy-prep)
+- 무엇:
+  - **waitress 서빙 진입점** `src/serve.py` 신규 — `waitress.serve(create_app(), host, port, threads)`.
+    Flask dev server(`flask run`/`app.run`)와 달리 waitress 는 debug/reloader 자체가 없어 프로덕션에서
+    debug=False·use_reloader=False 가 **구조적으로 보장**됨. `app.debug=False` 방어적 재확인 추가.
+    env: `AUCTION_DB`(라이브 DB, 미설정 시 web 레이어 샘플 폴백), `AUCTION_HOST`(기본 127.0.0.1 로컬전용),
+    `AUCTION_PORT`(기본 8000), `AUCTION_THREADS`(기본 4).
+  - **`src/web.py`**: `__main__` 가드 추가(개발 편의 진입점) — debug/reloader 는 `AUCTION_DEBUG=1`
+    env flag 로만 켜지고 **기본값은 항상 off**. `_truthy()` 헬퍼로 1/true/yes/on 만 참.
+  - **`requirements.txt`**: `waitress>=3.0` 추가(.venv 에 waitress 3.0.2 설치 완료).
+  - **`Dockerfile`**: CMD 를 `flask run` dev server → `python -m src.serve`(waitress)로 교체.
+    `ENV AUCTION_HOST=0.0.0.0 AUCTION_PORT=8000` 로 EXPOSE 8000 과 포트 일치.
+  - **`scripts/start.ps1`**(UTF-8 BOM, ASCII 인라인 주석 — PS5.1 한글주석 오독 버그 회피): waitress 로
+    src.serve 호출. .venv 파이썬 절대경로, 기본 127.0.0.1(로컬전용), `-BindAll` 시에만 0.0.0.0,
+    `-Port`/`-DbPath`/`-Threads` 파라미터, `AUCTION_DEBUG=0` 명시.
+- 증거: `evidence/serving_health.txt` (Read 확인) — waitress 3.0.2 를 **실 서브프로세스**(`python -m src.serve`,
+  PID 로그)로 부팅 → `GET /health` **HTTP 200** `{"status":"ok"}` (응답 헤더 `Server: waitress` 확인),
+  `GET /api/listings` **HTTP 200** `Content-Type: application/json`, 샘플/오프라인 6건 JSON 반환(첫 레코드 포함),
+  `create_app().debug=False` 확인, 서버 kill·포트 해제(netstat LISTENING 없음). AUCTION_DB 미설정 → 샘플 폴백(네트워크 호출 0).
+  pytest **123 PASS**(무회귀), ruff 클린.
+- 평가자: -  (신선-컨텍스트 평가자 대기)
+- 커밋: (커밋 에이전트 처리 예정 — 빌더 미커밋)
+- 다음: C(신뢰계수 표본 개선)
+
 ## 2026-07-01 16:49 KST — [A] 정기 새로고침 스케줄러 + 오프라인 dry-run 경로 (feat/deploy-prep)
 - 무엇:
   - **오프라인 dry-run 배선**: `run.py --from-cache` 추가 — courtauction 실크롤/국토부 라이브를
