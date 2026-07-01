@@ -132,7 +132,7 @@ def _records_from_full_cache(cache_path: str | Path | None) -> list:
     from . import courtauction_cache as cc  # noqa: PLC0415
     from .courtauction_fields import parse_row  # noqa: PLC0415
 
-    p = Path(cache_path or cc.DEFAULT_CACHE)
+    p = Path(cache_path or cc.DEFAULT_FULL_CACHE)
     if not p.exists():
         return []
     try:

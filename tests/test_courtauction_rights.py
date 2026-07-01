@@ -127,6 +127,15 @@ def test_detect_assumed_amount_picks_max_in_context():
     assert detect_assumed_amount("인수사항 없음") == 0
 
 
+def test_detect_assumed_amount_ignores_negation_and_extinguished():
+    # '인수' 문맥이지만 부정('없음')/소멸('말소') → 인수액 아님 → 0 (안전물건 오판 방지)
+    assert detect_assumed_amount(
+        "인수할 권리 없음. 근저당권 채권최고액 300,000,000원 전액 말소 예정.") == 0
+    assert detect_assumed_amount("가압류 150,000,000원 소멸(인수 대상 아님).") == 0
+    # 진짜 인수 줄은 여전히 잡는다(무회귀).
+    assert detect_assumed_amount("매수인이 인수하는 금액 금80,000,000원.") == 80_000_000
+
+
 # ---- AuctionListing 반영(불변) --------------------------------------------
 def _base_listing() -> AuctionListing:
     return AuctionListing(

@@ -15,6 +15,27 @@
 
 ---
 
+## 2026-07-01 18:06 KST — 🔍 push 전 독립 코드리뷰 확정이슈 수정 (feat/deploy-prep)
+- 무엇: 밤샘 산출물(main..HEAD)을 4렌즈 병렬 리뷰+발견별 적대검증(확정7·PLAUSIBLE1·반박0, CRITICAL 없음)한 뒤,
+  확정 이슈를 코드로 수정:
+  - **#1 HIGH** `web.py` 침묵 샘플폴백 → AUCTION_DB 연결됐으나 0건이면 경고 로그 + 응답 헤더 `X-Data-Source`
+    (db/sample(db-empty|db-error|no-db)) + `/health` data_source 노출. 샘플을 라이브로 오인하는 것 방지.
+  - **#2 MEDIUM** `--from-cache` 죽은코드 → `cc.save_full_records`(rec.raw=이미 sanitize된 PII-free)로 라이브 수집분을
+    full-record 캐시에 저장, `_records_from_full_cache` 기본경로를 DEFAULT_FULL_CACHE로. 이제 오프라인 dry-run이
+    fixture가 아니라 실데이터를 재생(empirical 확인: 2099타경1 재생). data/courtauction_full_cache.json gitignore.
+  - **#3 MEDIUM** `web.py` 캐치올 → `logger.error(exc_info=True)`로 스택트레이스 보존.
+  - **#4 LOW** 국토부/건축물대장 4+3 엔드포인트 `http://`→`https://`(API키 평문전송 방지, molit_client 포함).
+  - **#5 LOW** `run.py` config.SAMPLE 제자리변경 → `dataclasses.replace`(불변 규칙 준수).
+  - **#6 LOW** `courtauction_rights.detect_assumed_amount` 부정문/말소·소멸 금액 오탐 제외(안전물건 위험오판 방지).
+  - **#8 PLAUSIBLE** `install-scheduler.ps1` 등록-비활성 레이스 → `$settings.Enabled=$false`로 등록순간부터 Disabled.
+  - **#7 보류**(LOW, 죽은 스캐폴딩): `building_register._is_violation` 태그부재시 '비위반' 기본값 → tri-state 필요,
+    실데이터 연결 시점에 재설계(YAGNI로 지금은 미변경, 아침 라이브 검증 항목에 포함).
+- 증거: pytest **168 passed**(162 무회귀 + 신규 6: full-cache 라운드트립·web 출처 4·부정문 1), ruff 클린.
+  --from-cache empirical 재생 확인.
+- 평가자: 독립 리뷰 워크플로(security/python/silent-failure/code 리뷰어 4렌즈 + opus 적대검증).
+- 커밋: (이 커밋)
+- 다음: 아침 사용자 리뷰 후 push. #7은 라이브 검증 때 실응답 구조 확인 후 tri-state로.
+
 ## 2026-07-01 17:44 KST — 🏁 밤샘 배포준비 루프 마감 요약 (feat/deploy-prep)
 - 무엇: GOAL_DEPLOY 밤샘루프 종료. 코어 A·B·C 3종 + 스트레치 D·E·F 3종 전부 구현·커밋 완료.
   - 코어(모두 PASS): A 정기 새로고침 스케줄러(Disabled 등록, b987529) / B 프로덕션 서빙 waitress(97b1ff3) /

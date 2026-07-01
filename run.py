@@ -98,6 +98,10 @@ def main(argv=None) -> int:
         cache_path = f"{base_cache}.dryrun.json" if args.from_cache else base_cache
         diff = cc.diff_records(records, cc.load_cache(cache_path))
         cc.save_cache(records, cache_path)
+        # 라이브 수집분은 full-record 캐시에도 저장 → 이후 --from-cache 오프라인 dry-run이
+        # fixture가 아니라 '마지막 실제 수집분'을 재생한다. dry-run은 이 캐시를 덮지 않는다.
+        if not args.from_cache:
+            cc.save_full_records(records)
         if not args.json:
             print(f"  courtauction 수집 {len(records)}건 — {diff.summary} (캐시 {cache_path})")
 
@@ -131,17 +135,19 @@ def main(argv=None) -> int:
 
 def _apply_sample_overrides(live_months, area_band) -> None:
     """CLI로 넘어온 표본 튜닝값을 config.SAMPLE에 반영(미지정은 기존값 유지)."""
+    import dataclasses  # noqa: PLC0415
+
     from src import config, matcher, pipeline  # noqa: PLC0415
 
     if live_months is None and area_band is None:
         return
-    s = config.SAMPLE
-    if live_months is not None:
-        s.live_months = live_months
-    if area_band is not None:
-        s.area_band = area_band
-    s.__post_init__()  # 하한 방어
-    config.SAMPLE = s
+    cur = config.SAMPLE
+    # 불변 패턴: 기존 인스턴스를 제자리 변경하지 않고 새 객체로 교체(replace가 __post_init__ 재실행).
+    config.SAMPLE = dataclasses.replace(
+        cur,
+        live_months=cur.live_months if live_months is None else live_months,
+        area_band=cur.area_band if area_band is None else area_band,
+    )
     print(f"  표본 튜닝: live_months={pipeline._live_months()} "
           f"area_band=±{matcher._area_band():.0%}\n")
 

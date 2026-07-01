@@ -142,6 +142,43 @@ def test_falls_back_to_sample_when_no_env(monkeypatch):
     assert len(data) == 6   # 샘플 6건
 
 
+# ---- 데이터 출처 표시(샘플/라이브 오인 방지) ----
+
+def test_data_source_header_sample_when_no_env(monkeypatch):
+    monkeypatch.delenv("AUCTION_DB", raising=False)
+    r = create_app().test_client().get("/api/listings")
+    assert r.headers["X-Data-Source"] == "sample(no-db)"
+
+
+def test_data_source_header_db_when_seeded(tmp_path, monkeypatch):
+    dbp = str(tmp_path / "live.db")
+    _seed_db(dbp)
+    monkeypatch.setenv("AUCTION_DB", dbp)
+    r = create_app().test_client().get("/api/listings")
+    assert r.headers["X-Data-Source"] == "db"
+
+
+def test_health_reports_data_source_db(tmp_path, monkeypatch):
+    dbp = str(tmp_path / "live.db")
+    _seed_db(dbp)
+    monkeypatch.setenv("AUCTION_DB", dbp)
+    body = create_app().test_client().get("/health").get_json()
+    assert body["data_source"] == "db"
+
+
+def test_empty_db_warns_and_marks_sample(tmp_path, monkeypatch, caplog):
+    """AUCTION_DB가 설정됐지만 0건이면: 샘플 폴백 + 경고 로그 + 출처=sample(db-empty)."""
+    dbp = str(tmp_path / "empty.db")
+    store.connect(dbp).close()          # 스키마만 생성(0 rows)
+    monkeypatch.setenv("AUCTION_DB", dbp)
+    import logging
+    with caplog.at_level(logging.WARNING, logger="src.web"):
+        r = create_app().test_client().get("/api/listings")
+    assert len(r.get_json()) == 6                        # 샘플 폴백
+    assert r.headers["X-Data-Source"] == "sample(db-empty)"
+    assert any("적재 결과 0건" in rec.message for rec in caplog.records)
+
+
 def test_property_detail_renders_for_db_listing_not_in_samples(tmp_path, monkeypatch):
     # courtauction 등 DB 서빙 매물(샘플에 없음)도 상세페이지가 404 아니라 렌더돼야 함
     dbp = str(tmp_path / "live.db")

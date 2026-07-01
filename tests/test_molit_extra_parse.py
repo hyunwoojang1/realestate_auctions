@@ -95,7 +95,8 @@ def test_parse_land_fixture_yields_land_trades():
 
 def test_extra_endpoints_present():
     assert set(ENDPOINTS_EXTRA) == {"sh", "nrg", "land"}
-    assert all(u.startswith("http://apis.data.go.kr/") for u in ENDPOINTS_EXTRA.values())
+    # TLS 필수(API 키 평문 전송 방지) — https 로만.
+    assert all(u.startswith("https://apis.data.go.kr/") for u in ENDPOINTS_EXTRA.values())
 
 
 def test_extra_unknown_kind_raises():

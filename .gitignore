@@ -13,6 +13,7 @@ data/watchlist.json
 data/score_snapshot.json
 data/courtauction_cache.json
 data/courtauction_cache.json.dryrun.json
+data/courtauction_full_cache.json
 evidence/refresh-*.log
 COURTAUCTION_STOP
 !evidence/.gitkeep

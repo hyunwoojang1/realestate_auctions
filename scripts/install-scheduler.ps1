@@ -50,6 +50,8 @@ $action    = New-ScheduledTaskAction -Execute $PwshExe -Argument $argLine -Worki
 $trigger   = New-ScheduledTaskTrigger -Daily -At $Time
 $settings  = New-ScheduledTaskSettingsSet -StartWhenAvailable -RunOnlyIfNetworkAvailable `
                 -MultipleInstances IgnoreNew -ExecutionTimeLimit (New-TimeSpan -Hours 2)
+# 등록 전에 비활성으로 만든다 → Register 시점부터 Disabled. 등록↔Disable 사이 발화 레이스 원천 제거.
+$settings.Enabled = $false
 $principal = New-ScheduledTaskPrincipal -UserId $env:USERNAME -LogonType Interactive -RunLevel Limited
 
 $task = New-ScheduledTask -Action $action -Trigger $trigger -Settings $settings -Principal $principal `
@@ -63,9 +65,10 @@ if ($PSCmdlet.ShouldProcess($TaskName, "Register scheduled task as DISABLED at $
         Write-Output "기존 작업 '$TaskName' 제거 후 재등록."
     }
 
+    # $settings.Enabled=$false 로 이미 비활성 상태로 생성된다(등록 순간부터 Disabled, 레이스 없음).
     Register-ScheduledTask -TaskName $TaskName -InputObject $task | Out-Null
-    # 핵심: 등록 직후 즉시 Disabled 로 — 사용자가 약관 확인 후 수동 Enable.
-    Disable-ScheduledTask -TaskName $TaskName | Out-Null
+    # 방어적 재확인(멱등): 혹시 활성으로 등록됐다면 즉시 비활성화.
+    Disable-ScheduledTask -TaskName $TaskName -ErrorAction SilentlyContinue | Out-Null
 
     $reg = Get-ScheduledTask -TaskName $TaskName
     Write-Output "등록 완료: $TaskName"

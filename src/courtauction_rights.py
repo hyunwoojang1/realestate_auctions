@@ -117,12 +117,17 @@ def detect_tenant_opposable(myeongsaeseo: str, *others: str) -> bool:
 # "매수인이 인수하는 금액 ... 금80,000,000원" / "인수 ... 150,000,000원" 등.
 _AMOUNT_RE = re.compile(r"(?:금)?\s*([\d,]{4,})\s*원")
 _ASSUME_CONTEXT = ("인수", "미배당", "떠안", "부담")
+# 부정/소멸 문맥 — 같은 줄에 있으면 그 금액은 '인수액'이 아니다.
+# 예: "인수할 권리 없음", "근저당 … 전액 말소 예정"(=소멸). 오탐(안전물건→위험 오판) 방지.
+# 주의: 스캐폴딩 단계 휴리스틱 — 실제 매각물건명세서 HTML 확보 후 정규식/문맥 튜닝 필요.
+_ASSUME_NEGATION = ("없", "말소", "소멸")
 
 
 def detect_assumed_amount(*texts: str) -> int:
     """인수 문맥이 있는 줄에서 가장 큰 금액(원)을 인수금액으로 추정.
 
     보수적으로 '최댓값'을 택한다(과소추정이 스코어 과대평가로 이어지는 침묵실패 방지).
+    단 같은 줄에 부정/소멸 표현(없음·말소·소멸)이 있으면 그 줄은 인수액이 아니므로 제외한다.
     인수 문맥 줄이 없으면 0.
     """
     best = 0
@@ -131,6 +136,8 @@ def detect_assumed_amount(*texts: str) -> int:
             continue
         for line in text.splitlines():
             if not any(k in line for k in _ASSUME_CONTEXT):
+                continue
+            if any(neg in line for neg in _ASSUME_NEGATION):
                 continue
             for m in _AMOUNT_RE.finditer(line):
                 amt = to_won(m.group(1))
