@@ -15,6 +15,16 @@
 
 ---
 
+## 2026-07-01 16:36 KST — 배포준비 밤샘루프 하네스 셋업(feat/deploy-prep)
+- 무엇: grilling(7전제 확정) 후 비공개 배포준비 밤샘루프 착수. `GOAL_DEPLOY.md`(Default-FAIL 완료정의 A/B/C+스트레치)
+  작성, 6/29 잔재 `AGENT_STOP` → `docs/AGENT_STOP-archive-2026-06-29.txt` 아카이브(kill-switch 자리 확보),
+  `feat/deploy-prep` 브랜치 생성, `scripts/`·`docs/` 폴더 준비. 루프는 Workflow(빌더↔2인평가자 패널, 항목당 3사이클,
+  오프라인 전용, 로컬커밋 push금지)로 실행.
+- 증거: GOAL_DEPLOY.md, docs/AGENT_STOP-archive-2026-06-29.txt (Read 확인)
+- 평가자: - (하네스 셋업, 코어작업은 루프에서 평가)
+- 커밋: (이 커밋)
+- 다음: 루프가 A(스케줄러)→B(waitress)→C(신뢰계수) 순으로 빌드·평가·커밋
+
 ## 2026-07-01 07:54 KST — 전국 저가매물 확장(지역샤딩+캐시diff) + 웹 라이브서빙 연결
 - 무엇:
   - **전국 샤딩**: `pipeline.load_courtauction_nationwide(cash, sidos, max_pages_per_sido)` — 17개 시도 순회,

@@ -1,0 +1,29 @@
+자율 루프 정지 — 2026-06-29 18:05 KST (Phase 3 완료)
+
+이유: 키 없이 가능한 작업을 전부 완료. PoC → 프로덕션 강화 → 사이트화 → 검증·알림 → 정확도·신뢰·인프라.
+
+전체 완료 요약:
+  • PoC 코어(F1~F9): 차익 스코어 엔진·매칭·SQLite·리포트
+  • 빌라/오피스텔 클라이언트, 하드게이트 보강, 리포트 시각화
+  • 프로덕션 강화(P1~P5): 국토부 클라이언트 견고화·라이브 통합테스트·config 외부화·CI+ruff·CLI
+  • 사이트화(W1~W4): Flask API · / 큐레이션 · /property 상세 · 필터 UI·Dockerfile
+  • 검증·알림(V1~V3): 백테스트 하네스 · 워치리스트+차익 알림 · 주간 다이제스트
+  • 정확도·신뢰(X1~X3): 매칭 품질(이상치·최근성·다월) · 법정동코드/지역검색 · /methodology 투명성 페이지
+  • 테스트 72건 통과, ruff 클린, GitHub Actions CI 그린.
+  • GitHub: hyunwoojang1/realestate_auctions
+
+남은 작업(운영자 결정 — 무인 진행 불가):
+  • F10: 국토부 API 키 발급 → .env의 MOLIT_API_KEY → 라이브 시세 + 백테스트 실데이터화
+  • 실제 법원경매(courtauction) 크롤러 — anti-bot/합법성 결정 필요
+  • (선택) 모던 프론트(React/Next) 피벗 — 운영자 방향 결정 시
+
+실행법:
+  • CLI 큐레이션:  python run.py  (--min-score/--type/--region/--sort/--json)
+  • 웹 사이트:     python -m flask --app src.web run   → http://127.0.0.1:5000
+                    (/, /property/<사건>, /digest, /methodology, /api/*)
+  • 백테스트:      python run_backtest.py
+  • 차익 알림:     python run_alerts.py
+  • 다이제스트:    python run_digest.py
+
+루프 재개: (라이브) .env에 MOLIT_API_KEY 넣고 → 이 AGENT_STOP 삭제 → 루프 프롬프트 재실행
+           → .env 키 감지 시 F10 라이브 자동검증. 또는 새 작업(크롤러·프론트 등)을 운영자가 지시.
