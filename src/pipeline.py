@@ -24,7 +24,13 @@ logger = logging.getLogger(__name__)
 
 ROOT = Path(__file__).resolve().parent.parent
 DATA = ROOT / "data"
-LIVE_MONTHS = 3   # 라이브 시세는 최근 3개월 실거래를 모아 표본 확대
+LIVE_MONTHS = 3   # 기본값(무회귀); 실제 사용값은 config.SAMPLE.live_months
+
+
+def _live_months() -> int:
+    """현재 유효 수집 개월수. config.SAMPLE로 튜닝 가능(기본=LIVE_MONTHS)."""
+    from . import config as _cfg  # noqa: PLC0415 — 런타임 monkeypatch(SAMPLE 교체) 반영
+    return _cfg.SAMPLE.live_months if _cfg.SAMPLE else LIVE_MONTHS
 
 
 def load_sample_auctions(path: Path | None = None) -> list[AuctionListing]:
@@ -163,7 +169,7 @@ def load_live_trades(listings: list[AuctionListing], api_key: str,
         if lst.lawd_cd in seen:
             continue
         seen.add(lst.lawd_cd)
-        ymds = recent_ymds(deal_ymd, LIVE_MONTHS)
+        ymds = recent_ymds(deal_ymd, _live_months())
         for kind in ("apt", "rh", "officetel"):
             try:
                 trades.extend(fetch_trades_months(kind, lst.lawd_cd, ymds, api_key))

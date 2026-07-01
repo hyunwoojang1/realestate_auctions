@@ -62,7 +62,28 @@ class ScoreConfig:
     ])
 
 
+@dataclass
+class SampleConfig:
+    """표본 수집·매칭의 튜닝 파라미터 (신뢰계수 표본 개선용).
+
+    라이브 매칭 표본이 빈약한 실제 원인 두 가지를 코드수정 없이 조정 가능하게 노출한다:
+      - live_months: 라이브 시세를 몇 개월치 실거래로 모을지(수집 '폭').
+      - area_band: 단지명/법정동 매칭 시 허용 전용면적 오차(±비율). 좁으면 comps가 적다.
+    우선순위: 명시 인자 > 환경변수(AUCTION_LIVE_MONTHS/AUCTION_AREA_BAND) > 기본값.
+    기본값은 기존 동작과 동일(무회귀).
+    """
+    live_months: int = 3        # 기존 pipeline.LIVE_MONTHS 기본값과 동일
+    area_band: float = 0.10     # 기존 matcher.AREA_BAND 기본값과 동일
+
+    def __post_init__(self) -> None:
+        # 하한 방어: 최소 1개월, 면적밴드 0 초과.
+        self.live_months = max(1, int(self.live_months))
+        if self.area_band <= 0:
+            self.area_band = 0.10
+
+
 DEFAULT_CONFIG_PATH = Path(__file__).resolve().parent.parent / "data" / "score_config.json"
+DEFAULT_SAMPLE_CONFIG_PATH = Path(__file__).resolve().parent.parent / "data" / "sample_config.json"
 
 
 def load_config(path: str | Path | None = None) -> ScoreConfig:
@@ -77,5 +98,41 @@ def load_config(path: str | Path | None = None) -> ScoreConfig:
     return cfg
 
 
+def load_sample_config(path: str | Path | None = None,
+                       env: dict | None = None) -> SampleConfig:
+    """표본 튜닝값 로드. 파일(sample_config.json) → 환경변수 순으로 덮어쓴다.
+
+    우선순위(낮음→높음): 기본값 → JSON 파일 → 환경변수. 아무 것도 없으면 기존 동작 유지.
+    """
+    import os  # noqa: PLC0415
+
+    cfg = SampleConfig()
+    p = Path(path) if path else DEFAULT_SAMPLE_CONFIG_PATH
+    if p.exists():
+        overrides = json.loads(p.read_text(encoding="utf-8"))
+        for k, v in overrides.items():
+            if hasattr(cfg, k):
+                setattr(cfg, k, v)
+
+    e = env if env is not None else os.environ
+    lm = (e.get("AUCTION_LIVE_MONTHS") or "").strip()
+    ab = (e.get("AUCTION_AREA_BAND") or "").strip()
+    if lm:
+        try:
+            cfg.live_months = int(lm)
+        except ValueError:
+            pass
+    if ab:
+        try:
+            cfg.area_band = float(ab)
+        except ValueError:
+            pass
+
+    cfg.__post_init__()  # 오버라이드 후 하한 방어 재적용
+    return cfg
+
+
 # 모듈 전역 — score.py가 참조. 런타임 교체 시 monkeypatch(score.CONFIG=...) 가능.
 CONFIG = load_config()
+# 표본 튜닝 전역 — pipeline/matcher가 참조. monkeypatch(config.SAMPLE=...) 로 교체 가능.
+SAMPLE = load_sample_config()

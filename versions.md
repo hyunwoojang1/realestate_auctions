@@ -15,6 +15,27 @@
 
 ---
 
+## 2026-07-01 17:17 KST — [C] 신뢰계수 표본 개선 (사이클1, feat/deploy-prep)
+- 무엇:
+  - **원인 규명**(docs/confidence-analysis.md): 다월 수집은 이미 배선됨(LIVE_MONTHS=3 +
+    recent_ymds/fetch_trades_months). 라이브 매칭 빈약의 실제 원인 = ① matcher 과필터
+    (면적밴드 ±10% 고정 → 인접 평형 comps 탈락), ② 수집 개월수 하드코딩(조정 불가).
+    신뢰계수 공식(confidence_ladder)은 표본수에 **이미 단조 비감소** — 원인 아님(그래서 기본값 유지=무회귀).
+  - **튜닝 외부화**(src/config.py): `SampleConfig(live_months, area_band)` + `load_sample_config`
+    + 전역 `config.SAMPLE`. 우선순위 CLI > env(AUCTION_LIVE_MONTHS/AUCTION_AREA_BAND) > JSON
+    (data/sample_config.json) > 기본값(3, 0.10=레거시). 하한 방어(개월≥1, 밴드>0).
+  - **배선**: pipeline.`_live_months()`→recent_ymds, matcher.`_area_band()`→match_trades.
+    기존 상수 LIVE_MONTHS/AREA_BAND는 기본값으로 존치. run.py에 `--live-months`/`--area-band` 추가.
+  - **테스트**(tests/test_confidence_samples.py, 10건, 외부호출 0): 신뢰계수 단조 비감소(n=0..8)·
+    사다리 단조증가(1<2<3), estimate→score 경로 confidence 비감소, 밴드 확대가 표본 실제 증가
+    (±10% 4건→±15% 6건), env/JSON/CLI 오버라이드·기본값=레거시·불량값 하한 보정.
+- 증거: evidence/confidence_samples.txt (표본수별 신뢰계수 표 + 원인 데모 + pytest 133 green + ruff clean, 실제 실행)
+- 검증: `PYTHONUTF8=1 .venv/Scripts/python.exe -m pytest -q` → 133 passed(기존 123 무회귀 + 신규 10),
+  `ruff check .` → All checks passed. CLI 오프라인 스모크(--from-cache --live-months 6 --area-band 0.15) 26건 정상.
+- 평가자: **PASS** (신선-컨텍스트 평가자 패널 2인 모두 PASS)
+- 커밋: (커밋 에이전트 처리 — 이 항목 커밋에 해시 확정)
+- 다음: 아침 라이브 1회로 실지역 표본수·신뢰계수 분포 확인 후 area_band/live_months 실튜닝
+
 ## 2026-07-01 17:07 KST — [B] 프로덕션 서빙 재검증 (사이클2, feat/deploy-prep)
 - 무엇:
   - 사이클1의 [B] 서빙 구현(src/serve.py·web.py 가드·start.ps1·Dockerfile·requirements)이 이미

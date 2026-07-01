@@ -51,10 +51,17 @@ def main(argv=None) -> int:
     ap.add_argument("--region", default=None, help="지역 필터(주소 prefix, 예: 서울/경기/부산)")
     ap.add_argument("--sort", choices=query.SORT_KEYS, default="score", help="정렬 기준(score/profit/gap)")
     ap.add_argument("--json", action="store_true", help="결과를 JSON으로 stdout 출력")
+    ap.add_argument("--live-months", dest="live_months", type=int, default=None,
+                    help="라이브 시세 수집 개월수(표본 폭). 미지정=config/env/기본(3)")
+    ap.add_argument("--area-band", dest="area_band", type=float, default=None,
+                    help="매칭 전용면적 허용밴드(±비율, 예 0.15). 미지정=config/env/기본(0.10)")
     args = ap.parse_args(argv)
 
     # .env 로드(있으면)
     _load_dotenv(ROOT / ".env")
+
+    # 표본 튜닝값 CLI 오버라이드 → config.SAMPLE 갱신(pipeline/matcher가 참조).
+    _apply_sample_overrides(args.live_months, args.area_band)
 
     # --from-cache(오프라인)는 라이브 시세 호출을 강제로 끈다: 네트워크 호출 0 보장.
     use_live = args.live and not args.from_cache
@@ -120,6 +127,23 @@ def main(argv=None) -> int:
     print(f"증거: {csv_path}")
     print(f"증거: {html_path}")
     return 0
+
+
+def _apply_sample_overrides(live_months, area_band) -> None:
+    """CLI로 넘어온 표본 튜닝값을 config.SAMPLE에 반영(미지정은 기존값 유지)."""
+    from src import config, matcher, pipeline  # noqa: PLC0415
+
+    if live_months is None and area_band is None:
+        return
+    s = config.SAMPLE
+    if live_months is not None:
+        s.live_months = live_months
+    if area_band is not None:
+        s.area_band = area_band
+    s.__post_init__()  # 하한 방어
+    config.SAMPLE = s
+    print(f"  표본 튜닝: live_months={pipeline._live_months()} "
+          f"area_band=±{matcher._area_band():.0%}\n")
 
 
 def _load_dotenv(path: Path) -> None:
