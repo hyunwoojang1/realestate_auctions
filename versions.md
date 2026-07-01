@@ -15,6 +15,33 @@
 
 ---
 
+## 2026-07-01 17:34 KST — [E] 시세유형 확대 뼈대 (사이클1, feat/deploy-prep)
+- 무엇:
+  - **확장 실거래 클라이언트**(src/molit_extra_client.py): 기존 아파트/연립/오피스텔(molit_client)에
+    필드구조가 다른 3종을 추가 — 단독/다가구(sh, RTMSDataSvcSHTrade)·상업업무용(nrg,
+    RTMSDataSvcNrgTrade)·토지(land, RTMSDataSvcLandTrade). 유형별 파서(parse_sh/nrg/land_trades_xml)와
+    라이브 fetch_extra_trades(kind). `ExtraTrade` dataclass가 아파트류 Trade와 같은 매칭 인터페이스
+    (area_m2/price/deal_ym/dong/kind)를 유지하면서 유형별 부가필드(대지면적·건물용도·지목·용도지역·
+    지분구분)를 보존. 대표면적 규약: sh=연면적 우선, nrg=건물면적, land=거래면적.
+    오류감지·재시도·페이지네이션은 molit_client 헬퍼 재사용(DRY).
+  - **건축물대장 클라이언트**(src/building_register_client.py): 표제부(BldRgstService_v2/getBrTitleInfo)
+    파서 + 라이브 fetch_building_titles. `BuildingRecord`에서 노후도(building_age_years =
+    사용승인일 YYYYMMDD 기준 경과연수, 이상치 방어)·위반건축물 여부(violYn/위반건축물 코드·텍스트
+    혼용 대응)·용도·층수를 추출.
+  - **국문/영문 태그 혼용**·거래금액 만원→원 환산·0금액/0면적 스킵을 molit_client 규약과 정합.
+  - **fixture 4종**(data/sample_sh_trades.xml, sample_nrg_trades.xml, sample_land_trades.xml,
+    sample_bld_title.xml): 저장 샘플만. 라이브 크롤/API 호출 아님.
+  - **테스트**(tests/test_molit_extra_parse.py, 15건, 외부호출 0): 3유형 파싱·대표면적 규약·영문태그·
+    0값 스킵·빈 items·알수없는 kind ValueError·molit 오류감지 재사용·노후도 계산·위반플래그 변형.
+- 증거: evidence/molit_types.txt (4 endpoint + 3유형 파싱 데모 + 건축물대장 노후도/위반 데모 +
+  pytest 162 green + ruff clean, 실제 오프라인 실행. 외부호출 0)
+- 검증: `PYTHONUTF8=1 .venv/Scripts/python.exe -m pytest -q` → 162 passed(기존 147 무회귀 + 신규 15),
+  `ruff check .` → All checks passed.
+- 평가자: -
+- 커밋: (커밋 에이전트 처리)
+- 다음: 아침 라이브 1회로 3종 실거래 XML 실제 태그·건축물대장 응답구조 확인 → 파서 태그/정규식 보강,
+  matcher에 ExtraTrade 유형분리 매칭 배선, 노후도/위반건축물을 score(환금성·권리)에 반영.
+
 ## 2026-07-01 17:25 KST — [D] 권리필드 파서 뼈대 (사이클1, feat/deploy-prep)
 - 무엇:
   - **파서 모듈**(src/courtauction_rights.py): 물건상세 3문서(매각물건명세서/현황조사서/
