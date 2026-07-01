@@ -15,6 +15,30 @@
 
 ---
 
+## 2026-07-01 17:25 KST — [D] 권리필드 파서 뼈대 (사이클1, feat/deploy-prep)
+- 무엇:
+  - **파서 모듈**(src/courtauction_rights.py): 물건상세 3문서(매각물건명세서/현황조사서/
+    감정평가서) 텍스트 → 권리분석 원재료. 리스트 검색엔 없는 assumed_amount/special_rights/
+    tenant_opposable/occupant_type/appraisal_amount 를 추출. 표준 라벨은 config.CONFIG의
+    special_penalty·eviction_cost 키와 정합(유치권/법정지상권/지분/분묘기지권/대지권미등기/
+    위반건축물, 공실/임차인/소유자점유/다수점유).
+  - **detector**: detect_special_rights(중복제거·정의순서), detect_occupant_type(우선순위
+    다수>임차인>소유자>공실, 정보없음→보수적 소유자점유), detect_tenant_opposable(항상
+    인쇄되는 표준 경고문 boilerplate 제거 후 구체 인수문구만 True), detect_assumed_amount
+    (인수 문맥 줄의 최댓값=보수적 과소추정 방지), detect_appraisal_amount(감정가 교차검증).
+  - **연동**: apply_rights(listing, rights)=불변 패턴 새 객체 반환, 감정가 0일 때 감정평가서
+    값으로 backfill. gate_reasons()=score.py 하드게이트 기준(치명특수권리/인수비율) 재현.
+  - **fixture**(tests/fixtures/, 대표구조 5종): 대항력임차인·특수권리다수·공실무권리 등.
+    라이브 크롤 아님 — 저장 샘플 텍스트만.
+- 증거: evidence/rights_parser.txt (3케이스 파싱→권리점수/게이트 데모 + pytest 147 green +
+  ruff clean, 실제 실행. 오프라인, 외부호출 0)
+- 검증: `PYTHONUTF8=1 .venv/Scripts/python.exe -m pytest -q` → 147 passed(기존 133 무회귀 +
+  신규 14), `ruff check .` → All checks passed.
+- 평가자: **PASS** (신선-컨텍스트 평가자 패널 2인 모두 PASS)
+- 커밋: feat(deploy): [D] 권리필드 파서 뼈대 (feat/deploy-prep, 이 커밋)
+- 다음: 아침 라이브 1회로 실제 물건상세 HTML 구조 확인 → 텍스트 추출계층(client) 배선 +
+  파서 키워드/정규식 실데이터 보강, pipeline에 apply_rights 연결(상세 조회 옵션)
+
 ## 2026-07-01 17:17 KST — [C] 신뢰계수 표본 개선 (사이클1, feat/deploy-prep)
 - 무엇:
   - **원인 규명**(docs/confidence-analysis.md): 다월 수집은 이미 배선됨(LIVE_MONTHS=3 +
