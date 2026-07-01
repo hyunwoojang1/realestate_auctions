@@ -94,6 +94,51 @@ def load_courtauction_nationwide(cash_won: int | None = None, appraisal_buffer: 
     return list(merged.values())
 
 
+def load_courtauction_from_cache(cache_path: str | Path | None = None,
+                                 fixture_path: Path | None = None) -> list:
+    """오프라인 dry-run용: 네트워크 호출 0으로 CourtAuctionRecord 리스트를 만든다.
+
+    우선순위:
+      1) full-record 캐시(`{"records": [<raw dict>, ...]}` 형식)가 있으면 그걸 parse_row.
+      2) 없거나 비어 있으면 `data/sample_courtauction.json` fixture의 dlt_srchResult로 폴백.
+    어느 경우에도 courtauction 실서버를 호출하지 않는다(밤샘 오프라인 정책).
+    """
+    from .courtauction_fields import parse_row  # noqa: PLC0415
+
+    recs = _records_from_full_cache(cache_path)
+    if recs:
+        logger.info("courtauction 캐시(full-record) %d건 로드 — 오프라인", len(recs))
+        return recs
+
+    fx = fixture_path or (DATA / "sample_courtauction.json")
+    if not fx.exists():
+        logger.warning("오프라인 폴백 fixture 없음(%s) — 빈 목록 반환", fx)
+        return []
+    j = json.loads(fx.read_text(encoding="utf-8"))
+    rows = (j.get("data") or {}).get("dlt_srchResult") or []
+    recs = [parse_row(r) for r in rows]
+    logger.info("courtauction 샘플 fixture %d건 로드 — 오프라인 폴백", len(recs))
+    return recs
+
+
+def _records_from_full_cache(cache_path: str | Path | None) -> list:
+    """full-record 캐시 파일에서 CourtAuctionRecord 복원. 없거나 스냅샷 전용이면 빈 목록."""
+    from . import courtauction_cache as cc  # noqa: PLC0415
+    from .courtauction_fields import parse_row  # noqa: PLC0415
+
+    p = Path(cache_path or cc.DEFAULT_CACHE)
+    if not p.exists():
+        return []
+    try:
+        blob = json.loads(p.read_text(encoding="utf-8"))
+    except (json.JSONDecodeError, OSError):
+        return []
+    rows = blob.get("records") if isinstance(blob, dict) else None
+    if not rows:
+        return []
+    return [parse_row(r) for r in rows if isinstance(r, dict)]
+
+
 def load_sample_trades() -> list[Trade]:
     """샘플 실거래: 아파트 + 연립다세대(빌라) + 오피스텔 fixture 합본."""
     trades: list[Trade] = []

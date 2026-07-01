@@ -15,6 +15,29 @@
 
 ---
 
+## 2026-07-01 16:49 KST — [A] 정기 새로고침 스케줄러 + 오프라인 dry-run 경로 (feat/deploy-prep)
+- 무엇:
+  - **오프라인 dry-run 배선**: `run.py --from-cache` 추가 — courtauction 실크롤/국토부 라이브를
+    강제로 끄고(`use_live = args.live and not args.from_cache`) `pipeline.load_courtauction_from_cache()`로
+    파이프라인 실행. 우선순위: full-record 캐시(`{"records":[raw…]}`) → 없으면 `data/sample_courtauction.json`
+    fixture 폴백 → 그래도 네트워크 호출 0. dry-run 스냅샷은 프로덕션 캐시를 덮지 않게 `*.dryrun.json`에 분리 저장.
+    `--cash` 지정 시 로컬 '최저가≤현금' 필터로 affordable_search 대체.
+  - **스케줄러 스크립트 3종**(`scripts/`, 전부 UTF-8 BOM):
+    `refresh-daily.ps1`(run.py 래퍼 — AUCTION_DB·PYTHONUTF8 설정, .venv python 절대경로,
+    로그 `evidence/refresh-*.log` tee, `-Live`/`-FromCache`/`-Cash`/`-Ym`/`-DbPath`),
+    `install-scheduler.ps1`(작업스케줄러 매일 05:30 등록 후 **즉시 Disable-ScheduledTask** → Disabled 상태,
+    `-WhatIf` 미리보기 지원), `uninstall-scheduler.ps1`(등록 해제).
+  - **README**: "정기 새로고침 스케줄러(Windows)" 섹션 — 오프라인 dry-run/등록/해제 커맨드 +
+    "약관 확인 후 `Enable-ScheduledTask` 한 줄로 활성화" 안내.
+- 함정 해결: PS 5.1이 no-BOM `.ps1`의 `if {}` 블록 내부 **한글 주석**을 ANSI로 오독 → 다음 문장(`$runArgs += "--from-cache"`)을
+  통째로 삼켜 `--from-cache`가 run.py에 전달 안 되고 **실크롤이 도는** 버그 발견. 인라인 주석 ASCII화 + 3파일 UTF-8 BOM 저장으로 해소.
+- 증거: `evidence/scheduler_dryrun.txt` (Read 확인) — refresh-daily `-FromCache` 콘솔출력(오프라인, 수집26·캐시diff요약,
+  "저장 26건 → auction.db"), sqlite `scored_listings` 23행 확인, `install-scheduler.ps1 -WhatIf`가 **Disabled** 등록 계획 출력.
+  pytest **123 PASS**(신규 3: from-cache fixture폴백/full-record/스냅샷폴백), ruff 클린. 실작업 미등록(WhatIf만) — 시스템 클린.
+- 평가자: PASS (신선-컨텍스트 평가자 패널 2인 모두 PASS)
+- 커밋: (feat(deploy) 커밋 — 이 항목 커밋에 포함)
+- 다음: B(waitress 서빙) → C(신뢰계수 표본 개선)
+
 ## 2026-07-01 16:36 KST — 배포준비 밤샘루프 하네스 셋업(feat/deploy-prep)
 - 무엇: grilling(7전제 확정) 후 비공개 배포준비 밤샘루프 착수. `GOAL_DEPLOY.md`(Default-FAIL 완료정의 A/B/C+스트레치)
   작성, 6/29 잔재 `AGENT_STOP` → `docs/AGENT_STOP-archive-2026-06-29.txt` 아카이브(kill-switch 자리 확보),

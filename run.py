@@ -8,6 +8,8 @@
   python run.py --live --ym 202605       # 국토부 라이브(키 필요, F10)
   python run.py --source courtauction --cash 60000000 --sido 11 --live --ym 202605
                                          # 대법원 실경매 매물(가용현금 6천만·서울) → 시세매칭 차익 큐레이션
+  python run.py --source courtauction --from-cache --cash 100000000
+                                         # 오프라인 dry-run: 실크롤/라이브 미호출, 캐시/샘플로 파이프라인 실행
 결과: 콘솔 랭킹표 + evidence/result.csv + evidence/result.html (--json이면 stdout JSON)
 """
 from __future__ import annotations
@@ -38,6 +40,9 @@ def main(argv=None) -> int:
                     help="affordable 감정가 상한 배수(현금×버퍼). 다회유찰 저가매물 누락 방지(기본 3)")
     ap.add_argument("--nationwide", action="store_true",
                     help="courtauction 전국 17개 시도 샤딩 수집(--sido 무시)")
+    ap.add_argument("--from-cache", dest="from_cache", action="store_true",
+                    help="오프라인 dry-run: courtauction 실크롤 대신 캐시/샘플 fixture로 파이프라인 실행"
+                         "(네트워크 호출 0, use_live 강제 off)")
     ap.add_argument("--cache", default=None,
                     help="courtauction 증분 캐시 경로(기본 data/courtauction_cache.json). 신규/변경/소멸 리포트")
     ap.add_argument("--db", default=str(ROOT / "auction.db"), help="SQLite 경로")
@@ -51,16 +56,26 @@ def main(argv=None) -> int:
     # .env 로드(있으면)
     _load_dotenv(ROOT / ".env")
 
+    # --from-cache(오프라인)는 라이브 시세 호출을 강제로 끈다: 네트워크 호출 0 보장.
+    use_live = args.live and not args.from_cache
+
     if not args.json:
         src = "대법원 courtauction 실매물" if args.source == "courtauction" else "샘플 물건"
-        mode = "라이브(국토부 시세)" if args.live else "샘플 시세"
+        if args.from_cache:
+            mode = "오프라인(캐시/샘플 시세)"
+        else:
+            mode = "라이브(국토부 시세)" if use_live else "샘플 시세"
         print(f"▶ 물건소스: {src} · 시세: {mode}\n")
 
     if args.source == "courtauction":
         from src import courtauction_cache as cc  # noqa: PLC0415
         from src.courtauction_fields import to_auction_listing  # noqa: PLC0415
 
-        if args.nationwide:
+        if args.from_cache:
+            records = pipeline.load_courtauction_from_cache(cache_path=args.cache)
+            if args.cash:   # 로컬 '최저가<=현금' 정밀필터(라이브 affordable_search 대체)
+                records = [r for r in records if 0 < r.min_bid_price <= args.cash]
+        elif args.nationwide:
             records = pipeline.load_courtauction_nationwide(
                 cash_won=args.cash, appraisal_buffer=args.appraisal_buffer,
                 max_pages_per_sido=args.max_pages)
@@ -69,17 +84,20 @@ def main(argv=None) -> int:
                 cash_won=args.cash, sido_cd=args.sido,
                 appraisal_buffer=args.appraisal_buffer, max_pages=args.max_pages)
 
-        # 증분 캐시 diff(신규/변경/소멸) 리포트 후 현재 스냅샷 저장
-        cache_path = args.cache or cc.DEFAULT_CACHE
+        # 증분 캐시 diff(신규/변경/소멸) 리포트 후 현재 스냅샷 저장.
+        # dry-run(--from-cache)은 프로덕션 full-record 캐시를 덮어쓰지 않도록
+        # 별도 스냅샷 경로(*.dryrun.json)에 diff 스냅샷을 남긴다.
+        base_cache = args.cache or cc.DEFAULT_CACHE
+        cache_path = f"{base_cache}.dryrun.json" if args.from_cache else base_cache
         diff = cc.diff_records(records, cc.load_cache(cache_path))
         cc.save_cache(records, cache_path)
         if not args.json:
             print(f"  courtauction 수집 {len(records)}건 — {diff.summary} (캐시 {cache_path})")
 
         listings = [to_auction_listing(r) for r in records]
-        scored = pipeline.run(use_live=args.live, deal_ymd=args.ym, auctions=listings)
+        scored = pipeline.run(use_live=use_live, deal_ymd=args.ym, auctions=listings)
     else:
-        scored = pipeline.run(use_live=args.live, deal_ymd=args.ym)
+        scored = pipeline.run(use_live=use_live, deal_ymd=args.ym)
 
     conn = store.connect(args.db)
     n = store.upsert(conn, scored)   # 전체 저장
