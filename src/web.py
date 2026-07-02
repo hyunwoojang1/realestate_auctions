@@ -16,7 +16,19 @@ from pathlib import Path
 
 from flask import Flask, abort, g, jsonify, redirect, render_template, request
 
-from . import backtest, digest, pipeline, query, report, sale_calendar, score, stats, store, watchlist
+from . import (
+    backtest,
+    compare,
+    digest,
+    pipeline,
+    query,
+    report,
+    sale_calendar,
+    score,
+    stats,
+    store,
+    watchlist,
+)
 from .models import AuctionListing
 
 logger = logging.getLogger(__name__)
@@ -269,6 +281,17 @@ def create_app() -> Flask:
     def stats_page():
         d = stats.summarize(_scored())
         return render_template("stats.html", d=d, won=report.won, pct=report.pct,
+                               data_source=getattr(g, "data_source", "n/a"))
+
+    @app.get("/compare")
+    def compare_page():
+        from . import tax  # noqa: PLC0415
+        cases = request.args.getlist("case")
+        items = compare.select_for_compare(_scored(), cases)
+        taxes = {s.case_no: tax.acquisition_tax_breakdown(s.min_bid_price, s.property_type, s.area_m2)
+                 for s in items}
+        return render_template("compare.html", items=items, taxes=taxes,
+                               won=report.won, pct=report.pct, tax_label=tax.PROFILE.label(),
                                data_source=getattr(g, "data_source", "n/a"))
 
     @app.get("/api/stats")

@@ -46,13 +46,12 @@
   - [x] pytest 225(+5: 손상폴백·상태플래그·없음≠손상·원자쓰기 잔여물없음·손상배너) / [x] ruff 클린
 - 노트: calendar/stats/watchlist data_source 배너는 base.html 헤더가 이미 표시(세 라우트 모두 data_source 전달) — 별도 배너 불요.
 
-## [ready] B6 물건 비교 뷰 `/compare` (출처: overseas-foreclosure.md — auction.com/Zillow compare)
-- 왜: 투자자가 후보 2~4건을 나란히 비교(예상차익·최저가·시세·취득세·유찰·신뢰·경고)해 좁히는 실전 도구. "콕 집어주는" 컨셉과 정합. 완전 오프라인(기존 DB만).
-- 완료 정의(전부 false):
-  - [ ] `GET /compare?case=A&case=B...`(2~4건) SSR 비교표 + 없는 case_no 무시 + test_client 테스트
-  - [ ] 목록/상세에서 비교 담기 링크(관심물건 재사용 가능)
-  - [ ] evidence/compare_smoke.txt Read 확인 + pytest 전체 + ruff 클린
-- 제약: 좌표·라이브 불요. 순수 조회.
+## [done] B6 물건 비교 뷰 `/compare` (사이클 #8, 2026-07-03)
+- 완료: src/compare.py `select_for_compare`(순서보존·중복제거·없는건 무시·최대4). `GET /compare?case=A&case=B...`
+  SSR 비교표(경고·예상차익·갭·최저가·시세·취득세·취득원가·감정가·유찰·면적·신뢰·기일·소재지·사건번호).
+  <2건이면 안내. watchlist 페이지에 '↔ 비교하기(상위N건)' 링크(관심물건 재사용).
+  - [x] pytest 232(+7: 순서/중복/상한/빈결과/라우트2건/1건안내/없는건무시) / [x] ruff 클린 / [x] evidence/compare_smoke.txt
+- 노트: '비교 담기 cart'는 세션상태 필요 → watchlist를 선택집합으로 재사용(오프라인). 상세페이지는 ★ 토글로 담기.
 
 ## [ready] B7 CSV 내보내기 `/export.csv` (출처: overseas-foreclosure.md)
 - 왜: 현재 필터·정렬 결과를 CSV로 저장(엑셀 검토). report.to_csv 이미 존재 → 웹 다운로드만.

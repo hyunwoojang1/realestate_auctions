@@ -1,0 +1,49 @@
+{% extends "base.html" %}
+{% block title %}물건 비교{% endblock %}
+
+{%- macro warn(g) -%}
+{%- if g == '권리미확인' -%}<span class="badge b-unknown">권리미확인</span>
+{%- elif g == '위험' -%}<span class="badge b-risk">위험</span>
+{%- elif g == '시세추정불가' -%}<span class="badge b-na">시세추정불가</span>
+{%- elif g == '차익없음' -%}<span class="badge b-none">차익없음</span>
+{%- endif -%}
+{%- endmacro -%}
+
+{% block content %}
+<a class="back" href="/">← 차익 큐레이션 목록</a>
+<h1 class="page-h" style="margin-top:12px">물건 비교</h1>
+
+{% if items|length < 2 %}
+<p class="page-sub">비교하려면 <b>2건 이상</b> 필요합니다(현재 {{ items|length }}건).
+<a href="/watchlist">관심물건</a>에서 담거나 목록에서 ★로 저장 후 비교하세요.
+최대 {{ 4 }}건까지 나란히 비교됩니다.</p>
+{% else %}
+<p class="page-sub">예상 차익 = 추정시세 − (최저입찰가 + 취득세, {{ tax_label }} 기준). 변동비 제외.</p>
+<div class="tablewrap"><div class="scrollx">
+<table class="params">
+<thead><tr><th scope="col">항목</th>
+{% for s in items %}<th scope="col"><a class="name" href="/property/{{ s.case_no }}">{{ s.apt_name or s.property_type }}</a></th>{% endfor %}
+</tr></thead>
+<tbody>
+<tr><td>경고</td>{% for s in items %}<td>{{ warn(s.grade) }}</td>{% endfor %}</tr>
+<tr><td><b>예상차익</b></td>{% for s in items %}
+  <td class="num"><b class="{% if s.expected_profit is not none and s.expected_profit < 0 %}gm-loss{% endif %}">{{ won(s.expected_profit) }}</b></td>{% endfor %}</tr>
+<tr><td>시세 대비 갭</td>{% for s in items %}<td class="num">{{ pct(s.gap_rate) }}</td>{% endfor %}</tr>
+<tr><td>최저입찰가</td>{% for s in items %}<td class="num">{{ won(s.min_bid_price) }}</td>{% endfor %}</tr>
+<tr><td>추정 실거래시세</td>{% for s in items %}<td class="num">{{ won(s.est_market_price) }}</td>{% endfor %}</tr>
+<tr><td>취득세({{ tax_label }})</td>{% for s in items %}<td class="num">{{ won(taxes[s.case_no]['합계']) }}</td>{% endfor %}</tr>
+<tr><td>취득원가</td>{% for s in items %}<td class="num">{{ won(s.real_acquisition_cost) }}</td>{% endfor %}</tr>
+<tr><td>감정가</td>{% for s in items %}<td class="num">{{ won(s.appraisal_price) }}</td>{% endfor %}</tr>
+<tr><td>유찰</td>{% for s in items %}<td class="num">{{ s.fail_count }}회</td>{% endfor %}</tr>
+<tr><td>전용면적</td>{% for s in items %}<td class="num">{{ '%.0f'|format(s.area_m2) }}㎡</td>{% endfor %}</tr>
+<tr><td>신뢰(실거래)</td>{% for s in items %}<td class="num">{{ '%.2f'|format(s.confidence) }} · {{ s.matched_trades }}건</td>{% endfor %}</tr>
+<tr><td>매각기일</td>{% for s in items %}<td>{{ s.sale_date or '미상' }}</td>{% endfor %}</tr>
+<tr><td>소재지</td>{% for s in items %}<td style="font-size:var(--t-note);color:var(--muted)">{{ s.address }}</td>{% endfor %}</tr>
+<tr><td>사건번호</td>{% for s in items %}<td class="caseid">{{ s.case_no }}</td>{% endfor %}</tr>
+</tbody>
+</table>
+</div></div>
+{% endif %}
+
+<p class="foot">비교는 취득 시점 표면차익 기준(명도·수리·권리 인수금액·양도세 제외). 권리미확인 물건은 반드시 물건상세 직접 확인.</p>
+{% endblock %}

@@ -42,7 +42,11 @@
 </table>
 {% endif %}
 
-<h2>저장한 물건 <span style="color:var(--muted);font-weight:400">{{ watched | length }}건</span></h2>
+<h2>저장한 물건 <span style="color:var(--muted);font-weight:400">{{ watched | length }}건</span>
+{%- if watched | length >= 2 %}
+  <a class="go" style="font-size:var(--t-data);margin-left:10px"
+     href="/compare?{% for s in watched[:4] %}case={{ s.case_no | urlencode }}{% if not loop.last %}&{% endif %}{% endfor %}">↔ 비교하기(상위 {{ [watched|length,4]|min }}건)</a>
+{%- endif %}</h2>
 {% if watched %}
 <table class="params">
 <thead><tr><th scope="col">단지 / 소재지</th><th scope="col">경고</th>

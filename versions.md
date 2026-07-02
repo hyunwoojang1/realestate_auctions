@@ -15,6 +15,16 @@
 
 ---
 
+## 2026-07-03 02:20 KST — ↔️ 사이클 #8: B6 물건 비교 (/compare)
+- 무엇: 후보 물건 2~4건 나란히 비교(auction.com/Zillow compare 모방, 오프라인).
+  - src/compare.py `select_for_compare`(순서보존·중복제거·없는 case_no 무시·최대4) 순수함수.
+  - `GET /compare?case=..&case=..` SSR 비교표(경고·예상차익·갭·최저가·시세·취득세·취득원가·감정가·유찰·면적·신뢰·기일·소재지·사건번호), <2건 안내.
+  - watchlist 페이지에 '↔ 비교하기(상위 N건)' 링크 — 관심물건을 선택집합으로 재사용(cart 상태 불요).
+- 증거: pytest **232 passed**(+7), ruff 클린, evidence/compare_smoke.txt(/compare 2건 200·양쪽 렌더·1건 안내).
+- 평가자: 게이트 직접 실행 + 자체검토(입력면=getlist→dict조회, Jinja 이스케이프 — 저위험). 전체 다관점 감사는 다음 #9(감사 사이클)에서 이 diff 포함 리뷰.
+- 커밋: (이 커밋, 로컬)
+- 다음: 사이클 #9 = 감사 사이클(3관점 병렬 — #7 B8·#8 B6 포함 최근 변경 리뷰).
+
 ## 2026-07-03 01:45 KST — 🛡️ 사이클 #7: B8 침묵실패 보강 (watchlist 손상처리·원자쓰기)
 - 무엇: 사이클 #6 감사의 MEDIUM/LOW 침묵실패를 구현.
   - watchlist.py: 손상 JSON 폴백(`_safe_load_json` — JSONDecodeError→logger+빈값, 500 대신 원인로그) +
