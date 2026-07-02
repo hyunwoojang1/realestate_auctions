@@ -63,3 +63,18 @@ def test_compare_route_ignores_missing_case(client):
     assert r.status_code == 200
     body = r.get_data(as_text=True)
     assert "상계주공" in body and "강남역삼푸르지오시티" in body   # 없는 건 무시, 나머지 렌더
+
+
+def test_compare_route_surfaces_dropped_cases(client):
+    # 요청한 사건이 조회 결과에 없으면 "요청 N건 중 M건만 조회" 배너 + 빠진 사건번호 노출(침묵 드롭 금지)
+    r = client.get("/compare?case=2024타경51234&case=없는사건&case=2025타경60777")
+    body = r.get_data(as_text=True)
+    assert "3건 중" in body and "2건만 조회" in body
+    assert "없는사건" in body                              # 빠진 사건번호 명시
+
+
+def test_compare_route_caps_case_params(client):
+    # case 파라미터가 MAX_COMPARE를 넘으면 하드캡(방어) — 표시는 최대 MAX_COMPARE건
+    q = "&".join(f"case=X{i}" for i in range(compare.MAX_COMPARE + 5))
+    r = client.get(f"/compare?{q}")
+    assert r.status_code == 200

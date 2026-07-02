@@ -15,6 +15,21 @@
 
 ---
 
+## 2026-07-03 02:58 KST — 🔎 사이클 #9(감사): B6/B8 다관점 감사 + HIGH 즉시 수정
+- 무엇: 3관점 병렬 감사(보안·코드품질·침묵실패)로 #7 B8·#8 B6(`git diff HEAD~4 HEAD`) 점검.
+  종합 CRITICAL/HIGH=0 (침묵실패 HIGH 1건만) → LOOP #9 절차대로 HIGH만 즉시 수정.
+  - **HIGH 수정(침묵실패)**: `/compare`가 요청 case N건 중 조회된 M건만 렌더하고 사라진 건을 침묵 드롭.
+    web.py compare_page에 `requested`/`missing_cases` 계산 전달, compare.html에 "요청 N건 중 M건만 조회"
+    n-warn 배너 + 빠진 사건번호 노출(watchlist의 missing 처리 원칙을 compare에도 반영).
+  - **보안 MEDIUM 동반 처리**(수정 지점 동일): `case` 파라미터 `[:MAX_COMPARE]` 하드캡(방어).
+  - 이월(BACKLOG): B9 스냅샷없음vs빈스냅샷 구분(code-review MEDIUM), B10 워치리스트 쓰기실패 로깅·사용자
+    메시지+corrupted 문구 일반화(silent-failure MEDIUM/LOW).
+- 증거: 감사 3에이전트 최종 리포트(보안 0C/0H·1M, 코드품질 0C/0H·1M APPROVE, 침묵실패 1H·1M·1L).
+- 게이트: pytest 234 passed(+2: dropped 배너·case 캡), ruff 클린.
+- 평가자: 감사 패널 APPROVE(HIGH 반영 완료).
+- 커밋: (로컬, 아래 해시)
+- 다음: 사이클 #10 = B7 CSV 내보내기 `/export.csv`(report.to_csv 재사용).
+
 ## 2026-07-03 02:20 KST — ↔️ 사이클 #8: B6 물건 비교 (/compare)
 - 무엇: 후보 물건 2~4건 나란히 비교(auction.com/Zillow compare 모방, 오프라인).
   - src/compare.py `select_for_compare`(순서보존·중복제거·없는 case_no 무시·최대4) 순수함수.

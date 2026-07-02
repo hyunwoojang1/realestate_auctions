@@ -13,6 +13,13 @@
 <a class="back" href="/">← 차익 큐레이션 목록</a>
 <h1 class="page-h" style="margin-top:12px">물건 비교</h1>
 
+{% if missing_cases %}
+<div class="note-box n-warn">요청 {{ requested }}건 중 <b>{{ items|length }}건만 조회</b>됐습니다.
+아래 사건은 최근 새로고침 결과에 없어 비교에서 빠졌습니다(매각·취하·기일변경 등 가능) —
+대법원 법원경매정보에서 직접 확인하세요:
+{% for c in missing_cases %}<span class="mono">{{ c }}</span>{% if not loop.last %}, {% endif %}{% endfor %}</div>
+{% endif %}
+
 {% if items|length < 2 %}
 <p class="page-sub">비교하려면 <b>2건 이상</b> 필요합니다(현재 {{ items|length }}건).
 <a href="/watchlist">관심물건</a>에서 담거나 목록에서 ★로 저장 후 비교하세요.

@@ -61,6 +61,25 @@
   - [ ] evidence/export_smoke.txt Read 확인 + pytest 전체 + ruff 클린
 - 제약: 순수 조회, 오프라인.
 
+## [ready] B9 스냅샷 없음 vs 빈 스냅샷 구분 (출처: 사이클#9 감사 code-review MEDIUM)
+- 왜: `_safe_load_json`이 "파일 없음"과 "파일 있으나 내용 {}"를 둘 다 `({},False)`로 반환 →
+  매물 0건 새로고침으로 빈 스냅샷이 정상 저장돼도 watchlist가 "스냅샷 없음"으로 오안내. 극단 엣지케이스.
+- 완료 정의(전부 false):
+  - [ ] `snapshot_path().exists()` 직접 확인 또는 `_safe_load_json`이 존재여부 반환(3-tuple)로 확장
+  - [ ] `watchlist_page`가 `snapshot_missing = not snapshot_path().exists()`로 판정
+  - [ ] 테스트: 빈 스냅샷 저장 후 "스냅샷 없음" 안내가 안 뜸 / pytest 전체 + ruff 클린
+- 제약: 순수 로컬, 오프라인.
+
+## [ready] B10 워치리스트 쓰기 실패 로깅·사용자 메시지 (출처: 사이클#9 감사 silent-failure MEDIUM+LOW)
+- 왜: `_atomic_write`가 실패 시 로그 없이 raise(로드측 `_safe_load_json`과 비대칭) → OneDrive 락/디스크풀 시
+  운영자가 어느 case_no add/remove가 실패했는지 모름. 사용자에겐 500만 노출("별표 눌렀는데 안 됨" 모호).
+  (LOW) corrupted 배너 문구가 손상/권한거부를 뭉뚱그림 → "손상되었거나 읽을 수 없습니다"로 일반화.
+- 완료 정의(전부 false):
+  - [ ] `_atomic_write` except에서 `logger.error("워치리스트 쓰기 실패: %s (%s)", p, e)` 후 re-raise
+  - [ ] toggle/api add·remove가 `OSError` catch → 사용자에게 "저장 실패, 다시 시도" 명시 메시지
+  - [ ] watchlist.html 손상 배너 문구 일반화(LOW) / 테스트 + pytest 전체 + ruff 클린
+- 제약: 순수 로컬, 오프라인.
+
 ## [blocked] B3 지도 뷰 `/map` (출처: 두 레퍼런스 공통 기본기능) — QUESTIONS Q1 대기
 - 블로킹 사유(2026-07-03 사이클#5): 좌표계 문제. courtauction `wgs84Xcordi/Ycordi`는 정수부만(127/37, 무용),
   `xCordi/yCordi`는 투영좌표인데 CRS 식별 모호(역산 시 경도 128.2°로 서울과 불일치) + pyproj 미설치.

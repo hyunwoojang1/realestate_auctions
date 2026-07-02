@@ -286,11 +286,15 @@ def create_app() -> Flask:
     @app.get("/compare")
     def compare_page():
         from . import tax  # noqa: PLC0415
-        cases = request.args.getlist("case")
+        cases = request.args.getlist("case")[:compare.MAX_COMPARE]  # 입력 개수 하드캡(방어)
         items = compare.select_for_compare(_scored(), cases)
+        # 요청했으나 조회 결과에 없는 사건(매각·취하 등으로 목록에서 사라짐) — 침묵 드롭 방지
+        found = {s.case_no for s in items}
+        missing_cases = [c for c in cases if c not in found]
         taxes = {s.case_no: tax.acquisition_tax_breakdown(s.min_bid_price, s.property_type, s.area_m2)
                  for s in items}
         return render_template("compare.html", items=items, taxes=taxes,
+                               requested=len(cases), missing_cases=missing_cases,
                                won=report.won, pct=report.pct, tax_label=tax.PROFILE.label(),
                                data_source=getattr(g, "data_source", "n/a"))
 
