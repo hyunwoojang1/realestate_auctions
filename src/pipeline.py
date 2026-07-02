@@ -165,16 +165,24 @@ def load_live_trades(listings: list[AuctionListing], api_key: str,
     """물건들의 법정동코드(LAWD_CD)별로 아파트+연립다세대 실거래를 라이브 수집."""
     trades: list[Trade] = []
     seen: set[str] = set()
+    calls = 0
+    fails = 0
     for lst in listings:
         if lst.lawd_cd in seen:
             continue
         seen.add(lst.lawd_cd)
         ymds = recent_ymds(deal_ymd, _live_months())
         for kind in ("apt", "rh", "officetel"):
+            calls += 1
             try:
                 trades.extend(fetch_trades_months(kind, lst.lawd_cd, ymds, api_key))
             except Exception as e:  # noqa: BLE001 — 한 지역/유형 실패가 전체를 막지 않게
+                fails += 1
                 logger.warning("라이브 호출 실패 kind=%s lawd=%s: %s", kind, lst.lawd_cd, e)
+    if fails:
+        # 집계 경고 — '시세추정불가'가 진짜 comps 부재인지 API 실패 때문인지 구분하게 한다.
+        logger.warning("라이브 시세 수집: %d/%d 호출 실패. 일부 물건은 comps 부족이 아니라 "
+                       "API 실패로 시세추정불가일 수 있음(결과 신뢰도 저하).", fails, calls)
     return trades
 
 

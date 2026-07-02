@@ -29,19 +29,43 @@ _COLS = [
 def connect(db_path: str = "auction.db") -> sqlite3.Connection:
     conn = sqlite3.connect(db_path)
     conn.row_factory = sqlite3.Row
+    # WAL + busy_timeout: 매일 05:30 새로고침(쓰기)이 웹 서빙(읽기)과 겹쳐도 'database is locked'로
+    # 조용히 샘플 폴백되지 않게 한다. 읽기-쓰기 동시성 확보 + 최대 5초 잠금 대기.
+    try:
+        conn.execute("PRAGMA journal_mode=WAL")
+        conn.execute("PRAGMA busy_timeout=5000")
+    except sqlite3.OperationalError:
+        pass  # :memory: 등 WAL 미지원 환경은 무시
     conn.execute(DDL)
     return conn
 
 
-def upsert(conn: sqlite3.Connection, items: Iterable[ScoredListing]) -> int:
+def _insert_rows(conn: sqlite3.Connection, items: Iterable[ScoredListing]) -> int:
     rows = [tuple(s.to_row()[c] for c in _COLS) for s in items]
     placeholders = ",".join("?" * len(_COLS))
     conn.executemany(
         f"INSERT OR REPLACE INTO scored_listings ({','.join(_COLS)}) VALUES ({placeholders})",
         rows,
     )
-    conn.commit()
     return len(rows)
+
+
+def upsert(conn: sqlite3.Connection, items: Iterable[ScoredListing]) -> int:
+    """병합 적재(부분/증분 크롤용). 기존 행은 유지하고 같은 case_no만 갱신."""
+    n = _insert_rows(conn, items)
+    conn.commit()
+    return n
+
+
+def replace_all(conn: sqlite3.Connection, items: Iterable[ScoredListing]) -> int:
+    """전량 교체(전국 풀스냅샷용). 한 트랜잭션에서 기존 전체 삭제 후 재적재.
+
+    팔리거나 취하돼 이번 크롤에 없는 물건을 남겨 두지 않는다(만료 매물 추천 방지).
+    """
+    with conn:  # 트랜잭션: 전부 성공 or 롤백(웹이 반쯤 지워진 상태를 서빙하지 않게)
+        conn.execute("DELETE FROM scored_listings")
+        n = _insert_rows(conn, items)
+    return n
 
 
 def fetch_ranked(conn: sqlite3.Connection) -> list[dict]:

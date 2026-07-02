@@ -15,7 +15,8 @@
     "assumed_amount": 0,
     "special_rights": [],
     "tenant_opposable": false,
-    "occupant_type": "공실"
+    "occupant_type": "공실",
+    "rights_verified": true
   },
   {
     "case_no": "2025타경30021",
@@ -33,7 +34,8 @@
     "assumed_amount": 0,
     "special_rights": [],
     "tenant_opposable": false,
-    "occupant_type": "공실"
+    "occupant_type": "공실",
+    "rights_verified": true
   },
   {
     "case_no": "2024타경88765",
@@ -51,7 +53,8 @@
     "assumed_amount": 200000000,
     "special_rights": [],
     "tenant_opposable": true,
-    "occupant_type": "임차인"
+    "occupant_type": "임차인",
+    "rights_verified": true
   },
   {
     "case_no": "2024타경44102",
@@ -69,7 +72,8 @@
     "assumed_amount": 0,
     "special_rights": ["유치권"],
     "tenant_opposable": false,
-    "occupant_type": "다수점유"
+    "occupant_type": "다수점유",
+    "rights_verified": true
   },
   {
     "case_no": "2025타경12044",
@@ -87,7 +91,8 @@
     "assumed_amount": 0,
     "special_rights": [],
     "tenant_opposable": false,
-    "occupant_type": "소유자점유"
+    "occupant_type": "소유자점유",
+    "rights_verified": true
   },
   {
     "case_no": "2025타경60777",
@@ -105,6 +110,7 @@
     "assumed_amount": 0,
     "special_rights": [],
     "tenant_opposable": false,
-    "occupant_type": "공실"
+    "occupant_type": "공실",
+    "rights_verified": true
   }
 ]

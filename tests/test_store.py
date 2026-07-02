@@ -11,7 +11,7 @@ def _scored(case_no: str, arb: float | None) -> ScoredListing:
         est_market_price=818_000_000, matched_trades=3, confidence=1.0,
         real_acquisition_cost=420_000_000, expected_profit=398_000_000,
         gap_rate=0.5, gap_score=50.0, rights_score=30.0, liquidity_score=20.0,
-        arb_score=arb, grade="확실한 차익" if arb else "시세추정불가",
+        arb_score=arb, grade="차익 유력" if arb else "시세추정불가",
     )
 
 
@@ -38,3 +38,22 @@ def test_has_rows():
     assert store.has_rows(conn) is False
     store.upsert(conn, [_scored("A", 90.0)])
     assert store.has_rows(conn) is True
+
+
+def test_replace_all_purges_absent_rows():
+    """전량 교체: 이전 크롤에만 있던 매물(팔림/취하)은 제거된다(만료 매물 추천 방지)."""
+    conn = store.connect(":memory:")
+    store.upsert(conn, [_scored("OLD", 90.0), _scored("KEEP", 80.0)])
+    n = store.replace_all(conn, [_scored("KEEP", 80.0), _scored("NEW", 70.0)])
+    assert n == 2
+    cases = {s.case_no for s in store.load_scored(conn)}
+    assert cases == {"KEEP", "NEW"}   # OLD는 사라짐
+
+
+def test_upsert_keeps_existing_rows():
+    """병합 적재: 기존 행 유지(부분 크롤이 다른 지역을 지우지 않게)."""
+    conn = store.connect(":memory:")
+    store.upsert(conn, [_scored("A", 90.0)])
+    store.upsert(conn, [_scored("B", 80.0)])
+    cases = {s.case_no for s in store.load_scored(conn)}
+    assert cases == {"A", "B"}

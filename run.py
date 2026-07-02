@@ -110,8 +110,19 @@ def main(argv=None) -> int:
     else:
         scored = pipeline.run(use_live=use_live, deal_ymd=args.ym)
 
-    conn = store.connect(args.db)
-    n = store.upsert(conn, scored)   # 전체 저장
+    # 시세 출처 가드: courtauction 실매물을 '라이브 국토부 시세'가 아닌 샘플/추정 시세로 채점한 결과는
+    # 서빙 DB에 넣지 않는다(웹이 X-Data-Source: db 로 '라이브인 척' 내보내는 것을 방지). 별도 dryrun DB로.
+    db_path = args.db
+    if args.source == "courtauction" and not use_live:
+        db_path = f"{args.db}.dryrun.db"
+        if not args.json:
+            print(f"  ⚠ 실매물인데 라이브 시세 아님(샘플/추정) → 서빙 DB 대신 {db_path} 에 저장")
+    conn = store.connect(db_path)
+    # 전국 풀스냅샷(--nationwide, 라이브)은 전량 교체로 만료매물 제거. 그 외는 병합.
+    if args.source == "courtauction" and args.nationwide and use_live:
+        n = store.replace_all(conn, scored)
+    else:
+        n = store.upsert(conn, scored)   # 전체 저장
 
     view = query.sort_items(
         query.apply_filters(scored, args.min_score, args.ptype, args.region),
@@ -123,7 +134,7 @@ def main(argv=None) -> int:
         return 0
 
     print(report.to_console(view))
-    print(f"\n저장(전체): {n}건 · 표시(필터 후): {len(view)}건 → {args.db}")
+    print(f"\n저장(전체): {n}건 · 표시(필터 후): {len(view)}건 → {db_path}")
 
     EVID.mkdir(exist_ok=True)
     csv_path = report.to_csv(view, EVID / "result.csv")

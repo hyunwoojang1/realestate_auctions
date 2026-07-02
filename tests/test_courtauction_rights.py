@@ -157,7 +157,7 @@ def test_apply_rights_is_immutable_and_maps_fields():
     assert base.assumed_amount == 0
     assert base.special_rights == []
     assert base.tenant_opposable is False
-    assert base.occupant_type == "공실"
+    assert base.occupant_type == "소유자점유"   # 모델 기본값(미상은 보수적으로 점유 가정)
     # 새 객체에 반영
     assert out.assumed_amount == 150_000_000
     assert out.special_rights == ["유치권"]

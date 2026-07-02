@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import csv
+import html
 import json
 from collections.abc import Iterable
 from pathlib import Path
@@ -55,8 +56,9 @@ def to_json(items: Iterable[ScoredListing], path: str | Path | None = None) -> s
 
 
 _GRADE_COLOR = {
-    "확실한 차익": "var(--g4)", "양호": "var(--g3)", "관심": "var(--g2)",
+    "차익 유력": "var(--g4)", "양호": "var(--g3)", "관심": "var(--g2)",
     "주의": "var(--risk)", "위험": "var(--risk)",
+    "권리미확인": "var(--muted)",   # 초록(안전) 아님 — 권리 미검증 중립 신호
     "차익없음": "var(--muted)", "시세추정불가": "var(--muted)",
 }
 
@@ -105,16 +107,21 @@ def to_html(items: list[ScoredListing], path: str | Path) -> Path:
     path = Path(path)
     rows_html = []
     for i, s in enumerate(items, 1):
+        # 크롤/외부 문자열이 정적 HTML에 그대로 들어가므로 이스케이프(데이터 품질 이슈로 태그가 섞여도 안전).
+        e_name = html.escape(s.apt_name or "")
+        e_addr = html.escape(s.address or "")
+        e_grade = html.escape(s.grade or "")
+        e_type = html.escape(s.property_type or "")
         rows_html.append(f"""<tr>
   <td class="num rank">{i}</td>
   <td>{_score_badge(s)}</td>
-  <td><b>{s.grade}</b><div class="ty">{s.property_type} · {s.area_m2:.0f}㎡ · 유찰{s.fail_count}</div></td>
-  <td class="name">{s.apt_name}<div class="addr">{s.address}</div></td>
+  <td><b>{e_grade}</b><div class="ty">{e_type} · {s.area_m2:.0f}㎡ · 유찰{s.fail_count}</div></td>
+  <td class="name">{e_name}<div class="addr">{e_addr}</div></td>
   <td class="meter">{_gap_meter(s)}</td>
   <td class="num profit">{_won(s.expected_profit)}</td>
   <td class="num conf">{s.confidence:.2f}</td>
 </tr>""")
-    html = f"""<!doctype html><html lang="ko"><head><meta charset="utf-8">
+    doc = f"""<!doctype html><html lang="ko"><head><meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>차익 큐레이션 — PoC 결과</title>
 <style>
@@ -175,5 +182,5 @@ box-shadow:0 2px 6px color-mix(in oklab, var(--c) 45%, transparent)}}
 <p class="foot">⚠ PoC 샘플 데이터 기반. 차익·권리는 투자판단 보조이며 전문가 상담을 대체하지 않습니다.
 라이브 시세는 국토부 실거래가 API 키 연동(F10) 후 적용됩니다.</p>
 </body></html>"""
-    path.write_text(html, encoding="utf-8")
+    path.write_text(doc, encoding="utf-8")
     return path

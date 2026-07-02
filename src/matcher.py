@@ -7,9 +7,12 @@
 """
 from __future__ import annotations
 
+import logging
 import statistics
 
 from .models import AuctionListing, Trade
+
+logger = logging.getLogger(__name__)
 
 AREA_BAND = 0.10  # ±10% 전용면적 (기본값; 실제 사용값은 config.SAMPLE.area_band)
 
@@ -62,15 +65,19 @@ def match_trades(listing: AuctionListing, trades: list[Trade]) -> list[Trade]:
     want = expected_kind(listing.property_type)
     pool = [t for t in trades if _kind_ok(t, want)]
     name = _norm(listing.apt_name)
+    dong = _norm(listing.dong)
+    # 단지명 부분일치 + 면적 + '같은 법정동' 제약. 동명이단지(다른 지역 같은 이름)를
+    # 시세 comps로 끌어오는 것을 막는다. 거래에 dong이 없으면(하위호환) 동 제약은 통과시킨다.
     by_name = [
         t for t in pool
-        if name and _norm(t.apt_name) and (name in _norm(t.apt_name) or _norm(t.apt_name) in name)
+        if len(name) >= 2 and _norm(t.apt_name)
+        and (name in _norm(t.apt_name) or _norm(t.apt_name) in name)
         and _area_ok(t.area_m2, listing.area_m2, band)
+        and (not _norm(t.dong) or _norm(t.dong) == dong)
     ]
     if by_name:
         return by_name
     # 폴백: 같은 법정동 + 면적대 (유형 분리는 유지 — 다세대↔아파트 혼입 방지)
-    dong = _norm(listing.dong)
     by_dong = [
         t for t in pool
         if dong and _norm(t.dong) == dong and _area_ok(t.area_m2, listing.area_m2, band)
@@ -114,6 +121,11 @@ def estimate_market_price(listing: AuctionListing, trades: list[Trade]) -> tuple
     매칭 → 최근성 필터 → 평단가 이상치 트림 → 중앙값 × 전용면적.
     신뢰계수 산정용 매칭건수는 트림 전 원 매칭 수를 유지한다(품질 보정이 신뢰를 부풀리지 않게).
     """
+    if listing.area_m2 <= 0:
+        # 면적 파싱 실패(0/미상)면 comps 매칭이 무조건 비어 '시세추정불가'가 된다.
+        # 진짜 comps 부재와 파싱실패를 구분할 수 있도록 로그를 남긴다(침묵실패 방지).
+        logger.debug("면적 0/미상 물건(%s) — comps 매칭 불가 → 시세추정불가", listing.case_no)
+        return None, 0
     matched = match_trades(listing, trades)
     if not matched:
         return None, 0

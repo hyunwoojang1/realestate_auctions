@@ -74,8 +74,8 @@ def test_live_pipeline_end_to_end(mock_molit, monkeypatch):
     scored = pipeline.run(use_live=True, deal_ymd="202605")
     assert len(scored) == 6
     assert scored[0].arb_score is not None
-    # 상계주공이 라이브 경로로도 '확실한 차익'으로 산출되는지
-    assert any(s.apt_name == "상계주공" and s.grade == "확실한 차익" for s in scored)
+    # 상계주공이 라이브 경로로도 최상위 '차익 유력'으로 산출되는지(샘플 물건=권리검증됨)
+    assert any(s.apt_name == "상계주공" and s.grade == "차익 유력" for s in scored)
 
 
 def test_live_requires_key(monkeypatch):

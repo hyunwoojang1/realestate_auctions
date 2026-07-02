@@ -110,18 +110,16 @@ def create_app() -> Flask:
     @app.get("/")
     def index():
         items = _filtered(request.args)
-        rows = [
-            {"s": s, "badge": report.score_badge_html(s),
-             "meter": report.gap_meter_html(s), "profit": report.won(s.expected_profit)}
-            for s in items
-        ]
         filters = {
             "min_score": request.args.get("min_score", ""),
             "type": request.args.get("type", ""),
             "region": request.args.get("region", ""),
             "sort": request.args.get("sort", "score"),
         }
-        return render_template("listings.html", rows=rows, count=len(items), filters=filters)
+        return render_template(
+            "listings.html", items=items, count=len(items), filters=filters,
+            won=report.won, pct=report.pct, meter=report.gap_meter_html,
+            data_source=getattr(g, "data_source", "n/a"))
 
     @app.get("/health")
     def health():
@@ -166,9 +164,9 @@ def create_app() -> Flask:
                 gate_reasons.append("·".join(fatal) + " 신고")
         return render_template(
             "detail.html", s=s, listing=listing,
-            badge=report.score_badge_html(s), meter=report.gap_meter_html(s),
-            won=report.won, pct=report.pct,
+            meter=report.gap_meter_html(s), won=report.won, pct=report.pct,
             gated=gated, gate_reason=", ".join(gate_reasons),
+            data_source=getattr(g, "data_source", "n/a"),
         )
 
     @app.get("/digest")
@@ -176,20 +174,19 @@ def create_app() -> Flask:
         n = request.args.get("n", default=10, type=int)
         min_score = request.args.get("min_score", type=float)
         items = digest.top_listings(_scored(), n=n, min_score=min_score)
-        rows = [
-            {"s": s, "badge": report.score_badge_html(s),
-             "meter": report.gap_meter_html(s), "profit": report.won(s.expected_profit)}
-            for s in items
-        ]
         filters = {"min_score": request.args.get("min_score", ""), "type": "", "region": "", "sort": "score"}
-        return render_template("listings.html", rows=rows, count=len(items), filters=filters)
+        return render_template(
+            "listings.html", items=items, count=len(items), filters=filters,
+            won=report.won, pct=report.pct, meter=report.gap_meter_html,
+            data_source=getattr(g, "data_source", "n/a"))
 
     @app.get("/methodology")
     def methodology():
         rows = backtest.evaluate()
         cal = backtest.calibration(rows)
         prec = {t: backtest.precision_at(rows, t) for t in (80, 60, 40)}
-        return render_template("methodology.html", cfg=score.CONFIG, cal=cal, prec=prec, won=report.won)
+        return render_template("methodology.html", cfg=score.CONFIG, cal=cal, prec=prec,
+                               won=report.won, data_source="sample")
 
     return app
 

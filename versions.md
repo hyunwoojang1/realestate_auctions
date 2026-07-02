@@ -15,6 +15,24 @@
 
 ---
 
+## 2026-07-02 11:07 KST — 🔎 다관점 감사 + 안전수정 + UI 리디자인 (goal+감사 스킬)
+- 무엇: 사용자 요청 "goal+감사로 다관점 감사·수정 + 못생긴 웹 리디자인".
+  - **감사(deep, 7관점 병렬 + 실구동)**: architect·security·python·silent-failure·performance·database·domain-money.
+    교차검증 CRITICAL 5 / HIGH 8. 실구동=pytest 169·ruff 클린·서버부팅 사실 확보.
+  - **CRITICAL 수정(머니세이프티)**:
+    - `rights_verified`(models) 게이트 — 라이브/DB 실매물은 '차익 유력'·초록 안전문구 금지, `권리미확인` 등급 + 상세페이지 경고. (score/web/detail/report)
+    - 최소표본 게이트 — 실거래 <2건=시세추정불가(1건 중앙값 시세 불신), '차익 유력'은 ≥3건에만. (config.min_comps_*, score)
+    - 뱃지 '확실한 차익'→**'차익 유력'** 전면 개명(법원경매 단정 표현 제거, 사용자 승인).
+    - 시세 출처 가드(run.py) — courtauction 비-라이브 결과는 서빙 DB 대신 *.dryrun.db. 전국풀스냅샷=replace_all(만료매물 제거).
+    - occupant 기본값 '공실'→'소유자점유'(명도비 과소 방지).
+  - **HIGH/보안 수정**: SQLite WAL+busy_timeout·store.replace_all, matcher 법정동 제약(동명이단지 오매칭 차단), config 검증(경고), 라이브 부분실패 집계경고, `_redact` 공개 별칭, to_html HTML이스케이프, .env.example VWORLD.
+  - **🔴 공개레포 실데이터 유출 조치(사용자 승인)**: repo **private 전환 완료**, `evidence/courtauction_live_verify.json` untrack, .gitignore/.dockerignore 강화(evidence/* 전체), git 히스토리 재작성으로 과거커밋에서 완전 제거 + force-push.
+  - **UI 리디자인**: 다관점 디자인 리서치(5각도) 종합 → "Warm-Paper Financial Broadsheet"(FT페이퍼#FFF1E5+슬레이트+머니그린). templates/base.html(디자인시스템)+listings/detail/methodology 재작성. 히어로#1픽·랭킹표(hairline)·스코어 크기막대·뱃지+갭 페어·데이터출처 배너·방법론 샘플캐비엇. docs/design-brief.md.
+- 증거: **pytest 173 passed**(신규 4: 권리게이트·표본게이트·replace_all·upsert-merge), ruff 클린. 6페이지 정적 렌더 200 OK(권리미확인 경고 확인). 감사리포트 docs/감사리포트_20260702.md.
+- 평가자: 7 병렬 리뷰어 교차검증 + 직접 실행(pytest·ruff·렌더).
+- 커밋: (이 커밋; 히스토리 재작성 force-push)
+- 다음: 배선(E 유형·D 권리파서), PK doc_id(물건번호) 다물건 분리, 미납관리비 원가라인, 스케줄러 첫 발화 확인.
+
 ## 2026-07-02 09:52 KST — 🚀 배포+라이브 가동 (main merge·push, 스케줄러 활성, 실크롤, D/E 검증)
 - 무엇: 사용자 승인 후 배포 실행.
   - **merge+push**: feat/deploy-prep → main(--no-ff, e8c5717) origin push 완료(공개레포). 시크릿 스캔 clean.

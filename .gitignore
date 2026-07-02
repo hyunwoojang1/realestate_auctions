@@ -5,15 +5,19 @@ __pycache__/
 *.db
 .pytest_cache/
 .ruff_cache/
-evidence/*.csv
-evidence/*.html
-evidence/*.txt
-evidence/*.md
+
+# 로컬 산출물 — evidence/ 전체를 무시(실데이터·리포트 유출 방지). .gitkeep만 추적.
+evidence/*
+!evidence/.gitkeep
+
+# 로컬 수집/캐시 데이터(실데이터·PII 위험). 샘플(data/sample_*)은 추적 유지.
 data/watchlist.json
 data/score_snapshot.json
 data/courtauction_cache.json
 data/courtauction_cache.json.dryrun.json
 data/courtauction_full_cache.json
-evidence/refresh-*.log
+
+# 루프/크롤 제어 파일
 COURTAUCTION_STOP
-!evidence/.gitkeep
+AGENT_STOP
+STEER.md

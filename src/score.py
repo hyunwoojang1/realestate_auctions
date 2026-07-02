@@ -110,8 +110,10 @@ def score_listing(listing: AuctionListing, est_market_price: int | None, matched
     r = rights_score(listing)
     liq = liquidity_score(listing, matched_trades)
 
-    if est_market_price is None or est_market_price <= 0:
+    if est_market_price is None or est_market_price <= 0 or matched_trades < CONFIG.min_comps_price:
         # 시세 추정 불가 — 정직하게 차익을 계산하지 않는다.
+        # 표본이 min_comps_price(기본 2건) 미만이면 1건짜리 중앙값을 '시세'로 신뢰하지 않는다
+        # (이상치 1건이 허위 차익을 만드는 것을 막는다).
         return ScoredListing(
             case_no=listing.case_no, apt_name=listing.apt_name, address=listing.address,
             property_type=listing.property_type, area_m2=listing.area_m2,
@@ -120,7 +122,7 @@ def score_listing(listing: AuctionListing, est_market_price: int | None, matched
             est_market_price=None, matched_trades=matched_trades, confidence=conf,
             real_acquisition_cost=cost, expected_profit=None, gap_rate=None,
             gap_score=0.0, rights_score=r, liquidity_score=liq, arb_score=None,
-            grade=grade_of(None),
+            grade=grade_of(None), rights_verified=listing.rights_verified,
         )
 
     gap_rate = (est_market_price - cost) / est_market_price
@@ -136,10 +138,19 @@ def score_listing(listing: AuctionListing, est_market_price: int | None, matched
         arb = min(arb, CONFIG.gate_ceiling)
 
     grade = grade_of(arb)
+    top_grade = CONFIG.grade_thresholds[0][1]      # '차익 유력'
+    second_grade = CONFIG.grade_thresholds[1][1]   # '양호'
     if gated:
         grade = "위험"
     elif gap_rate <= 0:
         grade = "차익없음"
+    elif not listing.rights_verified:
+        # 권리분석 미수행(라이브 크롤 등) → 점수는 참고로 남기되 등급은 비단정 '권리미확인'.
+        # 허위 안전신호('차익 유력'·초록 안전문구)를 절대 부여하지 않는다.
+        grade = "권리미확인"
+    elif matched_trades < CONFIG.min_comps_confident and grade == top_grade:
+        # 표본 부족(신뢰계수 1.0 미만)인데 최상위면 한 단계 강등(1~2건 표본으로 '차익 유력' 금지).
+        grade = second_grade
 
     return ScoredListing(
         case_no=listing.case_no, apt_name=listing.apt_name, address=listing.address,
@@ -149,5 +160,5 @@ def score_listing(listing: AuctionListing, est_market_price: int | None, matched
         est_market_price=est_market_price, matched_trades=matched_trades, confidence=conf,
         real_acquisition_cost=cost, expected_profit=profit, gap_rate=round(gap_rate, 4),
         gap_score=gap, rights_score=r, liquidity_score=liq, arb_score=arb,
-        grade=grade,
+        grade=grade, rights_verified=listing.rights_verified,
     )

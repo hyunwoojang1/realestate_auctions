@@ -6,8 +6,11 @@
 from __future__ import annotations
 
 import json
+import logging
 from dataclasses import dataclass, field
 from pathlib import Path
+
+logger = logging.getLogger(__name__)
 
 
 @dataclass
@@ -56,10 +59,17 @@ class ScoreConfig:
     confidence_ladder: list = field(default_factory=lambda: [
         [3, 1.0], [2, 0.85], [1, 0.70], [0, 0.60],
     ])
-    # 등급 경계 [[최소점수, 등급], ...] (내림차순)
+    # 등급 경계 [[최소점수, 등급], ...] (내림차순).
+    # '차익 유력' — 법원경매 특성상 '확실/보장'은 방어 불가하므로 단정 표현을 피한다.
     grade_thresholds: list = field(default_factory=lambda: [
-        [80, "확실한 차익"], [60, "양호"], [40, "관심"], [0, "주의"],
+        [80, "차익 유력"], [60, "양호"], [40, "관심"], [0, "주의"],
     ])
+
+    # 표본(comps) 게이트 — 허위 차익 방지.
+    #  - min_comps_price: 이 미만이면 '시세'로 신뢰하지 않음(1건 중앙값을 시세로 쓰지 않는다).
+    #  - min_comps_confident: 최상위 '차익 유력'(신뢰계수 1.0)에 필요한 최소 매칭건수.
+    min_comps_price: int = 2
+    min_comps_confident: int = 3
 
 
 @dataclass
@@ -86,6 +96,25 @@ DEFAULT_CONFIG_PATH = Path(__file__).resolve().parent.parent / "data" / "score_c
 DEFAULT_SAMPLE_CONFIG_PATH = Path(__file__).resolve().parent.parent / "data" / "sample_config.json"
 
 
+def _validate(cfg: ScoreConfig) -> None:
+    """오버라이드 후 정합성 점검 — 값을 바꾸지 않고 경고만 남긴다(조용한 오설정 방지).
+
+    가중치 합·사다리 단조성·취득세 구간 종료를 검사한다. 잘못된 config가 코드 수정 없이
+    전체 랭킹을 뒤집는 사고를 로그로 드러낸다.
+    """
+    wsum = cfg.w_gap + cfg.w_rights + cfg.w_liq
+    if abs(wsum - 1.0) > 0.01:
+        logger.warning("score_config 가중치 합이 1.0이 아님(%.3f) — 스코어 스케일이 의도와 다를 수 있음", wsum)
+    ladder_ns = [n for n, _ in cfg.confidence_ladder]
+    if ladder_ns != sorted(ladder_ns, reverse=True):
+        logger.warning("confidence_ladder 매칭건수가 내림차순이 아님 — 신뢰계수 산정이 어긋날 수 있음")
+    gap_xs = [x for x, _ in cfg.gap_points]
+    if gap_xs != sorted(gap_xs):
+        logger.warning("gap_points 갭률이 오름차순이 아님 — 보간이 어긋날 수 있음")
+    if cfg.acq_tax_brackets and cfg.acq_tax_brackets[-1][0] is not None:
+        logger.warning("acq_tax_brackets 마지막 구간 상한이 null이 아님 — 고가 물건 취득세가 누락될 수 있음")
+
+
 def load_config(path: str | Path | None = None) -> ScoreConfig:
     """data/score_config.json(있으면)으로 기본값을 덮어써 ScoreConfig 반환."""
     cfg = ScoreConfig()
@@ -95,6 +124,7 @@ def load_config(path: str | Path | None = None) -> ScoreConfig:
         for k, v in overrides.items():
             if hasattr(cfg, k):
                 setattr(cfg, k, v)
+    _validate(cfg)
     return cfg
 
 

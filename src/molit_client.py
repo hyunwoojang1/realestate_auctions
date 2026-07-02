@@ -156,6 +156,11 @@ def _redact(text: object) -> str:
     return _SERVICEKEY_RE.sub(r"\1***", str(text))
 
 
+# 공개 별칭 — 형제 클라이언트(molit_extra_client·building_register_client)가
+# 예외/로그를 남길 때 동일하게 키를 마스킹하도록 재사용(방어적 심층).
+redact = _redact
+
+
 def _get_with_retry(session, url: str, params: dict, timeout: int, retries: int) -> str:
     """일시적 네트워크 오류는 지수 백오프로 재시도. 마지막 실패는 그대로 올린다."""
     last_exc = None

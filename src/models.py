@@ -23,7 +23,10 @@ class AuctionListing:
     assumed_amount: int = 0            # 낙찰자가 추가로 떠안는 인수금액(원)
     special_rights: list[str] = field(default_factory=list)  # 유치권/법정지상권/지분 등
     tenant_opposable: bool = False     # 대항력 있는(배당 못 받는) 임차인 존재
-    occupant_type: str = "공실"        # 공실 / 임차인 / 소유자점유 / 다수점유
+    occupant_type: str = "소유자점유"  # 공실 / 임차인 / 소유자점유 / 다수점유 (미상은 보수적으로 점유 가정)
+    # 권리분석이 실제로 수행됐는가. False(라이브 크롤 등 물건상세 미수집)면 권리 점수를 신뢰하지 않고
+    # '권리미확인' 등급으로 강등하며 '차익 유력' 뱃지·초록 안전문구를 부여하지 않는다(허위 안전신호 방지).
+    rights_verified: bool = False
 
     def discount_vs_appraisal(self) -> float:
         """감정가 대비 최저가 할인율 (레거시 사이트가 보여주는 그 수치)."""
@@ -70,7 +73,8 @@ class ScoredListing:
     rights_score: float
     liquidity_score: float
     arb_score: float | None        # 최종 차익 스코어 0~100. 시세추정불가면 None
-    grade: str                        # 확실한 차익 / 양호 / 관심 / 주의 / 시세추정불가
+    grade: str                        # 차익 유력 / 양호 / 관심 / 주의 / 권리미확인 / 차익없음 / 위험 / 시세추정불가
+    rights_verified: bool = False     # 권리분석 수행 여부 — 상세페이지 안전문구·뱃지 게이트
 
     def to_row(self) -> dict:
         return asdict(self)

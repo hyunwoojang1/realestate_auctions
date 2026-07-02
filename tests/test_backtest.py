@@ -21,10 +21,10 @@ def test_high_score_profits_low_score_loses():
 
 def test_calibration_is_monotonic():
     cal = {c["bucket"]: c for c in backtest.calibration(_rows())}
-    assert cal["≥80 확실한차익"]["hit_rate"] == 1.0
+    assert cal["≥80 차익유력"]["hit_rate"] == 1.0
     assert cal["<40 주의·위험"]["hit_rate"] == 0.0
     # 고스코어 평균 실현차익 > 저스코어
-    assert cal["≥80 확실한차익"]["avg_profit"] > cal["<40 주의·위험"]["avg_profit"]
+    assert cal["≥80 차익유력"]["avg_profit"] > cal["<40 주의·위험"]["avg_profit"]
 
 
 def test_precision_at_thresholds():

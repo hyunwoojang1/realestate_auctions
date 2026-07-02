@@ -56,7 +56,7 @@ def test_index_page_renders():
     body = r.get_data(as_text=True)
     assert "차익 큐레이션" in body
     assert "상계주공" in body        # 실데이터 렌더
-    assert "scorebadge" in body      # 스코어 뱃지 마크업
+    assert "scoreno" in body         # 스코어 숫자 마크업
     assert "gapmeter" in body        # 갭미터 마크업
 
 
@@ -108,8 +108,8 @@ def test_methodology_page():
 
 def test_methodology_shows_calibration_values():
     body = _client().get("/methodology").get_data(as_text=True)
-    # 백테스트 구간 라벨이 렌더됨
-    assert "확실한차익" in body or "확실한 차익" in body
+    # 등급 경계 라벨(최상위)이 렌더됨
+    assert "차익 유력" in body
 
 
 # ---- 라이브 DB 서빙(AUCTION_DB) ----
@@ -123,7 +123,7 @@ def _seed_db(path: str) -> None:
         est_market_price=950_000_000, matched_trades=7, confidence=1.0,
         real_acquisition_cost=560_000_000, expected_profit=390_000_000,
         gap_rate=0.47, gap_score=47.0, rights_score=30.0, liquidity_score=20.0,
-        arb_score=92.0, grade="확실한 차익")])
+        arb_score=92.0, grade="차익 유력")])
     conn.close()
 
 

@@ -1,47 +1,11 @@
-<!doctype html>
-<html lang="ko">
-<head>
-<meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1">
-<title>차익 스코어 방법론 — 투명성</title>
-<style>
-:root{--ink:#1C2230;--brand:#2B4A9B;--paper:#FCFCFD;--muted:#6B7280;--border:#E3E5EB;
---g2:#5FBF93;--g3:#1F9D6B;--g4:#178a5a;--risk:#D1453B;--sunk:#F4F5F8;}
-*{box-sizing:border-box}
-body{margin:0;background:var(--paper);color:var(--ink);
-font-family:"Pretendard",-apple-system,"Apple SD Gothic Neo","Malgun Gothic",system-ui,sans-serif;
-padding:clamp(20px,4vw,40px);line-height:1.6}
-.wrap{max-width:860px;margin:0 auto}
-a.back{color:var(--muted);text-decoration:none;font-size:13px}
-a.back:hover{color:var(--brand)}
-h1{font-size:clamp(22px,3vw,30px);letter-spacing:-.02em;margin:14px 0 6px}
-.sub{color:var(--muted);font-size:14px;margin:0 0 26px;max-width:640px}
-h2{font-size:17px;margin:30px 0 12px;letter-spacing:-.01em}
-.formula{background:var(--sunk);border:1px solid var(--border);border-radius:12px;padding:18px 20px;
-font-family:"SFMono-Regular",ui-monospace,Consolas,monospace;font-size:14px;line-height:1.9}
-.formula .w1{color:var(--g4);font-weight:800}
-.formula .w2{color:var(--brand);font-weight:800}
-.formula .w3{color:#b8860b;font-weight:800}
-table{border-collapse:collapse;width:100%;font-size:13.5px;background:#fff;border:1px solid var(--border);border-radius:12px;overflow:hidden;margin-top:6px}
-th,td{padding:10px 13px;border-bottom:1px solid var(--border);text-align:left}
-tbody tr:last-child td{border-bottom:none}
-thead th{background:var(--sunk);font-size:11px;text-transform:uppercase;letter-spacing:.04em;color:var(--muted)}
-.num{font-variant-numeric:tabular-nums;font-family:"SFMono-Regular",ui-monospace,Consolas,monospace}
-.gate{background:#FDECEA;border:1px solid #f3b5ae;color:#a3322a;border-radius:10px;padding:14px 16px;font-size:14px}
-.hit{font-weight:800}
-.prec{display:flex;gap:14px;flex-wrap:wrap;margin-top:12px}
-.prec .chip{background:#EAF7F0;border:1px solid #aee0c7;border-radius:10px;padding:10px 16px;font-size:14px}
-.prec .chip b{color:var(--g4);font-family:"SFMono-Regular",ui-monospace,Consolas,monospace}
-.foot{margin-top:26px;color:var(--muted);font-size:12px;line-height:1.6}
-.note{color:var(--muted);font-size:12.5px;margin-top:6px}
-</style>
-</head>
-<body>
-<div class="wrap">
+{% extends "base.html" %}
+{% block title %}차익 스코어 방법론 — 투명성{% endblock %}
+
+{% block content %}
 <a class="back" href="/">← 차익 큐레이션 목록</a>
-<h1>차익 스코어 방법론<span style="color:var(--g4);font-size:14px;margin-left:10px">투명성</span></h1>
-<p class="sub">"확실한 차익"을 어떻게 계산하는지, 그리고 그 스코어가 실제 수익으로 이어졌는지(백테스트)를 공개합니다.
-산식과 검증을 숨기지 않는 것이 이 서비스의 신뢰 근거입니다.</p>
+<h1 class="page-h" style="margin-top:12px">차익 스코어 방법론</h1>
+<p class="page-sub">"차익 유력"을 어떻게 계산하는지, 그리고 스코어가 실제 수익으로 이어지는지(백테스트)를 공개합니다.
+산식과 검증을 숨기지 않는 것이 이 도구의 신뢰 근거입니다.</p>
 
 <h2>1. 종합 공식</h2>
 <div class="formula">
@@ -50,13 +14,14 @@ thead th{background:var(--sunk);font-size:11px;text-transform:uppercase;letter-s
 가격갭 = (추정시세 − 실질취득원가) / 추정시세
 </div>
 
-<h2>2. 하드게이트 (핵심 안전장치)</h2>
-<div class="gate">⚠ 인수금액/최저가 &gt; {{ '%.0f'|format(cfg.assumed_ratio_gate * 100) }}% 또는 치명적 특수권리(유치권 등) → 권리 점수 0,
-최종 스코어를 상한 <b>{{ '%.0f'|format(cfg.gate_ceiling) }}점</b>으로 끌어내리고 "위험" 등급으로 강등.
-(가격갭이 커도 권리 폭탄이 상위 노출되는 것을 막음)</div>
+<h2>2. 안전장치 (핵심)</h2>
+<div class="note-box n-risk">⚠ <b>하드게이트</b>: 인수금액/최저가 &gt; {{ '%.0f'|format(cfg.assumed_ratio_gate * 100) }}% 또는 치명적 특수권리(유치권 등)
+→ 권리 점수 0, 최종 스코어를 상한 <b>{{ '%.0f'|format(cfg.gate_ceiling) }}점</b>으로 강등('위험'). 가격갭이 커도 권리 폭탄이 상위 노출되는 것을 막습니다.</div>
+<div class="note-box n-warn">⚠ <b>권리미확인 게이트</b>: 물건상세 권리분석이 안 된 물건(라이브 크롤)은 갭이 커도 '차익 유력'을 부여하지 않고
+'권리미확인'으로 표기합니다. <b>표본 게이트</b>: 실거래 &lt;{{ cfg.min_comps_price }}건이면 시세추정불가, '차익 유력'은 ≥{{ cfg.min_comps_confident }}건에만.</div>
 
 <h2>3. 파라미터</h2>
-<table>
+<table class="params">
 <thead><tr><th>항목</th><th>값</th></tr></thead>
 <tbody>
 <tr><td>가중치 (가격갭 / 권리 / 환금성)</td><td class="num">{{ '%.0f'|format(cfg.w_gap*100) }}% / {{ '%.0f'|format(cfg.w_rights*100) }}% / {{ '%.0f'|format(cfg.w_liq*100) }}%</td></tr>
@@ -67,29 +32,29 @@ thead th{background:var(--sunk);font-size:11px;text-transform:uppercase;letter-s
 </table>
 
 <h2>4. 백테스트 — 스코어가 실제 수익으로 이어졌나</h2>
-<p class="note">차익 스코어 구간별 적중률(실현차익&gt;0 비율)과 평균 실현차익. 스코어가 높을수록 실제 수익이 높아야 한다.</p>
-<table>
+<div class="note-box n-warn">⚠ <b>아래 수치는 샘플 물건 + 합성 낙찰결과(data/backtest_outcomes.json) 기준</b>으로 하네스 동작을 검증한 것입니다.
+<b>실제 낙찰결과가 아니며</b>, 라이브 크롤 물건은 권리 미검증이라 이 캘리브레이션에 포함되지 않습니다.
+실제 낙찰 데이터가 연동되면 동일 하네스가 진짜 적중률을 산출합니다.</div>
+<p class="label" style="margin:0 0 8px">스코어 구간별 적중률(실현차익&gt;0 비율)과 평균 실현차익 — 샘플 기준</p>
+<table class="params">
 <thead><tr><th>스코어 구간</th><th class="num">건수</th><th class="num">적중률</th><th class="num">평균 실현차익</th></tr></thead>
 <tbody>
 {% for c in cal %}
 <tr>
   <td>{{ c.bucket }}</td>
   <td class="num">{{ c.n }}</td>
-  <td class="num hit">{{ '%.0f%%'|format(c.hit_rate*100) if c.hit_rate is not none else '-' }}</td>
+  <td class="num" style="font-weight:800">{{ '%.0f%%'|format(c.hit_rate*100) if c.hit_rate is not none else '-' }}</td>
   <td class="num">{{ won(c.avg_profit) if c.avg_profit is not none else '-' }}</td>
 </tr>
 {% endfor %}
 </tbody>
 </table>
-<div class="prec">
+<div class="chips">
   {% for t, p in prec.items() %}
-  <div class="chip">precision @{{ t }} = <b>{{ '%.0f%%'|format(p*100) if p is not none else '-' }}</b></div>
+  <div class="chip">precision @{{ t }} <span style="color:var(--muted-2)">(샘플)</span> = <b>{{ '%.0f%%'|format(p*100) if p is not none else '-' }}</b></div>
   {% endfor %}
 </div>
 
-<p class="foot">⚠ 현재 백테스트는 PoC 합성 낙찰결과(data/backtest_outcomes.json) 기반입니다. 국토부 API 키와
-실제 낙찰결과가 연동되면 동일 하네스가 진짜 적중률을 산출합니다. 차익·권리는 투자판단 보조이며
-전문가(법무사 등) 상담을 대체하지 않습니다.</p>
-</div>
-</body>
-</html>
+<p class="foot">차익·권리는 투자판단 보조이며 전문가(법무사 등) 상담을 대체하지 않습니다.
+국토부 실거래 시세는 추정이며, 실제 시세·권리·낙찰가는 반드시 직접 확인하시기 바랍니다.</p>
+{% endblock %}
