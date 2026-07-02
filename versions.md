@@ -15,6 +15,17 @@
 
 ---
 
+## 2026-07-03 03:49 KST — 🩹 사이클 #11: B9 스냅샷 '없음' vs '빈 스냅샷' 구분 (감사#9 이월)
+- 무엇: 관심물건 페이지가 매물 0건 새로고침으로 정상 저장된 빈 스냅샷 {}을 "이전 스냅샷 없음"으로
+  오안내하던 침묵성 UX 버그 수정.
+  - web.py watchlist_page: `snapshot_missing = (not snap_path.exists() and not snap_corrupt)` —
+    'prev가 falsy'가 아니라 '파일 존재'로 판정. 손상은 corrupted 배너가 별도 처리(3-상태 정합).
+- 증거: evidence/snapshot_missing_smoke.txt ([없음]안내O·[빈{}]오안내사라짐+변동없음O·[손상]배너O) Read 확인.
+- 게이트: pytest 244 passed(+2), ruff 클린.
+- 평가자: PASS (CRITICAL/HIGH/MEDIUM/LOW 0).
+- 커밋: (로컬, 아래 해시)
+- 다음: 사이클 #12 = 감사 사이클(12%3==0) → 다관점 병렬 감사 후 CRITICAL/HIGH만 수정하고 **루프 종료**(운영자 아침 리뷰 대기).
+
 ## 2026-07-03 03:25 KST — ⤓ 사이클 #10: B7 CSV 내보내기 (/export.csv)
 - 무엇: 목록 필터·정렬 결과를 CSV로 다운로드(엑셀 검토용, overseas-foreclosure 모방, 오프라인 순수조회).
   - report.py `csv_text(items)->str` 헬퍼 도입 → `to_csv`가 이를 재사용(파일 저장/웹 다운로드 단일 소스, 중복 구현 제거).

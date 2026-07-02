@@ -84,6 +84,22 @@ def test_watchlist_page_shows_change_events(client, tmp_path):
     assert "최저가 하락" in body    # 1조 → 실제 최저가
 
 
+# ---- B9: 스냅샷 '없음' vs '빈 스냅샷 정상 저장' 구분 ----
+
+def test_empty_snapshot_not_reported_as_missing(client, tmp_path):
+    # 매물 0건 새로고침으로 빈 스냅샷 {}이 정상 저장된 경우 → "스냅샷 없음"이 아니라 "변동 없음"
+    (tmp_path / "snapshot.json").write_text("{}", encoding="utf-8")
+    body = client.get("/watchlist").get_data(as_text=True)
+    assert "이전 스냅샷이 없습니다" not in body     # 빈 스냅샷은 '없음'이 아님
+    assert "변동 없음" in body
+
+
+def test_absent_snapshot_reported_as_missing(client):
+    # 스냅샷 파일 자체가 없으면 여전히 "스냅샷 없음" 안내(회귀 방지)
+    body = client.get("/watchlist").get_data(as_text=True)
+    assert "이전 스냅샷이 없습니다" in body
+
+
 # ---- B8: 파일 손상 침묵실패 방지 + 원자적 쓰기 ----
 
 def test_load_watchlist_corrupt_falls_back_empty(tmp_path):

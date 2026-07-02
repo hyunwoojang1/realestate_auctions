@@ -61,14 +61,13 @@
   - [x] evidence/export_smoke.txt(200·BOM True·행수=/api/listings·min_profit 필터 일치) Read 확인
 - 평가자 PASS. LOW(to_csv 중복 Path 호출) 즉시 정리. MEDIUM(CSV 인젝션)→B11 이월.
 
-## [ready] B9 스냅샷 없음 vs 빈 스냅샷 구분 (출처: 사이클#9 감사 code-review MEDIUM)
-- 왜: `_safe_load_json`이 "파일 없음"과 "파일 있으나 내용 {}"를 둘 다 `({},False)`로 반환 →
-  매물 0건 새로고침으로 빈 스냅샷이 정상 저장돼도 watchlist가 "스냅샷 없음"으로 오안내. 극단 엣지케이스.
-- 완료 정의(전부 false):
-  - [ ] `snapshot_path().exists()` 직접 확인 또는 `_safe_load_json`이 존재여부 반환(3-tuple)로 확장
-  - [ ] `watchlist_page`가 `snapshot_missing = not snapshot_path().exists()`로 판정
-  - [ ] 테스트: 빈 스냅샷 저장 후 "스냅샷 없음" 안내가 안 뜸 / pytest 전체 + ruff 클린
-- 제약: 순수 로컬, 오프라인.
+## [done] B9 스냅샷 없음 vs 빈 스냅샷 구분 (사이클 #11, 2026-07-03)
+- 완료: watchlist_page가 `snapshot_missing = (not snap_path.exists() and not snap_corrupt)`로 판정
+  (파일 존재 기준). 빈 스냅샷 {}(매물 0건 새로고침 정상 저장)을 'prev falsy'라는 이유로 '없음' 오판하던 문제 해소.
+  손상은 corrupted 배너가 별도 처리(template 3-상태 elif 체인 정합).
+  - [x] pytest 244(+2: 빈스냅샷≠없음·파일없음=없음 회귀가드) / [x] ruff 클린
+  - [x] evidence/snapshot_missing_smoke.txt(없음O·빈{}오안내사라짐+변동없음O·손상배너O) Read 확인
+- 평가자 PASS(C/H/M/L 0).
 
 ## [ready] B10 워치리스트 쓰기 실패 로깅·사용자 메시지 (출처: 사이클#9 감사 silent-failure MEDIUM+LOW)
 - 왜: `_atomic_write`가 실패 시 로그 없이 raise(로드측 `_safe_load_json`과 비대칭) → OneDrive 락/디스크풀 시

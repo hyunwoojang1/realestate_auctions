@@ -234,15 +234,18 @@ def create_app() -> Flask:
         wl, wl_corrupt = watchlist.load_watchlist_status(watchlist.watchlist_path())
         watched = query.sort_items([s for s in items if s.case_no in wl])
         missing = sorted(wl - {s.case_no for s in items})
-        prev, snap_corrupt = watchlist.load_snapshot_status(watchlist.snapshot_path())
+        snap_path = watchlist.snapshot_path()
+        prev, snap_corrupt = watchlist.load_snapshot_status(snap_path)
         events = (watchlist.detect_changes(prev, watchlist.snapshot_from_scored(items), wl)
                   if prev else [])
         # 침묵실패 방지: '변동 없음'의 진짜 이유를 구분해 전달(손상 vs 스냅샷없음 vs 실제무변동).
+        # snapshot_missing은 파일 존재로 판정 — 빈 스냅샷({}, 매물 0건 새로고침으로 정상 저장)을
+        # 'prev가 falsy'라는 이유로 '없음'으로 오판하지 않도록(B9). 손상은 corrupted 배너가 별도 처리.
         return render_template(
             "watchlist.html", watched=watched, missing=missing, events=events,
             won=report.won, pct=report.pct, tax_label=tax.PROFILE.label(),
             corrupted=(wl_corrupt or snap_corrupt),
-            snapshot_missing=(not prev and not snap_corrupt),
+            snapshot_missing=(not snap_path.exists() and not snap_corrupt),
             data_source=getattr(g, "data_source", "n/a"))
 
     @app.get("/api/watchlist")
