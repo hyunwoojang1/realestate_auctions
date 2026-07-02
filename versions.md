@@ -15,6 +15,17 @@
 
 ---
 
+## 2026-07-02 15:07 KST — 🐛 스케줄러 치명버그 수정 + 캐시+라이브 재채점 경로 (T5 복구)
+- 무엇: 전국 크롤이 exit 1로 죽은 원인 규명·수정.
+  - **근본원인**: courtauction 전국 크롤은 **성공**(full_cache 4,956건 저장, 14:51). 그 뒤 MOLIT 일시적 502(재시도 1/3 중)가 stderr로 나왔는데, refresh-daily.ps1이 `$ErrorActionPreference=Stop` + `2>&1|Tee`라 **PS5.1이 stderr 첫 줄을 종료오류로 승격 → 스크립트 사망**. **매일 05:30 스케줄러도 첫 경고에 죽는 버그**였음.
+  - **수정1**: refresh-daily.ps1 — 네이티브 파이썬 호출 동안만 `$ErrorActionPreference=Continue`(전후 복원). stderr 로그가 크롤을 죽이지 않음.
+  - **수정2**: refresh-daily.ps1 — `-FromCache`일 때 `-Live`/`-Ym`이 무시되던 버그 수정(이제 소스=캐시/실크롤과 시세=라이브가 독립 적용).
+  - **수정3**: run.py — `use_live=args.live`(from-cache와 독립). `--from-cache --live` = **캐시 물건(재크롤X)+라이브 MOLIT 시세**로 재채점. from-cache 전량도 replace_all(풀스냅샷).
+  - **복구 실행**: courtauction **재크롤 없이**(제약 준수) 캐시 4,956건 + 라이브 시세로 재채점 → auction.db 적재(진행 중 bu2a758uo, ym 202605).
+- 증거: pytest 191 passed, ruff 클린. full_cache 4,956건(18.9MB) 확인. (적재 건수·서버는 재채점 완료 후 확인 — 게이트)
+- 커밋: (이 커밋)
+- 다음: 재채점 완료 → 서버 재시작 → /health·목록·비고 '위험' 건수 검증 → 링크.
+
 ## 2026-07-02 14:50 KST — ⚖️ 권리(D) Tier-0: 비고(mulBigo) 특수권리 파싱
 - 무엇: 권리 크롤 전략을 사용자와 확정(전수 커버 = 점진적 전수+캐시+on-demand, 한번에 폭주 금지).
   - **Tier-0(즉시·네트워크0)**: `to_auction_listing`이 리스트 '비고(mulBigo)'를 `detect_special_rights`로 파싱해

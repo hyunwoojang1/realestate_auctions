@@ -60,14 +60,10 @@ $env:AUCTION_DB = $DbPath
 # --- run.py 인자 구성 ---
 $runArgs = @("run.py", "--source", "courtauction", "--db", $DbPath, "--cash", "$Cash")
 
-if ($FromCache) {
-    # offline: no live crawl, no live MOLIT price calls
-    $runArgs += "--from-cache"
-} else {
-    $runArgs += "--nationwide"
-    if ($Live) { $runArgs += "--live" }
-    if ($Ym)   { $runArgs += @("--ym", $Ym) }
-}
+# 물건 소스: 캐시(재크롤X) vs 전국 실크롤. --live/--ym는 국토부 시세라 둘 다에 적용(독립).
+if ($FromCache) { $runArgs += "--from-cache" } else { $runArgs += "--nationwide" }
+if ($Live) { $runArgs += "--live" }
+if ($Ym)   { $runArgs += @("--ym", $Ym) }
 
 $mode = if ($FromCache) { "OFFLINE(from-cache)" } elseif ($Live) { "LIVE(nationwide)" } else { "SAMPLE-PRICE(nationwide)" }
 
@@ -78,12 +74,18 @@ $mode = if ($FromCache) { "OFFLINE(from-cache)" } elseif ($Live) { "LIVE(nationw
 "cmd  : $Python $($runArgs -join ' ')" | Tee-Object -FilePath $LogPath -Append
 "----------------------------------------" | Tee-Object -FilePath $LogPath -Append
 
+# 중요: 파이썬 로그는 stderr로 나온다. PS5.1은 `2>&1`로 병합된 stderr 각 줄을 ErrorRecord로
+# 감싸고, $ErrorActionPreference='Stop'이면 그 첫 줄(예: MOLIT 502 재시도 경고)이 종료오류로
+# 승격돼 크롤을 통째로 죽인다(스케줄러가 매일 첫 경고에 실패). 네이티브 호출 동안만 Continue로.
+$prevEAP = $ErrorActionPreference
+$ErrorActionPreference = "Continue"
 Push-Location $RepoRoot
 try {
     & $Python @runArgs 2>&1 | Tee-Object -FilePath $LogPath -Append
     $code = $LASTEXITCODE
 } finally {
     Pop-Location
+    $ErrorActionPreference = $prevEAP
 }
 
 "----------------------------------------" | Tee-Object -FilePath $LogPath -Append

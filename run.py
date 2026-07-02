@@ -66,16 +66,16 @@ def main(argv=None) -> int:
     # 표본 튜닝값 CLI 오버라이드 → config.SAMPLE 갱신(pipeline/matcher가 참조).
     _apply_sample_overrides(args.live_months, args.area_band)
 
-    # --from-cache(오프라인)는 라이브 시세 호출을 강제로 끈다: 네트워크 호출 0 보장.
-    use_live = args.live and not args.from_cache
+    # --live(국토부 MOLIT 시세)와 --from-cache(courtauction 물건 소스=캐시, 재크롤 안 함)는 독립.
+    #  --from-cache 단독      = 완전 오프라인(네트워크 0, 샘플/추정 시세) → dry-run.
+    #  --from-cache --live    = 캐시 물건 + 라이브 시세(재크롤 없이 실시세로 재채점).
+    use_live = args.live
 
     if not args.json:
         src = "대법원 courtauction 실매물" if args.source == "courtauction" else "샘플 물건"
-        if args.from_cache:
-            mode = "오프라인(캐시/샘플 시세)"
-        else:
-            mode = "라이브(국토부 시세)" if use_live else "샘플 시세"
-        print(f"▶ 물건소스: {src} · 시세: {mode}\n")
+        src_mode = "캐시(재크롤X)" if args.from_cache else ("전국 실크롤" if args.nationwide else "실크롤")
+        price_mode = "라이브 국토부 시세" if use_live else "샘플/추정 시세(오프라인)"
+        print(f"▶ 물건: {src} · {src_mode} · 시세: {price_mode}\n")
 
     if args.source == "courtauction":
         from src import courtauction_cache as cc  # noqa: PLC0415
@@ -121,8 +121,9 @@ def main(argv=None) -> int:
         if not args.json:
             print(f"  ⚠ 실매물인데 라이브 시세 아님(샘플/추정) → 서빙 DB 대신 {db_path} 에 저장")
     conn = store.connect(db_path)
-    # 전국 풀스냅샷(--nationwide, 라이브)은 전량 교체로 만료매물 제거. 그 외는 병합.
-    if args.source == "courtauction" and args.nationwide and use_live:
+    # 풀스냅샷(전국 실크롤 또는 캐시 전량, 라이브 시세)은 전량 교체로 만료매물 제거. 그 외는 병합.
+    full_snapshot = args.nationwide or args.from_cache
+    if args.source == "courtauction" and use_live and full_snapshot:
         n = store.replace_all(conn, scored)
     else:
         n = store.upsert(conn, scored)   # 전체 저장
