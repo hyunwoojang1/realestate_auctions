@@ -63,7 +63,10 @@ class ScoredListing:
     fail_count: int
     sale_date: str
     # ---- 추정/계산 ----
-    est_market_price: int | None   # 추정 실거래 시세(원). 매칭 0건이면 None
+    # 추정 실거래 시세(원). **계약: None=추정불가(항상). 그 외는 유효한 양수 추정치.**
+    # 0·-1 등 sentinel 금지 — stats.est_success_rate가 "None이 아님"만으로 성공 판정하므로
+    # sentinel을 넣으면 성공률이 조용히 부풀려짐(침묵실패).
+    est_market_price: int | None
     matched_trades: int
     confidence: float                 # 신뢰계수 0.6~1.0
     real_acquisition_cost: int        # 실질취득원가(부대비용 포함)

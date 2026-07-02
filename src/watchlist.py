@@ -9,10 +9,14 @@
 from __future__ import annotations
 
 import json
+import logging
 import os
+import tempfile
 from pathlib import Path
 
 from .models import ScoredListing
+
+logger = logging.getLogger(__name__)
 
 ROOT = Path(__file__).resolve().parent.parent
 DATA = ROOT / "data"
@@ -41,26 +45,72 @@ def snapshot_from_scored(scored: list[ScoredListing]) -> dict:
     }
 
 
+def _atomic_write(p: Path, text: str) -> None:
+    """임시파일에 쓰고 os.replace로 원자 교체 — 동시 토글/크래시 중 파일 손상·유실 방지.
+
+    같은 디렉터리에 tmp를 만들어야 os.replace가 원자적(동일 볼륨). 실패 시 tmp 정리.
+    """
+    p.parent.mkdir(parents=True, exist_ok=True)
+    fd, tmp = tempfile.mkstemp(dir=str(p.parent), prefix=p.name + ".", suffix=".tmp")
+    try:
+        with os.fdopen(fd, "w", encoding="utf-8") as f:
+            f.write(text)
+        os.replace(tmp, p)
+    except BaseException:
+        try:
+            os.unlink(tmp)
+        except OSError:
+            pass
+        raise
+
+
+def _safe_load_json(p: Path, default):
+    """(값, corrupted) 반환. 없으면 (default, False), 정상 (val, False),
+    손상/읽기실패면 로그 남기고 (default, True) — 조용한 500 대신 원인 있는 폴백(침묵실패 방지)."""
+    if not p.exists():
+        return default, False
+    try:
+        return json.loads(p.read_text(encoding="utf-8")), False
+    except (json.JSONDecodeError, OSError) as e:
+        logger.error("워치리스트/스냅샷 파일 손상 — 빈 값 폴백: %s (%s)", p, e)
+        return default, True
+
+
 def load_snapshot(path: str | Path | None = None) -> dict:
+    """직전 스냅샷 dict. 없거나 손상이면 {} (손상 시 로그). 손상여부까지 필요하면 load_snapshot_status."""
     p = Path(path) if path else SNAPSHOT_PATH
-    return json.loads(p.read_text(encoding="utf-8")) if p.exists() else {}
+    return _safe_load_json(p, {})[0]
+
+
+def load_snapshot_status(path: str | Path | None = None) -> tuple[dict, bool]:
+    """(스냅샷 dict, corrupted). corrupted=True면 파일이 있으나 파싱 실패."""
+    p = Path(path) if path else SNAPSHOT_PATH
+    return _safe_load_json(p, {})
 
 
 def save_snapshot(snap: dict, path: str | Path | None = None) -> None:
     p = Path(path) if path else SNAPSHOT_PATH
-    p.write_text(json.dumps(snap, ensure_ascii=False, indent=2), encoding="utf-8")
+    _atomic_write(p, json.dumps(snap, ensure_ascii=False, indent=2))
 
 
 def load_watchlist(path: str | Path | None = None) -> set[str]:
+    """관심물건 case_no 집합. 없거나 손상이면 빈 집합(손상 시 로그, 500 대신 폴백)."""
     p = Path(path) if path else WATCHLIST_PATH
-    return set(json.loads(p.read_text(encoding="utf-8"))) if p.exists() else set()
+    return set(_safe_load_json(p, [])[0])
+
+
+def load_watchlist_status(path: str | Path | None = None) -> tuple[set[str], bool]:
+    """(case_no 집합, corrupted). 웹이 '진짜 빈 목록' vs '파일 손상'을 구분해 배너 표시."""
+    p = Path(path) if path else WATCHLIST_PATH
+    v, corrupt = _safe_load_json(p, [])
+    return set(v), corrupt
 
 
 def add_watch(case_no: str, path: str | Path | None = None) -> set[str]:
     wl = load_watchlist(path)
     wl.add(case_no)
     p = Path(path) if path else WATCHLIST_PATH
-    p.write_text(json.dumps(sorted(wl), ensure_ascii=False, indent=2), encoding="utf-8")
+    _atomic_write(p, json.dumps(sorted(wl), ensure_ascii=False, indent=2))
     return wl
 
 
@@ -68,7 +118,7 @@ def remove_watch(case_no: str, path: str | Path | None = None) -> set[str]:
     wl = load_watchlist(path)
     wl.discard(case_no)
     p = Path(path) if path else WATCHLIST_PATH
-    p.write_text(json.dumps(sorted(wl), ensure_ascii=False, indent=2), encoding="utf-8")
+    _atomic_write(p, json.dumps(sorted(wl), ensure_ascii=False, indent=2))
     return wl
 
 

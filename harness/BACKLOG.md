@@ -38,15 +38,13 @@
   - [x] evidence 스모크(scripts/watchlist_smoke.py): add/list/page/remove 전부 200 확인
 - 잔여 노트: 로컬 단일 사용자 전제(인증 없음 — 외부 공개 시 QUESTIONS 재검토). warnbadge 매크로 중복(기존 관례).
 
-## [ready] B8 침묵실패 보강 (출처: 사이클 #6 감사 — silent-failure-hunter)
-- 왜: 감사에서 나온 MEDIUM/LOW 침묵실패들을 정리. 실패를 조용히 삼키지 않고 드러내는 프로젝트 원칙 강화.
-- 완료 정의(전부 false):
-  - [ ] watchlist.py `load_watchlist`/`load_snapshot`에 `except json.JSONDecodeError` + `logger.error` + 폴백, 웹에 `corrupted` 플래그 전달(파일손상 vs 진짜 빈 목록 구분) + 테스트
-  - [ ] watchlist 파일쓰기 원자화(tempfile+os.replace) — 동시 토글 유실 방지(보안·코드리뷰 교차지적)
-  - [ ] calendar/stats/watchlist 템플릿에 data_source!=db 시 '샘플 데이터' 배너(index/detail와 동일)
-  - [ ] ScoredListing.est_market_price 계약(None=추정불가) docstring 명시 + stats 방어 주석
-  - [ ] pytest 전체 + ruff 클린
-- 제약: 오프라인, 순수. (HIGH였던 by_sido 원인분리는 사이클 #6에서 이미 수정.)
+## [done] B8 침묵실패 보강 (사이클 #7, 2026-07-03)
+- 완료: watchlist.py 손상 파일 폴백(`_safe_load_json`: JSONDecodeError→logger.error+빈값, 500 방지) +
+  `load_watchlist_status`/`load_snapshot_status`(손상여부 반환) + 원자적 쓰기(`_atomic_write`: tempfile+os.replace).
+  web watchlist_page가 corrupted/snapshot_missing 플래그 전달 → watchlist.html 손상 배너 + '변동없음/스냅샷없음' 원인 구분.
+  ScoredListing.est_market_price 계약(None=추정불가, sentinel 금지) 주석.
+  - [x] pytest 225(+5: 손상폴백·상태플래그·없음≠손상·원자쓰기 잔여물없음·손상배너) / [x] ruff 클린
+- 노트: calendar/stats/watchlist data_source 배너는 base.html 헤더가 이미 표시(세 라우트 모두 data_source 전달) — 별도 배너 불요.
 
 ## [ready] B6 물건 비교 뷰 `/compare` (출처: overseas-foreclosure.md — auction.com/Zillow compare)
 - 왜: 투자자가 후보 2~4건을 나란히 비교(예상차익·최저가·시세·취득세·유찰·신뢰·경고)해 좁히는 실전 도구. "콕 집어주는" 컨셉과 정합. 완전 오프라인(기존 DB만).

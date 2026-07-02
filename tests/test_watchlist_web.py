@@ -82,3 +82,48 @@ def test_watchlist_page_shows_change_events(client, tmp_path):
     body = client.get("/watchlist").get_data(as_text=True)
     assert "스코어 상승" in body or "차익 임계 돌파" in body
     assert "최저가 하락" in body    # 1조 → 실제 최저가
+
+
+# ---- B8: 파일 손상 침묵실패 방지 + 원자적 쓰기 ----
+
+def test_load_watchlist_corrupt_falls_back_empty(tmp_path):
+    from src import watchlist as wl
+    p = tmp_path / "wl.json"
+    p.write_text("{깨진 json", encoding="utf-8")
+    assert wl.load_watchlist(p) == set()           # 500 대신 빈 폴백
+    val, corrupt = wl.load_watchlist_status(p)
+    assert val == set() and corrupt is True         # 손상 사실을 신호
+
+
+def test_load_snapshot_corrupt_status(tmp_path):
+    from src import watchlist as wl
+    p = tmp_path / "snap.json"
+    p.write_text("not json at all", encoding="utf-8")
+    assert wl.load_snapshot(p) == {}
+    val, corrupt = wl.load_snapshot_status(p)
+    assert val == {} and corrupt is True
+
+
+def test_missing_file_is_not_corrupt(tmp_path):
+    from src import watchlist as wl
+    _, corrupt = wl.load_watchlist_status(tmp_path / "does_not_exist.json")
+    assert corrupt is False                          # 없음 != 손상
+
+
+def test_add_watch_atomic_no_tmp_leftover(tmp_path):
+    from src import watchlist as wl
+    p = tmp_path / "wl.json"
+    wl.add_watch("2024타경1", p)
+    assert json.loads(p.read_text(encoding="utf-8")) == ["2024타경1"]  # 유효 JSON
+    leftover = [f.name for f in tmp_path.iterdir() if f.name != "wl.json"]
+    assert leftover == []                            # tmp 잔여물 없음
+
+
+def test_watchlist_page_survives_corrupt_file_with_banner(tmp_path, monkeypatch):
+    monkeypatch.setenv("AUCTION_WATCHLIST", str(tmp_path / "watchlist.json"))
+    monkeypatch.setenv("AUCTION_SNAPSHOT", str(tmp_path / "snapshot.json"))
+    (tmp_path / "watchlist.json").write_text("{corrupt", encoding="utf-8")
+    c = create_app().test_client()
+    r = c.get("/watchlist")
+    assert r.status_code == 200                       # 500 아님
+    assert "손상" in r.get_data(as_text=True)         # 원인 배너 노출

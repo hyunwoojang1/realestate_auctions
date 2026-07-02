@@ -15,6 +15,17 @@
 
 ---
 
+## 2026-07-03 01:45 KST — 🛡️ 사이클 #7: B8 침묵실패 보강 (watchlist 손상처리·원자쓰기)
+- 무엇: 사이클 #6 감사의 MEDIUM/LOW 침묵실패를 구현.
+  - watchlist.py: 손상 JSON 폴백(`_safe_load_json` — JSONDecodeError→logger+빈값, 500 대신 원인로그) +
+    `load_watchlist_status`/`load_snapshot_status`(손상여부 반환) + **원자적 쓰기**(`_atomic_write` tempfile+os.replace, 동시 토글 유실 방지).
+  - web watchlist_page: corrupted/snapshot_missing 플래그 → watchlist.html **손상 배너** + '변동 없음/스냅샷 없음' 원인 구분(오해 방지).
+  - models: est_market_price 계약(None=추정불가, sentinel 금지) 주석. calendar/stats/watchlist data_source 배너는 base 헤더가 이미 처리(불요).
+- 증거: pytest **225 passed**(+5: 손상폴백·상태플래그·없음≠손상·원자쓰기 잔여없음·손상배너 200), ruff 클린.
+- 평가자: 게이트 직접 실행 + 자체 diff 검토(소규모 내부 하드닝 — 전체 다관점 감사는 #9에서). 
+- 커밋: (이 커밋, 로컬)
+- 다음: 사이클 #8 = B6 물건비교(/compare) 구현.
+
 ## 2026-07-03 01:24 KST — 🔎 사이클 #6(감사): 3관점 리뷰 → HIGH 1건 수정(stats 기타버킷 원인분리)
 - 무엇: 병행 루프가 추가한 미감사 기능(웹 라우트·watchlist·calendar·stats)을 3관점 병렬 감사
   (security-reviewer·code-reviewer·silent-failure-hunter).
