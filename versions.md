@@ -15,6 +15,18 @@
 
 ---
 
+## 2026-07-03 01:24 KST — 🔎 사이클 #6(감사): 3관점 리뷰 → HIGH 1건 수정(stats 기타버킷 원인분리)
+- 무엇: 병행 루프가 추가한 미감사 기능(웹 라우트·watchlist·calendar·stats)을 3관점 병렬 감사
+  (security-reviewer·code-reviewer·silent-failure-hunter).
+  - **보안**: CRITICAL/HIGH 0. LOW 3(watchlist 락없음·POST CSRF·_safe_back Host) — 전부 로컬 단일사용자 전제서 무위험(외부공개 재검토).
+  - **코드품질**: APPROVE. CRITICAL/HIGH 0. MEDIUM 1(watchlist 비원자 쓰기). 캘린더 경계·stats None처리·게이트 우회없음 검증.
+  - **침묵실패**: **HIGH 1** — `stats.by_sido`가 '주소없음(파싱실패)'과 '시도미인식'을 한 '기타'로 뭉갬 → 데이터품질 오해.
+    **즉시 수정**: `_sido_key`로 '주소없음' vs '기타(시도미인식)' 분리(test_stats 갱신·신규). + MEDIUM 3·LOW 2는 **B8**로 백로그.
+- 증거: pytest **220 passed**, ruff 클린, /health·/stats·/api/stats 200 스모크(by_sido 원인분리 확인).
+- 평가자: 3 병렬 리뷰어 교차검증 + 게이트 직접 실행.
+- 커밋: (이 커밋, 로컬)
+- 다음: 사이클 #7 = B8(침묵실패 보강: watchlist JSON손상 처리·원자쓰기·데이터출처 배너) 구현.
+
 ## 2026-07-03 01:02 KST — 🔍 사이클 #5(탐색): 해외 레퍼런스 → B6 비교·B7 CSV 추가, B3 지도 blocked
 - 무엇: BACKLOG [ready] 최상위 B3(지도)를 착수하려 했으나 **좌표계 문제로 blocked** 판정.
   courtauction `wgs84Xcordi/Ycordi`=정수부만(127/37, 무용), `xCordi/yCordi`=투영좌표인데 역산 경도 128.2°로

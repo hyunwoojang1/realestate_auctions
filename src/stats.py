@@ -52,9 +52,18 @@ def by_property_type(items: list[ScoredListing]) -> list[dict]:
     return _group_rows(items, lambda s: s.property_type or "기타")
 
 
+def _sido_key(s: ScoredListing) -> str:
+    """시도 그룹 키. 실패 '원인'을 구분해 데이터 품질을 드러낸다(침묵실패 방지):
+    주소 자체가 비어 파싱 불가('주소없음') vs 주소는 있으나 시도 미인식('기타(시도미인식)').
+    """
+    if not (s.address or "").strip():
+        return "주소없음"
+    return sido_of(s.address) or "기타(시도미인식)"
+
+
 def by_sido(items: list[ScoredListing]) -> list[dict]:
-    """시도(주소 prefix)별 집계. 시도 추출 실패는 '기타'."""
-    return _group_rows(items, lambda s: sido_of(s.address) or "기타")
+    """시도(주소 prefix)별 집계. 주소없음/시도미인식을 뭉치지 않고 분리(원인 구분)."""
+    return _group_rows(items, _sido_key)
 
 
 def score_distribution(items: list[ScoredListing],

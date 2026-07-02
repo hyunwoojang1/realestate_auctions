@@ -62,9 +62,16 @@ def test_by_sido_extracts_sido_from_address():
     assert {r["name"]: r["count"] for r in rows} == {"서울": 2, "부산": 2}
 
 
-def test_by_sido_unknown_address_goes_to_etc():
-    rows = stats.by_sido([_sl(addr="알수없는 주소 123")])
-    assert rows[0]["name"] == "기타"
+def test_by_sido_separates_unrecognized_from_missing():
+    """침묵실패 방지: 주소는 있으나 시도 미인식('기타(시도미인식)')과
+    주소 자체가 없음('주소없음')을 한 '기타'로 뭉치지 않고 원인별로 분리."""
+    rows = stats.by_sido([
+        _sl(case_no="A", addr="알수없는 주소 123"),   # 주소 있음·시도 미인식
+        _sl(case_no="B", addr=""),                      # 주소 없음(파싱 불가)
+        _sl(case_no="C", addr="   "),                   # 공백만 → 주소 없음
+    ])
+    counts = {r["name"]: r["count"] for r in rows}
+    assert counts == {"기타(시도미인식)": 1, "주소없음": 2}
 
 
 # ---- 분포 ----
