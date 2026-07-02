@@ -46,10 +46,13 @@ def main(argv=None) -> int:
     ap.add_argument("--cache", default=None,
                     help="courtauction 증분 캐시 경로(기본 data/courtauction_cache.json). 신규/변경/소멸 리포트")
     ap.add_argument("--db", default=str(ROOT / "auction.db"), help="SQLite 경로")
-    ap.add_argument("--min-score", type=float, default=None, help="차익 스코어 하한 필터")
+    ap.add_argument("--min-profit", dest="min_profit", type=int, default=None,
+                    help="예상차익 하한(원) 필터")
+    ap.add_argument("--min-score", type=float, default=None, help="(내부용) 점수 하한 필터")
     ap.add_argument("--type", dest="ptype", default=None, help="물건종류 필터(아파트/오피스텔/다세대 등)")
     ap.add_argument("--region", default=None, help="지역 필터(주소 prefix, 예: 서울/경기/부산)")
-    ap.add_argument("--sort", choices=query.SORT_KEYS, default="score", help="정렬 기준(score/profit/gap)")
+    ap.add_argument("--sort", choices=query.SORT_KEYS, default=query.DEFAULT_SORT,
+                    help="정렬 기준(profit/gap/score, 기본 profit)")
     ap.add_argument("--json", action="store_true", help="결과를 JSON으로 stdout 출력")
     ap.add_argument("--live-months", dest="live_months", type=int, default=None,
                     help="라이브 시세 수집 개월수(표본 폭). 미지정=config/env/기본(3)")
@@ -125,7 +128,8 @@ def main(argv=None) -> int:
         n = store.upsert(conn, scored)   # 전체 저장
 
     view = query.sort_items(
-        query.apply_filters(scored, args.min_score, args.ptype, args.region),
+        query.apply_filters(scored, args.min_score, args.ptype, args.region,
+                            min_profit=args.min_profit),
         args.sort,
     )
 

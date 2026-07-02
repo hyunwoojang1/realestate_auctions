@@ -14,25 +14,13 @@ def _base(**kw) -> AuctionListing:
     return AuctionListing(**d)
 
 
-def test_acquisition_tax_housing_and_nonhousing():
-    # 주택: 6억↓ 1.1% / 9억↑ 3.3% / 6~9억 선형 누진(7.5억=본세2%×1.1=2.2%)
-    assert score.acquisition_tax(500_000_000, "아파트") == round(500_000_000 * 0.011)
-    assert score.acquisition_tax(600_000_000, "아파트") == round(600_000_000 * 0.011)
-    assert score.acquisition_tax(750_000_000, "아파트") == round(750_000_000 * 0.022)
-    assert score.acquisition_tax(900_000_000, "아파트") == round(900_000_000 * 0.033)
-    assert score.acquisition_tax(1_000_000_000, "아파트") == round(1_000_000_000 * 0.033)
-    # 비주택(오피스텔/상가/토지) = 4.6% 고정
-    assert score.acquisition_tax(500_000_000, "오피스텔") == round(500_000_000 * 0.046)
-    assert score.acquisition_tax(500_000_000, "상가") == round(500_000_000 * 0.046)
-    assert score.acquisition_tax(300_000_000, "토지") == round(300_000_000 * 0.046)
-
-
 def test_acquisition_cost_is_bid_plus_tax_only():
-    """취득원가 = 최저입찰가 + 취득세. 명도·수리·인수 등 주관적 비용 미포함."""
+    """취득원가 = 최저입찰가 + 취득세(tax.py). 명도·수리·인수 등 주관적 비용 미포함."""
+    from src import tax
     lst = _base(min_bid_price=400_000_000, property_type="아파트", occupant_type="다수점유",
                 assumed_amount=50_000_000, area_m2=100.0)
     cost = score.real_acquisition_cost(lst)
-    assert cost == 400_000_000 + score.acquisition_tax(400_000_000, "아파트")  # 점유·면적·인수 무관
+    assert cost == 400_000_000 + tax.acquisition_tax(400_000_000, "아파트", 100.0)  # 점유·인수 무관
 
 
 def test_gap_score_interpolation():

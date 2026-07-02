@@ -20,17 +20,8 @@ class ScoreConfig:
     w_rights: float = 0.30
     w_liq: float = 0.20
 
-    # 취득세 (1주택 취득·중과 제외 객관 베이스라인. 지방교육세 포함, 농특세·다주택 중과 제외).
-    #  주택: 6억↓ 1.1%, 6~9억 선형 누진(1.1→3.3%), 9억↑ 3.3%.
-    #  비주택(오피스텔·상가·업무·토지): 4.6% 고정.
-    # (명도비·수리비·인수금액은 물건별 편차가 큰 주관적 비용이라 취득원가에서 제외 — 객관성 우선.)
-    acq_tax_housing_low: float = 0.011      # 주택 6억 이하
-    acq_tax_housing_high: float = 0.033     # 주택 9억 초과
-    acq_tax_nonhousing: float = 0.046       # 비주택(취득세4% + 농특0.2% + 교육0.4%)
-    nonhousing_types: list = field(default_factory=lambda: [
-        "오피스텔", "상가", "근린상가", "근린생활시설", "업무시설", "상업용", "점포", "오피스",
-        "토지", "대지", "임야", "전", "답", "잡종지", "농지", "과수원",
-    ])
+    # 취득세는 src/tax.py(BuyerProfile 기반 정밀 계산, docs/tax-auction-knowledge.md와 1:1)가 담당.
+    # 명도비·수리비·인수금액은 물건별 편차가 큰 주관적 비용이라 취득원가에서 제외(객관성 우선).
 
     # 권리 페널티 / 하드게이트
     special_penalty: dict = field(default_factory=lambda: {
@@ -112,8 +103,6 @@ def _validate(cfg: ScoreConfig) -> None:
     gap_xs = [x for x, _ in cfg.gap_points]
     if gap_xs != sorted(gap_xs):
         logger.warning("gap_points 갭률이 오름차순이 아님 — 보간이 어긋날 수 있음")
-    if not (0 < cfg.acq_tax_nonhousing < 1):
-        logger.warning("acq_tax_nonhousing 세율이 비정상(%.3f)", cfg.acq_tax_nonhousing)
 
 
 def load_config(path: str | Path | None = None) -> ScoreConfig:

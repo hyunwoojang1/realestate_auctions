@@ -11,16 +11,17 @@ def test_top_limits_to_n():
     assert len(items) == 3
 
 
-def test_top_sorted_by_score_desc():
+def test_top_sorted_by_profit_desc():
     items = digest.top_listings(_scored(), n=10)
-    scores = [s.arb_score for s in items]
-    assert scores == sorted(scores, reverse=True)
-    assert items[0].apt_name == "상계주공"  # 95점 최상위
+    profits = [s.expected_profit for s in items]
+    assert profits == sorted(profits, reverse=True)
+    # 표면차익 1위여도 경고(위험 등)는 그대로 노출된다 — 숫자와 경고는 독립 채널
+    assert items[0].expected_profit == max(profits)
 
 
-def test_top_min_score_filter():
-    items = digest.top_listings(_scored(), n=10, min_score=80)
-    assert items and all(s.arb_score >= 80 for s in items)
+def test_top_min_profit_filter():
+    items = digest.top_listings(_scored(), n=10, min_profit=100_000_000)
+    assert items and all(s.expected_profit >= 100_000_000 for s in items)
 
 
 def test_markdown_contains_top_and_title():

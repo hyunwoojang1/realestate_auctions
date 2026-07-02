@@ -20,34 +20,16 @@ def confidence_from_matches(n: int) -> float:
     return CONFIG.confidence_ladder[-1][1]
 
 
-def acquisition_tax(price: int, property_type: str = "") -> int:
-    """취득세 추정 — 1주택 취득·중과 제외 객관 베이스라인(지방교육세 포함).
-
-    비주택(오피스텔·상가·업무·토지) = 4.6% 고정.
-    주택 = 6억↓ 1.1% / 6~9억 선형 누진(1.1→3.3%) / 9억↑ 3.3%.
-    (85㎡ 초과 농특세, 다주택·조정지역 중과는 매수인 상황에 따라 달라 제외.)
-    """
-    if (property_type or "").strip() in CONFIG.nonhousing_types:
-        return round(price * CONFIG.acq_tax_nonhousing)
-    if price <= 600_000_000:
-        rate = CONFIG.acq_tax_housing_low
-    elif price <= 900_000_000:
-        # 본세 = (가액 × 2 / 3억 − 3) / 100, 지방교육세 = 본세 × 10% → 합계 = 본세 × 1.1.
-        base = (price * 2 / 300_000_000 - 3) / 100
-        rate = max(0.01, min(0.03, base)) * 1.1
-    else:
-        rate = CONFIG.acq_tax_housing_high
-    return round(price * rate)
-
-
 def real_acquisition_cost(listing: AuctionListing) -> int:
-    """취득원가(객관) = 최저입찰가 + 취득세.
+    """취득원가(객관) = 최저입찰가 + 취득세(본세+교육세+농특세, tax.py).
 
-    명도비·수리비·권리 인수금액 등 물건별 편차가 큰 주관적/변동 비용은 제외한다.
-    공개 사실(최저입찰가)과 법정 세율(취득세)만으로 산정해 과대추정·허위정밀을 피한다.
-    그 변동비용은 상세페이지에서 '별도 발생 가능' 경고로만 안내한다.
+    취득세는 docs/tax-auction-knowledge.md 기준 정밀 계산(주택 누진·다주택 중과·85㎡ 농특세·
+    비주택 4.6%). 매수인 가정은 tax.PROFILE(기본 1주택·비조정·개인) 1개로 통일, UI에 명시.
+    명도비·수리비·권리 인수금액 등 물건별 변동 비용은 제외(객관성) — 상세페이지 경고로만 안내.
     """
-    return listing.min_bid_price + acquisition_tax(listing.min_bid_price, listing.property_type)
+    from . import tax  # noqa: PLC0415 — 순환 없음, 지연 로드로 monkeypatch(tax.PROFILE) 반영
+    return listing.min_bid_price + tax.acquisition_tax(
+        listing.min_bid_price, listing.property_type, listing.area_m2)
 
 
 def gap_score_from_rate(gap_rate: float) -> float:

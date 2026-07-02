@@ -1,8 +1,8 @@
 #!/usr/bin/env python
 """주간 차익 TOP N 다이제스트 생성.
 
-  python run_digest.py                 # 차익 스코어순 TOP 10
-  python run_digest.py --n 5 --min-score 60
+  python run_digest.py                 # 예상차익 금액순 TOP 10
+  python run_digest.py --n 5 --min-profit 50000000
 결과: 콘솔(markdown) + evidence/digest.md + evidence/digest.html
 """
 from __future__ import annotations
@@ -22,10 +22,11 @@ EVID = ROOT / "evidence"
 def main(argv=None) -> int:
     ap = argparse.ArgumentParser(description="주간 차익 TOP N 다이제스트")
     ap.add_argument("--n", type=int, default=10, help="상위 N개 (기본 10)")
-    ap.add_argument("--min-score", type=float, default=None, help="차익 스코어 하한")
+    ap.add_argument("--min-profit", dest="min_profit", type=int, default=None,
+                    help="예상차익 하한(원)")
     args = ap.parse_args(argv)
 
-    items = digest.top_listings(pipeline.run(), n=args.n, min_score=args.min_score)
+    items = digest.top_listings(pipeline.run(), n=args.n, min_profit=args.min_profit)
     md = digest.to_markdown(items)
     print(md)
 

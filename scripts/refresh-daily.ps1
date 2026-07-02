@@ -34,7 +34,7 @@
 param(
     [switch]$Live,
     [switch]$FromCache,
-    [long]$Cash = 100000000,
+    [long]$Cash = 500000000,   # 사용자 결정 #8: 전국 · 현금 5억 상한
     [string]$Ym = "",
     [string]$DbPath = ""
 )

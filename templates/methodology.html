@@ -1,43 +1,50 @@
 {% extends "base.html" %}
-{% block title %}차익 스코어 방법론 — 투명성{% endblock %}
+{% block title %}산정 방법론 — 투명성{% endblock %}
 
 {% block content %}
 <a class="back" href="/">← 차익 큐레이션 목록</a>
-<h1 class="page-h" style="margin-top:12px">차익 스코어 방법론</h1>
-<p class="page-sub">"차익 유력"을 어떻게 계산하는지, 그리고 스코어가 실제 수익으로 이어지는지(백테스트)를 공개합니다.
-산식과 검증을 숨기지 않는 것이 이 도구의 신뢰 근거입니다.</p>
+<h1 class="page-h" style="margin-top:12px">산정 방법론</h1>
+<p class="page-sub">예상 차익을 어떻게 계산하는지 전부 공개합니다. 주관적 가정(명도비·수리비 추정 등)은
+숫자에 넣지 않고, 공개 사실(경매 공고·국토부 실거래)과 법정 세율만 사용합니다.</p>
 
-<h2>1. 종합 공식</h2>
+<h2>1. 예상 차익 산식 (취득 시점 표면차익)</h2>
 <div class="formula">
-차익_스코어 = ( <span class="w1">가격갭 ×{{ '%.2f'|format(cfg.w_gap) }}</span> + <span class="w2">권리 ×{{ '%.2f'|format(cfg.w_rights) }}</span> + <span class="w3">환금성 ×{{ '%.2f'|format(cfg.w_liq) }}</span> ) × 신뢰계수<br>
-취득원가 = 최저입찰가 + 취득세  <span style="color:var(--muted)">(명도·수리·권리 인수 등 변동비 제외 — 객관 산정)</span><br>
-가격갭 = (추정시세 − 취득원가) / 추정시세
+예상 차익 = 추정 실거래 시세 − 취득원가<br>
+취득원가 = 최저입찰가 + 취득세(본세+지방교육세+농어촌특별세)<br>
+추정 시세 = 인근 동일유형·유사면적 실거래(국토부, 최근 12개월)의 평단가 중앙값 × 전용면적
 </div>
+<p class="page-sub" style="margin-top:8px">최저입찰가는 현재 회차 시작가(공개 사실). 실제 낙찰가는 그 이상일 수 있어
+차익은 <b>상한 추정치</b>입니다. 명도비·수리비·권리 인수금액·미납관리비·양도세·보유세는 물건·매수인별
+편차가 커 숫자에서 제외하고 상세페이지에 안내만 합니다.</p>
 
-<h2>2. 안전장치 (핵심)</h2>
-<div class="note-box n-risk">⚠ <b>하드게이트</b>: 인수금액/최저가 &gt; {{ '%.0f'|format(cfg.assumed_ratio_gate * 100) }}% 또는 치명적 특수권리(유치권 등)
-→ 권리 점수 0, 최종 스코어를 상한 <b>{{ '%.0f'|format(cfg.gate_ceiling) }}점</b>으로 강등('위험'). 가격갭이 커도 권리 폭탄이 상위 노출되는 것을 막습니다.</div>
-<div class="note-box n-warn">⚠ <b>권리미확인 게이트</b>: 물건상세 권리분석이 안 된 물건(라이브 크롤)은 갭이 커도 '차익 유력'을 부여하지 않고
-'권리미확인'으로 표기합니다. <b>표본 게이트</b>: 실거래 &lt;{{ cfg.min_comps_price }}건이면 시세추정불가, '차익 유력'은 ≥{{ cfg.min_comps_confident }}건에만.</div>
-
-<h2>3. 파라미터</h2>
+<h2>2. 취득세 (기준연도 2026 · 현재 가정: {{ tax_label }})</h2>
 <table class="params">
-<thead><tr><th scope="col">항목</th><th scope="col">값</th></tr></thead>
+<thead><tr><th scope="col">구분</th><th scope="col">취득세율(본세+부가 합계)</th></tr></thead>
 <tbody>
-<tr><td>가중치 (가격갭 / 권리 / 환금성)</td><td class="num">{{ '%.0f'|format(cfg.w_gap*100) }}% / {{ '%.0f'|format(cfg.w_rights*100) }}% / {{ '%.0f'|format(cfg.w_liq*100) }}%</td></tr>
-<tr><td>취득세 (1주택 기준, 중과 제외)</td><td class="num">주택 6억↓ {{ '%.1f'|format(cfg.acq_tax_housing_low*100) }}% · 6~9억 누진 · 9억↑ {{ '%.1f'|format(cfg.acq_tax_housing_high*100) }}% · 비주택 {{ '%.1f'|format(cfg.acq_tax_nonhousing*100) }}%</td></tr>
-<tr><td>신뢰계수 (매칭 건수별)</td><td class="num">{% for n, c in cfg.confidence_ladder %}{{ n }}건↑={{ '%.2f'|format(c) }}{% if not loop.last %} / {% endif %}{% endfor %}</td></tr>
-<tr><td>등급 경계</td><td class="num">{% for sc, label in cfg.grade_thresholds %}{{ sc }}↑ {{ label }}{% if not loop.last %} · {% endif %}{% endfor %}</td></tr>
+<tr><td>주택 · 6억 이하</td><td class="num">1.1% (85㎡ 초과 1.3%)</td></tr>
+<tr><td>주택 · 6~9억</td><td class="num">(가액×2/3억−3)% 법정 누진 + 부가 (≈1.1~3.3%)</td></tr>
+<tr><td>주택 · 9억 초과</td><td class="num">3.3% (85㎡ 초과 3.5%)</td></tr>
+<tr><td>다주택 중과 · 조정 2주택 / 비조정 3주택</td><td class="num">8.4% (85㎡ 초과 9.0%)</td></tr>
+<tr><td>다주택 중과 · 조정 3주택↑ / 비조정 4주택↑ / 법인</td><td class="num">12.4% (85㎡ 초과 13.4%)</td></tr>
+<tr><td>주택 외 (오피스텔·상가·토지)</td><td class="num">4.6% 고정</td></tr>
 </tbody>
 </table>
+<p class="page-sub" style="margin-top:8px">경매 낙찰 = 유상승계취득이라 일반 매매와 동일 세율.
+매수인 가정은 data/buyer_profile.json 1곳에서 변경(전 물건 일괄 적용).
+근거·출처: <span class="mono" style="font-size:var(--t-note)">docs/tax-auction-knowledge.md</span> (지방세법 §11·§13의2, 2026-07-02 검증).</p>
 
-<h2>4. 백테스트 — 스코어가 실제 수익으로 이어졌나</h2>
-<div class="note-box n-warn">⚠ <b>아래 수치는 샘플 물건 + 합성 낙찰결과(data/backtest_outcomes.json) 기준</b>으로 하네스 동작을 검증한 것입니다.
-<b>실제 낙찰결과가 아니며</b>, 라이브 크롤 물건은 권리 미검증이라 이 캘리브레이션에 포함되지 않습니다.
-실제 낙찰 데이터가 연동되면 동일 하네스가 진짜 적중률을 산출합니다.</div>
-<p class="label" style="margin:0 0 8px">스코어 구간별 적중률(실현차익&gt;0 비율)과 평균 실현차익 — 샘플 기준</p>
+<h2>3. 안전 게이트 (경고 표시 기준)</h2>
+<div class="note-box n-warn">⚠ <b>권리미확인</b>: 물건상세 권리분석(매각물건명세서·현황조사서) 전이면 차익이 커도
+경고를 유지하고 안전 표시를 하지 않습니다. <b>시세추정불가</b>: 매칭 실거래 &lt;{{ cfg.min_comps_price }}건이면
+1건짜리 표본을 시세로 신뢰하지 않습니다.</div>
+<div class="note-box n-risk">⚠ <b>위험(인수 게이트)</b>: 권리분석 결과 인수금액/최저가 &gt; {{ '%.0f'|format(cfg.assumed_ratio_gate * 100) }}%
+또는 치명적 특수권리(유치권 등) 발견 시 '위험' 경고. <b>차익없음</b>: 취득원가 ≥ 추정시세.</div>
+
+<h2>4. 내부 랭킹모델 검증 (샘플·합성 기준)</h2>
+<div class="note-box n-warn">⚠ 아래는 <b>샘플 물건 + 합성 낙찰결과</b>로 검증 하네스의 동작을 확인한 것입니다.
+<b>실제 낙찰결과가 아니며</b>, 실데이터 연동 시 동일 하네스가 진짜 적중률을 산출합니다.</div>
 <table class="params">
-<thead><tr><th scope="col">스코어 구간</th><th class="num" scope="col">건수</th><th class="num" scope="col">적중률</th><th class="num" scope="col">평균 실현차익</th></tr></thead>
+<thead><tr><th scope="col">내부 구간</th><th class="num" scope="col">건수</th><th class="num" scope="col">적중률</th><th class="num" scope="col">평균 실현차익</th></tr></thead>
 <tbody>
 {% for c in cal %}
 <tr>

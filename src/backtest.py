@@ -12,7 +12,7 @@ from __future__ import annotations
 import json
 from pathlib import Path
 
-from . import pipeline, score
+from . import pipeline
 
 ROOT = Path(__file__).resolve().parent.parent
 DATA = ROOT / "data"
@@ -33,8 +33,10 @@ def load_outcomes(path: str | Path | None = None) -> dict:
 
 
 def realized_cost(listing, actual_nakchal: int) -> int:
-    """실제 낙찰가 기준 취득원가(객관) = 낙찰가 + 취득세."""
-    return actual_nakchal + score.acquisition_tax(actual_nakchal, listing.property_type)
+    """실제 낙찰가 기준 취득원가(객관) = 낙찰가 + 취득세(tax.py 정밀)."""
+    from . import tax  # noqa: PLC0415
+    return actual_nakchal + tax.acquisition_tax(
+        actual_nakchal, listing.property_type, listing.area_m2)
 
 
 def evaluate(scored=None, auctions=None, outcomes=None) -> list[dict]:

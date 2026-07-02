@@ -34,10 +34,10 @@ def test_listings_type_filter():
     assert data and all(d["property_type"] == "오피스텔" for d in data)
 
 
-def test_listings_default_sorted_by_score_desc():
+def test_listings_default_sorted_by_profit_desc():
     data = _client().get("/api/listings").get_json()
-    scores = [d["arb_score"] for d in data if d["arb_score"] is not None]
-    assert scores == sorted(scores, reverse=True)
+    profits = [d["expected_profit"] for d in data if d["expected_profit"] is not None]
+    assert profits == sorted(profits, reverse=True)
 
 
 def test_detail_found():
@@ -56,14 +56,15 @@ def test_index_page_renders():
     body = r.get_data(as_text=True)
     assert "차익 큐레이션" in body
     assert "상계주공" in body        # 실데이터 렌더
-    assert "scoreno" in body         # 스코어 숫자 마크업
+    assert "예상차익" in body        # 차익 중심 UI
     assert "gapmeter" in body        # 갭미터 마크업
+    assert "scoreno" not in body     # 점수 UI 제거(사용자 결정 #7)
 
 
-def test_index_min_score_filter():
-    body = _client().get("/?min_score=80").get_data(as_text=True)
-    assert "상계주공" in body        # 95점 → 통과
-    assert "화곡동 다세대" not in body  # 25점 → 필터됨
+def test_index_min_profit_filter():
+    body = _client().get("/?min_profit=1.5").get_data(as_text=True)   # 1.5억 이상
+    assert "상계주공" in body           # 차익 약 2억 → 통과
+    assert "반석마을아이파크" not in body  # 차익 소액 → 필터됨
 
 
 def test_property_detail_found():
@@ -78,11 +79,11 @@ def test_property_detail_404():
 
 
 def test_property_detail_shows_hard_gate_reason():
-    # 화곡동 다세대(유치권) → 하드게이트 사유 노출
+    # 화곡동 다세대(유치권) → 인수 위험 사유 노출
     r = _client().get("/property/2024타경44102")
     assert r.status_code == 200
     body = r.get_data(as_text=True)
-    assert "하드게이트" in body and "유치권" in body
+    assert "인수 위험" in body and "유치권" in body
 
 
 def test_index_filter_form_and_selection():
@@ -94,22 +95,23 @@ def test_index_filter_form_and_selection():
 
 def test_index_has_filter_form():
     body = _client().get("/").get_data(as_text=True)
-    assert 'name="min_score"' in body and 'name="type"' in body and 'name="sort"' in body
+    assert 'name="min_profit"' in body and 'name="type"' in body and 'name="sort"' in body
 
 
 def test_methodology_page():
     r = _client().get("/methodology")
     assert r.status_code == 200
     body = r.get_data(as_text=True)
-    assert "차익 스코어 방법론" in body
-    assert "가격갭" in body and "하드게이트" in body   # 공식·게이트
-    assert "적중률" in body and "precision" in body      # 백테스트 캘리브레이션
+    assert "산정 방법론" in body
+    assert "예상 차익" in body and "취득세" in body       # 산식·세금
+    assert "권리미확인" in body                           # 안전 게이트 공개
+    assert "적중률" in body and "precision" in body       # 백테스트 캘리브레이션
 
 
-def test_methodology_shows_calibration_values():
+def test_methodology_shows_tax_assumption():
     body = _client().get("/methodology").get_data(as_text=True)
-    # 등급 경계 라벨(최상위)이 렌더됨
-    assert "차익 유력" in body
+    assert "1주택·비조정" in body      # 매수인 가정 명시
+    assert "4.6%" in body              # 비주택 세율표
 
 
 # ---- 라이브 DB 서빙(AUCTION_DB) ----

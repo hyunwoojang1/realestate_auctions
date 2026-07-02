@@ -86,14 +86,17 @@ def _scored():
 
 
 def _filtered(args):
-    """요청 쿼리(min_score/type/region/sort)로 필터·정렬된 목록."""
-    min_score = args.get("min_score", type=float)
+    """요청 쿼리(min_profit[억]/min_score/type/region/sort)로 필터·정렬된 목록."""
+    min_score = args.get("min_score", type=float)          # API 하위호환용
+    min_profit_eok = args.get("min_profit", type=float)    # UI: 억 단위 입력
+    min_profit = int(min_profit_eok * 1e8) if min_profit_eok else None
     ptype = args.get("type")
     region = args.get("region")
-    sort = args.get("sort", "score")
+    sort = args.get("sort", query.DEFAULT_SORT)
     if sort not in query.SORT_KEYS:
-        sort = "score"
-    return query.sort_items(query.apply_filters(_scored(), min_score, ptype, region), sort)
+        sort = query.DEFAULT_SORT
+    return query.sort_items(
+        query.apply_filters(_scored(), min_score, ptype, region, min_profit=min_profit), sort)
 
 
 def create_app() -> Flask:
@@ -109,16 +112,18 @@ def create_app() -> Flask:
 
     @app.get("/")
     def index():
+        from . import tax  # noqa: PLC0415
         items = _filtered(request.args)
         filters = {
-            "min_score": request.args.get("min_score", ""),
+            "min_profit": request.args.get("min_profit", ""),
             "type": request.args.get("type", ""),
             "region": request.args.get("region", ""),
-            "sort": request.args.get("sort", "score"),
+            "sort": request.args.get("sort", query.DEFAULT_SORT),
         }
         return render_template(
             "listings.html", items=items, count=len(items), filters=filters,
             won=report.won, pct=report.pct, meter=report.gap_meter_html,
+            tax_label=tax.PROFILE.label(),
             data_source=getattr(g, "data_source", "n/a"))
 
     @app.get("/health")
@@ -140,6 +145,7 @@ def create_app() -> Flask:
 
     @app.get("/property/<case_no>")
     def property_detail(case_no: str):
+        from . import tax  # noqa: PLC0415
         s = next((x for x in _scored() if x.case_no == case_no), None)
         if s is None:
             abort(404)
@@ -162,31 +168,39 @@ def create_app() -> Flask:
             fatal = [r for r in listing.special_rights if r in score.CONFIG.fatal_special]
             if fatal:
                 gate_reasons.append("·".join(fatal) + " 신고")
+        tax_parts = tax.acquisition_tax_breakdown(s.min_bid_price, s.property_type, s.area_m2)
         return render_template(
             "detail.html", s=s, listing=listing,
             meter=report.gap_meter_html(s), won=report.won, pct=report.pct,
             gated=gated, gate_reason=", ".join(gate_reasons),
+            tax_parts=tax_parts, tax_label=tax.PROFILE.label(),
             data_source=getattr(g, "data_source", "n/a"),
         )
 
     @app.get("/digest")
     def digest_page():
+        from . import tax  # noqa: PLC0415
         n = request.args.get("n", default=10, type=int)
-        min_score = request.args.get("min_score", type=float)
-        items = digest.top_listings(_scored(), n=n, min_score=min_score)
-        filters = {"min_score": request.args.get("min_score", ""), "type": "", "region": "", "sort": "score"}
+        min_profit_eok = request.args.get("min_profit", type=float)
+        min_profit = int(min_profit_eok * 1e8) if min_profit_eok else None
+        items = digest.top_listings(_scored(), n=n, min_profit=min_profit)
+        filters = {"min_profit": request.args.get("min_profit", ""), "type": "", "region": "",
+                   "sort": query.DEFAULT_SORT}
         return render_template(
             "listings.html", items=items, count=len(items), filters=filters,
             won=report.won, pct=report.pct, meter=report.gap_meter_html,
+            tax_label=tax.PROFILE.label(),
             data_source=getattr(g, "data_source", "n/a"))
 
     @app.get("/methodology")
     def methodology():
+        from . import tax  # noqa: PLC0415
         rows = backtest.evaluate()
         cal = backtest.calibration(rows)
         prec = {t: backtest.precision_at(rows, t) for t in (80, 60, 40)}
         return render_template("methodology.html", cfg=score.CONFIG, cal=cal, prec=prec,
-                               won=report.won, data_source="sample")
+                               won=report.won, tax_label=tax.PROFILE.label(),
+                               data_source="sample")
 
     return app
 
