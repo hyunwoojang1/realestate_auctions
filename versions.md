@@ -27,7 +27,7 @@
 - 증거: 감사 3에이전트 최종 리포트(보안 0C/0H·1M, 코드품질 0C/0H·1M APPROVE, 침묵실패 1H·1M·1L).
 - 게이트: pytest 234 passed(+2: dropped 배너·case 캡), ruff 클린.
 - 평가자: 감사 패널 APPROVE(HIGH 반영 완료).
-- 커밋: (로컬, 아래 해시)
+- 커밋: 3fd93f3 (로컬, push 안 함)
 - 다음: 사이클 #10 = B7 CSV 내보내기 `/export.csv`(report.to_csv 재사용).
 
 ## 2026-07-03 02:20 KST — ↔️ 사이클 #8: B6 물건 비교 (/compare)
