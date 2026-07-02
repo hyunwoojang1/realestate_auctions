@@ -149,6 +149,17 @@ def create_app() -> Flask:
     def listings():
         return jsonify([s.to_row() for s in _filtered(request.args)])
 
+    @app.get("/export.csv")
+    def export_csv():
+        # 목록과 동일 필터·정렬 결과를 CSV로 다운로드(엑셀 검토용). 순수 조회.
+        items = _filtered(request.args)
+        # UTF-8-SIG BOM: 엑셀이 한글을 깨지 않게. report.csv_text 재사용(중복 구현 금지).
+        body = "﻿" + report.csv_text(items)
+        resp = app.response_class(body, mimetype="text/csv")
+        resp.headers["Content-Disposition"] = 'attachment; filename="auction_arbitrage.csv"'
+        resp.charset = "utf-8"
+        return resp
+
     @app.get("/api/listings/<case_no>")
     def listing_detail(case_no: str):
         match = next((s for s in _scored() if s.case_no == case_no), None)

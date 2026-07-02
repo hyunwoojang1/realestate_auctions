@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import csv
 import html
+import io
 import json
 from collections.abc import Iterable
 from pathlib import Path
@@ -42,14 +43,26 @@ def to_console(items: list[ScoredListing]) -> str:
     return "\n".join(lines)
 
 
+def csv_text(items: Iterable[ScoredListing]) -> str:
+    """채점 결과를 CSV 문자열로. 웹 다운로드(/export.csv)·파일 저장(to_csv) 공통 소스.
+
+    빈 목록이면 빈 문자열(헤더도 없음 — 열 스키마는 행에서 파생하므로).
+    줄바꿈은 CSV 표준 CRLF. BOM은 붙이지 않는다(파일/HTTP 계층에서 인코딩 선택).
+    """
+    rows = [s.to_row() for s in items]
+    if not rows:
+        return ""
+    buf = io.StringIO()
+    w = csv.DictWriter(buf, fieldnames=list(rows[0].keys()))
+    w.writeheader()
+    w.writerows(rows)
+    return buf.getvalue()
+
+
 def to_csv(items: Iterable[ScoredListing], path: str | Path) -> Path:
     path = Path(path)
-    rows = [s.to_row() for s in items]
-    cols = list(rows[0].keys()) if rows else []
-    with path.open("w", newline="", encoding="utf-8-sig") as f:
-        w = csv.DictWriter(f, fieldnames=cols)
-        w.writeheader()
-        w.writerows(rows)
+    # newline="" + utf-8-sig: 엑셀 한글 인식. 내용은 csv_text 재사용(중복 구현 금지).
+    path.write_text(csv_text(items), encoding="utf-8-sig", newline="")
     return path
 
 

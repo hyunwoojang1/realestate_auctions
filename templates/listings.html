@@ -69,6 +69,8 @@
   </label>
   <button type="submit">필터 적용</button>
   <a class="reset" href="/">초기화</a>
+  <a class="reset" href="/export.csv{% if request.query_string %}?{{ request.query_string.decode() }}{% endif %}"
+     title="현재 필터·정렬 결과를 CSV로 저장(엑셀)">⤓ CSV 내보내기</a>
 </form>
 
 {% if items %}

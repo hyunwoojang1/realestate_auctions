@@ -53,13 +53,13 @@
   - [x] pytest 232(+7: 순서/중복/상한/빈결과/라우트2건/1건안내/없는건무시) / [x] ruff 클린 / [x] evidence/compare_smoke.txt
 - 노트: '비교 담기 cart'는 세션상태 필요 → watchlist를 선택집합으로 재사용(오프라인). 상세페이지는 ★ 토글로 담기.
 
-## [ready] B7 CSV 내보내기 `/export.csv` (출처: overseas-foreclosure.md)
-- 왜: 현재 필터·정렬 결과를 CSV로 저장(엑셀 검토). report.to_csv 이미 존재 → 웹 다운로드만.
-- 완료 정의(전부 false):
-  - [ ] `GET /export.csv`(목록과 동일 필터 쿼리 재사용) — Content-Disposition attachment, UTF-8-SIG
-  - [ ] test_client 테스트(200·text/csv·행수=필터결과) + report.to_csv 재사용 확인(중복 구현 금지)
-  - [ ] evidence/export_smoke.txt Read 확인 + pytest 전체 + ruff 클린
-- 제약: 순수 조회, 오프라인.
+## [done] B7 CSV 내보내기 `/export.csv` (사이클 #10, 2026-07-03)
+- 완료: report.py `csv_text(items)->str` 헬퍼 도입 + `to_csv`가 재사용(중복 구현 제거). `GET /export.csv`가
+  `_filtered(request.args)` 재사용 → 목록과 동일 필터·정렬, UTF-8-SIG BOM + Content-Disposition attachment.
+  listings.html에 현재 쿼리 보존 "⤓ CSV 내보내기" 링크.
+  - [x] pytest 242(+8: csv_text 3·라우트 5[타입/attach·BOM·행수일치·필터통과·링크]) / [x] ruff 클린
+  - [x] evidence/export_smoke.txt(200·BOM True·행수=/api/listings·min_profit 필터 일치) Read 확인
+- 평가자 PASS. LOW(to_csv 중복 Path 호출) 즉시 정리. MEDIUM(CSV 인젝션)→B11 이월.
 
 ## [ready] B9 스냅샷 없음 vs 빈 스냅샷 구분 (출처: 사이클#9 감사 code-review MEDIUM)
 - 왜: `_safe_load_json`이 "파일 없음"과 "파일 있으나 내용 {}"를 둘 다 `({},False)`로 반환 →
@@ -79,6 +79,14 @@
   - [ ] toggle/api add·remove가 `OSError` catch → 사용자에게 "저장 실패, 다시 시도" 명시 메시지
   - [ ] watchlist.html 손상 배너 문구 일반화(LOW) / 테스트 + pytest 전체 + ruff 클린
 - 제약: 순수 로컬, 오프라인.
+
+## [ready] B11 CSV 인젝션(엑셀 수식) 완화 (출처: 사이클#10 평가자 MEDIUM)
+- 왜: `csv_text`가 apt_name/address/grade 등 크롤 문자열을 이스케이프 없이 셀에 씀. `=`,`+`,`-`,`@`로
+  시작하는 값은 엑셀에서 수식으로 해석될 여지. 출처가 공공데이터라 저위험이나 "엑셀 검토용" 기능이라 표준 완화 가치.
+- 완료 정의(전부 false):
+  - [ ] `csv_text` 셀 값이 위 선행문자로 시작하면 `'` 프리픽스(또는 동등 완화) — to_csv/export 공통 적용
+  - [ ] 테스트: `=cmd` 같은 값이 `'=cmd`로 나오는지 / 정상 한글값은 불변 / pytest 전체 + ruff 클린
+- 제약: 순수 로컬, 오프라인. 데이터 의미 변형 최소화(숫자·정상 텍스트는 그대로).
 
 ## [blocked] B3 지도 뷰 `/map` (출처: 두 레퍼런스 공통 기본기능) — QUESTIONS Q1 대기
 - 블로킹 사유(2026-07-03 사이클#5): 좌표계 문제. courtauction `wgs84Xcordi/Ycordi`는 정수부만(127/37, 무용),

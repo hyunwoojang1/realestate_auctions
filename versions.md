@@ -15,6 +15,18 @@
 
 ---
 
+## 2026-07-03 03:25 KST — ⤓ 사이클 #10: B7 CSV 내보내기 (/export.csv)
+- 무엇: 목록 필터·정렬 결과를 CSV로 다운로드(엑셀 검토용, overseas-foreclosure 모방, 오프라인 순수조회).
+  - report.py `csv_text(items)->str` 헬퍼 도입 → `to_csv`가 이를 재사용(파일 저장/웹 다운로드 단일 소스, 중복 구현 제거).
+  - `GET /export.csv`가 `_filtered(request.args)` 재사용 → 목록과 동일 필터·정렬 보장. UTF-8-SIG BOM(엑셀 한글) +
+    `Content-Disposition: attachment`.
+  - listings.html 필터바에 현재 쿼리스트링 보존 "⤓ CSV 내보내기" 링크.
+- 증거: evidence/export_smoke.txt (200·text/csv·attachment·BOM True·데이터 6행=/api/listings 일치·min_profit=1 필터 4행 일치) Read 확인.
+- 게이트: pytest 242 passed(+8), ruff 클린.
+- 평가자: PASS. LOW(to_csv 중복 Path 호출) 즉시 정리, MEDIUM(CSV 인젝션 완화)→BACKLOG B11 이월.
+- 커밋: (로컬, 아래 해시)
+- 다음: 사이클 #11 = B9 스냅샷없음 vs 빈스냅샷 구분(감사 이월). #12는 감사 사이클 후 자동 종료.
+
 ## 2026-07-03 02:58 KST — 🔎 사이클 #9(감사): B6/B8 다관점 감사 + HIGH 즉시 수정
 - 무엇: 3관점 병렬 감사(보안·코드품질·침묵실패)로 #7 B8·#8 B6(`git diff HEAD~4 HEAD`) 점검.
   종합 CRITICAL/HIGH=0 (침묵실패 HIGH 1건만) → LOOP #9 절차대로 HIGH만 즉시 수정.
