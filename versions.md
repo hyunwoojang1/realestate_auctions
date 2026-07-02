@@ -15,6 +15,22 @@
 
 ---
 
+## 2026-07-02 09:52 KST — 🚀 배포+라이브 가동 (main merge·push, 스케줄러 활성, 실크롤, D/E 검증)
+- 무엇: 사용자 승인 후 배포 실행.
+  - **merge+push**: feat/deploy-prep → main(--no-ff, e8c5717) origin push 완료(공개레포). 시크릿 스캔 clean.
+  - **서버 가동**: waitress `python -m src.serve` 127.0.0.1:8000 백그라운드. `/health` 200 `X-Data-Source: db`.
+  - **스케줄러 활성화**: install-scheduler.ps1 → 등록 순간 Disabled(#8 fix 확인) → Enable → **State: Ready**(매일 05:30 전국 새로고침).
+  - **라이브 크롤(서울)**: `run.py --source courtauction --sido 11 --cash 5억 --max-pages 2 --live --ym 202605` →
+    **실경매 62건 적재**. 서버가 실데이터 서빙(52건). 최상위=주건축물 아파트 1.03억→3.71억(차익 2.63억·71%·100점),
+    브라운스톤서초 오피스텔 2.04억→5.64억. **#2 검증**: data/courtauction_full_cache.json 62건 실생성(PII-free) → --from-cache 재생 가능.
+  - **D/E 라이브 검증**: E(단독 sh·상업 nrg·토지 land) 3종 **실호출 정상+파서 정합 OK**(대치동 단독 699㎡ 74.95억 등).
+    건축물대장(BldRgstService_v2)은 지번 넣어도 **500 → API 미활성화 추정**(사용자 data.go.kr 활용신청 필요).
+  - **보안 fix**: 검증 중 에러메시지에 API키 노출 발견 → molit_client `_redact`로 serviceKey 마스킹(로그·예외), evidence 파일도 마스킹.
+- 증거: pytest **169 passed**(신규: _redact 1), ruff 클린. 서버 curl /health·/api/listings 실데이터 확인. evidence/de_live_validate.txt.
+- 평가자: 직접 실행 검증(서버·크롤·스케줄러 상태·D/E 실호출).
+- 커밋: (이 커밋, main 직접)
+- 다음: 사용자=① 건축물대장 API 활용신청(data.go.kr) ② 매칭률↑ 위해 --area-band 튜닝(시세추정불가 다수) ③ 폰접속 Tailscale. Claude=D/E를 matcher/score에 배선(E는 준비됨).
+
 ## 2026-07-01 18:06 KST — 🔍 push 전 독립 코드리뷰 확정이슈 수정 (feat/deploy-prep)
 - 무엇: 밤샘 산출물(main..HEAD)을 4렌즈 병렬 리뷰+발견별 적대검증(확정7·PLAUSIBLE1·반박0, CRITICAL 없음)한 뒤,
   확정 이슈를 코드로 수정:

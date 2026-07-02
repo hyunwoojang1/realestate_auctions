@@ -13,6 +13,7 @@ params: serviceKey, LAWD_CD(법정동코드 5자리), DEAL_YMD(YYYYMM), pageNo, 
 from __future__ import annotations
 
 import logging
+import re
 import time
 import xml.etree.ElementTree as ET
 
@@ -147,6 +148,14 @@ def parse_offi_trades_xml(xml_text: str) -> list[Trade]:
     return _parse(xml_text, "officetel")
 
 
+_SERVICEKEY_RE = re.compile(r"(serviceKey=)[^&\s]+", re.IGNORECASE)
+
+
+def _redact(text: object) -> str:
+    """로그·예외 메시지에서 serviceKey(API 키)를 마스킹. requests HTTPError는 URL(키 포함)을 담는다."""
+    return _SERVICEKEY_RE.sub(r"\1***", str(text))
+
+
 def _get_with_retry(session, url: str, params: dict, timeout: int, retries: int) -> str:
     """일시적 네트워크 오류는 지수 백오프로 재시도. 마지막 실패는 그대로 올린다."""
     last_exc = None
@@ -159,9 +168,10 @@ def _get_with_retry(session, url: str, params: dict, timeout: int, retries: int)
             last_exc = e
             if attempt < retries:
                 backoff = 2 ** (attempt - 1)
-                logger.warning("국토부 호출 실패(%d/%d), %ds 후 재시도: %s", attempt, retries, backoff, e)
+                logger.warning("국토부 호출 실패(%d/%d), %ds 후 재시도: %s",
+                               attempt, retries, backoff, _redact(e))
                 time.sleep(backoff)
-    raise MolitApiError(f"국토부 호출 {retries}회 모두 실패: {last_exc}") from last_exc
+    raise MolitApiError(f"국토부 호출 {retries}회 모두 실패: {_redact(last_exc)}") from last_exc
 
 
 def fetch_trades(kind: str, lawd_cd: str, deal_ymd: str, api_key: str,

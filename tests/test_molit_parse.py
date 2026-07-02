@@ -5,6 +5,7 @@ import pytest
 
 from src.molit_client import (
     MolitApiError,
+    _redact,
     _to_won,
     check_api_error,
     parse_apt_trades_xml,
@@ -22,6 +23,15 @@ def test_to_won_handles_comma_and_space():
     assert _to_won(" 63,000") == 630_000_000
     assert _to_won("45,000") == 450_000_000
     assert _to_won("") == 0
+
+
+def test_redact_masks_service_key():
+    # 에러/로그에 API 키가 새지 않도록 serviceKey 값을 마스킹.
+    url = "https://apis.data.go.kr/x/getY?serviceKey=abcd1234SECRET&sigunguCd=11680"
+    red = _redact(f"500 Server Error for url: {url}")
+    assert "abcd1234SECRET" not in red
+    assert "serviceKey=***" in red
+    assert "sigunguCd=11680" in red   # 다른 파라미터는 보존
 
 
 def test_parse_fixture_yields_trades():
