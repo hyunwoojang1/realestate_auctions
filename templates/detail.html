@@ -15,6 +15,10 @@
 <div style="display:flex;flex-wrap:wrap;gap:12px;align-items:baseline;margin:12px 0 6px">
   <h1 class="page-h" style="margin:0">{{ s.apt_name or s.property_type }}</h1>
   <span class="caseid mono" style="color:var(--muted-2)">{{ s.case_no }}</span>
+  <form method="post" action="/watchlist/toggle/{{ s.case_no }}" style="margin:0">
+    <button type="submit" style="cursor:pointer">
+      {%- if watching %}★ 관심 해제{% else %}☆ 관심 등록{% endif -%}</button>
+  </form>
 </div>
 <div class="page-sub">{{ s.address }} · {{ s.property_type }} · {{ '%.1f'|format(s.area_m2) }}㎡ · 유찰 {{ s.fail_count }}회 · 매각기일 {{ s.sale_date }} · 준공연도 미확인<span style="color:var(--muted-2)">(건축물대장 API 대기)</span></div>
 

@@ -9,6 +9,7 @@
 from __future__ import annotations
 
 import json
+import os
 from pathlib import Path
 
 from .models import ScoredListing
@@ -18,6 +19,16 @@ DATA = ROOT / "data"
 WATCHLIST_PATH = DATA / "watchlist.json"
 SNAPSHOT_PATH = DATA / "score_snapshot.json"
 DEFAULT_THRESHOLD = 80.0
+
+
+def watchlist_path() -> Path:
+    """워치리스트 저장 경로 — AUCTION_WATCHLIST env로 오버라이드(테스트·운영 분리)."""
+    return Path(os.environ.get("AUCTION_WATCHLIST") or WATCHLIST_PATH)
+
+
+def snapshot_path() -> Path:
+    """스냅샷 경로 — AUCTION_SNAPSHOT env로 오버라이드."""
+    return Path(os.environ.get("AUCTION_SNAPSHOT") or SNAPSHOT_PATH)
 
 
 def snapshot_from_scored(scored: list[ScoredListing]) -> dict:

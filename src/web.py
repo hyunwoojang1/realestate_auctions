@@ -14,9 +14,9 @@ import logging
 import os
 from pathlib import Path
 
-from flask import Flask, abort, g, jsonify, render_template, request
+from flask import Flask, abort, g, jsonify, redirect, render_template, request
 
-from . import backtest, digest, pipeline, query, report, sale_calendar, score, stats, store
+from . import backtest, digest, pipeline, query, report, sale_calendar, score, stats, store, watchlist
 from .models import AuctionListing
 
 logger = logging.getLogger(__name__)
@@ -124,6 +124,7 @@ def create_app() -> Flask:
             "listings.html", items=items, count=len(items), filters=filters,
             won=report.won, pct=report.pct, meter=report.gap_meter_html,
             tax_label=tax.PROFILE.label(),
+            watched=watchlist.load_watchlist(watchlist.watchlist_path()),
             data_source=getattr(g, "data_source", "n/a"))
 
     @app.get("/health")
@@ -174,6 +175,7 @@ def create_app() -> Flask:
             meter=report.gap_meter_html(s), won=report.won, pct=report.pct,
             gated=gated, gate_reason=", ".join(gate_reasons),
             tax_parts=tax_parts, tax_label=tax.PROFILE.label(),
+            watching=case_no in watchlist.load_watchlist(watchlist.watchlist_path()),
             data_source=getattr(g, "data_source", "n/a"),
         )
 
@@ -191,6 +193,59 @@ def create_app() -> Flask:
             won=report.won, pct=report.pct, meter=report.gap_meter_html,
             tax_label=tax.PROFILE.label(),
             data_source=getattr(g, "data_source", "n/a"))
+
+    def _case_exists(case_no: str) -> bool:
+        return any(s.case_no == case_no for s in _scored())
+
+    def _safe_back() -> str:
+        """토글 후 복귀 경로 — 같은 호스트의 referrer만 허용(open redirect 방지)."""
+        ref = request.referrer or ""
+        if ref.startswith(request.host_url):
+            return ref
+        return "/watchlist"
+
+    @app.get("/watchlist")
+    def watchlist_page():
+        from . import tax  # noqa: PLC0415
+        items = _scored()
+        wl = watchlist.load_watchlist(watchlist.watchlist_path())
+        watched = query.sort_items([s for s in items if s.case_no in wl])
+        missing = sorted(wl - {s.case_no for s in items})
+        prev = watchlist.load_snapshot(watchlist.snapshot_path())
+        events = (watchlist.detect_changes(prev, watchlist.snapshot_from_scored(items), wl)
+                  if prev else [])
+        return render_template(
+            "watchlist.html", watched=watched, missing=missing, events=events,
+            won=report.won, pct=report.pct, tax_label=tax.PROFILE.label(),
+            data_source=getattr(g, "data_source", "n/a"))
+
+    @app.get("/api/watchlist")
+    def watchlist_api_list():
+        return jsonify(sorted(watchlist.load_watchlist(watchlist.watchlist_path())))
+
+    @app.post("/api/watchlist/<case_no>")
+    def watchlist_api_add(case_no: str):
+        if not _case_exists(case_no):
+            abort(404)
+        watchlist.add_watch(case_no, watchlist.watchlist_path())
+        return {"ok": True, "watching": True}
+
+    @app.delete("/api/watchlist/<case_no>")
+    def watchlist_api_remove(case_no: str):
+        watchlist.remove_watch(case_no, watchlist.watchlist_path())
+        return {"ok": True, "watching": False}
+
+    @app.post("/watchlist/toggle/<case_no>")
+    def watchlist_toggle(case_no: str):
+        p = watchlist.watchlist_path()
+        wl = watchlist.load_watchlist(p)
+        if case_no in wl:
+            watchlist.remove_watch(case_no, p)
+        else:
+            if not _case_exists(case_no):
+                abort(404)
+            watchlist.add_watch(case_no, p)
+        return redirect(_safe_back())
 
     @app.get("/calendar")
     def calendar_page():

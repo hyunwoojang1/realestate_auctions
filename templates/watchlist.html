@@ -1,0 +1,79 @@
+{% extends "base.html" %}
+{% block title %}관심물건{% endblock %}
+
+{%- macro warnbadge(s) -%}
+{%- if s.grade == '권리미확인' -%}<span class="badge b-unknown">권리미확인</span>
+{%- elif s.grade == '위험' -%}<span class="badge b-risk">위험</span>
+{%- elif s.grade == '시세추정불가' -%}<span class="badge b-na">시세추정불가</span>
+{%- elif s.grade == '차익없음' -%}<span class="badge b-none">차익없음</span>
+{%- endif -%}
+{%- endmacro -%}
+
+{% block content %}
+<a class="back" href="/">← 차익 큐레이션 목록</a>
+<h1 class="page-h" style="margin-top:12px">관심물건</h1>
+<p class="page-sub">저장해 둔 물건의 현재 상태와 직전 새로고침 대비 변동입니다.
+목록·상세 페이지의 ★ 버튼으로 추가·해제하세요.</p>
+
+{% if events %}
+<h2>변동 감지</h2>
+<table class="params">
+<tbody>
+{% for e in events %}
+<tr>
+  <td style="width:11em"><span class="badge b-unknown">{{ e.type }}</span></td>
+  <td><a class="name" href="/property/{{ e.case_no }}">{{ e.apt_name }}</a>
+      <div class="caseid">{{ e.case_no }}</div></td>
+  <td>{{ e.detail }}</td>
+</tr>
+{% endfor %}
+</tbody>
+</table>
+{% endif %}
+
+<h2>저장한 물건 <span style="color:var(--muted);font-weight:400">{{ watched | length }}건</span></h2>
+{% if watched %}
+<table class="params">
+<thead><tr><th scope="col">단지 / 소재지</th><th scope="col">경고</th>
+<th class="num" scope="col">예상차익</th><th class="num" scope="col">최저가</th>
+<th scope="col">매각기일</th><th scope="col"></th></tr></thead>
+<tbody>
+{% for s in watched %}
+<tr>
+  <td><a class="name" href="/property/{{ s.case_no }}">{{ s.apt_name or s.property_type }}</a>
+      <div class="addr">{{ s.address }} · {{ s.property_type }} · 유찰 {{ s.fail_count }}회</div>
+      <div class="caseid">{{ s.case_no }}</div></td>
+  <td>{{ warnbadge(s) }}</td>
+  <td class="num">{% if s.expected_profit is not none %}<b>{{ won(s.expected_profit) }}</b>
+      <div style="font-size:var(--t-note);color:var(--muted)">시세 대비 {{ pct(s.gap_rate) }}</div>
+      {% else %}—{% endif %}</td>
+  <td class="num">{{ won(s.min_bid_price) }}</td>
+  <td>{{ s.sale_date or '미상' }}</td>
+  <td><form method="post" action="/watchlist/toggle/{{ s.case_no }}" style="margin:0">
+      <button type="submit" title="관심 해제">★ 해제</button></form></td>
+</tr>
+{% endfor %}
+</tbody>
+</table>
+{% else %}
+<p class="page-sub" style="margin-top:16px">아직 저장한 물건이 없습니다.
+<a href="/">목록</a>에서 ★를 눌러 추가하세요.</p>
+{% endif %}
+
+{% if missing %}
+<h2>목록에서 사라진 물건 <span style="color:var(--muted);font-weight:400">{{ missing | length }}건</span></h2>
+<p class="page-sub">최근 새로고침 결과에 없는 사건번호입니다(매각·취하·기일변경 가능) —
+대법원 법원경매정보에서 직접 확인하세요.</p>
+<div class="chips">
+{% for c in missing %}
+  <form method="post" action="/watchlist/toggle/{{ c }}" style="display:inline;margin:0">
+    <span class="chip mono">{{ c }} <button type="submit" title="관심 해제"
+      style="border:none;background:none;cursor:pointer">✕</button></span>
+  </form>
+{% endfor %}
+</div>
+{% endif %}
+
+<p class="foot">변동 감지는 새로고침 시점 스냅샷 비교 기준이며 실시간이 아닙니다.
+기일·권리 변동은 반드시 법원 공고로 재확인하세요. 취득세는 {{ tax_label }} 기준.</p>
+{% endblock %}

@@ -109,7 +109,12 @@
   <td>{{ warnbadge(s) }}</td>
   <td><a class="name" href="/property/{{ s.case_no }}">{{ s.apt_name or s.property_type }}</a>
       <div class="addr">{{ s.address }} · {{ s.property_type }} · {{ '%.0f'|format(s.area_m2) }}㎡</div>
-      <div class="caseid">{{ s.case_no }}</div></td>
+      <div class="caseid">{{ s.case_no }}
+        <form method="post" action="/watchlist/toggle/{{ s.case_no }}" style="display:inline;margin:0">
+          <button type="submit" style="border:none;background:none;cursor:pointer;padding:0 2px"
+            title="{% if s.case_no in (watched or []) %}관심 해제{% else %}관심 등록{% endif %}">
+            {%- if s.case_no in (watched or []) %}★{% else %}☆{% endif -%}</button>
+        </form></div></td>
   <td class="gapmeter-cell">{{ meter(s)|safe }}</td>
   <td class="r num money">{{ won(s.min_bid_price) }}</td>
   <td class="r">{{ confchip(s) }}</td>

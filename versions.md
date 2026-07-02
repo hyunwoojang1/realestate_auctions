@@ -15,6 +15,15 @@
 
 ---
 
+## 2026-07-03 00:44 KST — ✅ 사이클 #4: B2 관심물건 웹 UI (/watchlist) 완결 커밋 + 밤샘루프 재개
+- 무엇: 이전 세션이 미커밋으로 남긴 B2(관심물건 웹) 사이클을 게이트 통과 확인 후 완결.
+  /watchlist 페이지 + 토글 버튼(목록·상세 ☆), src/watchlist.py 웹 승격, 신규 test_watchlist_web.py.
+  이어서 운영자 취침 — harness/LOOP.md 자율 성장 루프를 밤샘 재개(ScheduleWakeup 자가페이싱, 로컬 커밋 only).
+- 증거: pytest **220 passed**(+8), ruff 클린, watchlist_smoke add/list/page/remove 200 확인(Read).
+- 평가자: 게이트 직접 실행 확인(이전 세션 code-reviewer APPROVE 이력).
+- 커밋: (이 커밋, 로컬)
+- 다음: 밤샘 루프가 B3 지도(/map)부터 사이클 진행. 3사이클마다 감사(다관점) 삽입. push는 아침 운영자 리뷰.
+
 ## 2026-07-02 16:15 KST — 🚀 T5 완료: 전국 재채점·배포 (+PK충돌 규모 확인)
 - 무엇: 캐시 4,956건 + 라이브 MOLIT(ym 202605) 재채점 완료(exit 0) → auction.db replace_all 적재 → 서버 재시작·검증. (별도 세션이 /stats·/calendar 사이클 병행 중 — 이 항목은 T5 배포분.)
   - **배포 검증(게이트 통과)**: /health `data_source: db`, 목록 렌더, 현재 마커(예상차익·gapmeter·권리미확인·라이브 DB·1주택) 전부. http://127.0.0.1:8000.

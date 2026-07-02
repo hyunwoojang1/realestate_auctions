@@ -31,15 +31,12 @@
 - 평가자 PASS · 감사 APPROVE. MEDIUM 2건 즉시 수정(dim CSS .params 적용, 비ISO sale_date → 미상 집계).
   잔여 노트: warnbadge 매크로 3벌 중복(기존 관례 — 통합 리팩터는 별도 항목 후보), '오늘' 뱃지 b-unknown 재사용(LOW).
 
-## [ready] B2 관심물건 웹 UI `/watchlist` (출처: jiji-auction.md, tank-auction.md)
-- 왜: 두 레퍼런스 공통 기본기능 "관심물건+변동 알림". 우리 V2 watchlist(CLI/파일)를 웹으로 승격 —
-  추가/제거 버튼, 스냅샷 대비 변동(스코어 상승·유찰·취하) 표시.
-- 완료 정의:
-  - [ ] `GET /watchlist` + `POST/DELETE /api/watchlist/<case_no>` + test_client 테스트
-  - [ ] 기존 V2 diff 로직 재사용(중복 구현 금지) 확인
-  - [ ] 목록/상세 페이지에 관심 토글 버튼
-  - [ ] evidence/watchlist_web_smoke.txt Read 확인 + pytest 전체 + ruff 클린
-- 제약: 로컬 단일 사용자 전제(인증 없음 — 외부 공개 시 재검토 항목으로 QUESTIONS에 남길 것)
+## [done] B2 관심물건 웹 UI `/watchlist` (사이클 #4, 2026-07-03)
+- 완료: src/watchlist.py 웹 승격 + /watchlist 페이지 + 토글(POST /watchlist/toggle/<case_no>) +
+  목록·상세 ☆ 버튼. 관심 case_no set 세션 파일 저장.
+  - [x] pytest 220 passed(+8 watchlist 웹 테스트) / [x] ruff 클린
+  - [x] evidence 스모크(scripts/watchlist_smoke.py): add/list/page/remove 전부 200 확인
+- 잔여 노트: 로컬 단일 사용자 전제(인증 없음 — 외부 공개 시 QUESTIONS 재검토). warnbadge 매크로 중복(기존 관례).
 
 ## [ready] B3 지도 뷰 `/map` (출처: 두 레퍼런스 공통 기본기능)
 - 왜: 지도검색은 양쪽 모두 핵심 진입점. Leaflet+OSM 타일(키 불요)로 물건 핀 + 스코어 색상.
