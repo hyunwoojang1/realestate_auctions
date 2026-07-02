@@ -23,7 +23,7 @@
 - 증거: evidence/snapshot_missing_smoke.txt ([없음]안내O·[빈{}]오안내사라짐+변동없음O·[손상]배너O) Read 확인.
 - 게이트: pytest 244 passed(+2), ruff 클린.
 - 평가자: PASS (CRITICAL/HIGH/MEDIUM/LOW 0).
-- 커밋: (로컬, 아래 해시)
+- 커밋: a17e9ac (로컬, push 안 함)
 - 다음: 사이클 #12 = 감사 사이클(12%3==0) → 다관점 병렬 감사 후 CRITICAL/HIGH만 수정하고 **루프 종료**(운영자 아침 리뷰 대기).
 
 ## 2026-07-03 03:25 KST — ⤓ 사이클 #10: B7 CSV 내보내기 (/export.csv)
