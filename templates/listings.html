@@ -87,7 +87,7 @@
   </div>
   <div class="hero-why">
     {% if top.expected_profit is not none %}
-      <div class="gapline {% if top.expected_profit < 0 %}neg{% endif %}"><span class="amt">{{ won(top.expected_profit) }}</span><span>예상 순차익</span></div>
+      <div class="gapline {% if top.expected_profit < 0 %}neg{% endif %}"><span class="amt">{{ won(top.expected_profit) }}</span><span>예상 차익</span></div>
       <div style="font-size:var(--t-note);color:var(--muted);margin-top:2px">시세 대비 {{ pct(top.gap_rate) }}</div>
     {% else %}
       <div class="gm-na2">시세추정불가</div>
@@ -131,5 +131,6 @@
 </div></div>
 
 <p class="foot">⚠ <b>권리미확인</b> 등급은 물건상세 권리분석 전(라이브 크롤) 상태로, 초록 안전표시를 하지 않습니다.
-차익·권리는 투자판단 보조이며 전문가(법무사 등) 상담을 대체하지 않습니다. 실질취득원가 = 최저입찰가 + 취득세 + 명도비 + 수리비 + 인수금액.</p>
+예상 차익 = 추정시세 − (최저입찰가 + 취득세). <b>명도·수리·권리 인수금액 등 물건별 변동비는 제외</b>한 객관 수치이니 별도 확인하세요.
+차익·권리는 투자판단 보조이며 전문가(법무사 등) 상담을 대체하지 않습니다.</p>
 {% endblock %}

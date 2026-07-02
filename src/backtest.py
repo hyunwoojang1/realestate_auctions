@@ -13,7 +13,6 @@ import json
 from pathlib import Path
 
 from . import pipeline, score
-from .config import CONFIG
 
 ROOT = Path(__file__).resolve().parent.parent
 DATA = ROOT / "data"
@@ -34,14 +33,8 @@ def load_outcomes(path: str | Path | None = None) -> dict:
 
 
 def realized_cost(listing, actual_nakchal: int) -> int:
-    """실제 낙찰가 기준 실질취득원가 (취득세·명도·수리·인수금액 포함)."""
-    return (
-        actual_nakchal
-        + score.acquisition_tax(actual_nakchal)
-        + CONFIG.eviction_cost.get(listing.occupant_type, CONFIG.eviction_cost_default)
-        + score.repair_cost(listing.area_m2)
-        + listing.assumed_amount
-    )
+    """실제 낙찰가 기준 취득원가(객관) = 낙찰가 + 취득세."""
+    return actual_nakchal + score.acquisition_tax(actual_nakchal, listing.property_type)
 
 
 def evaluate(scored=None, auctions=None, outcomes=None) -> list[dict]:

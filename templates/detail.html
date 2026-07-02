@@ -26,7 +26,7 @@
   </div>
   <div class="hero-mid">
     {% if s.expected_profit is not none %}
-      <div class="gapline {% if s.expected_profit < 0 %}neg{% endif %}" style="font-size:var(--t-price)"><span class="amt">{{ won(s.expected_profit) }}</span><span style="font-size:var(--t-data);color:var(--muted);font-weight:600">예상 순차익 · 시세 대비 {{ pct(s.gap_rate) }}</span></div>
+      <div class="gapline {% if s.expected_profit < 0 %}neg{% endif %}" style="font-size:var(--t-price)"><span class="amt">{{ won(s.expected_profit) }}</span><span style="font-size:var(--t-data);color:var(--muted);font-weight:600">예상 차익 · 시세 대비 {{ pct(s.gap_rate) }}</span></div>
       <div style="margin-top:12px;max-width:460px">{{ meter|safe }}</div>
     {% else %}
       <div class="gm-na2" style="font-size:var(--t-price)">시세 추정 불가</div>
@@ -41,11 +41,13 @@
 <div class="cards">
   <!-- 근거(evidence) -->
   <div class="card">
-    <h2>차익 근거</h2>
+    <h2>차익 근거 (객관)</h2>
+    <div class="kv"><span class="k">감정가 <span style="color:var(--muted-2)">(1차 시작가·참고)</span></span><span class="v">{{ won(s.appraisal_price) }}</span></div>
+    <div class="kv"><span class="k">유찰</span><span class="v">{{ s.fail_count }}회{% if s.appraisal_price > 0 %} · 저감 {{ pct(1 - s.min_bid_price / s.appraisal_price) }}{% endif %}</span></div>
+    <div class="kv"><span class="k">최저입찰가 <span style="color:var(--muted-2)">(현재 회차 시작가)</span></span><span class="v">{{ won(s.min_bid_price) }}</span></div>
+    <div class="kv"><span class="k">취득세 <span style="color:var(--muted-2)">(1주택 기준)</span></span><span class="v">{{ won(s.real_acquisition_cost - s.min_bid_price) }}</span></div>
+    <div class="kv"><span class="k">취득원가 <span style="color:var(--muted-2)">(최저가 + 취득세)</span></span><span class="v">{{ won(s.real_acquisition_cost) }}</span></div>
     <div class="kv"><span class="k">추정 실거래 시세</span><span class="v">{{ won(s.est_market_price) }}</span></div>
-    <div class="kv"><span class="k">최저입찰가</span><span class="v">{{ won(s.min_bid_price) }}</span></div>
-    <div class="kv"><span class="k">실질취득원가(부대비용 포함)</span><span class="v">{{ won(s.real_acquisition_cost) }}</span></div>
-    <div class="kv"><span class="k">감정가 <span style="color:var(--muted-2)">(참고 · 시세 아님)</span></span><span class="v">{{ won(s.appraisal_price) }}</span></div>
     <div class="kv"><span class="k">매칭 실거래 / 신뢰계수</span><span class="v">{{ s.matched_trades }}건 · {{ '%.2f'|format(s.confidence) }}</span></div>
   </div>
 
@@ -79,6 +81,7 @@
   </div>
 </div>
 
-<p class="foot">실질취득원가 = 최저입찰가 + 취득세 + 명도비 + 수리비 + 인수금액. 미납관리비 등 일부 비용은 미반영일 수 있어
-"예상 순차익"은 추정치입니다. 차익·권리는 투자판단 보조이며 전문가(법무사 등) 상담을 대체하지 않습니다.</p>
+<p class="foot"><b>취득원가 = 최저입찰가 + 취득세(1주택 기준)</b>만 반영한 객관 수치입니다.
+명도비·수리비·권리 인수금액·미납관리비 등 물건별 변동비용은 <b>제외</b>돼 있으니 별도로 확인·차감하세요.
+"예상 차익"은 추정 시세 기준 추정치이며, 투자판단 보조로 전문가(법무사 등) 상담을 대체하지 않습니다.</p>
 {% endblock %}

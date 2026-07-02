@@ -14,10 +14,25 @@ def _base(**kw) -> AuctionListing:
     return AuctionListing(**d)
 
 
-def test_acquisition_tax_brackets():
-    assert score.acquisition_tax(500_000_000) == round(500_000_000 * 0.011)
-    assert score.acquisition_tax(700_000_000) == round(700_000_000 * 0.022)
-    assert score.acquisition_tax(1_000_000_000) == round(1_000_000_000 * 0.033)
+def test_acquisition_tax_housing_and_nonhousing():
+    # 주택: 6억↓ 1.1% / 9억↑ 3.3% / 6~9억 선형 누진(7.5억=본세2%×1.1=2.2%)
+    assert score.acquisition_tax(500_000_000, "아파트") == round(500_000_000 * 0.011)
+    assert score.acquisition_tax(600_000_000, "아파트") == round(600_000_000 * 0.011)
+    assert score.acquisition_tax(750_000_000, "아파트") == round(750_000_000 * 0.022)
+    assert score.acquisition_tax(900_000_000, "아파트") == round(900_000_000 * 0.033)
+    assert score.acquisition_tax(1_000_000_000, "아파트") == round(1_000_000_000 * 0.033)
+    # 비주택(오피스텔/상가/토지) = 4.6% 고정
+    assert score.acquisition_tax(500_000_000, "오피스텔") == round(500_000_000 * 0.046)
+    assert score.acquisition_tax(500_000_000, "상가") == round(500_000_000 * 0.046)
+    assert score.acquisition_tax(300_000_000, "토지") == round(300_000_000 * 0.046)
+
+
+def test_acquisition_cost_is_bid_plus_tax_only():
+    """취득원가 = 최저입찰가 + 취득세. 명도·수리·인수 등 주관적 비용 미포함."""
+    lst = _base(min_bid_price=400_000_000, property_type="아파트", occupant_type="다수점유",
+                assumed_amount=50_000_000, area_m2=100.0)
+    cost = score.real_acquisition_cost(lst)
+    assert cost == 400_000_000 + score.acquisition_tax(400_000_000, "아파트")  # 점유·면적·인수 무관
 
 
 def test_gap_score_interpolation():
@@ -89,8 +104,8 @@ def test_no_market_estimate_is_honest():
 
 
 def test_negative_gap_is_labeled_no_profit():
-    """순차익 0 이하면 권리·환금이 좋아도 '차익없음'으로 표기(오해 방지)."""
-    lst = _base(min_bid_price=550_000_000, occupant_type="공실")
+    """취득원가(최저가+취득세)가 시세를 웃돌면 권리·환금이 좋아도 '차익없음'."""
+    lst = _base(min_bid_price=565_000_000, occupant_type="공실")
     s = score.score_listing(lst, est_market_price=560_000_000, matched_trades=3)
     assert s.expected_profit < 0
     assert s.grade == "차익없음"

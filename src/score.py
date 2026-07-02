@@ -20,27 +20,34 @@ def confidence_from_matches(n: int) -> float:
     return CONFIG.confidence_ladder[-1][1]
 
 
-def acquisition_tax(price: int) -> int:
-    """유상취득·주택 기준 단순화. config의 구간율 사용."""
-    for limit, rate in CONFIG.acq_tax_brackets:
-        if limit is None or price <= limit:
-            return round(price * rate)
-    return round(price * CONFIG.acq_tax_brackets[-1][1])
+def acquisition_tax(price: int, property_type: str = "") -> int:
+    """취득세 추정 — 1주택 취득·중과 제외 객관 베이스라인(지방교육세 포함).
 
-
-def repair_cost(area_m2: float) -> int:
-    return round(area_m2 * CONFIG.repair_per_m2)
+    비주택(오피스텔·상가·업무·토지) = 4.6% 고정.
+    주택 = 6억↓ 1.1% / 6~9억 선형 누진(1.1→3.3%) / 9억↑ 3.3%.
+    (85㎡ 초과 농특세, 다주택·조정지역 중과는 매수인 상황에 따라 달라 제외.)
+    """
+    if (property_type or "").strip() in CONFIG.nonhousing_types:
+        return round(price * CONFIG.acq_tax_nonhousing)
+    if price <= 600_000_000:
+        rate = CONFIG.acq_tax_housing_low
+    elif price <= 900_000_000:
+        # 본세 = (가액 × 2 / 3억 − 3) / 100, 지방교육세 = 본세 × 10% → 합계 = 본세 × 1.1.
+        base = (price * 2 / 300_000_000 - 3) / 100
+        rate = max(0.01, min(0.03, base)) * 1.1
+    else:
+        rate = CONFIG.acq_tax_housing_high
+    return round(price * rate)
 
 
 def real_acquisition_cost(listing: AuctionListing) -> int:
-    """실질취득원가 = 최저가 + 취득세 + 명도비 + 수리비 + 인수금액."""
-    return (
-        listing.min_bid_price
-        + acquisition_tax(listing.min_bid_price)
-        + CONFIG.eviction_cost.get(listing.occupant_type, CONFIG.eviction_cost_default)
-        + repair_cost(listing.area_m2)
-        + listing.assumed_amount
-    )
+    """취득원가(객관) = 최저입찰가 + 취득세.
+
+    명도비·수리비·권리 인수금액 등 물건별 편차가 큰 주관적/변동 비용은 제외한다.
+    공개 사실(최저입찰가)과 법정 세율(취득세)만으로 산정해 과대추정·허위정밀을 피한다.
+    그 변동비용은 상세페이지에서 '별도 발생 가능' 경고로만 안내한다.
+    """
+    return listing.min_bid_price + acquisition_tax(listing.min_bid_price, listing.property_type)
 
 
 def gap_score_from_rate(gap_rate: float) -> float:
