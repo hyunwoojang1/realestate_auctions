@@ -308,9 +308,14 @@ def parse_row(raw: dict) -> CourtAuctionRecord:
 def to_auction_listing(rec: CourtAuctionRecord) -> AuctionListing:
     """차익 스코어 파이프라인(matcher/score)이 쓰는 기존 모델로 변환.
 
-    권리 필드(인수금액·특수권리·임차인)는 리스트 검색엔 없으므로 기본값.
-    물건상세(감정평가서/등기) 확장 시 채워질 자리.
+    대항력·인수금액·점유 등 완전한 권리분석은 물건상세(D)에서만 가능하므로 rights_verified=False로
+    두어 '권리미확인' 게이트를 유지한다. 다만 리스트 '비고(mulBigo)'에 유치권·지분 등 특수권리
+    플래그가 박혀 있으면 Tier-0 힌트로 뽑아 하드게이트('위험')는 미리 발동시킨다(무료·네트워크 0).
+    비고는 짧은 메모라 보수적(키워드 출현=위험)으로만 쓰고, 완전검증은 상세 보강 시 대체된다.
     """
+    from .courtauction_rights import detect_special_rights  # noqa: PLC0415 — 순환 import 회피
+
+    special = detect_special_rights(rec.note) if rec.note else []
     return AuctionListing(
         case_no=rec.case_no,
         court=rec.court,
@@ -324,4 +329,5 @@ def to_auction_listing(rec: CourtAuctionRecord) -> AuctionListing:
         min_bid_price=rec.min_bid_price,
         fail_count=rec.fail_count,
         sale_date=rec.sale_date,
+        special_rights=special,   # 비고 힌트(Tier-0). rights_verified는 상세(D) 전까지 False 유지.
     )
