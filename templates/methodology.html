@@ -22,7 +22,7 @@
 
 <h2>3. 파라미터</h2>
 <table class="params">
-<thead><tr><th>항목</th><th>값</th></tr></thead>
+<thead><tr><th scope="col">항목</th><th scope="col">값</th></tr></thead>
 <tbody>
 <tr><td>가중치 (가격갭 / 권리 / 환금성)</td><td class="num">{{ '%.0f'|format(cfg.w_gap*100) }}% / {{ '%.0f'|format(cfg.w_rights*100) }}% / {{ '%.0f'|format(cfg.w_liq*100) }}%</td></tr>
 <tr><td>취득세 구간</td><td class="num">{% for lim, rate in cfg.acq_tax_brackets %}{{ '%.0f억 이하'|format(lim/100000000) if lim else '초과' }}: {{ '%.1f'|format(rate*100) }}%{% if not loop.last %} · {% endif %}{% endfor %}</td></tr>
@@ -37,7 +37,7 @@
 실제 낙찰 데이터가 연동되면 동일 하네스가 진짜 적중률을 산출합니다.</div>
 <p class="label" style="margin:0 0 8px">스코어 구간별 적중률(실현차익&gt;0 비율)과 평균 실현차익 — 샘플 기준</p>
 <table class="params">
-<thead><tr><th>스코어 구간</th><th class="num">건수</th><th class="num">적중률</th><th class="num">평균 실현차익</th></tr></thead>
+<thead><tr><th scope="col">스코어 구간</th><th class="num" scope="col">건수</th><th class="num" scope="col">적중률</th><th class="num" scope="col">평균 실현차익</th></tr></thead>
 <tbody>
 {% for c in cal %}
 <tr>

@@ -5,20 +5,20 @@
 {%- if sc is none -%}na{%- elif sc>=90 -%}sc-90{%- elif sc>=75 -%}sc-75{%- elif sc>=60 -%}sc-60{%- else -%}sc-lt60{%- endif -%}
 {%- endmacro -%}
 {%- macro bcls(g) -%}
-{%- if g=='차익 유력' -%}b-top{%- elif g=='양호' -%}b-good{%- elif g=='관심' -%}b-mid{%- elif g in ['주의','위험'] -%}b-risk{%- elif g=='권리미확인' -%}b-unknown{%- else -%}b-none{%- endif -%}
+{%- if g=='차익 유력' -%}b-top{%- elif g=='양호' -%}b-good{%- elif g=='관심' -%}b-mid{%- elif g in ['주의','위험'] -%}b-risk{%- elif g=='권리미확인' -%}b-unknown{%- elif g=='시세추정불가' -%}b-na{%- else -%}b-none{%- endif -%}
 {%- endmacro -%}
 
 {% block content %}
 <a class="back" href="/">← 차익 큐레이션 목록</a>
 
 <div style="display:flex;flex-wrap:wrap;gap:12px;align-items:baseline;margin:12px 0 6px">
-  <h1 class="page-h" style="margin:0">{{ s.apt_name }}</h1>
+  <h1 class="page-h" style="margin:0">{{ s.apt_name or s.property_type }}</h1>
   <span class="caseid mono" style="color:var(--muted-2)">{{ s.case_no }}</span>
 </div>
 <div class="page-sub">{{ s.address }} · {{ s.property_type }} · {{ '%.1f'|format(s.area_m2) }}㎡ · 유찰 {{ s.fail_count }}회 · 매각기일 {{ s.sale_date }}</div>
 
 <!-- 판정 헤더(verdict) -->
-<div class="hero" style="margin-top:20px">
+<div class="hero{% if not s.rights_verified %} unv{% endif %}" style="margin-top:20px">
   <div class="hero-score">
     <div class="n {{ sccls(s.arb_score) }}">{{ '%.0f'|format(s.arb_score) if s.arb_score is not none else '—' }}</div>
     {% if s.arb_score is not none %}<div class="scorebar {{ sccls(s.arb_score) }}"><i style="width:{{ '%.0f'|format(s.arb_score) }}%;background:currentColor"></i></div>{% endif %}

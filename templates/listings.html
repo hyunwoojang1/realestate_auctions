@@ -5,7 +5,7 @@
 {%- if sc is none -%}na{%- elif sc>=90 -%}sc-90{%- elif sc>=75 -%}sc-75{%- elif sc>=60 -%}sc-60{%- else -%}sc-lt60{%- endif -%}
 {%- endmacro -%}
 {%- macro bcls(g) -%}
-{%- if g=='차익 유력' -%}b-top{%- elif g=='양호' -%}b-good{%- elif g=='관심' -%}b-mid{%- elif g in ['주의','위험'] -%}b-risk{%- elif g=='권리미확인' -%}b-unknown{%- else -%}b-none{%- endif -%}
+{%- if g=='차익 유력' -%}b-top{%- elif g=='양호' -%}b-good{%- elif g=='관심' -%}b-mid{%- elif g in ['주의','위험'] -%}b-risk{%- elif g=='권리미확인' -%}b-unknown{%- elif g=='시세추정불가' -%}b-na{%- else -%}b-none{%- endif -%}
 {%- endmacro -%}
 {%- macro ccls(c) -%}{%- if c>=0.85 -%}high{%- elif c>=0.70 -%}mid{%- else -%}low{%- endif -%}{%- endmacro -%}
 
@@ -21,7 +21,7 @@
 {%- endmacro -%}
 
 {%- macro confchip(s) -%}
-<span class="conf {{ ccls(s.confidence) }}">신뢰 {{ '%.2f'|format(s.confidence) }} · {{ s.matched_trades }}건</span>
+<span class="conf {{ ccls(s.confidence) }}">신뢰 {{ '%.2f'|format(s.confidence) }} · 실거래 {{ s.matched_trades }}건</span>
 {%- endmacro -%}
 
 {% block content %}
@@ -32,7 +32,7 @@
 <p class="page-sub">법원경매 최저입찰가와 국토부 실거래 시세의 <b>차익 스코어(0~100)</b> 순.
 뱃지는 항상 <b>최저가 → 시세 · 예상차익</b>과 함께 봅니다. 산식은 <a href="/methodology">방법론</a> 참고.</p>
 
-<div class="insight">
+<div class="insight{% if confident|length == 0 %} flat{% endif %}">
   <span><span class="k">표시</span> <span class="v">{{ count }}건</span></span>
   <span><span class="k">차익 유력</span> <span class="v pos">{{ confident|length }}건</span></span>
   {% if actionable %}
@@ -74,14 +74,14 @@
 
 {% if items %}
 {% set top = items[0] %}
-<div class="hero">
+<div class="hero{% if top.grade == '권리미확인' %} unv{% endif %}">
   <div class="hero-score">
     <div class="n {{ sccls(top.arb_score) }}">{{ '%.0f'|format(top.arb_score) if top.arb_score is not none else '—' }}</div>
     {% if top.arb_score is not none %}<div class="scorebar {{ sccls(top.arb_score) }}"><i style="width:{{ '%.0f'|format(top.arb_score) }}%;background:currentColor"></i></div>{% endif %}
     <div style="margin-top:8px">{{ badge(top) }}</div>
   </div>
   <div class="hero-mid">
-    <a href="/property/{{ top.case_no }}" class="name" style="color:inherit">{{ top.apt_name }}</a>
+    <a href="/property/{{ top.case_no }}" class="name" style="color:inherit">{{ top.apt_name or top.property_type }}</a>
     <div class="addr">{{ top.address }} · {{ top.property_type }} · {{ '%.0f'|format(top.area_m2) }}㎡ · 유찰 {{ top.fail_count }}회</div>
     <div style="margin-top:12px;max-width:420px">{{ meter(top)|safe }}</div>
   </div>
@@ -101,16 +101,16 @@
 <div class="tablewrap"><div class="scrollx">
 <table class="picks">
 <thead><tr>
-  <th class="rank">#</th><th>스코어</th><th>등급</th><th>단지 / 소재지</th>
-  <th>갭 (최저가 → 시세)</th><th class="r">예상차익</th><th class="r">신뢰</th>
+  <th class="rank" scope="col">#</th><th scope="col">스코어</th><th scope="col">등급</th><th scope="col">단지 / 소재지</th>
+  <th scope="col">갭 (최저가 → 시세)</th><th class="r" scope="col">예상차익</th><th class="r" scope="col">신뢰</th>
 </tr></thead>
 <tbody>
 {% for s in items[1:] %}
-<tr class="{% if s.grade == '차익 유력' %}hot{% elif s.arb_score is none or s.arb_score < 60 %}dim{% endif %}">
+<tr class="{% if s.grade == '차익 유력' %}hot{% elif s.arb_score is none or s.arb_score < 60 %}dim{% endif %}{% if s.grade == '권리미확인' %} unv{% endif %}">
   <td class="rank num">{{ loop.index + 1 }}</td>
   <td>{{ scorecell(s) }}</td>
   <td>{{ badge(s) }}</td>
-  <td><a class="name" href="/property/{{ s.case_no }}">{{ s.apt_name }}</a>
+  <td><a class="name" href="/property/{{ s.case_no }}">{{ s.apt_name or s.property_type }}</a>
       <div class="addr">{{ s.address }} · {{ s.property_type }} · {{ '%.0f'|format(s.area_m2) }}㎡</div>
       <div class="caseid">{{ s.case_no }}</div></td>
   <td class="gapmeter-cell">{{ meter(s)|safe }}</td>

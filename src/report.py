@@ -70,29 +70,41 @@ def _score_badge(s: ScoredListing) -> str:
 
 
 def _gap_meter(s: ScoredListing) -> str:
-    """감정가/최저가/추정시세 3중 막대 — 최저가→시세 갭을 시그널그린으로 강조."""
-    base = max(s.appraisal_price, s.min_bid_price, s.est_market_price or 0)
+    """최저가 vs 추정시세 비교 막대. 차익=초록, 시세 초과(손실)=적색, 시세없음=점선.
+
+    감정가 눈금(gm-appr)은 제거 — 트랙 overflow에 잘려 보이지 않고 title-only라 접근 불가였음.
+    감정가는 상세페이지 kv에서 확인.
+    """
+    base = max(s.min_bid_price, s.est_market_price or 0)
     if base <= 0:
         return '<div class="gm-na2">—</div>'
     min_pct = s.min_bid_price / base * 100
-    appr_pct = s.appraisal_price / base * 100
-    if s.est_market_price:
-        mkt_pct = s.est_market_price / base * 100
-        gap_pct = max(0.0, mkt_pct - min_pct)
+    if not s.est_market_price:
+        # 시세추정불가 — 초록 갭 없이 최저가 막대만.
         return (
             '<div class="gapmeter"><div class="gm-track">'
-            f'<div class="gm-min" style="width:{min_pct:.1f}%"></div>'
-            f'<div class="gm-gap" style="left:{min_pct:.1f}%;width:{gap_pct:.1f}%"></div>'
-            f'<span class="gm-appr" style="left:{appr_pct:.1f}%" title="감정가 {_won(s.appraisal_price)}"></span>'
-            '</div>'
+            f'<div class="gm-min" style="width:{min_pct:.1f}%"></div></div>'
             f'<div class="gm-lab"><span>최저 {_won(s.min_bid_price)}</span>'
-            f'<span class="gm-gv">{_pct(s.gap_rate)} 갭 · 시세 {_won(s.est_market_price)}</span></div></div>'
+            '<span class="gm-na2">시세추정불가</span></div></div>'
         )
+    mkt_pct = s.est_market_price / base * 100
+    if s.min_bid_price >= s.est_market_price:
+        # 최저가 ≥ 시세 = 차익 없음/손실. 초록 대신 적색 초과구간으로 정직하게.
+        over_pct = max(0.0, min_pct - mkt_pct)
+        return (
+            '<div class="gapmeter"><div class="gm-track">'
+            f'<div class="gm-min" style="width:{mkt_pct:.1f}%"></div>'
+            f'<div class="gm-over" style="left:{mkt_pct:.1f}%;width:{over_pct:.1f}%"></div></div>'
+            f'<div class="gm-lab"><span>시세 {_won(s.est_market_price)}</span>'
+            f'<span class="gm-loss">최저 {_won(s.min_bid_price)} · 차익없음</span></div></div>'
+        )
+    gap_pct = max(0.0, mkt_pct - min_pct)
     return (
         '<div class="gapmeter"><div class="gm-track">'
-        f'<div class="gm-min" style="width:{min_pct:.1f}%"></div></div>'
+        f'<div class="gm-min" style="width:{min_pct:.1f}%"></div>'
+        f'<div class="gm-gap" style="left:{min_pct:.1f}%;width:{gap_pct:.1f}%"></div></div>'
         f'<div class="gm-lab"><span>최저 {_won(s.min_bid_price)}</span>'
-        '<span class="gm-na2">시세추정불가</span></div></div>'
+        f'<span class="gm-gv">{_pct(s.gap_rate)} 갭 · 시세 {_won(s.est_market_price)}</span></div></div>'
     )
 
 
