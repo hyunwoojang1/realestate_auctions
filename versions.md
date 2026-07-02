@@ -24,7 +24,7 @@
 - 증거: evidence/export_smoke.txt (200·text/csv·attachment·BOM True·데이터 6행=/api/listings 일치·min_profit=1 필터 4행 일치) Read 확인.
 - 게이트: pytest 242 passed(+8), ruff 클린.
 - 평가자: PASS. LOW(to_csv 중복 Path 호출) 즉시 정리, MEDIUM(CSV 인젝션 완화)→BACKLOG B11 이월.
-- 커밋: (로컬, 아래 해시)
+- 커밋: 7a88150 (로컬, push 안 함)
 - 다음: 사이클 #11 = B9 스냅샷없음 vs 빈스냅샷 구분(감사 이월). #12는 감사 사이클 후 자동 종료.
 
 ## 2026-07-03 02:58 KST — 🔎 사이클 #9(감사): B6/B8 다관점 감사 + HIGH 즉시 수정
