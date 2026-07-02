@@ -58,6 +58,12 @@ def test_export_route_utf8_sig_bom(client):
     assert r.data.startswith(b"\xef\xbb\xbf")   # 엑셀 한글 인식용 UTF-8-SIG BOM
 
 
+def test_export_route_marks_sample_source(client):
+    # 샘플 폴백(비-라이브) 데이터는 파일명에 출처를 각인 — 저장된 파일만 봐도 라이브 오인 방지(감사 HIGH)
+    cd = client.get("/export.csv").headers.get("Content-Disposition", "")
+    assert "_SAMPLE" in cd   # 테스트 환경은 AUCTION_DB 미설정 → sample(no-db)
+
+
 def test_export_route_rowcount_matches_filter(client):
     # 데이터 행수(헤더 제외) == 동일 쿼리의 /api/listings 결과 수
     api = client.get("/api/listings").get_json()

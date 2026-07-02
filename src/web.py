@@ -153,10 +153,14 @@ def create_app() -> Flask:
     def export_csv():
         # 목록과 동일 필터·정렬 결과를 CSV로 다운로드(엑셀 검토용). 순수 조회.
         items = _filtered(request.args)
+        # 저장된 CSV 파일만 봐도 출처를 알 수 있게 파일명에 각인 — 샘플 폴백(DB 장애/미적재)을
+        # 라이브로 오인하는 침묵실패 방지(감사 #12 HIGH). db가 아니면 _SAMPLE 접미사.
+        src = getattr(g, "data_source", "n/a")
+        fname = "auction_arbitrage.csv" if src == "db" else "auction_arbitrage_SAMPLE.csv"
         # UTF-8-SIG BOM: 엑셀이 한글을 깨지 않게. report.csv_text 재사용(중복 구현 금지).
         body = "﻿" + report.csv_text(items)
         resp = app.response_class(body, mimetype="text/csv")
-        resp.headers["Content-Disposition"] = 'attachment; filename="auction_arbitrage.csv"'
+        resp.headers["Content-Disposition"] = f'attachment; filename="{fname}"'
         resp.charset = "utf-8"
         return resp
 
