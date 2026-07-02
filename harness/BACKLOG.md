@@ -38,7 +38,26 @@
   - [x] evidence 스모크(scripts/watchlist_smoke.py): add/list/page/remove 전부 200 확인
 - 잔여 노트: 로컬 단일 사용자 전제(인증 없음 — 외부 공개 시 QUESTIONS 재검토). warnbadge 매크로 중복(기존 관례).
 
-## [ready] B3 지도 뷰 `/map` (출처: 두 레퍼런스 공통 기본기능)
+## [ready] B6 물건 비교 뷰 `/compare` (출처: overseas-foreclosure.md — auction.com/Zillow compare)
+- 왜: 투자자가 후보 2~4건을 나란히 비교(예상차익·최저가·시세·취득세·유찰·신뢰·경고)해 좁히는 실전 도구. "콕 집어주는" 컨셉과 정합. 완전 오프라인(기존 DB만).
+- 완료 정의(전부 false):
+  - [ ] `GET /compare?case=A&case=B...`(2~4건) SSR 비교표 + 없는 case_no 무시 + test_client 테스트
+  - [ ] 목록/상세에서 비교 담기 링크(관심물건 재사용 가능)
+  - [ ] evidence/compare_smoke.txt Read 확인 + pytest 전체 + ruff 클린
+- 제약: 좌표·라이브 불요. 순수 조회.
+
+## [ready] B7 CSV 내보내기 `/export.csv` (출처: overseas-foreclosure.md)
+- 왜: 현재 필터·정렬 결과를 CSV로 저장(엑셀 검토). report.to_csv 이미 존재 → 웹 다운로드만.
+- 완료 정의(전부 false):
+  - [ ] `GET /export.csv`(목록과 동일 필터 쿼리 재사용) — Content-Disposition attachment, UTF-8-SIG
+  - [ ] test_client 테스트(200·text/csv·행수=필터결과) + report.to_csv 재사용 확인(중복 구현 금지)
+  - [ ] evidence/export_smoke.txt Read 확인 + pytest 전체 + ruff 클린
+- 제약: 순수 조회, 오프라인.
+
+## [blocked] B3 지도 뷰 `/map` (출처: 두 레퍼런스 공통 기본기능) — QUESTIONS Q1 대기
+- 블로킹 사유(2026-07-03 사이클#5): 좌표계 문제. courtauction `wgs84Xcordi/Ycordi`는 정수부만(127/37, 무용),
+  `xCordi/yCordi`는 투영좌표인데 CRS 식별 모호(역산 시 경도 128.2°로 서울과 불일치) + pyproj 미설치.
+  무인 손계산 변환은 핀 오배치 위험 → 운영자 결정 필요(QUESTIONS Q1). 결정 나면 [ready] 복귀.
 - 왜: 지도검색은 양쪽 모두 핵심 진입점. Leaflet+OSM 타일(키 불요)로 물건 핀 + 스코어 색상.
   좌표는 V-World 지오코더(키 보유)로 배치 1회 변환 후 **로컬 캐시**(재호출 금지).
 - 완료 정의:

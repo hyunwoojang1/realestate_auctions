@@ -15,6 +15,18 @@
 
 ---
 
+## 2026-07-03 01:02 KST — 🔍 사이클 #5(탐색): 해외 레퍼런스 → B6 비교·B7 CSV 추가, B3 지도 blocked
+- 무엇: BACKLOG [ready] 최상위 B3(지도)를 착수하려 했으나 **좌표계 문제로 blocked** 판정.
+  courtauction `wgs84Xcordi/Ycordi`=정수부만(127/37, 무용), `xCordi/yCordi`=투영좌표인데 역산 경도 128.2°로
+  서울 불일치 → CRS 모호 + pyproj 미설치. 무인 손변환은 핀 오배치 위험 → QUESTIONS Q1(운영자 결정) 등록.
+  대신 탐색 모드: 해외 레퍼런스(Zillow foreclosure·auction.com) 분석(docs/references/overseas-foreclosure.md) →
+  오프라인 구현가능 갭으로 **B6 물건비교(/compare)·B7 CSV 내보내기** [ready] 추가.
+- 증거: docs/references/overseas-foreclosure.md 작성, BACKLOG 갱신(B3 blocked·B6/B7 ready), QUESTIONS Q1.
+  코드 변경 없음(md만) → pytest 220 불변.
+- 평가자: 탐색 사이클(구현 없음, 평가 생략) — LOOP.md 2' 절차.
+- 커밋: (이 커밋, 로컬)
+- 다음: 사이클 #6 = B6 물건 비교(/compare) 구현(오프라인, TDD). Q1은 비블로킹이라 루프 계속. 푸시알림은 운영자 취침으로 아침 확인용 QUESTIONS만.
+
 ## 2026-07-03 00:44 KST — ✅ 사이클 #4: B2 관심물건 웹 UI (/watchlist) 완결 커밋 + 밤샘루프 재개
 - 무엇: 이전 세션이 미커밋으로 남긴 B2(관심물건 웹) 사이클을 게이트 통과 확인 후 완결.
   /watchlist 페이지 + 토글 버튼(목록·상세 ☆), src/watchlist.py 웹 승격, 신규 test_watchlist_web.py.
