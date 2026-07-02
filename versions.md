@@ -15,6 +15,20 @@
 
 ---
 
+## 2026-07-02 16:14 KST — 📅 사이클 #3: B1 경매 일정 캘린더 (/calendar)
+- 무엇: 지지옥션 '경매 캘린더' 모방(TDD).
+  - `src/sale_calendar.py` — 순수 함수 5개(기일별 그룹핑·예정/과거 분리(오늘 포함)·월 묶음·
+    기일미상 카운트·요일). **비ISO sale_date 방어**(크롤 원문 잔여물은 미상으로 집계, 오정렬 차단).
+  - `GET /calendar` — 월별 뷰, 예정/전체 토글(?all=1), 오늘 뱃지, 물건 상세 링크, 지난 기일 dim.
+    base.html 내비 '일정' 링크 + `.params tr.dim` CSS 추가. `scripts/calendar_smoke.py`.
+  - tests/test_sale_calendar.py 9개(정렬·경계 오늘 포함·미상·비정상형식·월묶음·요일·라우트).
+- 증거: evidence/calendar_smoke.txt (실 DB source=db, /calendar 200, 상세링크 확인) Read 확인.
+  pytest 212 passed(203→212) · ruff 클린.
+- 평가자: PASS · code-reviewer APPROVE — MEDIUM 2건 즉시 수정(dim CSS 무효, 비ISO 날짜 방어 비일관),
+  MEDIUM 1건 백로그 노트(warnbadge 매크로 3벌 중복 — 기존 관례), LOW 3건 기록만.
+- 커밋: (이 커밋)
+- 다음: 사이클 #4 — B2 관심물건 웹 UI (/watchlist)
+
 ## 2026-07-02 15:56 KST — 📊 사이클 #2: B4 매각·차익 통계 페이지 (/stats)
 - 무엇: 레퍼런스 공통 기본기능 '매각통계' 모방 구현(TDD).
   - `src/stats.py` — 순수 집계 6함수(overview/용도별/시도별/스코어 히스토그램/유찰 분포/등급 분포),

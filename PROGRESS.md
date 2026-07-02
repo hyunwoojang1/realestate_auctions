@@ -37,7 +37,8 @@
 
 ## Next
 **자율 성장 사이클 가동 중** (2026-07-02~, harness/LOOP.md): #1 탐색(레퍼런스 2곳→B1~B5) →
-#2 B4 통계 페이지 완료(/stats·/api/stats, 평가자 PASS·감사 APPROVE, pytest 203). 다음 = #3 B1 캘린더.
+#2 B4 통계(/stats) → #3 B1 캘린더(/calendar) 완료(각각 평가자 PASS·감사 APPROVE, pytest 212).
+다음 = #4 B2 관심물건 웹 UI.
 
 이전 배포준비 루프의 잔여 **사람만 할 수 있는 작업**(무인 불가):
 - **push** — `feat/deploy-prep`(9dc9add~d774a5c 6커밋) 아침 리뷰 후 push. **밤샘 중 push 안 함(정책).**

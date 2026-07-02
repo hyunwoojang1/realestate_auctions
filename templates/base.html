@@ -164,7 +164,7 @@ table.picks{border-collapse:collapse;width:100%;min-width:820px}
 .picks tbody tr:last-child td{border-bottom:none}
 .picks tbody tr:hover{background:var(--surface-2)}
 .picks tbody tr.hot td:first-child{box-shadow:inset 3px 0 0 var(--pos)}
-.picks tbody tr.dim{color:var(--muted)}
+.picks tbody tr.dim,.params tbody tr.dim{color:var(--muted)}
 .picks td.r,.picks th.r{text-align:right}
 .picks td.num{font-variant-numeric:tabular-nums}
 .picks .rank{color:var(--muted-2);font-size:var(--t-note);width:26px}
@@ -232,6 +232,7 @@ table.params{border-collapse:collapse;width:100%;font-size:var(--t-data);backgro
     <span class="brand">차익 <b>큐레이션</b></span>
     <nav class="nav">
       <a href="/">매물</a>
+      <a href="/calendar">일정</a>
       <a href="/stats">통계</a>
       <a href="/methodology">방법론</a>
       {% if data_source is defined %}

@@ -16,7 +16,7 @@ from pathlib import Path
 
 from flask import Flask, abort, g, jsonify, render_template, request
 
-from . import backtest, digest, pipeline, query, report, score, stats, store
+from . import backtest, digest, pipeline, query, report, sale_calendar, score, stats, store
 from .models import AuctionListing
 
 logger = logging.getLogger(__name__)
@@ -190,6 +190,21 @@ def create_app() -> Flask:
             "listings.html", items=items, count=len(items), filters=filters,
             won=report.won, pct=report.pct, meter=report.gap_meter_html,
             tax_label=tax.PROFILE.label(),
+            data_source=getattr(g, "data_source", "n/a"))
+
+    @app.get("/calendar")
+    def calendar_page():
+        from datetime import date as _date  # noqa: PLC0415
+        items = _scored()
+        show_all = request.args.get("all") == "1"
+        today = _date.today().isoformat()
+        upcoming, past = sale_calendar.split_upcoming(items, today)
+        months = sale_calendar.month_groups(items if show_all else upcoming)
+        return render_template(
+            "calendar.html", months=months, today=today, show_all=show_all,
+            upcoming_count=len(upcoming), past_count=len(past),
+            unknown_count=sale_calendar.unknown_date_count(items),
+            won=report.won, weekday=sale_calendar.weekday_kr,
             data_source=getattr(g, "data_source", "n/a"))
 
     @app.get("/stats")

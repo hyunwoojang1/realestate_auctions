@@ -24,15 +24,12 @@
     (실 DB data_source=db, 200) / [x] pytest 203 passed + ruff 클린
 - 평가자 PASS · code-reviewer APPROVE(LOW 2건 참고: avg_confidence UI 미노출, smoke 상대경로)
 
-## [ready] B1 경매 일정 캘린더 `/calendar` (출처: jiji-auction.md)
-- 왜: 지지옥션 경매캘린더 모방. 매각기일(sale_date)이 이미 DB에 있어 그룹핑만 하면 됨.
-  "이번 주 입찰 가능한 고스코어 물건"이 큐레이션과 시너지.
-- 완료 정의:
-  - [ ] 기일별 그룹핑 쿼리 + 단위테스트
-  - [ ] `GET /calendar` 월/주 뷰(물건 상세 링크, 스코어 뱃지) + test_client 테스트
-  - [ ] evidence/calendar_smoke.txt Read 확인
-  - [ ] pytest 전체 + ruff 클린
-- 제약: 라이브 호출 0
+## [done] B1 경매 일정 캘린더 `/calendar` (사이클 #3, 2026-07-02)
+- 완료: src/sale_calendar.py(순수 그룹핑 5함수, 비ISO 날짜 방어) + 테스트 9개, /calendar 월 뷰
+  (예정/전체 토글, 오늘 뱃지, 상세 링크), 내비 '일정' 링크.
+  - [x] 단위테스트 / [x] test_client / [x] evidence/calendar_smoke.txt(실 DB 200) / [x] pytest 212 + ruff
+- 평가자 PASS · 감사 APPROVE. MEDIUM 2건 즉시 수정(dim CSS .params 적용, 비ISO sale_date → 미상 집계).
+  잔여 노트: warnbadge 매크로 3벌 중복(기존 관례 — 통합 리팩터는 별도 항목 후보), '오늘' 뱃지 b-unknown 재사용(LOW).
 
 ## [ready] B2 관심물건 웹 UI `/watchlist` (출처: jiji-auction.md, tank-auction.md)
 - 왜: 두 레퍼런스 공통 기본기능 "관심물건+변동 알림". 우리 V2 watchlist(CLI/파일)를 웹으로 승격 —
