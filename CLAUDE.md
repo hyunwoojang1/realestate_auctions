@@ -19,3 +19,7 @@
 6. **블로커는 분리.** 국토부 라이브 API(키 필요)·실제 크롤러 등 환경 의존 단계는 루프에서 막지 말고
    "운영자 대기"로 표시. 샘플 fixture로 검증 가능한 것까지만 무인 진행.
 7. **시각**: KST(UTC+9). `powershell (Get-Date).ToUniversalTime().AddHours(9)`.
+8. **자율 성장 사이클.** "루프 돌려/계속 발전시켜" 류 요청 시 `harness/LOOP.md`의 사이클
+   (레퍼런스 탐색→모방 구현→감사→하네스 조이기)을 따른다. 백로그는 `harness/BACKLOG.md`,
+   사람 결정 대기는 `harness/QUESTIONS.md`(+푸시 알림), 방향 수정은 `harness/STEER.md`.
+   LOOP.md의 절대 금지(범위 잠금) 항목은 이 파일 규칙과 동급으로 준수.
