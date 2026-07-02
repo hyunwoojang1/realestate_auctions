@@ -22,8 +22,9 @@ def _area_band() -> float:
     from . import config as _cfg  # noqa: PLC0415 — 런타임 monkeypatch(SAMPLE 교체) 반영
     return _cfg.SAMPLE.area_band if _cfg.SAMPLE else AREA_BAND
 
-# 경매 물건유형 → 국토부 실거래 API 종류(apt/rh/officetel).
-# 핵심: 다세대를 아파트 실거래로 평가하지 않도록 유형을 분리한다.
+# 경매 물건유형 → 국토부 실거래 API 종류(apt/rh/officetel + 확장 sh/nrg/land).
+# 핵심: 다세대를 아파트 실거래로, 상가를 주택 실거래로 평가하지 않도록 유형을 분리한다.
+#  apt=아파트 · officetel=오피스텔 · rh=연립/다세대 · sh=단독/다가구 · nrg=상업/업무 · land=토지
 _PROPERTY_KIND = {
     "아파트": "apt",
     "오피스텔": "officetel",
@@ -31,6 +32,31 @@ _PROPERTY_KIND = {
     "연립다세대": "rh",
     "연립": "rh",
     "빌라": "rh",
+    "연립주택": "rh",
+    "다세대주택": "rh",
+    # 단독/다가구 → sh
+    "단독주택": "sh",
+    "단독": "sh",
+    "다가구": "sh",
+    "다가구주택": "sh",
+    "단독다가구": "sh",
+    # 상업/업무 → nrg
+    "상가": "nrg",
+    "근린상가": "nrg",
+    "근린생활시설": "nrg",
+    "업무시설": "nrg",
+    "상업용": "nrg",
+    "점포": "nrg",
+    "오피스": "nrg",
+    # 토지 → land
+    "토지": "land",
+    "대지": "land",
+    "임야": "land",
+    "전": "land",
+    "답": "land",
+    "잡종지": "land",
+    "농지": "land",
+    "과수원": "land",
 }
 
 

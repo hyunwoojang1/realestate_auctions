@@ -142,6 +142,37 @@ def test_save_full_records_roundtrip_replays_real_data(tmp_path):
     assert "records" in blob and blob["records"]
 
 
+def test_enrich_listings_with_rights_sets_verified():
+    """물건상세 텍스트 페처 → 권리 파싱·반영 + rights_verified=True (D 배선)."""
+    base = AuctionListing(
+        case_no="2025타경1", court="", address="서울 강남구 역삼동", lawd_cd="11680",
+        dong="역삼동", apt_name="X", property_type="아파트", area_m2=84.0,
+        appraisal_price=1_000_000_000, min_bid_price=700_000_000, fail_count=1,
+        sale_date="2026-08-01")
+    assert base.rights_verified is False
+
+    def fake_fetch(lst):
+        return ("대항력 있는 임차인이 있어 매수인에게 인수됨. 인수 금150,000,000원", "임차인 점유", "")
+
+    out = pipeline.enrich_listings_with_rights([base], fake_fetch)
+    assert len(out) == 1
+    e = out[0]
+    assert e.rights_verified is True
+    assert e.tenant_opposable is True
+    assert e.assumed_amount == 150_000_000
+    assert e.occupant_type == "임차인"
+
+
+def test_enrich_keeps_unverified_when_no_text():
+    """물건상세 미수집(빈 텍스트)이면 권리미확인 유지(rights_verified=False)."""
+    base = AuctionListing(
+        case_no="2025타경2", court="", address="서울", lawd_cd="11680", dong="역삼동",
+        apt_name="Y", property_type="아파트", area_m2=84.0, appraisal_price=1,
+        min_bid_price=1, fail_count=0, sale_date="2026-08-01")
+    out = pipeline.enrich_listings_with_rights([base], lambda lst: ("", "", ""))
+    assert out[0].rights_verified is False
+
+
 def test_courtauction_listings_flow_through_scoring():
     """실매물을 pipeline.run에 넣어 ScoredListing까지 — 샘플 시세로 채점(시세 없으면 추정불가)."""
     fake = FakeClient(_records())

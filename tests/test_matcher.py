@@ -106,3 +106,26 @@ def test_untagged_trades_still_match_backward_compat():
     """kind 미태깅(="") 거래는 기존처럼 매칭된다(하위호환)."""
     matched = match_trades(_lst(), TRADES)  # TRADES는 kind 미지정
     assert len(matched) == 3
+
+
+# ---- E: 확장 유형(단독/상업/토지) 매칭 ----
+
+def test_expected_kind_extended_types():
+    from src.matcher import expected_kind
+    assert expected_kind("단독주택") == "sh"
+    assert expected_kind("상가") == "nrg"
+    assert expected_kind("토지") == "land"
+    assert expected_kind("아파트") == "apt"
+    assert expected_kind("모르는유형") is None
+
+
+def test_land_listing_matches_extra_land_by_dong():
+    """토지 물건은 단지명 없이 같은 법정동 land 실거래로 시세추정(dong+면적+kind 분리)."""
+    land = _lst(apt_name="", property_type="토지", dong="역삼동", lawd_cd="11680", area_m2=200.0)
+    trades = [
+        Trade("", 205.0, 900_000_000, "202605", "역삼동", kind="land"),
+        Trade("", 198.0, 880_000_000, "202605", "역삼동", kind="land"),
+        Trade("아무아파트", 84.0, 1_500_000_000, "202605", "역삼동", kind="apt"),  # 유형 다름 → 제외
+    ]
+    est, n = estimate_market_price(land, trades)
+    assert n == 2 and est is not None

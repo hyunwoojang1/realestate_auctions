@@ -160,9 +160,31 @@ def load_sample_trades() -> list[Trade]:
     return trades
 
 
+def _extra_to_trade(et) -> Trade:
+    """확장 실거래(ExtraTrade: 단독/상업/토지)를 매칭용 Trade로 정규화.
+
+    단지명이 없으므로 apt_name은 비워 두고(법정동+면적 매칭으로만 사용), kind로 유형을 분리한다.
+    """
+    return Trade(apt_name="", area_m2=et.area_m2, price=et.price,
+                 deal_ym=et.deal_ym, dong=et.dong, floor=et.floor, kind=et.kind)
+
+
 def load_live_trades(listings: list[AuctionListing], api_key: str,
                      deal_ymd: str) -> list[Trade]:
-    """물건들의 법정동코드(LAWD_CD)별로 아파트+연립다세대 실거래를 라이브 수집."""
+    """법정동코드(LAWD_CD)별 실거래 라이브 수집.
+
+    기본 아파트/연립다세대/오피스텔 + 필요 시 단독/다가구(sh)·상업업무(nrg)·토지(land) 확장(E).
+    확장 유형은 해당 물건이 실제로 있는 법정동에만 호출한다(불필요한 API 부하 회피).
+    """
+    from .matcher import expected_kind  # noqa: PLC0415
+    from .molit_extra_client import fetch_extra_trades  # noqa: PLC0415
+
+    extra_by_lawd: dict[str, set[str]] = {}
+    for lst in listings:
+        k = expected_kind(lst.property_type)
+        if k in ("sh", "nrg", "land"):
+            extra_by_lawd.setdefault(lst.lawd_cd, set()).add(k)
+
     trades: list[Trade] = []
     seen: set[str] = set()
     calls = 0
@@ -179,11 +201,50 @@ def load_live_trades(listings: list[AuctionListing], api_key: str,
             except Exception as e:  # noqa: BLE001 — 한 지역/유형 실패가 전체를 막지 않게
                 fails += 1
                 logger.warning("라이브 호출 실패 kind=%s lawd=%s: %s", kind, lst.lawd_cd, e)
+        for kind in sorted(extra_by_lawd.get(lst.lawd_cd, ())):
+            for ymd in ymds:
+                calls += 1
+                try:
+                    trades.extend(_extra_to_trade(t)
+                                  for t in fetch_extra_trades(kind, lst.lawd_cd, ymd, api_key))
+                except Exception as e:  # noqa: BLE001
+                    fails += 1
+                    logger.warning("확장 라이브 호출 실패 kind=%s lawd=%s ymd=%s: %s",
+                                   kind, lst.lawd_cd, ymd, e)
     if fails:
         # 집계 경고 — '시세추정불가'가 진짜 comps 부재인지 API 실패 때문인지 구분하게 한다.
         logger.warning("라이브 시세 수집: %d/%d 호출 실패. 일부 물건은 comps 부족이 아니라 "
                        "API 실패로 시세추정불가일 수 있음(결과 신뢰도 저하).", fails, calls)
     return trades
+
+
+def enrich_listings_with_rights(listings: list[AuctionListing], fetch_detail_fn) -> list[AuctionListing]:
+    """물건상세 텍스트 페처로 각 물건의 권리를 파싱·반영한 새 리스트 반환(D 배선).
+
+    `fetch_detail_fn(listing)` → (매각물건명세서, 현황조사서, 감정평가서) 텍스트 튜플.
+    성공하면 courtauction_rights가 불리언·금액·유형만 추출해 반영하고 rights_verified=True가 된다
+    (→ score/UI에서 '권리미확인' 해제, 하드게이트 실작동). 호출 실패·빈 텍스트면 원본 유지(권리미확인).
+    개인정보 원문은 저장하지 않는다(파서가 성명 등 미추출).
+    """
+    from .courtauction_rights import apply_rights, parse_rights  # noqa: PLC0415
+
+    out: list[AuctionListing] = []
+    ok = 0
+    for lst in listings:
+        try:
+            texts = fetch_detail_fn(lst)
+        except Exception as e:  # noqa: BLE001 — 한 물건 실패가 전체를 막지 않게
+            logger.warning("물건상세 수집 실패 %s: %s", lst.case_no, e)
+            out.append(lst)
+            continue
+        if not texts or not any(t and t.strip() for t in texts):
+            out.append(lst)   # 미수집 → 권리미확인 유지
+            continue
+        m, h, g = (list(texts) + ["", "", ""])[:3]
+        out.append(apply_rights(lst, parse_rights(m, h, g)))
+        ok += 1
+    logger.info("권리 enrich: %d/%d 물건 권리분석 반영(rights_verified).", ok, len(listings))
+    return out
 
 
 def run(use_live: bool = False, deal_ymd: str | None = None,

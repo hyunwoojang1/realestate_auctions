@@ -233,6 +233,7 @@ def apply_rights(listing: AuctionListing, rights: ParsedRights) -> AuctionListin
         special_rights=list(rights.special_rights),
         tenant_opposable=rights.tenant_opposable,
         occupant_type=rights.occupant_type,
+        rights_verified=True,   # 물건상세 권리분석 반영됨 → '권리미확인' 해제, 하드게이트 실작동
     )
 
 

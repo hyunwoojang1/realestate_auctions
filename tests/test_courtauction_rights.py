@@ -163,6 +163,9 @@ def test_apply_rights_is_immutable_and_maps_fields():
     assert out.special_rights == ["유치권"]
     assert out.tenant_opposable is True
     assert out.occupant_type == "임차인"
+    # 권리분석 반영 → rights_verified True(원본은 False 유지)
+    assert base.rights_verified is False
+    assert out.rights_verified is True
     # 나머지 필드 보존
     assert out.case_no == base.case_no
     assert out.min_bid_price == base.min_bid_price

@@ -15,6 +15,19 @@
 
 ---
 
+## 2026-07-02 11:26 KST — 🔌 E(시세유형 확대)·D(권리파서) 배선 + 라이브 반영
+- 무엇: 감사 후속 — 준비돼 있던 E/D를 matcher/score/pipeline에 실제 배선.
+  - **E(단독·상업·토지)**: matcher `_PROPERTY_KIND`에 sh/nrg/land 매핑(단독주택→sh, 상가/근린→nrg, 토지/대지/임야→land).
+    pipeline.load_live_trades가 물건 있는 법정동에만 확장유형 fetch(`fetch_extra_trades`)해 `_extra_to_trade`로
+    Trade 정규화(단지명 없어 dong+면적+kind 매칭). 불필요 API부하 회피.
+  - **D(권리)**: `apply_rights`가 `rights_verified=True` 설정(→ '권리미확인' 해제·하드게이트 실작동).
+    `pipeline.enrich_listings_with_rights(listings, fetch_detail_fn)` 훅 추가 — 물건상세 텍스트 페처를 주면
+    권리 파싱·반영, 실패/빈텍스트면 권리미확인 유지, 개인정보 원문 미저장. **남은 것=courtauction 물건상세 fetch 엔드포인트**(client 계층, 라이브 recon 필요).
+- 증거: **pytest 177 passed**(신규 4: expected_kind 확장·토지 dong매칭·enrich verified·enrich 미수집유지), ruff 클린.
+- 평가자: 직접 실행(pytest·ruff).
+- 커밋: (이 커밋)
+- 다음: courtauction 물건상세 fetch 엔드포인트 recon+구현(D 완성) → enrich 배선 후 상위 후보만 권리검증. 라이브 새로고침으로 auction.db 재생성.
+
 ## 2026-07-02 11:07 KST — 🔎 다관점 감사 + 안전수정 + UI 리디자인 (goal+감사 스킬)
 - 무엇: 사용자 요청 "goal+감사로 다관점 감사·수정 + 못생긴 웹 리디자인".
   - **감사(deep, 7관점 병렬 + 실구동)**: architect·security·python·silent-failure·performance·database·domain-money.
