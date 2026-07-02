@@ -16,7 +16,7 @@ from pathlib import Path
 
 from flask import Flask, abort, g, jsonify, render_template, request
 
-from . import backtest, digest, pipeline, query, report, score, store
+from . import backtest, digest, pipeline, query, report, score, stats, store
 from .models import AuctionListing
 
 logger = logging.getLogger(__name__)
@@ -191,6 +191,16 @@ def create_app() -> Flask:
             won=report.won, pct=report.pct, meter=report.gap_meter_html,
             tax_label=tax.PROFILE.label(),
             data_source=getattr(g, "data_source", "n/a"))
+
+    @app.get("/stats")
+    def stats_page():
+        d = stats.summarize(_scored())
+        return render_template("stats.html", d=d, won=report.won, pct=report.pct,
+                               data_source=getattr(g, "data_source", "n/a"))
+
+    @app.get("/api/stats")
+    def stats_api():
+        return jsonify(stats.summarize(_scored()))
 
     @app.get("/methodology")
     def methodology():

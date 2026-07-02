@@ -18,15 +18,11 @@
 
 ---
 
-## [ready] B4 매각·스코어 통계 페이지 `/stats` (출처: tank-auction.md, jiji-auction.md)
-- 왜: 두 레퍼런스 모두 "매각통계"가 기본기능. 우리는 DB(수천 건 적재)만으로 즉시 구현 가능 —
-  지역별 평균 차익갭, 스코어 분포, 유찰횟수 분포, 용도별 건수. methodology와 함께 신뢰 해자.
-- 완료 정의:
-  - [ ] `src/stats.py` 집계 함수(순수 SQL/파이썬) + 단위테스트(fixture DB)
-  - [ ] `GET /stats` SSR 페이지 + `GET /api/stats` JSON + Flask test_client 테스트
-  - [ ] evidence/stats_smoke.txt (실 DB 대상 200 + 주요 수치) Read 확인
-  - [ ] pytest 전체 + ruff 클린
-- 제약: 라이브 호출 0 (DB 읽기만)
+## [done] B4 매각·스코어 통계 페이지 `/stats` (사이클 #2, 2026-07-02)
+- 완료: src/stats.py(순수 집계 6함수) + 테스트 12개, /stats SSR + /api/stats, 내비 링크.
+  - [x] 단위테스트 12개 통과 / [x] test_client 라우트 테스트 / [x] evidence/stats_smoke.txt
+    (실 DB data_source=db, 200) / [x] pytest 203 passed + ruff 클린
+- 평가자 PASS · code-reviewer APPROVE(LOW 2건 참고: avg_confidence UI 미노출, smoke 상대경로)
 
 ## [ready] B1 경매 일정 캘린더 `/calendar` (출처: jiji-auction.md)
 - 왜: 지지옥션 경매캘린더 모방. 매각기일(sale_date)이 이미 DB에 있어 그룹핑만 하면 됨.

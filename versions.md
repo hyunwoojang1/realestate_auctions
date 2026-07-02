@@ -15,6 +15,20 @@
 
 ---
 
+## 2026-07-02 15:56 KST — 📊 사이클 #2: B4 매각·차익 통계 페이지 (/stats)
+- 무엇: 레퍼런스 공통 기본기능 '매각통계' 모방 구현(TDD).
+  - `src/stats.py` — 순수 집계 6함수(overview/용도별/시도별/스코어 히스토그램/유찰 분포/등급 분포),
+    None 안전(_avg 제외방식+est_success_rate로 분모축소 노출), 스코어 100 경계 상단버킷 포함.
+  - `GET /stats` SSR(templates/stats.html, 기존 chips/params 스타일 재사용) + `GET /api/stats` JSON,
+    base.html 내비에 '통계' 링크. `scripts/stats_smoke.py` 스모크 생성기.
+  - tests/test_stats.py 12개(빈목록·None·경계 100·그룹정렬·라우트).
+- 증거: evidence/stats_smoke.txt (실 DB data_source=db, /stats·/api/stats 200, 27건 집계) Read 확인.
+  pytest 203 passed(191→203) · ruff 클린.
+- 평가자: PASS (신선 컨텍스트, 완료정의 5항목 전부 충족·수학 검토 포함) · code-reviewer APPROVE
+  (CRITICAL/HIGH/MEDIUM 0, LOW 2건 참고: avg_confidence UI 미노출, smoke 상대경로 관례)
+- 커밋: (이 커밋)
+- 다음: 사이클 #3 — B1 경매 일정 캘린더 (/calendar)
+
 ## 2026-07-02 15:40 KST — 🔍 탐색 사이클 #1: 지지옥션·탱크옥션 분석 → BACKLOG B1~B5
 - 무엇: 자율 성장 사이클 첫 탐색 모드 실행.
   - 리서치 에이전트로 지지옥션·탱크옥션 기능 벤치마킹(데이터 크롤 아님, 공개자료·출처 명기)
