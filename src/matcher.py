@@ -11,7 +11,13 @@ import statistics
 
 from .models import AuctionListing, Trade
 
-AREA_BAND = 0.10  # ±10% 전용면적
+AREA_BAND = 0.10  # ±10% 전용면적 (기본값; 실제 사용값은 config.SAMPLE.area_band)
+
+
+def _area_band() -> float:
+    """현재 유효 면적밴드. config.SAMPLE로 튜닝 가능(기본=AREA_BAND)."""
+    from . import config as _cfg  # noqa: PLC0415 — 런타임 monkeypatch(SAMPLE 교체) 반영
+    return _cfg.SAMPLE.area_band if _cfg.SAMPLE else AREA_BAND
 
 # 경매 물건유형 → 국토부 실거래 API 종류(apt/rh/officetel).
 # 핵심: 다세대를 아파트 실거래로 평가하지 않도록 유형을 분리한다.
@@ -39,21 +45,27 @@ def _kind_ok(trade: Trade, want: str | None) -> bool:
     return want is None or not trade.kind or trade.kind == want
 
 
-def _area_ok(a: float, b: float, band: float = AREA_BAND) -> bool:
+def _area_ok(a: float, b: float, band: float | None = None) -> bool:
     if a <= 0 or b <= 0:
         return False
-    return abs(a - b) / b <= band
+    eff = _area_band() if band is None else band
+    return abs(a - b) / b <= eff
 
 
 def match_trades(listing: AuctionListing, trades: list[Trade]) -> list[Trade]:
-    """유형(아파트/빌라/오피스텔) 분리 → 단지명+면적 우선, 부족하면 법정동+면적 폴백."""
+    """유형(아파트/빌라/오피스텔) 분리 → 단지명+면적 우선, 부족하면 법정동+면적 폴백.
+
+    면적 허용밴드는 config.SAMPLE.area_band(기본 ±10%)로 튜닝 가능 — 라이브 comps가
+    빈약할 때 밴드를 넓히면 같은 단지의 인접 평형까지 표본에 포함된다.
+    """
+    band = _area_band()
     want = expected_kind(listing.property_type)
     pool = [t for t in trades if _kind_ok(t, want)]
     name = _norm(listing.apt_name)
     by_name = [
         t for t in pool
         if name and _norm(t.apt_name) and (name in _norm(t.apt_name) or _norm(t.apt_name) in name)
-        and _area_ok(t.area_m2, listing.area_m2)
+        and _area_ok(t.area_m2, listing.area_m2, band)
     ]
     if by_name:
         return by_name
@@ -61,7 +73,7 @@ def match_trades(listing: AuctionListing, trades: list[Trade]) -> list[Trade]:
     dong = _norm(listing.dong)
     by_dong = [
         t for t in pool
-        if dong and _norm(t.dong) == dong and _area_ok(t.area_m2, listing.area_m2)
+        if dong and _norm(t.dong) == dong and _area_ok(t.area_m2, listing.area_m2, band)
     ]
     return by_dong
 

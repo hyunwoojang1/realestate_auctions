@@ -147,6 +147,50 @@ docker run -p 8000:8000 auction-arb      # http://localhost:8000
 
 ---
 
+## 정기 새로고침 스케줄러 (Windows)
+
+전국 courtauction 실매물 + 국토부 시세 매칭을 매일 자동으로 돌려 `auction.db`를 갱신합니다.
+웹 서버는 이 DB를 그대로 읽어 서빙하므로, 새로고침과 서빙이 분리됩니다.
+
+```powershell
+# 오프라인 dry-run (네트워크 호출 0 — 캐시/샘플 fixture로 파이프라인 검증)
+powershell -File scripts\refresh-daily.ps1 -FromCache -Cash 100000000
+
+# 작업스케줄러 등록 (매일 05:30) — 등록 직후 상태는 반드시 Disabled(비활성)
+powershell -File scripts\install-scheduler.ps1 -Time 05:30
+
+# 등록 계획만 미리보기(실등록 없음)
+powershell -File scripts\install-scheduler.ps1 -Time 05:30 -WhatIf
+
+# 등록 해제
+powershell -File scripts\uninstall-scheduler.ps1
+```
+
+> ⚠️ **활성화는 이용약관 확인 후 수동으로.** `install-scheduler.ps1`은 작업을
+> **Disabled(비활성)** 상태로만 등록합니다. courtauction/국토부 이용약관을 확인한 뒤
+> 아래 한 줄로 활성화하세요:
+>
+> ```powershell
+> Enable-ScheduledTask -TaskName "AuctionArbitrage-DailyRefresh"
+> ```
+>
+> 이는 자동화가 약관 확인 없이 실서버를 호출하는 것을 막기 위한 안전장치입니다.
+> 활성화 전까지는 스케줄이 등록만 되어 있고 실행되지 않습니다.
+
+`refresh-daily.ps1` 옵션:
+
+| 옵션 | 설명 |
+|---|---|
+| `-Live` | 국토부 라이브 시세 사용(`MOLIT_API_KEY` 필요). 스케줄러 기본 |
+| `-FromCache` | **오프라인 dry-run**: 실크롤/라이브 시세 미호출, 캐시(`data\courtauction_cache.json`) 또는 샘플 fixture로 파이프라인 실행 |
+| `-Cash <원>` | 가용현금 상한(최저가 ≤ 현금 매물만) |
+| `-Ym <YYYYMM>` | 국토부 조회 연월(미지정 시 전월) |
+| `-DbPath <경로>` | 대상 SQLite(미지정 시 `auction.db`) |
+
+로그는 `evidence\refresh-YYYYMMDD-HHmmss.log`에 남습니다.
+
+---
+
 ## 데이터 소스 (라이브, F10)
 
 | 데이터 | 소스 | 비용 | 비고 |

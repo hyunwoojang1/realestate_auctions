@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- 상업업무용 부동산 매매 실거래 샘플 (RTMSDataSvcNrgTrade). 오프라인 fixture — 라이브 아님.
+     상업업무용은 건물주용도(buildingUse)·유형(buildingType)·건물면적(buildingAr)·대지면적(plottageAr)을 쓴다.
+     영문 태그 혼용 케이스도 1건 포함(dealAmount 등). -->
+<response>
+  <header><resultCode>000</resultCode><resultMsg>OK</resultMsg></header>
+  <body>
+    <items>
+      <item><거래금액> 350,000</거래금액><건물주용도>제1종근린생활시설</건물주용도><유형>상업용</유형><건물면적>180.0</건물면적><대지면적>120.0</대지면적><년>2026</년><월>4</월><일>7</일><법정동>역삼동</법정동><층>1</층></item>
+      <item><거래금액> 620,000</거래금액><건물주용도>업무시설</건물주용도><유형>업무용</유형><건물면적>410.0</건물면적><대지면적>260.0</대지면적><년>2026</년><월>5</월><일>15</일><법정동>역삼동</법정동><층>3</층></item>
+      <item><dealAmount> 210,000</dealAmount><buildingUse>제2종근린생활시설</buildingUse><buildingType>상업용</buildingType><buildingAr>95.0</buildingAr><plottageAr>70.0</plottageAr><dealYear>2026</dealYear><dealMonth>5</dealMonth><dealDay>28</dealDay><umdNm>역삼동</umdNm><floor>2</floor></item>
+    </items>
+  </body>
+</response>

@@ -12,6 +12,10 @@ from dataclasses import dataclass, field
 from pathlib import Path
 
 DEFAULT_CACHE = "data/courtauction_cache.json"
+# full-record 캐시: 오프라인 dry-run(--from-cache)이 실제 마지막 수집분을 재생하도록
+# '정제된(sanitize된) 원본 전체'를 보존한다. rec.raw 는 parse_row 가 이미 PII를 제거한
+# dict 이므로(개인정보 미저장 원칙 유지), 그대로 저장해도 안전하다.
+DEFAULT_FULL_CACHE = "data/courtauction_full_cache.json"
 
 
 def record_key(rec) -> str:
@@ -82,3 +86,17 @@ def save_cache(records: list, path: str | Path = DEFAULT_CACHE) -> dict:
     p.parent.mkdir(parents=True, exist_ok=True)
     p.write_text(json.dumps(snap, ensure_ascii=False, indent=2), encoding="utf-8")
     return snap
+
+
+def save_full_records(records: list, path: str | Path = DEFAULT_FULL_CACHE) -> int:
+    """정제된 원본 전체(rec.raw)를 `{"records": [...]}` 형식으로 저장.
+
+    라이브 수집 직후 호출하면, 이후 `--from-cache` 오프라인 dry-run이 fixture가 아니라
+    '마지막으로 실제 수집한 데이터'를 재생할 수 있다(pipeline._records_from_full_cache).
+    rec.raw 는 parse_row 가 이미 sanitize한 dict라 PII가 없다. raw 없는 레코드는 건너뛴다.
+    """
+    rows = [r.raw for r in records if getattr(r, "raw", None)]
+    p = Path(path)
+    p.parent.mkdir(parents=True, exist_ok=True)
+    p.write_text(json.dumps({"records": rows}, ensure_ascii=False, indent=2), encoding="utf-8")
+    return len(rows)

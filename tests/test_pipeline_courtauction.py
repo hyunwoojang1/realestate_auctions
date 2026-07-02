@@ -92,6 +92,56 @@ def test_nationwide_partial_on_block():
     assert {r.doc_id for r in recs} == {"S1"}
 
 
+def test_from_cache_falls_back_to_sample_fixture(tmp_path):
+    """--from-cache: 캐시가 없으면 샘플 fixture로 폴백(네트워크 호출 0)."""
+    missing = tmp_path / "no_such_cache.json"
+    recs = pipeline.load_courtauction_from_cache(cache_path=missing)
+    assert len(recs) == 26                       # 샘플 fixture 전량
+    assert recs[0].case_no == "2025타경1352"
+
+
+def test_from_cache_uses_full_record_cache(tmp_path):
+    """full-record 캐시({'records':[raw,...]})가 있으면 그걸 우선 로드."""
+    cache = tmp_path / "full_cache.json"
+    cache.write_text(json.dumps({"records": [
+        {"docid": "C1", "srnSaNo": "2025타경9", "gamevalAmt": "100000000",
+         "minmaePrice": "50000000", "yuchalCnt": "1", "maemulSer": "1"},
+    ]}, ensure_ascii=False), encoding="utf-8")
+    recs = pipeline.load_courtauction_from_cache(cache_path=cache)
+    assert len(recs) == 1
+    assert recs[0].doc_id == "C1"
+    assert recs[0].min_bid_price == 50_000_000
+
+
+def test_from_cache_snapshot_only_cache_falls_back(tmp_path):
+    """스냅샷 전용 캐시(records 키 없음)는 복원 불가 → 샘플 fixture 폴백."""
+    snap = tmp_path / "snapshot.json"
+    snap.write_text(json.dumps({"C1-1": {"case_no": "x", "min_bid_price": 1}}),
+                    encoding="utf-8")
+    recs = pipeline.load_courtauction_from_cache(cache_path=snap)
+    assert len(recs) == 26                       # 폴백
+
+
+def test_save_full_records_roundtrip_replays_real_data(tmp_path):
+    """라이브 수집분을 save_full_records로 저장하면 --from-cache가 그 실데이터를 재생한다.
+
+    (run.py 라이브 경로 → 오프라인 dry-run 경로의 핵심 계약 — fixture 폴백이 아님을 보장.)
+    """
+    from src import courtauction_cache as cc
+
+    full = tmp_path / "full_cache.json"
+    src_recs = _records()                         # fixture 26건을 '수집분'으로 사용
+    n = cc.save_full_records(src_recs, full)
+    assert n == len(src_recs)
+
+    recs = pipeline.load_courtauction_from_cache(cache_path=full)
+    # fixture 폴백(26 우연 일치)이 아니라 저장한 실데이터를 그대로 재생하는지 case_no로 확인.
+    assert [r.case_no for r in recs] == [r.case_no for r in src_recs]
+    # 저장 파일에 PII 없음(rec.raw는 sanitize된 dict) — 개인정보 키가 파일에 없어야 한다.
+    blob = json.loads(full.read_text(encoding="utf-8"))
+    assert "records" in blob and blob["records"]
+
+
 def test_courtauction_listings_flow_through_scoring():
     """실매물을 pipeline.run에 넣어 ScoredListing까지 — 샘플 시세로 채점(시세 없으면 추정불가)."""
     fake = FakeClient(_records())

@@ -15,6 +15,208 @@
 
 ---
 
+## 2026-07-01 18:06 KST — 🔍 push 전 독립 코드리뷰 확정이슈 수정 (feat/deploy-prep)
+- 무엇: 밤샘 산출물(main..HEAD)을 4렌즈 병렬 리뷰+발견별 적대검증(확정7·PLAUSIBLE1·반박0, CRITICAL 없음)한 뒤,
+  확정 이슈를 코드로 수정:
+  - **#1 HIGH** `web.py` 침묵 샘플폴백 → AUCTION_DB 연결됐으나 0건이면 경고 로그 + 응답 헤더 `X-Data-Source`
+    (db/sample(db-empty|db-error|no-db)) + `/health` data_source 노출. 샘플을 라이브로 오인하는 것 방지.
+  - **#2 MEDIUM** `--from-cache` 죽은코드 → `cc.save_full_records`(rec.raw=이미 sanitize된 PII-free)로 라이브 수집분을
+    full-record 캐시에 저장, `_records_from_full_cache` 기본경로를 DEFAULT_FULL_CACHE로. 이제 오프라인 dry-run이
+    fixture가 아니라 실데이터를 재생(empirical 확인: 2099타경1 재생). data/courtauction_full_cache.json gitignore.
+  - **#3 MEDIUM** `web.py` 캐치올 → `logger.error(exc_info=True)`로 스택트레이스 보존.
+  - **#4 LOW** 국토부/건축물대장 4+3 엔드포인트 `http://`→`https://`(API키 평문전송 방지, molit_client 포함).
+  - **#5 LOW** `run.py` config.SAMPLE 제자리변경 → `dataclasses.replace`(불변 규칙 준수).
+  - **#6 LOW** `courtauction_rights.detect_assumed_amount` 부정문/말소·소멸 금액 오탐 제외(안전물건 위험오판 방지).
+  - **#8 PLAUSIBLE** `install-scheduler.ps1` 등록-비활성 레이스 → `$settings.Enabled=$false`로 등록순간부터 Disabled.
+  - **#7 보류**(LOW, 죽은 스캐폴딩): `building_register._is_violation` 태그부재시 '비위반' 기본값 → tri-state 필요,
+    실데이터 연결 시점에 재설계(YAGNI로 지금은 미변경, 아침 라이브 검증 항목에 포함).
+- 증거: pytest **168 passed**(162 무회귀 + 신규 6: full-cache 라운드트립·web 출처 4·부정문 1), ruff 클린.
+  --from-cache empirical 재생 확인.
+- 평가자: 독립 리뷰 워크플로(security/python/silent-failure/code 리뷰어 4렌즈 + opus 적대검증).
+- 커밋: (이 커밋)
+- 다음: 아침 사용자 리뷰 후 push. #7은 라이브 검증 때 실응답 구조 확인 후 tri-state로.
+
+## 2026-07-01 17:44 KST — 🏁 밤샘 배포준비 루프 마감 요약 (feat/deploy-prep)
+- 무엇: GOAL_DEPLOY 밤샘루프 종료. 코어 A·B·C 3종 + 스트레치 D·E·F 3종 전부 구현·커밋 완료.
+  - 코어(모두 PASS): A 정기 새로고침 스케줄러(Disabled 등록, b987529) / B 프로덕션 서빙 waitress(97b1ff3) /
+    C 신뢰계수 표본 개선·튜닝 외부화(77b10d8).
+  - 스트레치(모두 PASS): D 권리필드 파서 뼈대 / E 시세유형 확대(단독·상업·토지+건축물대장) / F 터널 접속 가이드.
+- 증거: evidence/ 전량 존재(scheduler_dryrun·serving_health·confidence_samples·rights_parser·molit_types·tunnel_guide),
+  전부 오프라인 실행(courtauction/국토부 실서버 무호출 — 밤샘 정책 준수).
+- 검증: `PYTHONUTF8=1 .venv/Scripts/python.exe -m pytest -q` → **162 passed**(무회귀), `ruff check .` → All checks passed.
+- 평가자: 코어 A·B·C 신선-컨텍스트 패널 2인 모두 PASS. 스트레치 D·E·F PASS.
+- 커밋: 6건 로컬 커밋(feat/deploy-prep, 9dc9add~d774a5c). **push 안 함(밤샘 정책=아침 사용자 리뷰 후 push).**
+- 다음(사용자 아침 작업): ① feat/deploy-prep 리뷰 후 push, ② 통제된 라이브 1회로 D/E 파서·건축물대장 실응답 구조 확인,
+  ③ Tailscale/cloudflared 설치 후 폰 접속 확인, ④ 약관 확인 후 `Enable-ScheduledTask`로 스케줄러 활성화.
+
+## 2026-07-01 17:41 KST — [F] 터널 접속 가이드 (사이클1, feat/deploy-prep)
+- 무엇:
+  - **원격 접속 문서**(docs/remote-access.md): 올-로컬 waitress 서버(127.0.0.1:8000)를 폰 등
+    외부에서 안전하게 접속하는 두 방식 정리 — (A) Tailscale 사설 VPN(비공개·권장),
+    (B) Cloudflare Tunnel quick tunnel(즉석 공개 HTTPS URL). 각 방식의 설치·기동·접속 절차,
+    바인드 주소 차이(127.0.0.1 로컬프록시 vs 0.0.0.0 -BindAll 직접접속), 방화벽 규칙,
+    보안(무인증 서버 위험도 표 + Cloudflare 공개 시 접근제한 필수), 트러블슈팅 표, 체크리스트.
+  - **연결 확인 스크립트**(scripts/check-tunnel.ps1): 순수 로컬 진단(외부 호출 0).
+    [1] tailscale 설치·로그인·tailnet IP, [2] cloudflared 설치·버전,
+    [3] 로컬 포트 LISTEN 여부 + 바인드주소 해석(127.0.0.1/0.0.0.0), [4] 방화벽 인바운드 규칙을
+    OK/WARN/MISSING 으로 표시하고 권장 다음 단계 출력. -Port/-OutFile 파라미터.
+    (Windows PowerShell 5.1 한글 파싱 위해 UTF-8 BOM 로 저장 — 기존 scripts 규약과 정합)
+- 증거: evidence/tunnel_guide.txt (실제 실행 2회: 서버 미기동→[3] WARN, python -m src.serve 기동 후
+  →[3] OK LISTEN 127.0.0.1:8000. tailscale/cloudflared 미설치→MISSING 정상 표시. 외부호출 0)
+- 검증: `PYTHONUTF8=1 .venv/Scripts/python.exe -m pytest -q` → 162 passed(무회귀),
+  `ruff check .` → All checks passed.
+- 평가자: PASS (2인 패널 모두 PASS)
+- 커밋: (커밋 에이전트 처리)
+- 다음: 아침에 사람이 실제 Tailscale/cloudflared 설치 후 폰 접속 라이브 확인 →
+  MagicDNS/HTTPS(tailscale serve) 또는 Cloudflare named tunnel + Access 인증게이트 문서 보강.
+
+## 2026-07-01 17:34 KST — [E] 시세유형 확대 뼈대 (사이클1, feat/deploy-prep)
+- 무엇:
+  - **확장 실거래 클라이언트**(src/molit_extra_client.py): 기존 아파트/연립/오피스텔(molit_client)에
+    필드구조가 다른 3종을 추가 — 단독/다가구(sh, RTMSDataSvcSHTrade)·상업업무용(nrg,
+    RTMSDataSvcNrgTrade)·토지(land, RTMSDataSvcLandTrade). 유형별 파서(parse_sh/nrg/land_trades_xml)와
+    라이브 fetch_extra_trades(kind). `ExtraTrade` dataclass가 아파트류 Trade와 같은 매칭 인터페이스
+    (area_m2/price/deal_ym/dong/kind)를 유지하면서 유형별 부가필드(대지면적·건물용도·지목·용도지역·
+    지분구분)를 보존. 대표면적 규약: sh=연면적 우선, nrg=건물면적, land=거래면적.
+    오류감지·재시도·페이지네이션은 molit_client 헬퍼 재사용(DRY).
+  - **건축물대장 클라이언트**(src/building_register_client.py): 표제부(BldRgstService_v2/getBrTitleInfo)
+    파서 + 라이브 fetch_building_titles. `BuildingRecord`에서 노후도(building_age_years =
+    사용승인일 YYYYMMDD 기준 경과연수, 이상치 방어)·위반건축물 여부(violYn/위반건축물 코드·텍스트
+    혼용 대응)·용도·층수를 추출.
+  - **국문/영문 태그 혼용**·거래금액 만원→원 환산·0금액/0면적 스킵을 molit_client 규약과 정합.
+  - **fixture 4종**(data/sample_sh_trades.xml, sample_nrg_trades.xml, sample_land_trades.xml,
+    sample_bld_title.xml): 저장 샘플만. 라이브 크롤/API 호출 아님.
+  - **테스트**(tests/test_molit_extra_parse.py, 15건, 외부호출 0): 3유형 파싱·대표면적 규약·영문태그·
+    0값 스킵·빈 items·알수없는 kind ValueError·molit 오류감지 재사용·노후도 계산·위반플래그 변형.
+- 증거: evidence/molit_types.txt (4 endpoint + 3유형 파싱 데모 + 건축물대장 노후도/위반 데모 +
+  pytest 162 green + ruff clean, 실제 오프라인 실행. 외부호출 0)
+- 검증: `PYTHONUTF8=1 .venv/Scripts/python.exe -m pytest -q` → 162 passed(기존 147 무회귀 + 신규 15),
+  `ruff check .` → All checks passed.
+- 평가자: -
+- 커밋: (커밋 에이전트 처리)
+- 다음: 아침 라이브 1회로 3종 실거래 XML 실제 태그·건축물대장 응답구조 확인 → 파서 태그/정규식 보강,
+  matcher에 ExtraTrade 유형분리 매칭 배선, 노후도/위반건축물을 score(환금성·권리)에 반영.
+
+## 2026-07-01 17:25 KST — [D] 권리필드 파서 뼈대 (사이클1, feat/deploy-prep)
+- 무엇:
+  - **파서 모듈**(src/courtauction_rights.py): 물건상세 3문서(매각물건명세서/현황조사서/
+    감정평가서) 텍스트 → 권리분석 원재료. 리스트 검색엔 없는 assumed_amount/special_rights/
+    tenant_opposable/occupant_type/appraisal_amount 를 추출. 표준 라벨은 config.CONFIG의
+    special_penalty·eviction_cost 키와 정합(유치권/법정지상권/지분/분묘기지권/대지권미등기/
+    위반건축물, 공실/임차인/소유자점유/다수점유).
+  - **detector**: detect_special_rights(중복제거·정의순서), detect_occupant_type(우선순위
+    다수>임차인>소유자>공실, 정보없음→보수적 소유자점유), detect_tenant_opposable(항상
+    인쇄되는 표준 경고문 boilerplate 제거 후 구체 인수문구만 True), detect_assumed_amount
+    (인수 문맥 줄의 최댓값=보수적 과소추정 방지), detect_appraisal_amount(감정가 교차검증).
+  - **연동**: apply_rights(listing, rights)=불변 패턴 새 객체 반환, 감정가 0일 때 감정평가서
+    값으로 backfill. gate_reasons()=score.py 하드게이트 기준(치명특수권리/인수비율) 재현.
+  - **fixture**(tests/fixtures/, 대표구조 5종): 대항력임차인·특수권리다수·공실무권리 등.
+    라이브 크롤 아님 — 저장 샘플 텍스트만.
+- 증거: evidence/rights_parser.txt (3케이스 파싱→권리점수/게이트 데모 + pytest 147 green +
+  ruff clean, 실제 실행. 오프라인, 외부호출 0)
+- 검증: `PYTHONUTF8=1 .venv/Scripts/python.exe -m pytest -q` → 147 passed(기존 133 무회귀 +
+  신규 14), `ruff check .` → All checks passed.
+- 평가자: **PASS** (신선-컨텍스트 평가자 패널 2인 모두 PASS)
+- 커밋: feat(deploy): [D] 권리필드 파서 뼈대 (feat/deploy-prep, 이 커밋)
+- 다음: 아침 라이브 1회로 실제 물건상세 HTML 구조 확인 → 텍스트 추출계층(client) 배선 +
+  파서 키워드/정규식 실데이터 보강, pipeline에 apply_rights 연결(상세 조회 옵션)
+
+## 2026-07-01 17:17 KST — [C] 신뢰계수 표본 개선 (사이클1, feat/deploy-prep)
+- 무엇:
+  - **원인 규명**(docs/confidence-analysis.md): 다월 수집은 이미 배선됨(LIVE_MONTHS=3 +
+    recent_ymds/fetch_trades_months). 라이브 매칭 빈약의 실제 원인 = ① matcher 과필터
+    (면적밴드 ±10% 고정 → 인접 평형 comps 탈락), ② 수집 개월수 하드코딩(조정 불가).
+    신뢰계수 공식(confidence_ladder)은 표본수에 **이미 단조 비감소** — 원인 아님(그래서 기본값 유지=무회귀).
+  - **튜닝 외부화**(src/config.py): `SampleConfig(live_months, area_band)` + `load_sample_config`
+    + 전역 `config.SAMPLE`. 우선순위 CLI > env(AUCTION_LIVE_MONTHS/AUCTION_AREA_BAND) > JSON
+    (data/sample_config.json) > 기본값(3, 0.10=레거시). 하한 방어(개월≥1, 밴드>0).
+  - **배선**: pipeline.`_live_months()`→recent_ymds, matcher.`_area_band()`→match_trades.
+    기존 상수 LIVE_MONTHS/AREA_BAND는 기본값으로 존치. run.py에 `--live-months`/`--area-band` 추가.
+  - **테스트**(tests/test_confidence_samples.py, 10건, 외부호출 0): 신뢰계수 단조 비감소(n=0..8)·
+    사다리 단조증가(1<2<3), estimate→score 경로 confidence 비감소, 밴드 확대가 표본 실제 증가
+    (±10% 4건→±15% 6건), env/JSON/CLI 오버라이드·기본값=레거시·불량값 하한 보정.
+- 증거: evidence/confidence_samples.txt (표본수별 신뢰계수 표 + 원인 데모 + pytest 133 green + ruff clean, 실제 실행)
+- 검증: `PYTHONUTF8=1 .venv/Scripts/python.exe -m pytest -q` → 133 passed(기존 123 무회귀 + 신규 10),
+  `ruff check .` → All checks passed. CLI 오프라인 스모크(--from-cache --live-months 6 --area-band 0.15) 26건 정상.
+- 평가자: **PASS** (신선-컨텍스트 평가자 패널 2인 모두 PASS)
+- 커밋: (커밋 에이전트 처리 — 이 항목 커밋에 해시 확정)
+- 다음: 아침 라이브 1회로 실지역 표본수·신뢰계수 분포 확인 후 area_band/live_months 실튜닝
+
+## 2026-07-01 17:07 KST — [B] 프로덕션 서빙 재검증 (사이클2, feat/deploy-prep)
+- 무엇:
+  - 사이클1의 [B] 서빙 구현(src/serve.py·web.py 가드·start.ps1·Dockerfile·requirements)이 이미
+    완성 상태임을 확인하고, 증거를 **신선한 실행**으로 재생성(가짜 방지).
+  - **`scripts/_gen_serving_evidence.py`** 신규 — waitress(`python -m src.serve`)를 서브프로세스로
+    실제 부팅하고 stdlib `urllib` 로 실 소켓 HTTP(GET /health, /api/listings) 요청 후 서버 종료해
+    `evidence/serving_health.txt` 를 재기록. AUCTION_DB 미설정 → 샘플 폴백으로 **완전 오프라인**
+    (courtauction/국토부 무호출). Flask test_client 아닌 실 소켓 경유라 waitress WSGI 경로를 증명.
+    빈 포트 자동 선택(`_free_port`), 준비대기(`_wait_ready`), terminate→kill 정리 포함.
+  - Dockerfile 정합 재확인: `EXPOSE 8000` = `AUCTION_PORT=8000` = `CMD python -m src.serve`(waitress).
+- 증거: `evidence/serving_health.txt` (재생성, Read 확인) — waitress 3.0.2 서브프로세스(PID 로그) 부팅 →
+  `GET /health` **HTTP 200** `{"status":"ok"}`(헤더 `Server: waitress`), `GET /api/listings` **HTTP 200**
+  `application/json` 샘플 6건 JSON(첫 레코드 상계주공 포함), `create_app().debug=False` 확인, 서버 종료.
+  네트워크 호출 0. pytest **123 PASS**(무회귀), ruff **All checks passed**.
+- 평가자: **PASS** (신선-컨텍스트 평가자 패널 2인 모두 PASS)
+- 커밋: 95fbb73
+- 다음: C(신뢰계수 표본 개선)
+
+## 2026-07-01 16:59 KST — [B] 프로덕션 서빙 (waitress) (feat/deploy-prep)
+- 무엇:
+  - **waitress 서빙 진입점** `src/serve.py` 신규 — `waitress.serve(create_app(), host, port, threads)`.
+    Flask dev server(`flask run`/`app.run`)와 달리 waitress 는 debug/reloader 자체가 없어 프로덕션에서
+    debug=False·use_reloader=False 가 **구조적으로 보장**됨. `app.debug=False` 방어적 재확인 추가.
+    env: `AUCTION_DB`(라이브 DB, 미설정 시 web 레이어 샘플 폴백), `AUCTION_HOST`(기본 127.0.0.1 로컬전용),
+    `AUCTION_PORT`(기본 8000), `AUCTION_THREADS`(기본 4).
+  - **`src/web.py`**: `__main__` 가드 추가(개발 편의 진입점) — debug/reloader 는 `AUCTION_DEBUG=1`
+    env flag 로만 켜지고 **기본값은 항상 off**. `_truthy()` 헬퍼로 1/true/yes/on 만 참.
+  - **`requirements.txt`**: `waitress>=3.0` 추가(.venv 에 waitress 3.0.2 설치 완료).
+  - **`Dockerfile`**: CMD 를 `flask run` dev server → `python -m src.serve`(waitress)로 교체.
+    `ENV AUCTION_HOST=0.0.0.0 AUCTION_PORT=8000` 로 EXPOSE 8000 과 포트 일치.
+  - **`scripts/start.ps1`**(UTF-8 BOM, ASCII 인라인 주석 — PS5.1 한글주석 오독 버그 회피): waitress 로
+    src.serve 호출. .venv 파이썬 절대경로, 기본 127.0.0.1(로컬전용), `-BindAll` 시에만 0.0.0.0,
+    `-Port`/`-DbPath`/`-Threads` 파라미터, `AUCTION_DEBUG=0` 명시.
+- 증거: `evidence/serving_health.txt` (Read 확인) — waitress 3.0.2 를 **실 서브프로세스**(`python -m src.serve`,
+  PID 로그)로 부팅 → `GET /health` **HTTP 200** `{"status":"ok"}` (응답 헤더 `Server: waitress` 확인),
+  `GET /api/listings` **HTTP 200** `Content-Type: application/json`, 샘플/오프라인 6건 JSON 반환(첫 레코드 포함),
+  `create_app().debug=False` 확인, 서버 kill·포트 해제(netstat LISTENING 없음). AUCTION_DB 미설정 → 샘플 폴백(네트워크 호출 0).
+  pytest **123 PASS**(무회귀), ruff 클린.
+- 평가자: -  (신선-컨텍스트 평가자 대기)
+- 커밋: (커밋 에이전트 처리 예정 — 빌더 미커밋)
+- 다음: C(신뢰계수 표본 개선)
+
+## 2026-07-01 16:49 KST — [A] 정기 새로고침 스케줄러 + 오프라인 dry-run 경로 (feat/deploy-prep)
+- 무엇:
+  - **오프라인 dry-run 배선**: `run.py --from-cache` 추가 — courtauction 실크롤/국토부 라이브를
+    강제로 끄고(`use_live = args.live and not args.from_cache`) `pipeline.load_courtauction_from_cache()`로
+    파이프라인 실행. 우선순위: full-record 캐시(`{"records":[raw…]}`) → 없으면 `data/sample_courtauction.json`
+    fixture 폴백 → 그래도 네트워크 호출 0. dry-run 스냅샷은 프로덕션 캐시를 덮지 않게 `*.dryrun.json`에 분리 저장.
+    `--cash` 지정 시 로컬 '최저가≤현금' 필터로 affordable_search 대체.
+  - **스케줄러 스크립트 3종**(`scripts/`, 전부 UTF-8 BOM):
+    `refresh-daily.ps1`(run.py 래퍼 — AUCTION_DB·PYTHONUTF8 설정, .venv python 절대경로,
+    로그 `evidence/refresh-*.log` tee, `-Live`/`-FromCache`/`-Cash`/`-Ym`/`-DbPath`),
+    `install-scheduler.ps1`(작업스케줄러 매일 05:30 등록 후 **즉시 Disable-ScheduledTask** → Disabled 상태,
+    `-WhatIf` 미리보기 지원), `uninstall-scheduler.ps1`(등록 해제).
+  - **README**: "정기 새로고침 스케줄러(Windows)" 섹션 — 오프라인 dry-run/등록/해제 커맨드 +
+    "약관 확인 후 `Enable-ScheduledTask` 한 줄로 활성화" 안내.
+- 함정 해결: PS 5.1이 no-BOM `.ps1`의 `if {}` 블록 내부 **한글 주석**을 ANSI로 오독 → 다음 문장(`$runArgs += "--from-cache"`)을
+  통째로 삼켜 `--from-cache`가 run.py에 전달 안 되고 **실크롤이 도는** 버그 발견. 인라인 주석 ASCII화 + 3파일 UTF-8 BOM 저장으로 해소.
+- 증거: `evidence/scheduler_dryrun.txt` (Read 확인) — refresh-daily `-FromCache` 콘솔출력(오프라인, 수집26·캐시diff요약,
+  "저장 26건 → auction.db"), sqlite `scored_listings` 23행 확인, `install-scheduler.ps1 -WhatIf`가 **Disabled** 등록 계획 출력.
+  pytest **123 PASS**(신규 3: from-cache fixture폴백/full-record/스냅샷폴백), ruff 클린. 실작업 미등록(WhatIf만) — 시스템 클린.
+- 평가자: PASS (신선-컨텍스트 평가자 패널 2인 모두 PASS)
+- 커밋: (feat(deploy) 커밋 — 이 항목 커밋에 포함)
+- 다음: B(waitress 서빙) → C(신뢰계수 표본 개선)
+
+## 2026-07-01 16:36 KST — 배포준비 밤샘루프 하네스 셋업(feat/deploy-prep)
+- 무엇: grilling(7전제 확정) 후 비공개 배포준비 밤샘루프 착수. `GOAL_DEPLOY.md`(Default-FAIL 완료정의 A/B/C+스트레치)
+  작성, 6/29 잔재 `AGENT_STOP` → `docs/AGENT_STOP-archive-2026-06-29.txt` 아카이브(kill-switch 자리 확보),
+  `feat/deploy-prep` 브랜치 생성, `scripts/`·`docs/` 폴더 준비. 루프는 Workflow(빌더↔2인평가자 패널, 항목당 3사이클,
+  오프라인 전용, 로컬커밋 push금지)로 실행.
+- 증거: GOAL_DEPLOY.md, docs/AGENT_STOP-archive-2026-06-29.txt (Read 확인)
+- 평가자: - (하네스 셋업, 코어작업은 루프에서 평가)
+- 커밋: (이 커밋)
+- 다음: 루프가 A(스케줄러)→B(waitress)→C(신뢰계수) 순으로 빌드·평가·커밋
+
 ## 2026-07-01 07:54 KST — 전국 저가매물 확장(지역샤딩+캐시diff) + 웹 라이브서빙 연결
 - 무엇:
   - **전국 샤딩**: `pipeline.load_courtauction_nationwide(cash, sidos, max_pages_per_sido)` — 17개 시도 순회,

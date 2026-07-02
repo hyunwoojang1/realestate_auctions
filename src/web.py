@@ -14,7 +14,7 @@ import logging
 import os
 from pathlib import Path
 
-from flask import Flask, abort, jsonify, render_template, request
+from flask import Flask, abort, g, jsonify, render_template, request
 
 from . import backtest, digest, pipeline, query, report, score, store
 from .models import AuctionListing
@@ -25,12 +25,42 @@ ROOT = Path(__file__).resolve().parent.parent
 DB_ENV = "AUCTION_DB"   # 설정 시 라이브 적재 DB에서 서빙, 미설정 시 샘플 계산
 
 
+def _mark_source(src: str) -> None:
+    """이번 응답이 어떤 데이터 출처(db/sample*)인지 flask.g에 기록. after_request가 헤더로 노출.
+
+    요청 컨텍스트 밖(테스트에서 _scored 직접 호출)에서는 조용히 무시한다.
+    """
+    try:
+        g.data_source = src
+    except RuntimeError:
+        pass
+
+
+def _probe_source() -> str:
+    """데이터 출처를 '읽기전용'으로 판정(로드 없이). /health·헤더용.
+
+    반환: db | sample(db-empty) | sample(db-error) | sample(no-db)
+    """
+    db_path = os.environ.get(DB_ENV)
+    if not db_path:
+        return "sample(no-db)"
+    try:
+        conn = store.connect(db_path)
+        try:
+            return "db" if store.has_rows(conn) else "sample(db-empty)"
+        finally:
+            conn.close()
+    except Exception:  # noqa: BLE001 — 상태 조회 실패도 폴백 상태의 일부
+        return "sample(db-error)"
+
+
 def _scored():
     """채점된 매물 목록.
 
     AUCTION_DB 환경변수가 가리키는 DB에 적재된 결과가 있으면 그것을 서빙한다
     (새로고침 작업이 `run.py --live`로 채워둔 라이브 결과 — 매 요청 API 호출 회피).
-    DB가 없거나 비었으면 샘플 데이터로 폴백(개발/테스트 결정성 유지).
+    DB가 없거나 비었으면 샘플 데이터로 폴백하되, '라이브인 줄 오인'을 막기 위해
+    폴백 사유를 로그로 남기고 출처를 표시한다(응답 헤더 X-Data-Source, /health).
     """
     db_path = os.environ.get(DB_ENV)
     if db_path:
@@ -38,11 +68,20 @@ def _scored():
             conn = store.connect(db_path)
             try:
                 if store.has_rows(conn):
+                    _mark_source("db")
                     return store.load_scored(conn)
             finally:
                 conn.close()
+            # 연결은 됐지만 적재 결과 0건 — 조용히 샘플로 넘어가지 않도록 경고(침묵실패 방지).
+            logger.warning(
+                "AUCTION_DB(%s) 연결됐으나 적재 결과 0건 → 샘플 폴백(라이브 데이터 아님). "
+                "새로고침(run.py --live)이 실패했거나 아직 실행 전일 수 있음.", db_path)
+            _mark_source("sample(db-empty)")
         except Exception as e:  # noqa: BLE001 — DB 문제 시 샘플로 안전 폴백
-            logger.warning("DB 서빙 실패(%s) → 샘플 폴백: %s", db_path, e)
+            logger.error("DB 서빙 실패(%s) → 샘플 폴백: %s", db_path, e, exc_info=True)
+            _mark_source("sample(db-error)")
+    else:
+        _mark_source("sample(no-db)")
     return pipeline.run()
 
 
@@ -62,6 +101,12 @@ def create_app() -> Flask:
     app.json.ensure_ascii = False   # 한글 그대로 직렬화
     app.json.sort_keys = False
 
+    @app.after_request
+    def _tag_data_source(resp):
+        # 모든 응답에 데이터 출처를 노출 — 샘플을 라이브로 오인하는 것을 방지.
+        resp.headers["X-Data-Source"] = getattr(g, "data_source", "n/a")
+        return resp
+
     @app.get("/")
     def index():
         items = _filtered(request.args)
@@ -80,7 +125,9 @@ def create_app() -> Flask:
 
     @app.get("/health")
     def health():
-        return {"status": "ok"}
+        src = _probe_source()
+        _mark_source(src)
+        return {"status": "ok", "data_source": src}
 
     @app.get("/api/listings")
     def listings():
@@ -148,3 +195,17 @@ def create_app() -> Flask:
 
 
 app = create_app()
+
+
+def _truthy(val: str | None) -> bool:
+    """env flag → bool. 미설정/빈값/0/false/no/off 는 False."""
+    return (val or "").strip().lower() in {"1", "true", "yes", "on"}
+
+
+if __name__ == "__main__":
+    # 개발 편의용 진입점. 프로덕션 서빙은 waitress(scripts/start.ps1 / src.serve)를 쓴다.
+    # debug/reloader 는 명시적 env flag(AUCTION_DEBUG=1)로만 켜지고, 기본값은 항상 off.
+    debug = _truthy(os.environ.get("AUCTION_DEBUG"))
+    host = os.environ.get("AUCTION_HOST", "127.0.0.1")
+    port = int(os.environ.get("AUCTION_PORT", "8000"))
+    app.run(host=host, port=port, debug=debug, use_reloader=debug)
