@@ -91,6 +91,12 @@ class ScoredListing:
     # same_complex_same_area(추천 인정) / same_complex_near_area / same_dong_fallback(참고치)
     # / unsupported / no_comps. ""=레거시(스코프 미기록).
     market_scope: str = ""
+    # ---- 가격 밴드 (T4): 단일 추정가 과신 방지 — 두 선으로 말한다 ----
+    # 표본수는 matched_trades가 그 값(market_sample_count 역할). None=밴드 없음(추정불가/레거시).
+    market_band_low: int | None = None    # 검증 하한가(트림 후 최저 평단가 기준, 보수)
+    market_band_high: int | None = None   # 검증 기준가(트림 후 중앙값 = est_market_price)
+    profit_low: int | None = None         # 보수 차익 = 검증 하한가 − 취득원가 (추천 판단 기준)
+    profit_high: int | None = None        # 기준 차익 = 검증 기준가 − 취득원가 (= expected_profit)
 
     @property
     def uid(self) -> str:

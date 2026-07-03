@@ -40,17 +40,21 @@
   - [x] pytest 282 passed + ruff 클린 + evidence/t3_scope.txt Read 확인
 - 평가자 LOW 2건(레거시 "" 이중통과=의도적 하위호환·등급명 리터럴=기존 관행), INFO(목록에서 캡'관심' 구분 불가→T7에서 처리)
 
-### [ready] T4. 시세 단일값 → 2선 가격 밴드
+### [done] T4. 시세 단일값 → 2선 가격 밴드 ✅ 사이클#4 평가자 PASS
 - 왜: 중앙값 하나는 "정답 가격"처럼 보여 과신 유발. 검증 하한가/검증 기준가 밴드로.
-- 완료 정의 (전부 false):
-  - [ ] `market_band_low`(검증 하한가)·`market_band_high`(검증 기준가)·`market_sample_count` 산출·저장
-  - [ ] `profit_low = band_low - 취득원가`, `profit_high = band_high - 취득원가` — **추천 판단은 profit_low 기준**
-  - [ ] 이상치 의심 거래 방어(예: 표본 내 극단치 트림) 문서화된 규칙 1개 이상
-  - [ ] 기존 est_market_price 호환 유지(=밴드 기준가) — 골든셋 점수 영향 확인·필요 시 의도된 변경으로 기록
-  - [ ] 테스트 + pytest 전체 + ruff 클린 + evidence/t4_band.txt Read 확인
+- 완료 정의:
+  - [x] MarketEstimate에 band_low(트림 후 최저 평단가)·band_high(트림 후 중앙값=est) — 표본수는 matched_trades가 담당
+  - [x] profit_low/profit_high 계산·저장. 추천 판단 profit_low 기준: digest 정렬·min_profit·비양수 제외 + score '차익없음' 게이트
+  - [x] 이상치 방어 문서화(trim_outliers 4건↑ 상·하단 1건 제거 — 가족거래 저가/신고가성 고가 방어)
+  - [x] est 호환(=기준가)·점수 무회귀(test_band_does_not_change_score), 기존 테스트 무수정 전체 통과
+  - [x] DB v4(ALTER 4컬럼, 실DB 2521건 보존) + 상세페이지 밴드·보수차익 행
+  - [x] pytest 296 passed(+14) + ruff 클린 + evidence/t4_band.txt Read 확인(광교 보수차익 -0.01억 → 차익없음·추천 제외 실증)
+- 평가자 노트: 실DB 레거시 행 profit_low=NULL → **다음 전량 새로고침 전까지 라이브 digest는 기준차익 폴백**(운영자 고지)
 
 ### [ready] T5. 표본 부족 시 추천 금지 게이트
 - 왜: 같은 단지/평형 실거래 2~4건으로 만든 분위수는 통계 흉내. 과감히 "시세근거 부족"이라 말해야 함.
+- 설계 노트(T4 평가자 권고): matched_trades는 트림 전·최근성 필터 전 수 — 게이트는 **밴드 실기반
+  표본수**(최근성 필터+트림 후 실제 밴드에 쓰인 건수)를 기준으로 설계할 것.
 - 완료 정의 (전부 false):
   - [ ] same_complex_same_area 표본 5건 이상 → 밴드 생성 / 3~4건 → 낮은 신뢰(추천 제외+경고) / 0~2건 → 밴드 금지·"시세근거 부족"
   - [ ] 게이트 임계값 config 외부화(SampleConfig 관례 따름)

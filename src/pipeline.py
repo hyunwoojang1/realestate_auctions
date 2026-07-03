@@ -267,7 +267,8 @@ def run(use_live: bool = False, deal_ymd: str | None = None,
     scored: list[ScoredListing] = []
     for lst in listings:
         m = estimate_market(lst, trade_pool)
-        scored.append(score_listing(lst, m.est, m.matched, market_scope=m.scope))
+        scored.append(score_listing(lst, m.est, m.matched, market_scope=m.scope,
+                                    band_low=m.band_low, band_high=m.band_high))
 
     scored.sort(key=lambda s: (s.arb_score is None, -(s.arb_score or 0)))
     return scored

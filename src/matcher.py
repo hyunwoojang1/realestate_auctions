@@ -30,10 +30,18 @@ SCOPE_NO_COMPS = "no_comps"                              # 지원 유형이나 �
 
 @dataclass(frozen=True)
 class MarketEstimate:
-    """시세 추정 결과 — 값(est)만이 아니라 근거 집합(scope)까지가 결과다."""
+    """시세 추정 결과 — 값(est)만이 아니라 근거 집합(scope)과 가격 밴드까지가 결과다.
+
+    (T4) 단일 추정가는 '정답 가격'처럼 보여 과신을 유발한다(문서 7장). 두 선으로 말한다:
+      band_high = 검증 기준가 — 이상치 트림 후 중앙값(일반적인 시장 가격). est와 동일(호환).
+      band_low  = 검증 하한가 — 이상치 트림 후 최저 평단가(보수적으로 볼 수 있는 낮은 가격).
+    표본수(matched)는 트림 전 원 매칭 수 — market_sample_count로 그대로 저장된다.
+    """
     est: int | None
     matched: int
     scope: str
+    band_low: int | None = None
+    band_high: int | None = None
 
 
 def _area_band() -> float:
@@ -220,10 +228,14 @@ def estimate_market(listing: AuctionListing, trades: list[Trade]) -> MarketEstim
     ppm2_list = [t.price_per_m2() for t in recent if t.area_m2 > 0]
     if not ppm2_list:
         return MarketEstimate(None, 0, SCOPE_NO_COMPS)
+    # 이상치 방어(문서화된 규칙): 표본 4건 이상이면 평단가 최소·최대 1건씩 제거(trim_outliers).
+    # 가족거래 저가·신고가성 고가 같은 특수 거래 1건이 밴드 양끝을 왜곡하는 것을 막는다.
     ppm2_list = trim_outliers(ppm2_list)
     median_ppm2 = statistics.median(ppm2_list)
     est = int(round(median_ppm2 * listing.area_m2))
-    return MarketEstimate(est, matched_count, scope)
+    # (T4) 2선 밴드 — 하한가: 트림 후 최저 평단가(보수), 기준가: 트림 후 중앙값(=est, 호환 유지).
+    band_low = int(round(min(ppm2_list) * listing.area_m2))
+    return MarketEstimate(est, matched_count, scope, band_low=band_low, band_high=est)
 
 
 def estimate_market_price(listing: AuctionListing, trades: list[Trade]) -> tuple[int | None, int]:

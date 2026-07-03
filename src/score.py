@@ -95,10 +95,13 @@ def grade_of(arb: float | None) -> str:
 
 
 def score_listing(listing: AuctionListing, est_market_price: int | None, matched_trades: int,
-                  market_scope: str = "") -> ScoredListing:
+                  market_scope: str = "", band_low: int | None = None,
+                  band_high: int | None = None) -> ScoredListing:
     """한 물건을 채점해 ScoredListing 반환.
 
     market_scope(T3): 시세 비교군의 출처. ""=레거시 호출(스코프 게이트 미적용).
+    band_low/band_high(T4): 검증 하한가/기준가. 점수(gap)는 기준가로 유지(무회귀)하되,
+    '차익없음' 판정 등 추천 여부는 보수 차익(profit_low = 하한가 − 취득원가)을 기준으로 한다.
     """
     conf = confidence_from_matches(matched_trades)
     cost = real_acquisition_cost(listing)
@@ -130,6 +133,9 @@ def score_listing(listing: AuctionListing, est_market_price: int | None, matched
     raw = gap * CONFIG.w_gap + r * CONFIG.w_rights + liq * CONFIG.w_liq
     arb = round(raw * conf, 1)
     profit = est_market_price - cost
+    # (T4) 밴드 차익 — 보수(하한가 기준)/기준(기준가 기준). 추천 판단은 p_low가 기준.
+    p_low = band_low - cost if band_low is not None else None
+    p_high = band_high - cost if band_high is not None else None
 
     # 하드게이트: 권리 점수만 0으로는 부족하다(가격갭 50%가 커서 상위 노출 가능).
     # 최종 스코어를 상한으로 끌어내리고 '위험' 등급으로 강등한다.
@@ -142,7 +148,9 @@ def score_listing(listing: AuctionListing, est_market_price: int | None, matched
     second_grade = CONFIG.grade_thresholds[1][1]   # '양호'
     if gated:
         grade = "위험"
-    elif gap_rate <= 0:
+    elif gap_rate <= 0 or (p_low is not None and p_low <= 0):
+        # (T4) 보수 기준: 검증 하한가로도 차익이 안 남으면 '차익없음' — 기준가 차익이 있어도
+        # 추천하지 않는다(문서 11장 "보수 기준 차익이 충분하지 않습니다 → 추천 제외").
         grade = "차익없음"
     elif not listing.rights_verified:
         # 권리분석 미수행(라이브 크롤 등) → 점수는 참고로 남기되 등급은 비단정 '권리미확인'.
@@ -168,4 +176,6 @@ def score_listing(listing: AuctionListing, est_market_price: int | None, matched
         grade=grade, rights_verified=listing.rights_verified,
         court=listing.court, item_no=listing.item_no, doc_id=listing.doc_id,
         market_scope=market_scope,
+        market_band_low=band_low, market_band_high=band_high,
+        profit_low=p_low, profit_high=p_high,
     )

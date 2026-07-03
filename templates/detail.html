@@ -56,6 +56,12 @@
     <div class="kv"><span class="k">최저입찰가 <span style="color:var(--muted-2)">(현재 회차 시작가)</span></span><span class="v">{{ won(s.min_bid_price) }}</span></div>
     <div class="kv"><span class="k">취득원가 <span style="color:var(--muted-2)">(최저가+취득세)</span></span><span class="v">{{ won(s.real_acquisition_cost) }}</span></div>
     <div class="kv"><span class="k">추정 실거래 시세</span><span class="v">{{ won(s.est_market_price) }}</span></div>
+    {% if s.market_band_low is not none and s.market_band_high is not none %}
+    <div class="kv"><span class="k">시장 가격 밴드 <span style="color:var(--muted-2)">(검증 하한가 ~ 기준가)</span></span><span class="v">{{ won(s.market_band_low) }} ~ {{ won(s.market_band_high) }}</span></div>
+    {% if s.profit_low is not none %}
+    <div class="kv"><span class="k">보수 가격 기준 차익 <span style="color:var(--muted-2)">(하한가 − 취득원가)</span></span><span class="v {% if s.profit_low <= 0 %}neg{% endif %}">{{ won(s.profit_low) }}</span></div>
+    {% endif %}
+    {% endif %}
     <div class="kv"><span class="k">매칭 실거래 / 신뢰계수</span><span class="v">{{ s.matched_trades }}건 · {{ '%.2f'|format(s.confidence) }}</span></div>
     {%- set scope_names = {
       'same_complex_same_area': '같은 단지 · 같은 평형 (추천 인정)',
