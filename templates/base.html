@@ -4,6 +4,9 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>{% block title %}아파트 경매 1차 필터{% endblock %}</title>
+{# Pretendard 웹폰트(동적 서브셋) — Windows 맑은고딕 폴백 탈출. 토스/아실 계열 렌더링의 절반은 이 폰트다. #}
+<link rel="preconnect" href="https://cdn.jsdelivr.net" crossorigin>
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/variable/pretendardvariable-dynamic-subset.min.css">
 <style>
 /* ============================================================
    Data-Thin (아실 스타일) — 화이트 + 1px 헤어라인 + 컴팩트 데이터 밀도.
@@ -35,9 +38,9 @@
   --r-ctl:6px; --r-card:8px; --r-pill:9999px;
   --shadow-sm:0 1px 2px rgba(13,17,23,.05); --shadow-hover:0 4px 14px rgba(13,17,23,.08);
   --row-h:40px; --cell-px:12px;
-  --font-ui:"Pretendard",-apple-system,"Apple SD Gothic Neo","Malgun Gothic",system-ui,sans-serif;
+  --font-ui:"Pretendard Variable","Pretendard",-apple-system,"Apple SD Gothic Neo","Malgun Gothic",system-ui,sans-serif;
   /* 세리프 폐기 — 숫자도 동일 산세리프(아실/토스 계열 데이터 타이포) */
-  --font-serif:"Pretendard",-apple-system,"Apple SD Gothic Neo","Malgun Gothic",system-ui,sans-serif;
+  --font-serif:"Pretendard Variable","Pretendard",-apple-system,"Apple SD Gothic Neo","Malgun Gothic",system-ui,sans-serif;
   --font-mono:"SFMono-Regular",ui-monospace,Consolas,"IBM Plex Mono",monospace;
   --maxw:1200px;
 }
@@ -96,14 +99,16 @@ h2{font-size:var(--t-h2);letter-spacing:var(--ls-head);margin:var(--sp-6) 0 var(
 /* 권리미확인(rights_verified=False) — 갭/차익의 초록 신호를 중립(muted)으로 강등.
    경고 뱃지만 중립인데 주변이 초록으로 '매수'처럼 보이는 것을 막는다(안전 원칙 일관). */
 .hero.unv .hero-score .n{color:var(--muted) !important}
-.unv .gm-gap{background:var(--surface-2) !important}
+/* 권리미확인 강등: 초록(안전신호)만 금지 — 회색 벽돌이 아니라 중립 블루로(미터가 죽지 않게) */
+.unv .gm-gap{background:#d7e4f7 !important}
 .unv .gm-gv,.unv .gapline .amt{color:var(--muted) !important}
 
-/* ---- 신뢰도 칩(별도의 더 조용한 채널) ---- */
-.conf{display:inline-flex;align-items:center;gap:5px;font-size:var(--t-note);font-weight:700;
-  padding:2px 8px;border-radius:var(--r-pill);color:var(--conf-high);background:#E3EEEF;background:color-mix(in oklab,var(--conf-high) 12%,transparent)}
-.conf.mid{color:var(--conf-mid);background:var(--warn-tint)}
-.conf.low{color:var(--conf-low);background:var(--surface-2)}
+/* ---- 신뢰도 칩 — 모든 행에 반복되는 요소라 색 예산 쓰지 않음(조용한 아웃라인) ---- */
+.conf{display:inline-flex;align-items:center;gap:5px;font-size:var(--t-note);font-weight:600;
+  padding:1px 8px;border-radius:var(--r-pill);color:var(--muted);
+  background:transparent;border:1px solid var(--hairline-strong)}
+.conf.mid{color:var(--conf-mid)}
+.conf.low{color:var(--muted-2);border-style:dashed}
 
 /* ---- gap 표시(비교가 메시지) ---- */
 .gapline{display:inline-flex;align-items:baseline;gap:6px;font-weight:800}

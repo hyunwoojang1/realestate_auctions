@@ -220,8 +220,10 @@ def create_app() -> Flask:
 
     @app.get("/map")
     def map_page():
-        return render_template("map.html",
-                               data_source=getattr(g, "data_source", "n/a"))
+        # 지도 페이지는 _scored()를 직접 안 부르므로 출처를 명시 탐지(헤더 '샘플' 오표시 방지).
+        src = _probe_source()
+        _mark_source(src)
+        return render_template("map.html", data_source=src)
 
     @app.get("/api/listings/<case_no>")
     def listing_detail(case_no: str):

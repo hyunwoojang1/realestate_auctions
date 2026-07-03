@@ -15,6 +15,22 @@
 
 ---
 
+## 2026-07-03 17:05 KST — 🧰 아실 개편 M4: 공식 웹디자인 스킬 5종 설치 + 스크린샷 자가검증 루프 가동
+- 무엇: 운영자 지시("깃헙에서 웹디자인 스킬 가져와") — anthropics/skills(**157.8k★ 공식**)에서
+  frontend-design·theme-factory·canvas-design·web-artifacts-builder·webapp-testing 5종을
+  ~/.claude/skills에 설치. frontend-design 지침으로 자가진단: **이전 웜페이퍼·헤어라인 신문
+  스타일이 'AI 디폴트 3대 룩'에 정확히 해당**(운영자 지적이 옳았음을 스킬이 확인).
+  - **webapp-testing 기반 시각 루프**: Playwright+Chromium 설치 → 목록/상세/지도 스크린샷을
+    직접 보며 수정(이제 장님 디자인 아님).
+  - Pretendard Variable 웹폰트 CDN 로드 — Windows 맑은고딕 폴백 탈출(토스체감 절반이 폰트).
+  - 스크린샷 진단 수정 4건: ①목록 상단 4줄 설명문 → 1줄 압축 ②권리미확인 강등이 갭 미터를
+    회색 벽돌로 죽이던 것 → 중립 블루(#d7e4f7, 안전신호 아님) ③신뢰 칩 전행 초록 반복 →
+    조용한 아웃라인(색 예산 회수) ④/map 헤더 '샘플 데이터' 오표시 → _probe_source 명시 탐지.
+- 게이트: pytest 355 passed, ruff 클린. 스크린샷 재촬영으로 육안 확인.
+- 평가자: 스크린샷 자가검증(shot_list/detail/map.png).
+- 커밋: (이 항목과 함께 커밋)
+- 다음: 시그니처 요소(가격 밴드 게이지 — 하한~기준가 밴드 위 취득원가 마커) 검토, 운영자 피드백.
+
 ## 2026-07-03 16:45 KST — 🎨 아실 개편 M3: 레이어드 서피스 — ui-ux-pro-max 스킬 기반 재조정
 - 무엇: 운영자 피드백("배경 단색 하나로 밀지 마라 — 토스/아실은 층이 있다") → ui-ux-pro-max
   스킬(90.5k★) 로드, Data-Dense Dashboard 스타일 × Banking/Traditional Finance 팔레트 조회 적용.

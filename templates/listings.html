@@ -40,10 +40,8 @@
 {% set unverified = items|selectattr('grade','equalto','권리미확인')|list %}
 
 <h1 class="page-h">아파트 경매 1차 필터</h1>
-<p class="page-sub"><b>보수 기준 차익 = 검증 하한가 − (최저입찰가 + 취득세)</b> 큰 순.
-같은 단지·같은 평형 실거래 밴드의 <b>하한가 기준</b>으로 보수적으로 계산합니다(밴드 없는 물건은 기준 시세 차익).
-취득세는 <b>{{ tax_label }}</b> 기준(변경: data/buyer_profile.json). 명도·수리·권리 인수 등 변동비 미포함 —
-검토 보조 도구이며, 산식·게이트는 <a href="/methodology">방법론</a> 참고.</p>
+<p class="page-sub"><b>보수 기준 차익 = 검증 하한가 − (최저입찰가 + 취득세)</b> 큰 순 · 검토 보조 도구
+· 취득세 {{ tax_label }} 기준 · 산식·게이트는 <a href="/methodology">방법론</a></p>
 
 {% if legacy_only %}
 {# (T8 감사 HIGH) 전량 레거시(보수차익 미계산) DB — 라벨-값 불일치를 배너로 정직 고지 #}
