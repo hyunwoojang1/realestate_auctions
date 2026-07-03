@@ -201,6 +201,11 @@ def create_app() -> Flask:
         from .matcher import band_confident_basis  # noqa: PLC0415
         sample_gate_low = (s.market_sample_basis is not None
                            and s.market_sample_basis < band_confident_basis())
+        # (T6) 호가 스텁 — 수동 입력 파일에 있으면 점으로 표시, 없으면 완전 무표시.
+        from . import asking as asking_mod  # noqa: PLC0415
+        askings = asking_mod.load_asking_prices().get(case_no, [])
+        ask_points = asking_mod.asking_points(askings, s.market_band_low, s.market_band_high)
+        ask_overstated = asking_mod.band_overstated(askings, s.market_band_low)
         return render_template(
             "detail.html", s=s, listing=listing,
             meter=report.gap_meter_html(s), won=report.won, pct=report.pct,
@@ -209,6 +214,7 @@ def create_app() -> Flask:
             watching=case_no in watchlist.load_watchlist(watchlist.watchlist_path()),
             data_source=getattr(g, "data_source", "n/a"),
             sample_gate_low=sample_gate_low, band_confident=band_confident_basis(),
+            ask_points=ask_points, ask_overstated=ask_overstated,
         )
 
     @app.get("/digest")

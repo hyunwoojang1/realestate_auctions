@@ -62,13 +62,15 @@
   - [x] pytest 312 passed(+16) + ruff 클린 + evidence/t5_sample_gate.txt Read 확인
 - 평가자 노트: ⚠실DB 전행 basis=None → **전량 새로고침 전까지 실데이터 게이트 미발효**(T4와 동일 패턴, 운영자 고지)
 
-### [ready] T6. 호가 스텁 — 점 표시 구조만 (실데이터는 운영자 대기)
+### [done] T6. 호가 스텁 — 점 표시 구조만 (실데이터는 운영자 대기) ✅ 사이클#6 평가자 PASS
 - 왜: 호가는 밴드 재료가 아니라 검증 보조 점. 단 네이버 등 수급은 약관 문제 → 문서 12장 순서 준수.
-- 완료 정의 (전부 false):
-  - [ ] 호가(asking price) 옵셔널 데이터 모델 + 있으면 상세 화면에 점·밴드 대비 위치(안/위/아래) 표시, 없으면 완전 무표시
-  - [ ] 호가가 밴드 아래면 "실거래 밴드 과대 가능성" 경고 로직 + 테스트
-  - [ ] 실데이터 수급 경로(합법성)는 harness/QUESTIONS.md에 운영자 질문으로 등록 — 크롤 시도 금지
-  - [ ] pytest 전체 + ruff 클린 + evidence/t6_asking_stub.txt Read 확인
+- 완료 정의:
+  - [x] src/asking.py — AskingPrice 모델·asking_points(밴드 대비 아래/안/위)·수동 입력 파일(data/asking_prices.json) 로드, 없으면 완전 무표시(계약)
+  - [x] band_overstated — 최저 호가 < 검증 하한가 → "실거래 밴드 과대 가능성" 경고 + 상세페이지 렌더
+  - [x] QUESTIONS.md Q2 등록(수동입력/제휴API/보류 — 논블로킹). asking.py 네트워크 코드 0(크롤 금지 준수, 평가자 grep 확인)
+  - [x] 표시 전용 보장 — matcher/score/digest 무접촉(시세·점수·추천에 영향 없음, 평가자 확인)
+  - [x] pytest 325 passed(+13) + ruff 클린 + evidence/t6_asking_stub.txt Read 확인
+- 평가자 LOW 3건(무효 행 침묵 skip·float 거부·테스트 환경 의존) 전부 즉시 수정
 
 ### [ready] T7. UI 메시지·포지셔닝 전환
 - 왜: "예상 차익 2.3억"(단정) → "보수 가격 기준 차익 1.4억 · 실거래 6건 기준"(신뢰 고지).

@@ -81,6 +81,20 @@
     {% if s.market_scope %}
     <div class="kv"><span class="k">시세 비교군 <span style="color:var(--muted-2)">(어떤 거래로 추정했나)</span></span><span class="v">{{ scope_names.get(s.market_scope, s.market_scope) }}</span></div>
     {% endif %}
+    {# (T6) 호가 점 — 수동 입력된 호가가 있을 때만 표시. 밴드의 주재료가 아닌 검증 보조자료. #}
+    {% if ask_points %}
+    {%- set pos_names = {'below': '밴드 아래', 'inside': '밴드 안', 'above': '밴드 위'} -%}
+    <div class="kv"><span class="k">현재 호가 <span style="color:var(--muted-2)">(체결가 아님 — 참고용 점)</span></span><span class="v">
+      {%- for p in ask_points -%}
+      {{ won(p.price) }}{% if p.position %} <span style="color:var(--muted-2)">({{ pos_names.get(p.position, p.position) }})</span>{% endif %}{{ " · " if not loop.last }}
+      {%- endfor -%}
+    </span></div>
+    {% if ask_overstated %}
+    <div class="note-box n-warn" style="margin-top:8px">⚠ <b>실거래 밴드 과대 가능성</b>: 현재 최저 호가가
+    검증 하한가보다 낮습니다. 과거 실거래로 만든 밴드가 지금 시장보다 높게 잡혀 있을 수 있어
+    차익이 과대평가될 위험이 있습니다.</div>
+    {% endif %}
+    {% endif %}
   </div>
 
   <!-- 세금 상세 (docs/tax-auction-knowledge.md 기준) -->
