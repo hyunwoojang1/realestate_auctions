@@ -11,15 +11,15 @@
 <div class="chips">
   <div class="chip">전체 <b>{{ o.count }}건</b></div>
   <div class="chip">시세추정 성공률 <b>{{ '%.0f%%'|format(o.est_success_rate * 100) if o.est_success_rate is not none else '-' }}</b></div>
-  <div class="chip">차익 양수 <b>{{ o.positive_profit_count }}건</b></div>
+  <div class="chip">차익 양수(기준 시세 차익 기준) <b>{{ o.positive_profit_count }}건</b></div>
   <div class="chip">평균 갭률 <b>{{ pct(o.avg_gap_rate) if o.avg_gap_rate is not none else '-' }}</b></div>
-  <div class="chip">평균 예상차익 <b>{{ won(o.avg_expected_profit | round | int) if o.avg_expected_profit is not none else '-' }}</b></div>
+  <div class="chip">평균 차익(기준 시세 기준) <b>{{ won(o.avg_expected_profit | round | int) if o.avg_expected_profit is not none else '-' }}</b></div>
 </div>
 
 <h2>용도별</h2>
 <table class="params">
 <thead><tr><th scope="col">용도</th><th class="num" scope="col">건수</th>
-<th class="num" scope="col">평균 갭률</th><th class="num" scope="col">평균 예상차익</th>
+<th class="num" scope="col">평균 갭률</th><th class="num" scope="col">평균 차익(기준 시세 기준)</th>
 <th class="num" scope="col">최고 스코어</th></tr></thead>
 <tbody>
 {% for r in d.by_property_type %}
@@ -34,7 +34,7 @@
 <h2>지역별 (시도)</h2>
 <table class="params">
 <thead><tr><th scope="col">시도</th><th class="num" scope="col">건수</th>
-<th class="num" scope="col">평균 갭률</th><th class="num" scope="col">평균 예상차익</th>
+<th class="num" scope="col">평균 갭률</th><th class="num" scope="col">평균 차익(기준 시세 기준)</th>
 <th class="num" scope="col">최고 스코어</th></tr></thead>
 <tbody>
 {% for r in d.by_sido %}

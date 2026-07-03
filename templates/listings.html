@@ -12,7 +12,9 @@
 {%- endmacro -%}
 {%- macro ccls(c) -%}{%- if c>=0.85 -%}high{%- elif c>=0.70 -%}mid{%- else -%}low{%- endif -%}{%- endmacro -%}
 {%- macro confchip(s) -%}
-<span class="conf {{ ccls(s.confidence) }}">신뢰 {{ '%.2f'|format(s.confidence) }} · 실거래 {{ s.matched_trades }}건</span>
+{#- (T8 감사 수정) '실거래 N건' 라벨이 basis(근거 표본)와 matched(매칭)에 중복 사용돼
+    같은 행에 5건/7건이 동시 표기되던 혼란 — 여기는 '매칭'으로 명명 분리. -#}
+<span class="conf {{ ccls(s.confidence) }}">신뢰 {{ '%.2f'|format(s.confidence) }} · 매칭 {{ s.matched_trades }}건</span>
 {%- endmacro -%}
 {%- macro profitcell(s) -%}
 {#- (T7) 보수 가격 기준 차익(profit_low)이 대표값 — 없으면(레거시) 기준 차익 폴백 -#}
@@ -20,11 +22,12 @@
 {%- if p is not none -%}
 <div class="gapline {% if p < 0 %}neg{% endif %}"><span class="amt">{{ won(p) }}</span></div>
 <div style="font-size:var(--t-note);color:var(--muted)">
-{%- if s.profit_low is not none -%}보수 기준 · 실거래 {{ s.market_sample_basis if s.market_sample_basis is not none else s.matched_trades }}건
-{%- else -%}시세 대비 {{ pct(s.gap_rate) }}{%- endif -%}
+{%- if s.profit_low is not none -%}보수 기준 · 근거 표본 {{ s.market_sample_basis if s.market_sample_basis is not none else s.matched_trades }}건
+{%- else -%}기준 시세 차익 · 시세 대비 {{ pct(s.gap_rate) }}{%- endif -%}
 </div>
 {%- else -%}<span class="gm-na2">—</span>{%- endif -%}
 {%- endmacro -%}
+{%- macro proplink(s) -%}/property/{{ s.case_no }}{% if s.item_no %}?item={{ s.item_no }}{% if s.court %}&court={{ s.court }}{% endif %}{% endif %}{%- endmacro -%}
 
 {% block content %}
 {# (T7) 통계도 보수 기준 — profit_low 있으면 그것, 없으면 기준 차익 #}
@@ -42,12 +45,19 @@
 취득세는 <b>{{ tax_label }}</b> 기준(변경: data/buyer_profile.json). 명도·수리·권리 인수 등 변동비 미포함 —
 검토 보조 도구이며, 산식·게이트는 <a href="/methodology">방법론</a> 참고.</p>
 
+{% if legacy_only %}
+{# (T8 감사 HIGH) 전량 레거시(보수차익 미계산) DB — 라벨-값 불일치를 배너로 정직 고지 #}
+<div class="note-box n-warn">⚠ <b>구버전 채점 데이터</b>: 현재 표시 중인 물건은 신뢰 개편(비교군 검증·가격 밴드·표본
+게이트) <b>이전</b>에 채점된 데이터입니다. 아래 차익은 <b>보수 기준이 아닌 기준 시세 차익</b>이며, 비교군·표본
+검증이 적용되지 않았습니다. 다음 전량 새로고침 후 보수 기준으로 전환됩니다 — 그 전까지는 참고만 하세요.</div>
+{% endif %}
+
 <div class="insight{% if profitable|length == 0 %} flat{% endif %}">
   <span><span class="k">표시</span> <span class="v">{{ count }}건</span></span>
-  <span><span class="k">보수 기준 차익 양수</span> <span class="v pos">{{ profitable|length }}건</span></span>
+  <span><span class="k">{% if legacy_only %}기준 차익 양수(구 데이터){% else %}보수 기준 차익 양수{% endif %}</span> <span class="v pos">{{ profitable|length }}건</span></span>
   {% if profitable %}
   {% set top_p = profitable[0].profit_low if profitable[0].profit_low is not none else profitable[0].expected_profit %}
-  <span><span class="k">최고 보수 차익</span> <span class="v pos">{{ won(top_p) }}</span></span>
+  <span><span class="k">{% if legacy_only %}최고 차익(구 기준){% else %}최고 보수 차익{% endif %}</span> <span class="v pos">{{ won(top_p) }}</span></span>
   {% endif %}
   {% if unverified %}
   <span><span class="k">권리미확인</span> <span class="v">{{ unverified|length }}건</span></span>
@@ -91,24 +101,24 @@
 {% if hero %}
 {%- set hero_p = hero.profit_low if hero.profit_low is not none else hero.expected_profit -%}
 <div class="hero{% if hero.grade == '권리미확인' %} unv{% endif %}">
+  <span class="hero-caption">보수 기준 1위 — 검증 게이트 통과 물건</span>
   <div class="hero-score">
     <div class="n gapline {% if hero_p < 0 %}neg{% endif %}" style="font-family:var(--font-serif)"><span class="amt">{{ won(hero_p) }}</span></div>
     <div style="font-size:var(--t-note);color:var(--muted);margin-top:4px">
-      {%- if hero.profit_low is not none -%}
-      보수 기준 차익 · 실거래 {{ hero.market_sample_basis if hero.market_sample_basis is not none else hero.matched_trades }}건 기준
-      {%- else -%}예상 차익 · 시세 대비 {{ pct(hero.gap_rate) }}{%- endif -%}
+      {#- 히어로는 strict 게이트 통과 물건만(web.py) — profit_low·basis 항상 존재 -#}
+      보수 기준 차익 · 같은 단지/같은 평형 근거 표본 {{ hero.market_sample_basis }}건 기준
     </div>
     <div style="margin-top:8px">{{ warnbadge(hero) }}</div>
   </div>
   <div class="hero-mid">
-    <a href="/property/{{ hero.case_no }}" class="name" style="color:inherit">{{ hero.apt_name or hero.property_type }}</a>
+    <a href="{{ proplink(hero) }}" class="name" style="color:inherit">{{ hero.apt_name or hero.property_type }}</a>
     <div class="addr">{{ hero.address }} · {{ hero.property_type }} · {{ '%.0f'|format(hero.area_m2) }}㎡ · 유찰 {{ hero.fail_count }}회</div>
     <div style="margin-top:12px;max-width:420px">{{ meter(hero)|safe }}</div>
   </div>
   <div class="hero-why">
     {{ confchip(hero) }}
     <div style="font-size:var(--t-note);color:var(--muted);margin-top:6px">최저가 {{ won(hero.min_bid_price) }} · 시세 {{ won(hero.est_market_price) }}</div>
-    <a class="go" href="/property/{{ hero.case_no }}">상세 보기 →</a>
+    <a class="go" href="{{ proplink(hero) }}">상세 보기 →</a>
   </div>
 </div>
 {% endif %}
@@ -116,7 +126,7 @@
 <div class="tablewrap"><div class="scrollx">
 <table class="picks">
 <thead><tr>
-  <th class="rank" scope="col">#</th><th class="r" scope="col">보수 기준 차익</th><th scope="col">경고</th>
+  <th class="rank" scope="col">#</th><th class="r" scope="col">{% if legacy_only %}차익(기준 시세·구 데이터){% else %}보수 기준 차익{% endif %}</th><th scope="col">경고</th>
   <th scope="col">단지 / 소재지</th><th scope="col">갭 (최저가 → 시세)</th>
   <th class="r" scope="col">최저가</th><th class="r" scope="col">신뢰</th>
 </tr></thead>
@@ -127,7 +137,7 @@
   <td class="rank num">{{ loop.index + (1 if hero else 0) }}</td>
   <td class="r num money">{{ profitcell(s) }}</td>
   <td>{{ warnbadge(s) }}</td>
-  <td><a class="name" href="/property/{{ s.case_no }}">{{ s.apt_name or s.property_type }}</a>
+  <td><a class="name" href="{{ proplink(s) }}">{{ s.apt_name or s.property_type }}</a>
       <div class="addr">{{ s.address }} · {{ s.property_type }} · {{ '%.0f'|format(s.area_m2) }}㎡</div>
       <div class="caseid">{{ s.case_no }}
         <form method="post" action="/watchlist/toggle/{{ s.case_no }}" style="display:inline;margin:0">

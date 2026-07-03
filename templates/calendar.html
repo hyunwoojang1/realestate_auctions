@@ -40,11 +40,13 @@
     {% if day.date == today %}<span class="badge b-unknown">오늘</span>{% endif %}
   </td>
   {% endif %}
-  <td><a class="name" href="/property/{{ s.case_no }}">{{ s.apt_name or s.property_type }}</a>
+  <td><a class="name" href="/property/{{ s.case_no }}{% if s.item_no %}?item={{ s.item_no }}{% endif %}">{{ s.apt_name or s.property_type }}</a>
       <div class="addr">{{ s.address }} · {{ s.property_type }} · 유찰 {{ s.fail_count }}회</div></td>
   <td>{{ warnbadge(s) }}</td>
   <td class="num" style="white-space:nowrap">
-    {% if s.expected_profit is not none %}예상차익 <b>{{ won(s.expected_profit) }}</b>{% else %}—{% endif %}
+    {#- (T8 감사 수정) T7 보수 기준 통일 — 목록과 같은 물건이 다른 수치로 보이지 않게 -#}
+    {%- set p = s.profit_low if s.profit_low is not none else s.expected_profit -%}
+    {% if p is not none %}{% if s.profit_low is not none %}보수 기준 차익{% else %}차익(기준 시세){% endif %} <b>{{ won(p) }}</b>{% else %}—{% endif %}
     <div style="font-size:var(--t-note);color:var(--muted)">최저가 {{ won(s.min_bid_price) }}</div></td>
 </tr>
 {% endfor %}

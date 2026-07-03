@@ -84,11 +84,12 @@
 - 1차 평가 NEEDS_WORK(히어로 미전환·헤더 라벨-값 불일치·산식 3곳) → 전부 수정 → 재판정 PASS.
   잔여 LOW 2건(rank 열 의미·report.py CLI/HTML 잔존) → BACKLOG 이월
 
-### [ready] T8. 최종 감사 (T1~T7 완료 후 자동 진행)
-- 완료 정의 (전부 false):
-  - [ ] 다관점 감사 병렬 — ① 기능/코드품질(code-reviewer) ② 침묵실패(silent-failure-hunter) ③ 도메인 안전(근거 문서 원칙 위반: fallback 추천 부활·단정 표현 잔존 등) ④ 디자인/UX(templates 신뢰 고지 가독성·정보 위계)
-  - [ ] CRITICAL/HIGH 즉시 수정, MEDIUM 이하 BACKLOG 이월
-  - [ ] 종합 리포트 versions.md 기록 + 커밋 → 루프 종료·운영자 보고
+### [done] T8. 최종 감사 ✅ 사이클#8 — 5관점 병렬 + 적대 검증(에이전트 39개), 확정 14건 전부 수정
+- 완료 정의:
+  - [x] 다관점 감사 — 기능·침묵실패·도메인안전·디자인/UX·데이터정합 5관점 병렬, CRITICAL/HIGH는 반박자 2인(정확성·사용자영향) 적대 검증. 원본: docs/audit-t8-20260703.json
+  - [x] 확정 CRITICAL 1·HIGH 13 → 수정 묶음 9개 전부 즉시 수정(+회귀 테스트 13개, pytest 348)
+  - [x] MEDIUM/LOW 29건 + 반박 기각 3건 → docs JSON 보존, B18로 백로그 등록
+  - [x] versions.md 기록 + 커밋 → 루프 종료·운영자 보고
 
 ## 루프 운영 (이번 밤샘 전용 오버라이드)
 

@@ -132,13 +132,18 @@ def create_app() -> Flask:
             "region": request.args.get("region", ""),
             "sort": request.args.get("sort", query.DEFAULT_SORT),
         }
-        # (T7) 히어로 스포트라이트는 추천 표면 — '위험'(하드게이트)은 차익이 커도 올리지 않는다.
-        # 목록 테이블에는 그대로 표시(배제 아님·경고 뱃지). 히어로 후보 = 차익 있는 비위험 1위.
-        hero = next((s for s in items
-                     if query.decision_profit(s) is not None and s.grade != "위험"), None)
+        # (T7→T8 감사 수정) 히어로 스포트라이트는 최대 추천 표면 — digest와 동일 게이트를
+        # 레거시 통과 없이(strict) 적용한다: 보수차익 양수·같은단지같은평형·basis≥5·비위험.
+        # 게이트 정보가 없는 구 DB에서는 히어로를 띄우지 않는다(검증 안 된 헤드라인 금지).
+        from .digest import passes_recommend_gates  # noqa: PLC0415
+        hero = next((s for s in items if passes_recommend_gates(s, allow_legacy=False)), None)
+        # (T8 감사 HIGH) 표시 물건 전부가 레거시(보수차익 미계산·구 채점)면 라벨-값 불일치가
+        # 생기므로 배너로 고지하고 컬럼 라벨도 구 기준임을 표기한다.
+        legacy_only = bool(items) and all(s.profit_low is None for s in items)
         return render_template(
             "listings.html", items=items, count=len(items), filters=filters,
-            hero=hero, won=report.won, pct=report.pct, meter=report.gap_meter_html,
+            hero=hero, legacy_only=legacy_only,
+            won=report.won, pct=report.pct, meter=report.gap_meter_html,
             tax_label=tax.PROFILE.label(),
             watched=watchlist.load_watchlist(watchlist.watchlist_path()),
             data_source=getattr(g, "data_source", "n/a"))
@@ -168,19 +173,51 @@ def create_app() -> Flask:
         resp.charset = "utf-8"
         return resp
 
+    def _find_by_case(case_no: str):
+        """(T8 감사 수정 — B14 핵심) 사건번호 매칭 물건 전부.
+
+        T1 복합키 도입으로 같은 사건의 물건 여러 개가 공존한다 — 단건 next()는 임의의
+        한 물건만 반환해 다른 물건의 수치(아파트 vs 상가)를 보여주는 침묵 오표시를 만든다.
+        item(물건번호)·court 쿼리 파라미터로 좁힐 수 있다.
+        """
+        matches = [s for s in _scored() if s.case_no == case_no]
+        item = request.args.get("item")
+        court = request.args.get("court")
+        if item is not None:
+            matches = [s for s in matches if s.item_no == item]
+        if court:
+            matches = [s for s in matches if s.court == court]
+        return matches
+
     @app.get("/api/listings/<case_no>")
     def listing_detail(case_no: str):
-        match = next((s for s in _scored() if s.case_no == case_no), None)
-        if match is None:
+        matches = _find_by_case(case_no)
+        if not matches:
             abort(404)
-        return jsonify(match.to_row())
+        if len(matches) > 1:
+            # 같은 사건에 물건 여러 개 — 임의 1건을 주지 않고 선택지를 반환(300 Multiple Choices).
+            return jsonify({
+                "error": "multiple_items",
+                "case_no": case_no,
+                "items": [{"item_no": s.item_no, "court": s.court,
+                           "property_type": s.property_type, "apt_name": s.apt_name,
+                           "url": f"/api/listings/{case_no}?item={s.item_no}"}
+                          for s in matches],
+            }), 300
+        return jsonify(matches[0].to_row())
 
     @app.get("/property/<case_no>")
     def property_detail(case_no: str):
         from . import tax  # noqa: PLC0415
-        s = next((x for x in _scored() if x.case_no == case_no), None)
-        if s is None:
+        matches = _find_by_case(case_no)
+        if not matches:
             abort(404)
+        if len(matches) > 1:
+            # 물건 선택 페이지 — 어떤 물건인지 사용자가 고른다(잘못된 물건 수치 표시 방지).
+            return render_template("choose_item.html", case_no=case_no, items=matches,
+                                   won=report.won,
+                                   data_source=getattr(g, "data_source", "n/a"))
+        s = matches[0]
         listing = next((a for a in pipeline.load_sample_auctions() if a.case_no == case_no), None)
         if listing is None:
             # DB 서빙(courtauction 등 비-샘플) 매물 — 스코어 행에서 최소 listing 복원.
@@ -202,8 +239,11 @@ def create_app() -> Flask:
                 gate_reasons.append("·".join(fatal) + " 신고")
         tax_parts = tax.acquisition_tax_breakdown(s.min_bid_price, s.property_type, s.area_m2)
         # (T5) 표본 게이트 상태 — 실기반 표본이 추천 기준 미만이면 '낮은 신뢰' 경고 노출.
+        # (T8 감사 수정) 시세 자체가 없는 물건(미지원유형·시세추정불가)에는 "시세·차익은 참고만"
+        # 경고가 무의미·혼란 — est가 있을 때만 발동.
         from .matcher import band_confident_basis  # noqa: PLC0415
-        sample_gate_low = (s.market_sample_basis is not None
+        sample_gate_low = (s.est_market_price is not None
+                           and s.market_sample_basis is not None
                            and s.market_sample_basis < band_confident_basis())
         # (T6) 호가 스텁 — 수동 입력 파일에 있으면 점으로 표시, 없으면 완전 무표시.
         from . import asking as asking_mod  # noqa: PLC0415

@@ -51,17 +51,19 @@
 {% if watched %}
 <table class="params">
 <thead><tr><th scope="col">단지 / 소재지</th><th scope="col">경고</th>
-<th class="num" scope="col">예상차익</th><th class="num" scope="col">최저가</th>
+<th class="num" scope="col">차익(보수 기준·구 데이터는 기준 시세)</th><th class="num" scope="col">최저가</th>
 <th scope="col">매각기일</th><th scope="col"></th></tr></thead>
 <tbody>
 {% for s in watched %}
 <tr>
-  <td><a class="name" href="/property/{{ s.case_no }}">{{ s.apt_name or s.property_type }}</a>
+  <td><a class="name" href="/property/{{ s.case_no }}{% if s.item_no %}?item={{ s.item_no }}{% endif %}">{{ s.apt_name or s.property_type }}</a>
       <div class="addr">{{ s.address }} · {{ s.property_type }} · 유찰 {{ s.fail_count }}회</div>
       <div class="caseid">{{ s.case_no }}</div></td>
   <td>{{ warnbadge(s) }}</td>
-  <td class="num">{% if s.expected_profit is not none %}<b>{{ won(s.expected_profit) }}</b>
-      <div style="font-size:var(--t-note);color:var(--muted)">시세 대비 {{ pct(s.gap_rate) }}</div>
+  {#- (T8 감사 수정) T7 보수 기준 통일 -#}
+  {%- set p = s.profit_low if s.profit_low is not none else s.expected_profit -%}
+  <td class="num">{% if p is not none %}<b>{{ won(p) }}</b>
+      <div style="font-size:var(--t-note);color:var(--muted)">{% if s.profit_low is not none %}보수 기준 · 근거 표본 {{ s.market_sample_basis if s.market_sample_basis is not none else s.matched_trades }}건{% else %}기준 시세 · 시세 대비 {{ pct(s.gap_rate) }}{% endif %}</div>
       {% else %}—{% endif %}</td>
   <td class="num">{{ won(s.min_bid_price) }}</td>
   <td>{{ s.sale_date or '미상' }}</td>

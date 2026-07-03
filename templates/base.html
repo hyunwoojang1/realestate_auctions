@@ -119,7 +119,10 @@ h2{font-size:var(--t-h2);letter-spacing:var(--ls-head);margin:var(--sp-6) 0 var(
 .hero{display:grid;grid-template-columns:auto 1fr auto;gap:var(--sp-5);align-items:center;
   background:var(--surface);border:1px solid var(--hairline-strong);border-radius:var(--r-card);
   box-shadow:var(--shadow-sm);padding:var(--sp-5) var(--sp-6);margin-bottom:var(--sp-4);position:relative;overflow:hidden}
-.hero::before{content:"오늘의 콕 집은 매물";position:absolute;top:12px;left:var(--sp-6);
+/* (T8 감사 수정) 캡션을 CSS ::before에서 마크업(.hero-caption)으로 이동 — 상세 페이지의
+   판정 헤더(.hero 재사용)에까지 '추천' 캡션이 붙어 위험·미지원 물건에 허위 추천 신호를 주던 결함.
+   마크업 캡션은 목록 히어로에만 존재하며 스크린리더에도 안정적으로 읽힌다. */
+.hero-caption{position:absolute;top:12px;left:var(--sp-6);
   font-size:var(--t-note);font-weight:800;letter-spacing:var(--ls-label);color:var(--muted)}
 .hero-score{text-align:center;padding-top:14px}
 .hero-score .n{font-family:var(--font-serif);font-size:2.5rem;line-height:1;font-weight:800}

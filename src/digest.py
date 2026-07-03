@@ -26,6 +26,25 @@ def _decision_profit(s: ScoredListing) -> int | None:
     return s.profit_low if s.profit_low is not None else s.expected_profit
 
 
+def passes_recommend_gates(s: ScoredListing, allow_legacy: bool = True) -> bool:
+    """추천 표면 공용 게이트 — digest TOP과 목록 히어로가 같은 기준을 쓴다(T8 감사 HIGH 수정).
+
+    조건: 보수 차익 양수 + '위험' 아님 + 같은 단지·같은 평형 scope + 근거 표본 충분(basis≥5).
+    allow_legacy=True: scope=''·basis None(구 DB, 게이트 정보 없음)을 하위호환 통과 — digest용.
+    allow_legacy=False: 게이트 정보가 실제로 있고 전부 통과한 물건만 — 히어로(최대 노출 표면)용.
+    구 DB에서는 히어로가 아예 안 뜨는 게 맞다(검증 안 된 수치를 헤드라인으로 올리지 않는다).
+    """
+    p = _decision_profit(s)
+    if p is None or p <= 0 or s.grade == "위험":
+        return False
+    if allow_legacy:
+        return s.market_scope in ("", SCOPE_SAME_COMPLEX_SAME_AREA) and _enough_basis(s)
+    return (s.profit_low is not None
+            and s.market_scope == SCOPE_SAME_COMPLEX_SAME_AREA
+            and s.market_sample_basis is not None
+            and s.market_sample_basis >= band_confident_basis())
+
+
 def top_listings(scored: list[ScoredListing], n: int = 10,
                  min_profit: int | None = None) -> list[ScoredListing]:
     """추천 TOP N — 보수 차익(profit_low) 큰 순. min_profit(원)도 보수 차익에 적용.
@@ -39,11 +58,7 @@ def top_listings(scored: list[ScoredListing], n: int = 10,
     (T7) '위험'(하드게이트: 치명 특수권리·과다 인수금액) 등급은 추천 표면에서 제외 —
     차익이 아무리 커도 '추천 TOP'이라는 안전 신호를 주면 안 된다. 목록에는 그대로 표시된다.
     """
-    items = [s for s in scored if _decision_profit(s) is not None
-             and _decision_profit(s) > 0
-             and s.grade != "위험"
-             and s.market_scope in ("", SCOPE_SAME_COMPLEX_SAME_AREA)
-             and _enough_basis(s)]
+    items = [s for s in scored if passes_recommend_gates(s)]
     if min_profit is not None:
         items = [s for s in items if _decision_profit(s) >= min_profit]
     return sorted(items, key=lambda s: -_decision_profit(s))[:n]

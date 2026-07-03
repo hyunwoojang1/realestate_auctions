@@ -69,6 +69,17 @@
   - [x] evidence/snapshot_missing_smoke.txt(없음O·빈{}오안내사라짐+변동없음O·손상배너O) Read 확인
 - 평가자 PASS(C/H/M/L 0).
 
+## [ready] B18 T8 감사 MEDIUM/LOW 29건 소화 (출처: docs/audit-t8-20260703.json, 2026-07-03)
+- 왜: T8 최종 감사(5관점+적대검증)에서 확정 CRITICAL/HIGH 14건은 즉시 수정 완료. MEDIUM/LOW 29건과
+  반박 기각 3건(레거시 DB 전면 미발효—새로고침이 해소 / 2,521행 단일 렌더 페이지네이션 / 다물건 소실
+  주장—반박됨)은 JSON에 전문 보존. 다음 사이클에서 우선순위 정해 소화.
+- 완료 정의(전부 false):
+  - [ ] JSON의 medium_low 29건 트리아지(즉시/이월/기각) 후 상위 5건 수정
+  - [ ] pytest 전체 + ruff 클린
+- 제약: 순수 로컬.
+- 참고: B14(복합키 소비계층)는 T8 수정으로 **핵심 해소**(상세 라우팅·선택 페이지·API 300) —
+  잔여는 watchlist/compare/asking 키의 uid 전환뿐. B14 항목 갱신 필요.
+
 ## [ready] B17 T7 잔여 문구 정리 — rank 열 의미·report.py 리포트 (출처: T7 평가자 LOW 2건, 2026-07-03)
 - 왜: ① 히어로 도입 후 테이블 rank가 "차익 순위"가 아니라 "추천 우선 표시 순서"가 됨(위험 물건이
   rank 2인데 금액은 히어로보다 큼 — 뱃지로 오독 위험 낮으나 정리 필요). ② run.py 콘솔 표·report.to_html은

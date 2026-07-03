@@ -113,13 +113,14 @@ def main(argv=None) -> int:
     else:
         scored = pipeline.run(use_live=use_live, deal_ymd=args.ym)
 
-    # 시세 출처 가드: courtauction 실매물을 '라이브 국토부 시세'가 아닌 샘플/추정 시세로 채점한 결과는
-    # 서빙 DB에 넣지 않는다(웹이 X-Data-Source: db 로 '라이브인 척' 내보내는 것을 방지). 별도 dryrun DB로.
+    # 시세 출처 가드: 라이브 국토부 시세가 아닌(샘플/추정) 채점 결과는 소스와 무관하게
+    # 서빙 DB에 넣지 않는다(T8 감사 HIGH — `run.py --from-cache`가 소스 기본값 sample이라
+    # 샘플 fixture 6건을 서빙 DB에 적재해 X-Data-Source: db로 실매물인 척 서빙되던 구멍). 별도 dryrun DB로.
     db_path = args.db
-    if args.source == "courtauction" and not use_live:
+    if not use_live:
         db_path = f"{args.db}.dryrun.db"
         if not args.json:
-            print(f"  ⚠ 실매물인데 라이브 시세 아님(샘플/추정) → 서빙 DB 대신 {db_path} 에 저장")
+            print(f"  ⚠ 라이브 시세 아님(샘플/추정) → 서빙 DB 대신 {db_path} 에 저장")
     conn = store.connect(db_path)
     # T1 원본 보존: courtauction 수집분의 raw row를 채점 결과와 별도로 남긴다
     # (파싱 버그·스키마 개편 시 재처리 원천 + 수집 감사 증거).

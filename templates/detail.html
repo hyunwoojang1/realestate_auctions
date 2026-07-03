@@ -31,8 +31,8 @@
       <div class="n gapline {% if hero_p < 0 %}neg{% endif %}" style="font-family:var(--font-serif)"><span class="amt">{{ won(hero_p) }}</span></div>
       <div style="font-size:var(--t-note);color:var(--muted);margin-top:4px">
         {%- if s.profit_low is not none -%}
-        보수 가격 기준 차익 · {% if s.market_scope == 'same_complex_same_area' %}같은 단지/같은 평형 {% endif %}실거래 {{ s.market_sample_basis if s.market_sample_basis is not none else s.matched_trades }}건 기준
-        {%- else -%}예상 차익 · 시세 대비 {{ pct(s.gap_rate) }}{%- endif -%}
+        보수 가격 기준 차익 · {% if s.market_scope == 'same_complex_same_area' %}같은 단지/같은 평형 {% endif %}근거 표본 {{ s.market_sample_basis if s.market_sample_basis is not none else s.matched_trades }}건 기준
+        {%- else -%}기준 시세 차익(구 데이터) · 시세 대비 {{ pct(s.gap_rate) }}{%- endif -%}
       </div>
     {% else %}
       <div class="n gm-na2" style="font-size:2rem">—</div>
@@ -43,12 +43,16 @@
   <div class="hero-mid">
     {% if s.expected_profit is not none %}
       <div style="max-width:460px">{{ meter|safe }}</div>
+    {% elif s.grade == '미지원유형' %}
+      {# (T8 감사 수정) '데이터 부족'과 '정책상 미추정'을 구분 — T2 원칙 #}
+      <div style="color:var(--muted);font-size:var(--t-data)">이 유형({{ s.property_type }})은 개별성이 커서
+      시세를 추정하지 않습니다(v1 정책 — 아파트·오피스텔만 지원). 데이터가 부족해서가 아닙니다.</div>
     {% else %}
       <div style="color:var(--muted);font-size:var(--t-data)">매칭 실거래 {{ s.matched_trades }}건 — 표본 부족으로 차익을 계산하지 않습니다.</div>
     {% endif %}
   </div>
   <div class="hero-why">
-    <span class="conf {% if s.confidence>=0.85 %}high{% elif s.confidence>=0.70 %}mid{% else %}low{% endif %}">신뢰 {{ '%.2f'|format(s.confidence) }} · 실거래 {{ s.matched_trades }}건</span>
+    <span class="conf {% if s.confidence>=0.85 %}high{% elif s.confidence>=0.70 %}mid{% else %}low{% endif %}">신뢰 {{ '%.2f'|format(s.confidence) }} · 매칭 {{ s.matched_trades }}건</span>
   </div>
 </div>
 
@@ -73,7 +77,8 @@
     {% endif %}
     {% endif %}
     <div class="kv"><span class="k">매칭 실거래 / 신뢰계수</span><span class="v">{{ s.matched_trades }}건 · {{ '%.2f'|format(s.confidence) }}</span></div>
-    {% if s.market_sample_basis is not none %}
+    {% if s.market_sample_basis is not none and s.est_market_price is not none %}
+    {# (T8 감사 수정) 시세 없는 물건(미지원유형 등)의 '표본 0건' 행은 무의미 — est 있을 때만 #}
     <div class="kv"><span class="k">밴드 근거 표본 <span style="color:var(--muted-2)">(최근 12개월·이상치 제외 후)</span></span><span class="v">{{ s.market_sample_basis }}건</span></div>
     {% endif %}
     {% if sample_gate_low %}
