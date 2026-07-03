@@ -50,7 +50,7 @@ def test_compare_route_two_cases_renders_both(client):
     assert r.status_code == 200
     body = r.get_data(as_text=True)
     assert "상계주공" in body and "강남역삼푸르지오시티" in body
-    assert "예상차익" in body and "취득세" in body
+    assert "보수 기준 차익" in body and "취득세" in body   # T7: 예상차익 → 보수 기준 차익
 
 
 def test_compare_route_needs_two(client):

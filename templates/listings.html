@@ -1,5 +1,5 @@
 {% extends "base.html" %}
-{% block title %}차익 큐레이션 — 부동산 경매{% endblock %}
+{% block title %}아파트 경매 1차 필터 — 부동산 경매{% endblock %}
 
 {# 경고 뱃지만 사용(사용자 결정 #6) — 긍정 판정 뱃지 없음. #}
 {%- macro warnbadge(s) -%}
@@ -15,26 +15,39 @@
 <span class="conf {{ ccls(s.confidence) }}">신뢰 {{ '%.2f'|format(s.confidence) }} · 실거래 {{ s.matched_trades }}건</span>
 {%- endmacro -%}
 {%- macro profitcell(s) -%}
-{%- if s.expected_profit is not none -%}
-<div class="gapline {% if s.expected_profit < 0 %}neg{% endif %}"><span class="amt">{{ won(s.expected_profit) }}</span></div>
-<div style="font-size:var(--t-note);color:var(--muted)">시세 대비 {{ pct(s.gap_rate) }}</div>
+{#- (T7) 보수 가격 기준 차익(profit_low)이 대표값 — 없으면(레거시) 기준 차익 폴백 -#}
+{%- set p = s.profit_low if s.profit_low is not none else s.expected_profit -%}
+{%- if p is not none -%}
+<div class="gapline {% if p < 0 %}neg{% endif %}"><span class="amt">{{ won(p) }}</span></div>
+<div style="font-size:var(--t-note);color:var(--muted)">
+{%- if s.profit_low is not none -%}보수 기준 · 실거래 {{ s.market_sample_basis if s.market_sample_basis is not none else s.matched_trades }}건
+{%- else -%}시세 대비 {{ pct(s.gap_rate) }}{%- endif -%}
+</div>
 {%- else -%}<span class="gm-na2">—</span>{%- endif -%}
 {%- endmacro -%}
 
 {% block content %}
-{% set profitable = items|selectattr('expected_profit','ne',None)|selectattr('expected_profit','gt',0)|list %}
+{# (T7) 통계도 보수 기준 — profit_low 있으면 그것, 없으면 기준 차익 #}
+{% set ns = namespace(profitable=[]) %}
+{% for s in items %}
+  {% set p = s.profit_low if s.profit_low is not none else s.expected_profit %}
+  {% if p is not none and p > 0 %}{% set ns.profitable = ns.profitable + [s] %}{% endif %}
+{% endfor %}
+{% set profitable = ns.profitable %}
 {% set unverified = items|selectattr('grade','equalto','권리미확인')|list %}
 
-<h1 class="page-h">차익 큐레이션</h1>
-<p class="page-sub"><b>예상 차익 = 추정 실거래시세 − (최저입찰가 + 취득세)</b> 큰 순.
-취득세는 <b>{{ tax_label }}</b> 기준(변경: data/buyer_profile.json). 명도·수리·권리 인수 등 변동비는 미포함 —
-산식·세율은 <a href="/methodology">방법론</a> 참고.</p>
+<h1 class="page-h">아파트 경매 1차 필터</h1>
+<p class="page-sub"><b>보수 기준 차익 = 검증 하한가 − (최저입찰가 + 취득세)</b> 큰 순.
+같은 단지·같은 평형 실거래 밴드의 <b>하한가 기준</b>으로 보수적으로 계산합니다(밴드 없는 물건은 기준 시세 차익).
+취득세는 <b>{{ tax_label }}</b> 기준(변경: data/buyer_profile.json). 명도·수리·권리 인수 등 변동비 미포함 —
+검토 보조 도구이며, 산식·게이트는 <a href="/methodology">방법론</a> 참고.</p>
 
 <div class="insight{% if profitable|length == 0 %} flat{% endif %}">
   <span><span class="k">표시</span> <span class="v">{{ count }}건</span></span>
-  <span><span class="k">차익 양수</span> <span class="v pos">{{ profitable|length }}건</span></span>
+  <span><span class="k">보수 기준 차익 양수</span> <span class="v pos">{{ profitable|length }}건</span></span>
   {% if profitable %}
-  <span><span class="k">최고 차익</span> <span class="v pos">{{ won(profitable[0].expected_profit) }}</span></span>
+  {% set top_p = profitable[0].profit_low if profitable[0].profit_low is not none else profitable[0].expected_profit %}
+  <span><span class="k">최고 보수 차익</span> <span class="v pos">{{ won(top_p) }}</span></span>
   {% endif %}
   {% if unverified %}
   <span><span class="k">권리미확인</span> <span class="v">{{ unverified|length }}건</span></span>
@@ -42,7 +55,7 @@
 </div>
 
 <form class="filters" method="get" action="/">
-  <label>최소 차익(억)
+  <label>최소 보수 차익(억)
     <input type="number" name="min_profit" min="0" step="0.1" value="{{ filters.min_profit }}" placeholder="0">
   </label>
   <label>물건종류
@@ -63,7 +76,7 @@
   </label>
   <label>정렬
     <select name="sort">
-      {% for k, lab in [('profit','예상차익 금액'),('gap','갭률 %')] %}
+      {% for k, lab in [('profit','보수 차익 금액'),('gap','갭률 %')] %}
       <option value="{{ k }}" {% if filters.sort == k %}selected{% endif %}>{{ lab }}</option>
       {% endfor %}
     </select>
@@ -74,40 +87,44 @@
      title="현재 필터·정렬 결과를 CSV로 저장(엑셀)">⤓ CSV 내보내기</a>
 </form>
 
-{% if items %}
-{% set top = items[0] %}
-{% if top.expected_profit is not none %}
-<div class="hero{% if top.grade == '권리미확인' %} unv{% endif %}">
+{# (T7) 히어로 = 추천 표면 — web.py가 고른 비위험 1위(hero). 보수 기준 차익이 헤드라인. #}
+{% if hero %}
+{%- set hero_p = hero.profit_low if hero.profit_low is not none else hero.expected_profit -%}
+<div class="hero{% if hero.grade == '권리미확인' %} unv{% endif %}">
   <div class="hero-score">
-    <div class="n gapline {% if top.expected_profit < 0 %}neg{% endif %}" style="font-family:var(--font-serif)"><span class="amt">{{ won(top.expected_profit) }}</span></div>
-    <div style="font-size:var(--t-note);color:var(--muted);margin-top:4px">예상 차익 · 시세 대비 {{ pct(top.gap_rate) }}</div>
-    <div style="margin-top:8px">{{ warnbadge(top) }}</div>
+    <div class="n gapline {% if hero_p < 0 %}neg{% endif %}" style="font-family:var(--font-serif)"><span class="amt">{{ won(hero_p) }}</span></div>
+    <div style="font-size:var(--t-note);color:var(--muted);margin-top:4px">
+      {%- if hero.profit_low is not none -%}
+      보수 기준 차익 · 실거래 {{ hero.market_sample_basis if hero.market_sample_basis is not none else hero.matched_trades }}건 기준
+      {%- else -%}예상 차익 · 시세 대비 {{ pct(hero.gap_rate) }}{%- endif -%}
+    </div>
+    <div style="margin-top:8px">{{ warnbadge(hero) }}</div>
   </div>
   <div class="hero-mid">
-    <a href="/property/{{ top.case_no }}" class="name" style="color:inherit">{{ top.apt_name or top.property_type }}</a>
-    <div class="addr">{{ top.address }} · {{ top.property_type }} · {{ '%.0f'|format(top.area_m2) }}㎡ · 유찰 {{ top.fail_count }}회</div>
-    <div style="margin-top:12px;max-width:420px">{{ meter(top)|safe }}</div>
+    <a href="/property/{{ hero.case_no }}" class="name" style="color:inherit">{{ hero.apt_name or hero.property_type }}</a>
+    <div class="addr">{{ hero.address }} · {{ hero.property_type }} · {{ '%.0f'|format(hero.area_m2) }}㎡ · 유찰 {{ hero.fail_count }}회</div>
+    <div style="margin-top:12px;max-width:420px">{{ meter(hero)|safe }}</div>
   </div>
   <div class="hero-why">
-    {{ confchip(top) }}
-    <div style="font-size:var(--t-note);color:var(--muted);margin-top:6px">최저가 {{ won(top.min_bid_price) }} · 시세 {{ won(top.est_market_price) }}</div>
-    <a class="go" href="/property/{{ top.case_no }}">상세 보기 →</a>
+    {{ confchip(hero) }}
+    <div style="font-size:var(--t-note);color:var(--muted);margin-top:6px">최저가 {{ won(hero.min_bid_price) }} · 시세 {{ won(hero.est_market_price) }}</div>
+    <a class="go" href="/property/{{ hero.case_no }}">상세 보기 →</a>
   </div>
 </div>
-{% endif %}
 {% endif %}
 
 <div class="tablewrap"><div class="scrollx">
 <table class="picks">
 <thead><tr>
-  <th class="rank" scope="col">#</th><th class="r" scope="col">예상차익</th><th scope="col">경고</th>
+  <th class="rank" scope="col">#</th><th class="r" scope="col">보수 기준 차익</th><th scope="col">경고</th>
   <th scope="col">단지 / 소재지</th><th scope="col">갭 (최저가 → 시세)</th>
   <th class="r" scope="col">최저가</th><th class="r" scope="col">신뢰</th>
 </tr></thead>
 <tbody>
-{% for s in (items[1:] if items and items[0].expected_profit is not none else items) %}
-<tr class="{% if s.expected_profit is none or s.expected_profit <= 0 %}dim{% endif %}{% if s.grade == '권리미확인' %} unv{% endif %}">
-  <td class="rank num">{{ loop.index + (1 if items and items[0].expected_profit is not none else 0) }}</td>
+{% for s in items if s != hero %}
+{%- set row_p = s.profit_low if s.profit_low is not none else s.expected_profit -%}
+<tr class="{% if row_p is none or row_p <= 0 %}dim{% endif %}{% if s.grade == '권리미확인' %} unv{% endif %}">
+  <td class="rank num">{{ loop.index + (1 if hero else 0) }}</td>
   <td class="r num money">{{ profitcell(s) }}</td>
   <td>{{ warnbadge(s) }}</td>
   <td><a class="name" href="/property/{{ s.case_no }}">{{ s.apt_name or s.property_type }}</a>
@@ -131,6 +148,7 @@
 </div></div>
 
 <p class="foot">⚠ <b>권리미확인</b>은 물건상세 권리분석 전 상태 — 대항력 임차인·인수권리 여부 미검증이므로 반드시 직접 확인.
-예상 차익 = 추정시세 − (최저입찰가 + 취득세, {{ tax_label }} 기준). <b>명도·수리·권리 인수금액 등 변동비는 제외</b>된 객관 수치입니다.
+보수 기준 차익 = 검증 하한가(같은 단지·같은 평형 실거래 밴드의 하한) − (최저입찰가 + 취득세, {{ tax_label }} 기준).
+밴드가 없는 물건은 기준 시세 차익(추정시세 − 취득원가)으로 폴백 표기. <b>명도·수리·권리 인수금액 등 변동비는 제외</b>된 객관 수치입니다.
 투자판단 보조이며 전문가(법무사 등) 상담을 대체하지 않습니다.</p>
 {% endblock %}

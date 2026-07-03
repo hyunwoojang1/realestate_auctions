@@ -47,7 +47,7 @@ def main(argv=None) -> int:
                     help="courtauction 증분 캐시 경로(기본 data/courtauction_cache.json). 신규/변경/소멸 리포트")
     ap.add_argument("--db", default=str(ROOT / "auction.db"), help="SQLite 경로")
     ap.add_argument("--min-profit", dest="min_profit", type=int, default=None,
-                    help="예상차익 하한(원) 필터")
+                    help="보수 기준 차익 하한(원) 필터 — 검증 하한가 기준(밴드 없으면 기준 차익)")
     ap.add_argument("--min-score", type=float, default=None, help="(내부용) 점수 하한 필터")
     ap.add_argument("--type", dest="ptype", default=None, help="물건종류 필터(아파트/오피스텔/다세대 등)")
     ap.add_argument("--region", default=None, help="지역 필터(주소 prefix, 예: 서울/경기/부산)")

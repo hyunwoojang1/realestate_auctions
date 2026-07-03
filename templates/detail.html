@@ -11,7 +11,7 @@
 {%- endmacro -%}
 
 {% block content %}
-<a class="back" href="/">← 차익 큐레이션 목록</a>
+<a class="back" href="/">← 1차 필터 목록</a>
 
 <div style="display:flex;flex-wrap:wrap;gap:12px;align-items:baseline;margin:12px 0 6px">
   <h1 class="page-h" style="margin:0">{{ s.apt_name or s.property_type }}</h1>
@@ -23,12 +23,17 @@
 </div>
 <div class="page-sub">{{ s.address }} · {{ s.property_type }} · {{ '%.1f'|format(s.area_m2) }}㎡ · 유찰 {{ s.fail_count }}회 · 매각기일 {{ s.sale_date }} · 준공연도 미확인<span style="color:var(--muted-2)">(건축물대장 API 대기)</span></div>
 
-<!-- 판정 헤더: 예상 차익이 주인공 -->
+<!-- 판정 헤더: (T7) 보수 가격 기준 차익이 주인공 — 단정 표현 금지 -->
 <div class="hero{% if not s.rights_verified %} unv{% endif %}" style="margin-top:20px">
   <div class="hero-score">
-    {% if s.expected_profit is not none %}
-      <div class="n gapline {% if s.expected_profit < 0 %}neg{% endif %}" style="font-family:var(--font-serif)"><span class="amt">{{ won(s.expected_profit) }}</span></div>
-      <div style="font-size:var(--t-note);color:var(--muted);margin-top:4px">예상 차익 · 시세 대비 {{ pct(s.gap_rate) }}</div>
+    {%- set hero_p = s.profit_low if s.profit_low is not none else s.expected_profit -%}
+    {% if hero_p is not none %}
+      <div class="n gapline {% if hero_p < 0 %}neg{% endif %}" style="font-family:var(--font-serif)"><span class="amt">{{ won(hero_p) }}</span></div>
+      <div style="font-size:var(--t-note);color:var(--muted);margin-top:4px">
+        {%- if s.profit_low is not none -%}
+        보수 가격 기준 차익 · {% if s.market_scope == 'same_complex_same_area' %}같은 단지/같은 평형 {% endif %}실거래 {{ s.market_sample_basis if s.market_sample_basis is not none else s.matched_trades }}건 기준
+        {%- else -%}예상 차익 · 시세 대비 {{ pct(s.gap_rate) }}{%- endif -%}
+      </div>
     {% else %}
       <div class="n gm-na2" style="font-size:2rem">—</div>
       <div style="font-size:var(--t-note);color:var(--muted);margin-top:4px">시세 추정 불가</div>
@@ -46,6 +51,11 @@
     <span class="conf {% if s.confidence>=0.85 %}high{% elif s.confidence>=0.70 %}mid{% else %}low{% endif %}">신뢰 {{ '%.2f'|format(s.confidence) }} · 실거래 {{ s.matched_trades }}건</span>
   </div>
 </div>
+
+{# (T7) 권리 고지 — 문서 15장 7단계: 상세 페이지 필수 고지 #}
+<div class="note-box n-warn" style="margin-top:12px">⚠ <b>권리 확인 완료 전까지 최종 판단 금지</b> —
+매각물건명세서·현황조사서·등기부등본으로 인수 권리(임차인 대항력·유치권·지분 등)를 직접 확인하기 전에는
+어떤 차익 수치도 입찰 근거가 될 수 없습니다. 이 페이지는 1차 필터용 검토 보조 자료입니다.</div>
 
 <div class="cards">
   <!-- 근거(객관): 경매 진행 + 취득원가 -->
@@ -140,7 +150,8 @@
   </div>
 </div>
 
-<p class="foot"><b>예상 차익 = 추정시세 − (최저입찰가 + 취득세)</b>. 취득 시점 표면차익이며
+<p class="foot"><b>보수 가격 기준 차익 = 검증 하한가 − (최저입찰가 + 취득세)</b>. 검증 하한가는 같은 단지·같은 평형
+실거래 밴드(이상치 제외)의 하한이며, 밴드가 없는 물건은 기준 시세 차익으로 폴백 표기합니다. 취득 시점 표면차익이며
 명도비·수리비·권리 인수금액·미납관리비 등 변동비용과 양도세·보유세는 <b>제외</b>돼 있습니다.
-투자판단 보조이며 전문가(법무사 등) 상담을 대체하지 않습니다.</p>
+검토 보조 도구이며 전문가(법무사 등) 상담을 대체하지 않습니다.</p>
 {% endblock %}

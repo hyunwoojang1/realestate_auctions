@@ -69,6 +69,15 @@
   - [x] evidence/snapshot_missing_smoke.txt(없음O·빈{}오안내사라짐+변동없음O·손상배너O) Read 확인
 - 평가자 PASS(C/H/M/L 0).
 
+## [ready] B17 T7 잔여 문구 정리 — rank 열 의미·report.py 리포트 (출처: T7 평가자 LOW 2건, 2026-07-03)
+- 왜: ① 히어로 도입 후 테이블 rank가 "차익 순위"가 아니라 "추천 우선 표시 순서"가 됨(위험 물건이
+  rank 2인데 금액은 히어로보다 큼 — 뱃지로 오독 위험 낮으나 정리 필요). ② run.py 콘솔 표·report.to_html은
+  여전히 expected_profit 열 중심(정렬만 보수 기준) — CLI/HTML 리포트도 보수 차익 열 추가 권장.
+- 완료 정의(전부 false):
+  - [ ] rank 열 의미 명확화(표시순 라벨 or 위험 행 순위 제외) + report.py 보수 차익 열
+  - [ ] 테스트 + pytest 전체 + ruff 클린
+- 제약: 순수 로컬.
+
 ## [ready] B16 신뢰계수를 basis 기반으로 통일 (출처: T5 평가자 LOW, 2026-07-03)
 - 왜: confidence(신뢰계수)는 matched_trades(트림 전) 기반인데 T5 게이트는 basis(트림·최근성 후) 기반 —
   "매칭 7건·신뢰 1.00"인데 "낮은 신뢰" 경고가 병존 가능(라벨 분리로 혼란 제한적이나 장기 통일 필요).

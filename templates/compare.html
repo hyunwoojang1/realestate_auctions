@@ -11,7 +11,7 @@
 {%- endmacro -%}
 
 {% block content %}
-<a class="back" href="/">← 차익 큐레이션 목록</a>
+<a class="back" href="/">← 1차 필터 목록</a>
 <h1 class="page-h" style="margin-top:12px">물건 비교</h1>
 
 {% if missing_cases %}
@@ -26,7 +26,8 @@
 <a href="/watchlist">관심물건</a>에서 담거나 목록에서 ★로 저장 후 비교하세요.
 최대 {{ 4 }}건까지 나란히 비교됩니다.</p>
 {% else %}
-<p class="page-sub">예상 차익 = 추정시세 − (최저입찰가 + 취득세, {{ tax_label }} 기준). 변동비 제외.</p>
+<p class="page-sub">보수 기준 차익 = 검증 하한가 − (최저입찰가 + 취득세, {{ tax_label }} 기준). 변동비 제외.
+밴드 없는 물건은 기준 시세 차익 폴백.</p>
 <div class="tablewrap"><div class="scrollx">
 <table class="params">
 <thead><tr><th scope="col">항목</th>
@@ -34,8 +35,12 @@
 </tr></thead>
 <tbody>
 <tr><td>경고</td>{% for s in items %}<td>{{ warn(s.grade) }}</td>{% endfor %}</tr>
-<tr><td><b>예상차익</b></td>{% for s in items %}
-  <td class="num"><b class="{% if s.expected_profit is not none and s.expected_profit < 0 %}gm-loss{% endif %}">{{ won(s.expected_profit) }}</b></td>{% endfor %}</tr>
+<tr><td><b>보수 기준 차익</b> <span style="color:var(--muted-2)">(검증 하한가 기준)</span></td>{% for s in items %}
+  {%- set cp = s.profit_low if s.profit_low is not none else s.expected_profit -%}
+  <td class="num"><b class="{% if cp is not none and cp < 0 %}gm-loss{% endif %}">{{ won(cp) }}</b></td>{% endfor %}</tr>
+<tr><td>기준 차익 <span style="color:var(--muted-2)">(기준가 기준)</span></td>{% for s in items %}
+  <td class="num">{{ won(s.expected_profit) }}</td>{% endfor %}</tr>
+<tr><td>근거 표본</td>{% for s in items %}<td class="num">{{ s.market_sample_basis if s.market_sample_basis is not none else s.matched_trades }}건</td>{% endfor %}</tr>
 <tr><td>시세 대비 갭</td>{% for s in items %}<td class="num">{{ pct(s.gap_rate) }}</td>{% endfor %}</tr>
 <tr><td>최저입찰가</td>{% for s in items %}<td class="num">{{ won(s.min_bid_price) }}</td>{% endfor %}</tr>
 <tr><td>추정 실거래시세</td>{% for s in items %}<td class="num">{{ won(s.est_market_price) }}</td>{% endfor %}</tr>

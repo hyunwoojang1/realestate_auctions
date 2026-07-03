@@ -132,9 +132,13 @@ def create_app() -> Flask:
             "region": request.args.get("region", ""),
             "sort": request.args.get("sort", query.DEFAULT_SORT),
         }
+        # (T7) 히어로 스포트라이트는 추천 표면 — '위험'(하드게이트)은 차익이 커도 올리지 않는다.
+        # 목록 테이블에는 그대로 표시(배제 아님·경고 뱃지). 히어로 후보 = 차익 있는 비위험 1위.
+        hero = next((s for s in items
+                     if query.decision_profit(s) is not None and s.grade != "위험"), None)
         return render_template(
             "listings.html", items=items, count=len(items), filters=filters,
-            won=report.won, pct=report.pct, meter=report.gap_meter_html,
+            hero=hero, won=report.won, pct=report.pct, meter=report.gap_meter_html,
             tax_label=tax.PROFILE.label(),
             watched=watchlist.load_watchlist(watchlist.watchlist_path()),
             data_source=getattr(g, "data_source", "n/a"))

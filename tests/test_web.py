@@ -54,9 +54,9 @@ def test_index_page_renders():
     r = _client().get("/")
     assert r.status_code == 200
     body = r.get_data(as_text=True)
-    assert "차익 큐레이션" in body
+    assert "아파트 경매 1차 필터" in body   # T7 포지셔닝
     assert "상계주공" in body        # 실데이터 렌더
-    assert "예상차익" in body        # 차익 중심 UI
+    assert "보수 기준 차익" in body   # T7 보수 차익 중심 UI
     assert "gapmeter" in body        # 갭미터 마크업
     assert "scoreno" not in body     # 점수 UI 제거(사용자 결정 #7)
 
