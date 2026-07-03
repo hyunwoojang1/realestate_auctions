@@ -197,6 +197,10 @@ def create_app() -> Flask:
             if fatal:
                 gate_reasons.append("·".join(fatal) + " 신고")
         tax_parts = tax.acquisition_tax_breakdown(s.min_bid_price, s.property_type, s.area_m2)
+        # (T5) 표본 게이트 상태 — 실기반 표본이 추천 기준 미만이면 '낮은 신뢰' 경고 노출.
+        from .matcher import band_confident_basis  # noqa: PLC0415
+        sample_gate_low = (s.market_sample_basis is not None
+                           and s.market_sample_basis < band_confident_basis())
         return render_template(
             "detail.html", s=s, listing=listing,
             meter=report.gap_meter_html(s), won=report.won, pct=report.pct,
@@ -204,6 +208,7 @@ def create_app() -> Flask:
             tax_parts=tax_parts, tax_label=tax.PROFILE.label(),
             watching=case_no in watchlist.load_watchlist(watchlist.watchlist_path()),
             data_source=getattr(g, "data_source", "n/a"),
+            sample_gate_low=sample_gate_low, band_confident=band_confident_basis(),
         )
 
     @app.get("/digest")

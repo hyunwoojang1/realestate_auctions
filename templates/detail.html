@@ -63,6 +63,14 @@
     {% endif %}
     {% endif %}
     <div class="kv"><span class="k">매칭 실거래 / 신뢰계수</span><span class="v">{{ s.matched_trades }}건 · {{ '%.2f'|format(s.confidence) }}</span></div>
+    {% if s.market_sample_basis is not none %}
+    <div class="kv"><span class="k">밴드 근거 표본 <span style="color:var(--muted-2)">(최근 12개월·이상치 제외 후)</span></span><span class="v">{{ s.market_sample_basis }}건</span></div>
+    {% endif %}
+    {% if sample_gate_low %}
+    <div class="note-box n-warn" style="margin-top:8px">⚠ <b>표본 낮은 신뢰</b>: 밴드 근거 표본이
+    {{ s.market_sample_basis }}건({{ band_confident }}건 미만)입니다. 시세·차익은 참고만 하고
+    추천 후보로 보지 마세요.</div>
+    {% endif %}
     {%- set scope_names = {
       'same_complex_same_area': '같은 단지 · 같은 평형 (추천 인정)',
       'same_complex_near_area': '같은 단지 · 인접 평형 (참고치)',

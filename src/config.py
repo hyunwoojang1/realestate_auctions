@@ -76,12 +76,21 @@ class SampleConfig:
     """
     live_months: int = 3        # 기존 pipeline.LIVE_MONTHS 기본값과 동일
     area_band: float = 0.10     # 기존 matcher.AREA_BAND 기본값과 동일
+    # (T5) 표본 게이트 — 밴드 실기반 표본수(최근성 필터+이상치 트림 후 실제 사용 건수) 기준.
+    #  - band_min_basis 미만(기본 0~2건): 밴드 생성 금지 → '시세근거 부족'(추정 자체를 안 함).
+    #  - band_confident_basis 미만(기본 3~4건): 밴드는 만들되 낮은 신뢰 — 추천 제외 + 경고.
+    #  - band_confident_basis 이상(기본 5건↑): 정상 추천 가능.
+    # 근거: 문서 10장 — 소표본 분위수는 통계 흉내, 과감히 '시세근거 부족'이라 말해야 한다.
+    band_min_basis: int = 3
+    band_confident_basis: int = 5
 
     def __post_init__(self) -> None:
-        # 하한 방어: 최소 1개월, 면적밴드 0 초과.
+        # 하한 방어: 최소 1개월, 면적밴드 0 초과, 게이트 단조(1 ≤ min ≤ confident).
         self.live_months = max(1, int(self.live_months))
         if self.area_band <= 0:
             self.area_band = 0.10
+        self.band_min_basis = max(1, int(self.band_min_basis))
+        self.band_confident_basis = max(self.band_min_basis, int(self.band_confident_basis))
 
 
 DEFAULT_CONFIG_PATH = Path(__file__).resolve().parent.parent / "data" / "score_config.json"
@@ -137,6 +146,8 @@ def load_sample_config(path: str | Path | None = None,
     e = env if env is not None else os.environ
     lm = (e.get("AUCTION_LIVE_MONTHS") or "").strip()
     ab = (e.get("AUCTION_AREA_BAND") or "").strip()
+    bm = (e.get("AUCTION_BAND_MIN_BASIS") or "").strip()
+    bc = (e.get("AUCTION_BAND_CONFIDENT_BASIS") or "").strip()
     if lm:
         try:
             cfg.live_months = int(lm)
@@ -145,6 +156,16 @@ def load_sample_config(path: str | Path | None = None,
     if ab:
         try:
             cfg.area_band = float(ab)
+        except ValueError:
+            pass
+    if bm:
+        try:
+            cfg.band_min_basis = int(bm)
+        except ValueError:
+            pass
+    if bc:
+        try:
+            cfg.band_confident_basis = int(bc)
         except ValueError:
             pass
 

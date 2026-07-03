@@ -15,6 +15,27 @@
 
 ---
 
+## 2026-07-03 14:18 KST — 🚧 신뢰루프 사이클 #5: T5 표본 부족 시 추천 금지 게이트
+- 무엇: 소표본 통계 흉내 차단(문서 10장) — 밴드 실기반 표본수(basis: 최근성+트림 후 실사용 건수) 기준
+  3단계 게이트. matched(트림 전)가 아니라 basis를 봐서 부풀린 표본 통과를 막음(T4 평가자 권고 반영).
+  - matcher.py: basis<band_min_basis(3) → 밴드 생성 금지·시세근거 부족(est None). MarketEstimate.basis.
+  - score.py: basis<band_confident_basis(5) → 상위 등급 캡('관심'). market_sample_basis 저장.
+  - digest.py: _enough_basis — 추천 TOP은 basis≥5만(레거시 None은 하위호환 통과).
+  - config.py: 임계값 외부화(band_min_basis/band_confident_basis + env + 단조 방어).
+  - store.py v6 아님 v5: market_sample_basis ALTER. 실DB 2521건 보존.
+  - detail.html '밴드 근거 표본' 행+낮은신뢰 경고 박스, methodology '표본 게이트' 문단.
+  - 샘플 fixture 단지당 3건→7건 현실화(새 게이트에서 데모가 전부 '근거부족'으로 비는 문제 —
+    게이트 자체는 합성 소표본 테스트로 검증, 평가자가 '조작 아닌 현실화'로 판정).
+- 증거: evidence/t5_sample_gate.txt — 경계표(매칭 2/3/4/5/7 → basis 2/3/2/3/5 → 금지/낮은신뢰/금지/
+  낮은신뢰/정상), 실DB v5 이관, 추천 TOP 전부 basis≥5, 웹 노출 True.
+- 게이트: pytest 312 passed(+16), ruff 클린.
+- 평가자: PASS (이중게이트 사각지대 없음·elif 순서 무해·fixture 정당). ⚠운영 노트 — 실DB 전행
+  basis=None이라 **전량 새로고침 전까지 실데이터에서 T5 게이트 미발효**(스케줄러/수동 새로고침 필요).
+  MEDIUM('위험' 등급 추천 TOP 노출 — 3회 반복 지적) → T7 완료 정의에 명시 추가. LOW(confidence·basis
+  불일치) → B16 등록.
+- 커밋: (이 항목과 함께 커밋)
+- 다음: 사이클 #6 = T6 호가 스텁(옵셔널 모델·점 표시·밴드 검증 보조, 실데이터는 QUESTIONS 운영자 대기).
+
 ## 2026-07-03 14:03 KST — 📊 신뢰루프 사이클 #4: T4 시세 단일값 → 2선 가격 밴드
 - 무엇: 단일 중앙값의 '정답 가격' 과신 방지(문서 7~11장) — 검증 하한가/기준가 2선 + 보수차익 기준 추천.
   - matcher.py: MarketEstimate에 band_low(트림 후 최저 평단가)·band_high(트림 후 중앙값=est 호환).

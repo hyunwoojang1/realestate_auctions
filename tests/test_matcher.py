@@ -63,14 +63,16 @@ def test_filter_recent_excludes_old():
 
 def test_estimate_ignores_outlier():
     lst = _lst()  # 상계주공 84.9
+    # T5: 트림 후 실기반 3건 이상이어야 밴드/시세 생성 → 5건 fixture(트림 후 3건)
     trades = [
         Trade("상계주공", 84.9, 630_000_000, "202605", "상계동", kind="apt"),
         Trade("상계주공", 84.9, 620_000_000, "202605", "상계동", kind="apt"),
         Trade("상계주공", 84.9, 640_000_000, "202604", "상계동", kind="apt"),
+        Trade("상계주공", 84.9, 625_000_000, "202603", "상계동", kind="apt"),
         Trade("상계주공", 84.9, 1_300_000_000, "202605", "상계동", kind="apt"),  # 이상치(2배)
     ]
     est, n = estimate_market_price(lst, trades)
-    assert n == 4
+    assert n == 5
     assert 6.0e8 <= est <= 6.6e8   # 13억 이상치에 안 끌려감
 
 

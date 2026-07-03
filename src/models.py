@@ -97,6 +97,9 @@ class ScoredListing:
     market_band_high: int | None = None   # 검증 기준가(트림 후 중앙값 = est_market_price)
     profit_low: int | None = None         # 보수 차익 = 검증 하한가 − 취득원가 (추천 판단 기준)
     profit_high: int | None = None        # 기준 차익 = 검증 기준가 − 취득원가 (= expected_profit)
+    # (T5) 밴드 실기반 표본수(최근성+트림 후 실사용 건수). matched_trades(원 매칭수)와 구분.
+    # None=레거시(게이트 미적용). 게이트: < band_confident_basis(기본5) → 낮은 신뢰·추천 제외.
+    market_sample_basis: int | None = None
 
     @property
     def uid(self) -> str:

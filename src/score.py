@@ -11,7 +11,7 @@ from __future__ import annotations
 
 from .config import CONFIG
 from .matcher import SCOPE_SAME_COMPLEX_SAME_AREA as SCOPE_RECOMMENDABLE
-from .matcher import is_estimation_supported
+from .matcher import band_confident_basis, is_estimation_supported
 from .models import AuctionListing, ScoredListing
 
 
@@ -96,12 +96,14 @@ def grade_of(arb: float | None) -> str:
 
 def score_listing(listing: AuctionListing, est_market_price: int | None, matched_trades: int,
                   market_scope: str = "", band_low: int | None = None,
-                  band_high: int | None = None) -> ScoredListing:
+                  band_high: int | None = None, band_basis: int | None = None) -> ScoredListing:
     """한 물건을 채점해 ScoredListing 반환.
 
     market_scope(T3): 시세 비교군의 출처. ""=레거시 호출(스코프 게이트 미적용).
     band_low/band_high(T4): 검증 하한가/기준가. 점수(gap)는 기준가로 유지(무회귀)하되,
     '차익없음' 판정 등 추천 여부는 보수 차익(profit_low = 하한가 − 취득원가)을 기준으로 한다.
+    band_basis(T5): 밴드 실기반 표본수. band_confident_basis(기본 5) 미만이면 낮은 신뢰 —
+    상위 등급 금지. None=레거시(게이트 미적용).
     """
     conf = confidence_from_matches(matched_trades)
     cost = real_acquisition_cost(listing)
@@ -125,7 +127,7 @@ def score_listing(listing: AuctionListing, est_market_price: int | None, matched
             gap_score=0.0, rights_score=r, liquidity_score=liq, arb_score=None,
             grade=na_grade, rights_verified=listing.rights_verified,
             court=listing.court, item_no=listing.item_no, doc_id=listing.doc_id,
-            market_scope=market_scope,
+            market_scope=market_scope, market_sample_basis=band_basis,
         )
 
     gap_rate = (est_market_price - cost) / est_market_price
@@ -161,6 +163,11 @@ def score_listing(listing: AuctionListing, est_market_price: int | None, matched
         # 인접 평형·같은 법정동 폴백 표본은 시세 참고치일 뿐 — 상위 등급('차익 유력'/'양호') 금지.
         # ""(레거시 호출·구 DB)는 게이트 미적용(하위호환).
         grade = "관심"
+    elif band_basis is not None and band_basis < band_confident_basis() \
+            and grade in (top_grade, second_grade):
+        # (T5) 표본 게이트 — 실기반 표본 3~4건은 밴드는 만들되 '낮은 신뢰': 추천 등급 금지.
+        # 소표본 중앙값·하한가는 통계 흉내일 수 있다(문서 10장 권장 기준).
+        grade = "관심"
     elif matched_trades < CONFIG.min_comps_confident and grade == top_grade:
         # 표본 부족(신뢰계수 1.0 미만)인데 최상위면 한 단계 강등(1~2건 표본으로 '차익 유력' 금지).
         grade = second_grade
@@ -175,7 +182,7 @@ def score_listing(listing: AuctionListing, est_market_price: int | None, matched
         gap_score=gap, rights_score=r, liquidity_score=liq, arb_score=arb,
         grade=grade, rights_verified=listing.rights_verified,
         court=listing.court, item_no=listing.item_no, doc_id=listing.doc_id,
-        market_scope=market_scope,
+        market_scope=market_scope, market_sample_basis=band_basis,
         market_band_low=band_low, market_band_high=band_high,
         profit_low=p_low, profit_high=p_high,
     )

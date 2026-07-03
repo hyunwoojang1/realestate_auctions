@@ -42,12 +42,27 @@ class MarketEstimate:
     scope: str
     band_low: int | None = None
     band_high: int | None = None
+    # (T5) 밴드 실기반 표본수 — 최근성 필터 + 이상치 트림 후 실제 밴드 계산에 쓰인 건수.
+    # matched(트림 전 원 매칭수)와 다르다: 게이트는 이 값을 본다(부풀려진 표본수로 통과 방지).
+    basis: int = 0
 
 
 def _area_band() -> float:
     """현재 유효 면적밴드. config.SAMPLE로 튜닝 가능(기본=AREA_BAND)."""
     from . import config as _cfg  # noqa: PLC0415 — 런타임 monkeypatch(SAMPLE 교체) 반영
     return _cfg.SAMPLE.area_band if _cfg.SAMPLE else AREA_BAND
+
+
+def _band_min_basis() -> int:
+    """밴드 생성 최소 표본수(T5). 미만이면 '시세근거 부족' — 추정 자체를 안 한다."""
+    from . import config as _cfg  # noqa: PLC0415
+    return _cfg.SAMPLE.band_min_basis if _cfg.SAMPLE else 3
+
+
+def band_confident_basis() -> int:
+    """추천 인정 최소 표본수(T5). 미만이면 낮은 신뢰 — 추천 제외 + 경고."""
+    from . import config as _cfg  # noqa: PLC0415
+    return _cfg.SAMPLE.band_confident_basis if _cfg.SAMPLE else 5
 
 # 경매 물건유형 → 국토부 실거래 API 종류(apt/rh/officetel + 확장 sh/nrg/land).
 # 핵심: 다세대를 아파트 실거래로, 상가를 주택 실거래로 평가하지 않도록 유형을 분리한다.
@@ -231,11 +246,19 @@ def estimate_market(listing: AuctionListing, trades: list[Trade]) -> MarketEstim
     # 이상치 방어(문서화된 규칙): 표본 4건 이상이면 평단가 최소·최대 1건씩 제거(trim_outliers).
     # 가족거래 저가·신고가성 고가 같은 특수 거래 1건이 밴드 양끝을 왜곡하는 것을 막는다.
     ppm2_list = trim_outliers(ppm2_list)
+    basis = len(ppm2_list)   # (T5) 밴드 실기반 표본수 — 최근성+트림 후 실제 사용 건수
+    if basis < _band_min_basis():
+        # (T5) 표본 게이트: 실기반 표본이 기준(기본 3건) 미만이면 밴드 생성 금지 —
+        # 2건짜리 '중앙값'을 시세로 말하지 않는다. 과감하게 '시세근거 부족'(문서 10장).
+        logger.debug("표본 부족 물건(%s) — 실기반 %d건 < %d → 시세근거 부족",
+                     listing.case_no, basis, _band_min_basis())
+        return MarketEstimate(None, matched_count, scope, basis=basis)
     median_ppm2 = statistics.median(ppm2_list)
     est = int(round(median_ppm2 * listing.area_m2))
     # (T4) 2선 밴드 — 하한가: 트림 후 최저 평단가(보수), 기준가: 트림 후 중앙값(=est, 호환 유지).
     band_low = int(round(min(ppm2_list) * listing.area_m2))
-    return MarketEstimate(est, matched_count, scope, band_low=band_low, band_high=est)
+    return MarketEstimate(est, matched_count, scope, band_low=band_low, band_high=est,
+                          basis=basis)
 
 
 def estimate_market_price(listing: AuctionListing, trades: list[Trade]) -> tuple[int | None, int]:

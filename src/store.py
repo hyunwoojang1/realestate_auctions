@@ -14,7 +14,7 @@ from datetime import datetime, timedelta, timezone
 
 from .models import ScoredListing
 
-SCHEMA_VERSION = 4
+SCHEMA_VERSION = 5
 
 DDL = """
 CREATE TABLE IF NOT EXISTS scored_listings (
@@ -32,6 +32,7 @@ CREATE TABLE IF NOT EXISTS scored_listings (
     market_band_high INTEGER,
     profit_low INTEGER,
     profit_high INTEGER,
+    market_sample_basis INTEGER,
     PRIMARY KEY (court, case_no, item_no)
 );
 """
@@ -58,6 +59,7 @@ _COLS = [
     "gap_score", "rights_score", "liquidity_score", "arb_score", "grade",
     "court", "item_no", "doc_id", "market_scope",
     "market_band_low", "market_band_high", "profit_low", "profit_high",
+    "market_sample_basis",
 ]
 
 # v1(구스키마)에서 이관 대상 컬럼 — court/item_no/doc_id는 v1에 없으므로 '' 기본값.
@@ -116,6 +118,10 @@ def _migrate(conn: sqlite3.Connection) -> None:
         with conn:
             for col in ("market_band_low", "market_band_high", "profit_low", "profit_high"):
                 conn.execute(f"ALTER TABLE scored_listings ADD COLUMN {col} INTEGER")
+    if "market_sample_basis" not in cols:
+        # v4 → v5(T5 표본 게이트): 밴드 실기반 표본수 — 레거시 행은 None(게이트 미적용)
+        with conn:
+            conn.execute("ALTER TABLE scored_listings ADD COLUMN market_sample_basis INTEGER")
 
 
 def _insert_rows(conn: sqlite3.Connection, items: Iterable[ScoredListing]) -> int:

@@ -6,8 +6,16 @@ HTML은 report.to_html(갭미터)을 재사용한다.
 from __future__ import annotations
 
 from . import report
-from .matcher import SCOPE_SAME_COMPLEX_SAME_AREA
+from .matcher import SCOPE_SAME_COMPLEX_SAME_AREA, band_confident_basis
 from .models import ScoredListing
+
+
+def _enough_basis(s: ScoredListing) -> bool:
+    """(T5) 표본 게이트 — 밴드 실기반 표본수가 추천 기준(기본 5건) 이상인가.
+
+    None(레거시, 게이트 정보 없음)은 하위호환 통과 — 다음 전량 새로고침이 채운다.
+    """
+    return s.market_sample_basis is None or s.market_sample_basis >= band_confident_basis()
 
 
 def _decision_profit(s: ScoredListing) -> int | None:
@@ -27,10 +35,12 @@ def top_listings(scored: list[ScoredListing], n: int = 10,
     ""(레거시, scope 미기록 구 데이터)는 하위호환으로 통과시킨다.
     (T4) 정렬·하한 필터 모두 보수 차익 기준 — 기준가 차익이 커 보여도 하한가 차익이 작으면 뒤로.
     보수 차익이 0 이하면 추천 후보에서 제외(문서 11장 "보수 기준 차익이 충분하지 않습니다").
+    (T5) 표본 게이트 — 실기반 표본 5건 미만은 낮은 신뢰라 추천에서 제외.
     """
     items = [s for s in scored if _decision_profit(s) is not None
              and _decision_profit(s) > 0
-             and s.market_scope in ("", SCOPE_SAME_COMPLEX_SAME_AREA)]
+             and s.market_scope in ("", SCOPE_SAME_COMPLEX_SAME_AREA)
+             and _enough_basis(s)]
     if min_profit is not None:
         items = [s for s in items if _decision_profit(s) >= min_profit]
     return sorted(items, key=lambda s: -_decision_profit(s))[:n]

@@ -45,7 +45,7 @@ def test_scope_same_complex_same_area():
 
 def test_scope_same_complex_near_area():
     """같은 단지지만 평형이 다르면(3%초과 10%이내) near_area — 같은 평형과 구분."""
-    trades = [_trade(area=90.5), _trade(area=91.0)]  # 84 대비 약 +7.7~8.3%
+    trades = [_trade(area=90.5), _trade(area=91.0), _trade(area=90.0)]  # 84 대비 +7~8%대
     m = estimate_market(_listing(area=84.0), trades)
     assert m.scope == SCOPE_SAME_COMPLEX_NEAR_AREA
     assert m.est is not None
@@ -53,7 +53,8 @@ def test_scope_same_complex_near_area():
 
 def test_scope_same_dong_fallback():
     """단지명 불일치 → 같은 법정동 폴백 — 참고치."""
-    trades = [_trade(name="다른아파트", area=84.0), _trade(name="딴단지", area=85.0)]
+    trades = [_trade(name="다른아파트", area=84.0), _trade(name="딴단지", area=85.0),
+              _trade(name="세번째단지", area=83.5)]
     m = estimate_market(_listing(area=84.0), trades)
     assert m.scope == SCOPE_SAME_DONG_FALLBACK
     assert m.est is not None

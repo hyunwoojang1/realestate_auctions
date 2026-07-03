@@ -69,6 +69,14 @@
   - [x] evidence/snapshot_missing_smoke.txt(없음O·빈{}오안내사라짐+변동없음O·손상배너O) Read 확인
 - 평가자 PASS(C/H/M/L 0).
 
+## [ready] B16 신뢰계수를 basis 기반으로 통일 (출처: T5 평가자 LOW, 2026-07-03)
+- 왜: confidence(신뢰계수)는 matched_trades(트림 전) 기반인데 T5 게이트는 basis(트림·최근성 후) 기반 —
+  "매칭 7건·신뢰 1.00"인데 "낮은 신뢰" 경고가 병존 가능(라벨 분리로 혼란 제한적이나 장기 통일 필요).
+- 완료 정의(전부 false):
+  - [ ] confidence_ladder 입력을 basis로 전환(레거시 None은 matched 폴백) + 골든셋 영향 검토
+  - [ ] 테스트 + pytest 전체 + ruff 클린
+- 제약: 점수 스케일 변동 가능 — 의도된 변경으로 versions.md 기록.
+
 ## [ready] B15 죽은 시세 수집 제거 — rh/sh/nrg/land 라이브 호출 스킵 (출처: T2 평가자 MEDIUM, 2026-07-03)
 - 왜: T2로 시세 추정이 아파트·오피스텔만 지원되면서 load_live_trades의 rh 기본 수집(pipeline.py:198)과
   sh/nrg/land 확장 수집(186~187)이 어떤 물건과도 매칭 불가 → 국토부 API 쿼터만 소모(죽은 코드).
