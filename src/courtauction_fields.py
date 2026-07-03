@@ -256,6 +256,8 @@ class CourtAuctionRecord:
     y_proj: str
     # 원본 전체(개인정보 제외)
     raw: dict = field(default_factory=dict)
+    # 물건번호(maemulSer) — 한 사건에 물건 여러 개 가능. case_no 단일 식별 금지(T1).
+    item_no: str = ""
 
     @property
     def discount_vs_appraisal(self) -> float:
@@ -302,6 +304,7 @@ def parse_row(raw: dict) -> CourtAuctionRecord:
         x_proj=clean.get("xCordi", ""),
         y_proj=clean.get("yCordi", ""),
         raw=clean,
+        item_no=str(clean.get("maemulSer", "") or ""),
     )
 
 
@@ -330,4 +333,6 @@ def to_auction_listing(rec: CourtAuctionRecord) -> AuctionListing:
         fail_count=rec.fail_count,
         sale_date=rec.sale_date,
         special_rights=special,   # 비고 힌트(Tier-0). rights_verified는 상세(D) 전까지 False 유지.
+        item_no=rec.item_no,      # T1: 같은 사건 다른 물건 덮어쓰기 방지 — 복합 식별자 관통
+        doc_id=rec.doc_id,
     )

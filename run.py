@@ -121,6 +121,10 @@ def main(argv=None) -> int:
         if not args.json:
             print(f"  ⚠ 실매물인데 라이브 시세 아님(샘플/추정) → 서빙 DB 대신 {db_path} 에 저장")
     conn = store.connect(db_path)
+    # T1 원본 보존: courtauction 수집분의 raw row를 채점 결과와 별도로 남긴다
+    # (파싱 버그·스키마 개편 시 재처리 원천 + 수집 감사 증거).
+    if args.source == "courtauction":
+        store.save_raw_records(conn, records)
     # 풀스냅샷(전국 실크롤 또는 캐시 전량, 라이브 시세)은 전량 교체로 만료매물 제거. 그 외는 병합.
     full_snapshot = args.nationwide or args.from_cache
     if args.source == "courtauction" and use_live and full_snapshot:

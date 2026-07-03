@@ -112,6 +112,7 @@ def score_listing(listing: AuctionListing, est_market_price: int | None, matched
             real_acquisition_cost=cost, expected_profit=None, gap_rate=None,
             gap_score=0.0, rights_score=r, liquidity_score=liq, arb_score=None,
             grade=grade_of(None), rights_verified=listing.rights_verified,
+            court=listing.court, item_no=listing.item_no, doc_id=listing.doc_id,
         )
 
     gap_rate = (est_market_price - cost) / est_market_price
@@ -150,4 +151,5 @@ def score_listing(listing: AuctionListing, est_market_price: int | None, matched
         real_acquisition_cost=cost, expected_profit=profit, gap_rate=round(gap_rate, 4),
         gap_score=gap, rights_score=r, liquidity_score=liq, arb_score=arb,
         grade=grade, rights_verified=listing.rights_verified,
+        court=listing.court, item_no=listing.item_no, doc_id=listing.doc_id,
     )

@@ -69,6 +69,16 @@
   - [x] evidence/snapshot_missing_smoke.txt(없음O·빈{}오안내사라짐+변동없음O·손상배너O) Read 확인
 - 평가자 PASS(C/H/M/L 0).
 
+## [ready] B14 multi-item 사건의 소비단계 식별 모호성 해소 (출처: T1 평가자 MEDIUM 2건, 2026-07-03)
+- 왜: T1로 저장 누락은 해소됐으나, `/api/listings/<case_no>`·`/property/<case_no>` 상세 라우트와
+  watchlist(스냅샷 dict)·backtest(조인)·compare(by_case)가 여전히 case_no 단일 키 → 한 사건에 물건
+  여러 개면 임의의 한 물건만 보이거나(상세) 마지막 항목이 이김(dict). 데이터 손실은 아니고 표시/집계 왜곡.
+- 완료 정의(전부 false):
+  - [ ] 상세 라우트에 uid(doc_id 또는 court|case_no|item_no) 기반 조회 추가(기존 case_no 라우트는 유일할 때만 매칭, 모호하면 선택 안내)
+  - [ ] watchlist/backtest/compare 키를 uid로 전환(기존 case_no 데이터 하위호환 이관)
+  - [ ] multi-item fixture 회귀 테스트 + pytest 전체 + ruff 클린
+- 제약: 순수 로컬, 오프라인.
+
 ## [ready] B10 워치리스트 쓰기 실패 로깅·사용자 메시지 (출처: 사이클#9 감사 silent-failure MEDIUM+LOW)
 - 왜: `_atomic_write`가 실패 시 로그 없이 raise(로드측 `_safe_load_json`과 비대칭) → OneDrive 락/디스크풀 시
   운영자가 어느 case_no add/remove가 실패했는지 모름. 사용자에겐 500만 노출("별표 눌렀는데 안 됨" 모호).

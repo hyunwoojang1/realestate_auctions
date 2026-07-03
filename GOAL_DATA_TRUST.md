@@ -7,16 +7,17 @@
 
 ## 단계 (위에서부터 순서대로, 사이클당 1단계)
 
-### [ready] T1. 식별자 구조 수정 — 물건 누락 방지 (최우선)
+### [done] T1. 식별자 구조 수정 — 물건 누락 방지 (최우선) ✅ 사이클#1 평가자 PASS
 - 왜: 한 사건번호에 물건 여러 개 가능한데 `case_no TEXT PRIMARY KEY`(store.py)면 조용히 덮어씀.
-- 완료 정의 (전부 false에서 시작):
-  - [ ] `auction.db` 백업 후 작업 (LOOP.md 금지사항 — 스키마 변경은 백업 필수)
-  - [ ] scored_listings PK를 `case_no 단일` → 복합키(court + case_no + item_no)로 변경
-  - [ ] `item_no`(maemulSer)·`doc_id`·`court` 저장 (courtauction_cache.py:23 캐시 키가 이미 쓰는 값을 DB까지 관통)
-  - [ ] 원본 raw row 보존: raw 테이블 또는 JSON snapshot + 수집시각
-  - [ ] 마이그레이션: 기존 DB 자동 업그레이드(기존 데이터 이관) + 테스트
-  - [ ] 같은 case_no + 다른 item_no 2건 저장 시 2건 모두 남는 회귀 테스트
-  - [ ] pytest 전체(245에서 감소 없음) + ruff 클린 + evidence/t1_pk_migration.txt Read 확인
+- 완료 정의:
+  - [x] `auction.db` 백업 후 작업 → data/backup/auction.db.bak-20260703-1315
+  - [x] scored_listings PK → PRIMARY KEY (court, case_no, item_no), 실DB 2521건 무손실 이관(v0→v2)
+  - [x] `item_no`(maemulSer)·`doc_id`·`court` 수집→모델→채점→저장 관통 + pipeline 전국병합·cache record_key도 복합키화
+  - [x] raw_listings 테이블(uid PK, raw_json, fetched_at) + run.py 배선
+  - [x] 마이그레이션 자동(v1 감지→트랜잭션 이관) + 멱등성 테스트
+  - [x] 같은 case_no + 다른 item_no 공존 회귀 테스트(tests/test_store_identity.py 8개)
+  - [x] pytest 253 passed(245→253) + ruff 클린 + evidence/t1_pk_migration.txt Read 확인
+- 평가자 MEDIUM 2건(상세 라우트·watchlist 등 소비단계 case_no 잔존) → BACKLOG B14 이월
 
 ### [ready] T2. 추천 대상 아파트 제한 + 유형 불명 시 시세추정불가
 - 왜: 빌라/상가/토지는 현 비교군 방식으로는 위험. 유형 매핑 실패(want None) 시 모든 kind 통과는 치명적.

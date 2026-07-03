@@ -19,8 +19,13 @@ DEFAULT_FULL_CACHE = "data/courtauction_full_cache.json"
 
 
 def record_key(rec) -> str:
-    """행 고유키 — docid 우선, 없으면 사건번호+매물일련번호."""
-    return rec.doc_id or f"{rec.case_no}-{rec.raw.get('maemulSer', '')}"
+    """행 고유키 — docid 우선, 없으면 법원+사건번호+물건번호 복합키(T1).
+
+    사건번호는 법원 간 중복 가능(연도+타경 일련). 구키(case_no-maemulSer)는 법원이 빠져
+    타법원 동번호 사건과 충돌할 수 있었다. 키 형식 변경으로 기존 캐시 diff가 1회 전량
+    '신규'로 보일 수 있음(스냅샷 저장 후 정상화).
+    """
+    return rec.doc_id or f"{rec.court}|{rec.case_no}|{rec.item_no}"
 
 
 def _snapshot(rec) -> dict:

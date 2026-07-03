@@ -15,6 +15,21 @@
 
 ---
 
+## 2026-07-03 13:29 KST — 🔑 신뢰루프 사이클 #1: T1 식별자 구조 수정 (복합 PK + raw 보존)
+- 무엇: case_no 단일 PK가 같은 사건의 다른 물건번호를 조용히 덮어쓰던 구조 결함 수정(문서 3장, 최우선).
+  - store.py: `PRIMARY KEY (court, case_no, item_no)` + user_version=2 + 구스키마 자동 마이그레이션
+    (트랜잭션, 실DB 2521건 무손실 이관 확인) + raw_listings 원본보존 테이블 + save_raw_records.
+  - models.py: AuctionListing/ScoredListing에 court·item_no·doc_id + uid 프로퍼티.
+  - courtauction_fields.py: CourtAuctionRecord.item_no(maemulSer) 명시 + to_auction_listing 관통.
+  - score.py 두 분기 관통, run.py raw 저장 배선, pipeline 전국병합 키·cache record_key 복합키화
+    (구키는 법원 누락으로 타법원 동번호 충돌 여지 — 캐시 diff 1회 전량신규 churn은 docstring 명시).
+  - 백업: data/backup/auction.db.bak-20260703-1315 (스키마 변경 전, LOOP.md 준수).
+- 증거: evidence/t1_pk_migration.txt (v0→v2 이관·2521==2521·복합키 공존 데모·멱등성) Read 확인.
+- 게이트: pytest 253 passed(기준 245, +8 tests/test_store_identity.py), ruff 클린.
+- 평가자: PASS (MEDIUM 2건 — 상세라우트·watchlist/backtest/compare의 case_no 단일키 잔존 → B14 이월).
+- 커밋: (이 항목과 함께 커밋)
+- 다음: 사이클 #2 = T2 추천 대상 아파트 제한 + 유형 불명 시 시세추정불가(matcher._kind_ok 개편).
+
 ## 2026-07-03 13:13 KST — 🚀 데이터 신뢰도 개편 루프 착수 (GOAL_DATA_TRUST.md 생성)
 - 무엇: 운영자가 타 세션에서 작성한 `데이터_신뢰도_문제의식_및_개선방향.md`(18장 체크리스트)를
   T1~T7 + T8(최종 감사) 단계로 구조화한 GOAL_DATA_TRUST.md 생성. PROGRESS.md 현재 루프 전환.

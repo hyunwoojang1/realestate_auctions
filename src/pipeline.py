@@ -95,7 +95,8 @@ def load_courtauction_nationwide(cash_won: int | None = None, appraisal_buffer: 
                            sd, SIDO_CODES.get(sd, ""), e, len(merged))
             break
         for r in recs:
-            merged[r.doc_id or r.case_no] = r
+            # T1: doc_id 없을 때 case_no 단일 폴백은 같은 사건의 다른 물건번호를 삼킨다 → 복합키.
+            merged[r.doc_id or f"{r.court}|{r.case_no}|{r.item_no}"] = r
         logger.info("시도 %s(%s): +%d → 누적 %d건", sd, SIDO_CODES.get(sd, ""), len(recs), len(merged))
     return list(merged.values())
 
