@@ -125,6 +125,24 @@ h2{font-size:var(--t-h2);letter-spacing:var(--ls-head);margin:var(--sp-6) 0 var(
 .gm-lab .pos,.gm-gv{color:var(--pos-strong);font-weight:800}
 .gm-na,.gm-na2{color:var(--muted-2);font-weight:700}
 
+/* ---- 밴드 게이지(시그니처) — 검증 하한~기준가 두 선 + 취득원가 ▼ + 호가 점 ---- */
+.bandgauge{min-width:180px}
+.bg-track{position:relative;height:14px;background:var(--wheat);border-radius:4px;margin-top:7px}
+.bg-band{position:absolute;top:0;height:100%;background:#dce8fb;
+  border-left:2px solid var(--accent);border-right:2px solid #93b6ef;box-sizing:border-box}
+.bg-profit{position:absolute;top:0;height:100%;background:var(--pos-tint);border-radius:4px 0 0 4px}
+.bg-inband{position:absolute;top:0;height:100%;background:var(--warn-tint)}
+.bg-overcost{position:absolute;top:0;height:100%;background:var(--risk-tint)}
+.bg-cost{position:absolute;top:-6px;width:0;height:0;transform:translateX(-5px);
+  border-left:5px solid transparent;border-right:5px solid transparent;border-top:7px solid var(--ink-strong)}
+.bg-ask{position:absolute;top:50%;width:7px;height:7px;border-radius:50%;transform:translate(-4px,-50%);
+  background:var(--ink);border:1.5px solid #fff;box-shadow:0 0 0 1px var(--hairline-strong)}
+.bg-bandlab{color:var(--muted-2)}
+.bg-flat{color:var(--conf-mid);font-weight:700}
+/* 권리미확인 강등 — 초록(안전신호)만 중립 블루로, 위험 신호(적)는 유지 */
+.unv .bg-profit{background:#d7e4f7 !important}
+.unv .bandgauge .gm-gv{color:var(--muted) !important}
+
 /* ---- #1 히어로 — 흰 카드 + 블루 좌측 룰(캔버스 위 강조 레이어) ---- */
 .hero{display:grid;grid-template-columns:auto 1fr auto;gap:var(--sp-5);align-items:center;
   background:var(--surface);border:1px solid var(--hairline);border-left:3px solid var(--accent);

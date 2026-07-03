@@ -114,8 +114,54 @@ def _gap_meter(s: ScoredListing) -> str:
     )
 
 
-# 웹 템플릿(src/web.py)에서 재사용하는 공개 별칭 — 갭미터·금액 포맷 로직 공유
-gap_meter_html = _gap_meter
+def _band_gauge(s: ScoredListing, askings: list | None = None) -> str:
+    """가격 밴드 게이지 — 이 제품의 시그니처 비주얼(근거 문서 11장 다이어그램의 가로판).
+
+    검증 하한가~기준가 밴드(두 개의 선) 위에 취득원가 ▼ 마커를 찍는다:
+      원가 < 하한가  → 원가→하한가 구간 초록(보수 차익 — 하한가로 팔아도 남는 폭)
+      하한가 ≤ 원가 ≤ 기준가 → 하한가→원가 구간 호박색(보수 기준 차익 없음)
+      원가 > 기준가  → 기준가→원가 구간 적색(기준가로도 손실)
+    호가(askings, [{price, position}])는 검증 보조 점으로만 찍는다(T6 원칙).
+    """
+    low, high, cost = s.market_band_low, s.market_band_high, s.real_acquisition_cost
+    vals = [low, high, cost] + [a["price"] for a in (askings or []) if a.get("price")]
+    lo, hi = min(vals) * 0.96, max(vals) * 1.04
+    span = hi - lo or 1
+
+    def x(v: float) -> float:
+        return max(0.0, min(100.0, (v - lo) / span * 100))
+
+    parts = [f'<div class="bg-band" style="left:{x(low):.1f}%;width:{x(high) - x(low):.1f}%"></div>']
+    if cost < low:
+        parts.append(f'<div class="bg-profit" style="left:{x(cost):.1f}%;width:{x(low) - x(cost):.1f}%"></div>')
+        verdict = f'<span class="gm-gv">보수 차익 {_won(low - cost)}</span>'
+    elif cost <= high:
+        parts.append(f'<div class="bg-inband" style="left:{x(low):.1f}%;width:{x(cost) - x(low):.1f}%"></div>')
+        verdict = '<span class="bg-flat">원가가 밴드 안 — 보수 차익 없음</span>'
+    else:
+        parts.append(f'<div class="bg-overcost" style="left:{x(high):.1f}%;width:{x(cost) - x(high):.1f}%"></div>')
+        verdict = f'<span class="gm-loss">기준가 초과 {_won(cost - high)}</span>'
+    parts.append(f'<div class="bg-cost" style="left:{x(cost):.1f}%" title="취득원가 {_won(cost)}"></div>')
+    for a in askings or []:
+        if a.get("price"):
+            parts.append(f'<div class="bg-ask" style="left:{x(a["price"]):.1f}%" '
+                         f'title="호가 {_won(a["price"])}"></div>')
+    return (
+        '<div class="gapmeter bandgauge"><div class="bg-track">' + "".join(parts) + "</div>"
+        f'<div class="gm-lab"><span>▼ 원가 {_won(cost)}</span>{verdict}'
+        f'<span class="bg-bandlab">밴드 {_won(low)}~{_won(high)}</span></div></div>'
+    )
+
+
+def gap_meter_html(s: ScoredListing, askings: list | None = None) -> str:
+    """미터 디스패치 — 밴드가 있으면 시그니처 밴드 게이지, 레거시 행은 기존 갭미터."""
+    if (s.market_band_low and s.market_band_high and s.real_acquisition_cost > 0
+            and s.market_band_high >= s.market_band_low):
+        return _band_gauge(s, askings)
+    return _gap_meter(s)
+
+
+# 웹 템플릿(src/web.py)에서 재사용하는 공개 별칭 — 금액 포맷 로직 공유
 won = _won
 pct = _pct
 

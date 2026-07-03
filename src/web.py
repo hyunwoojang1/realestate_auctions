@@ -288,7 +288,7 @@ def create_app() -> Flask:
         ask_overstated = asking_mod.band_overstated(askings, s.market_band_low)
         return render_template(
             "detail.html", s=s, listing=listing,
-            meter=report.gap_meter_html(s), won=report.won, pct=report.pct,
+            meter=report.gap_meter_html(s, askings=ask_points), won=report.won, pct=report.pct,
             gated=gated, gate_reason=", ".join(gate_reasons),
             tax_parts=tax_parts, tax_label=tax.PROFILE.label(),
             watching=case_no in watchlist.load_watchlist(watchlist.watchlist_path()),
