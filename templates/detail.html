@@ -61,9 +61,18 @@
 매각물건명세서·현황조사서·등기부등본으로 인수 권리(임차인 대항력·유치권·지분 등)를 직접 확인하기 전에는
 어떤 차익 수치도 입찰 근거가 될 수 없습니다. 이 페이지는 1차 필터용 검토 보조 자료입니다.</div>
 
+{# 아실식 탭 — 스택 대신 관심사 전환('전체'가 기본이라 전 정보 접근성 유지) #}
+<div class="tabbar" id="dtabs">
+  <button class="on" data-tab="all">전체</button>
+  <button data-tab="t-gap">차익 근거</button>
+  <button data-tab="t-tax">세금</button>
+  <button data-tab="t-rights">권리</button>
+  <button data-tab="t-site">현장</button>
+</div>
+
 <div class="cards">
   <!-- 근거(객관): 경매 진행 + 취득원가 -->
-  <div class="card">
+  <div class="card" id="t-gap">
     <h2>차익 근거 (객관)</h2>
     <div class="kv"><span class="k">감정가 <span style="color:var(--muted-2)">(1차 시작가·참고)</span></span><span class="v">{{ won(s.appraisal_price) }}</span></div>
     <div class="kv"><span class="k">유찰</span><span class="v">{{ s.fail_count }}회{% if s.appraisal_price > 0 %} · 저감 {{ pct(1 - s.min_bid_price / s.appraisal_price) }}{% endif %}</span></div>
@@ -113,7 +122,7 @@
   </div>
 
   <!-- 세금 상세 (docs/tax-auction-knowledge.md 기준) -->
-  <div class="card">
+  <div class="card" id="t-tax">
     <h2>취득세 상세 <span style="color:var(--muted-2)">({{ tax_label }} 기준)</span></h2>
     <div class="kv"><span class="k">취득세 본세</span><span class="v">{{ won(tax_parts['취득세']) }}</span></div>
     <div class="kv"><span class="k">지방교육세</span><span class="v">{{ won(tax_parts['지방교육세']) }}</span></div>
@@ -126,7 +135,7 @@
   </div>
 
   <!-- 권리(caveats) — 안전 게이트 -->
-  <div class="card">
+  <div class="card" id="t-rights">
     <h2>권리 안전성</h2>
     {% if not s.rights_verified %}
       <div class="note-box n-warn">⚠ 권리 미확인 — 물건상세 권리분석 전 상태입니다.
@@ -145,7 +154,7 @@
   </div>
 
   <!-- 현장 확인 -->
-  <div class="card">
+  <div class="card" id="t-site">
     <h2>현장 확인</h2>
     <p style="font-size:var(--t-data);margin:0 0 10px;line-height:1.6">
       <a href="https://map.kakao.com/link/search/{{ s.address }}" target="_blank" rel="noopener">카카오맵에서 위치·로드뷰 보기 →</a></p>
@@ -159,4 +168,19 @@
 실거래 밴드(이상치 제외)의 하한이며, 밴드가 없는 물건은 기준 시세 차익으로 폴백 표기합니다. 취득 시점 표면차익이며
 명도비·수리비·권리 인수금액·미납관리비 등 변동비용과 양도세·보유세는 <b>제외</b>돼 있습니다.
 검토 보조 도구이며 전문가(법무사 등) 상담을 대체하지 않습니다.</p>
+
+<script>
+(function(){
+  const bar = document.getElementById('dtabs');
+  if (!bar) return;
+  const cards = ['t-gap','t-tax','t-rights','t-site'].map(id => document.getElementById(id));
+  bar.addEventListener('click', e => {
+    const btn = e.target.closest('button'); if (!btn) return;
+    bar.querySelectorAll('button').forEach(b => b.classList.remove('on'));
+    btn.classList.add('on');
+    const t = btn.dataset.tab;
+    cards.forEach(c => { if (c) c.style.display = (t === 'all' || c.id === t) ? '' : 'none'; });
+  });
+})();
+</script>
 {% endblock %}
