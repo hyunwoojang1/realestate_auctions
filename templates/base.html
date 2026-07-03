@@ -11,19 +11,21 @@
    (2026-07-03 리디자인 — 이전 Warm-Paper Broadsheet 폐기)
    ============================================================ */
 :root{
-  /* 중립(화이트/그레이) */
-  --paper:#ffffff; --surface:#ffffff; --surface-2:#f6f8fa; --wheat:#eef1f4;
-  --ink:#1f2328; --ink-strong:#0d1117; --muted:#636c76; --muted-2:#8b949e;
-  --hairline:#eaedf1; --hairline-strong:#d8dee4; --border-field:#c9d1d9;
-  /* 상호작용(블루 — 아실 계열) */
-  --accent:#2b6de4; --accent-hover:#1f5bc4; --accent-tint:#eaf1fd; --focus-ring:rgba(43,109,228,.4);
+  /* 레이어드 중립 — 회색 캔버스(--paper) 위에 흰 서피스(--surface)를 얹는다(토스/아실 구조).
+     ui-ux-pro-max 추천: Data-Dense Dashboard 스타일 × Banking/Traditional Finance 팔레트 */
+  --paper:#f4f6f9; --surface:#ffffff; --surface-2:#f1f4f8; --wheat:#e9eef4;
+  --ink:#111827; --ink-strong:#0b1220; --muted:#5b6472; --muted-2:#98a1ad;
+  --hairline:#e9edf2; --hairline-strong:#dbe1e9; --border-field:#c6cfda;
+  /* 상호작용(블루) */
+  --accent:#2563eb; --accent-hover:#1d4fc4; --accent-tint:#eaf1fe; --focus-ring:rgba(37,99,235,.4);
   /* 신호색 */
-  --pos:#0f8a4d; --pos-strong:#0b7040; --pos-tint:#e3f5eb;
-  --risk:#e0342e; --risk-strong:#c22823; --risk-tint:#fdebea;
-  --warn:#d97706; --warn-tint:#fdf3e3;
-  --unv:#7048e8; --unv-tint:#f1edfd;               /* 권리미확인 — 보라(경고와 구분) */
-  --conf-high:#0c8599; --conf-mid:#d97706; --conf-low:#8b949e;
-  --score-90:#0b7040; --score-75:#2e9e5b; --score-60:#d97706; --score-lt60:#8b949e;
+  --pos:#16a34a; --pos-strong:#12813c; --pos-tint:#e4f5ea;
+  --risk:#dc2626; --risk-strong:#b91c1c; --risk-tint:#fbe9e9;
+  --warn:#d97706; --warn-tint:#fbf1de;
+  --unv:#7048e8; --unv-tint:#f0ebfd;               /* 권리미확인 — 보라(경고와 구분) */
+  --conf-high:#0c8599; --conf-mid:#d97706; --conf-low:#98a1ad;
+  --score-90:#12813c; --score-75:#2e9e5b; --score-60:#d97706; --score-lt60:#98a1ad;
+  --shadow-card:0 1px 3px rgba(15,23,42,.06),0 1px 2px rgba(15,23,42,.04);
   /* 타입 스케일(컴팩트) */
   --t-score-hero:2.6rem; --t-score:1.5rem; --t-price:1.25rem; --t-h1:1.35rem;
   --t-h2:1.05rem; --t-body:.875rem; --t-data:.8125rem; --t-label:.71875rem; --t-note:.6875rem;
@@ -74,12 +76,13 @@ h2{font-size:var(--t-h2);letter-spacing:var(--ls-head);margin:var(--sp-6) 0 var(
 .label{font-size:var(--t-label);letter-spacing:var(--ls-label);
   color:var(--muted);font-weight:700}
 
-/* ---- 인사이트 스트립(박스 대신 얇은 상하 헤어라인) ---- */
-.insight{display:flex;flex-wrap:wrap;align-items:baseline;gap:var(--sp-2) var(--sp-6);
-  margin:var(--sp-4) 0 var(--sp-4);padding:var(--sp-2) 2px;
-  border-top:1px solid var(--hairline);border-bottom:1px solid var(--hairline)}
+/* ---- 인사이트 = KPI 카드 행(회색 캔버스 위 흰 카드 — 레이어링) ---- */
+.insight{display:flex;flex-wrap:wrap;gap:var(--sp-2);margin:var(--sp-4) 0 var(--sp-4)}
+.insight>span{display:flex;flex-direction:column;gap:2px;min-width:120px;
+  background:var(--surface);border:1px solid var(--hairline);border-radius:var(--r-card);
+  box-shadow:var(--shadow-card);padding:10px 14px}
 .insight .k{font-size:var(--t-note);letter-spacing:var(--ls-label);color:var(--muted-2);font-weight:600}
-.insight .v{font-weight:800;color:var(--ink-strong)} .insight .v.pos{color:var(--pos-strong)}
+.insight .v{font-weight:800;color:var(--ink-strong);font-size:1.05rem} .insight .v.pos{color:var(--pos-strong)}
 .insight.flat{}
 
 /* ---- 뱃지(경고 전용 — 색상 분리로 종류 즉시 구분) ---- */
@@ -117,10 +120,11 @@ h2{font-size:var(--t-h2);letter-spacing:var(--ls-head);margin:var(--sp-6) 0 var(
 .gm-lab .pos,.gm-gv{color:var(--pos-strong);font-weight:800}
 .gm-na,.gm-na2{color:var(--muted-2);font-weight:700}
 
-/* ---- #1 히어로 — 거대 카드 대신 얇은 하이라이트 밴드 ---- */
+/* ---- #1 히어로 — 흰 카드 + 블루 좌측 룰(캔버스 위 강조 레이어) ---- */
 .hero{display:grid;grid-template-columns:auto 1fr auto;gap:var(--sp-5);align-items:center;
-  background:var(--accent-tint);border:1px solid color-mix(in oklab,var(--accent) 22%,#fff);
-  border-radius:var(--r-card);padding:var(--sp-3) var(--sp-5) var(--sp-3);
+  background:var(--surface);border:1px solid var(--hairline);border-left:3px solid var(--accent);
+  border-radius:var(--r-card);box-shadow:var(--shadow-card);
+  padding:var(--sp-3) var(--sp-5) var(--sp-3);
   margin-bottom:var(--sp-4);position:relative;overflow:hidden}
 /* (T8 감사 수정) 캡션은 마크업(.hero-caption)으로 — 목록 히어로 전용. */
 .hero-caption{position:absolute;top:8px;left:var(--sp-5);
@@ -156,14 +160,15 @@ h2{font-size:var(--t-h2);letter-spacing:var(--ls-head);margin:var(--sp-6) 0 var(
   .nav a,.back,.reset,.hero-why .go{display:inline-block;padding:5px 2px}
 }
 
-/* ---- 랭킹 테이블(아실식 — 상자 없이 헤어라인만, 밀도 높게) ---- */
-.tablewrap{border-top:2px solid var(--ink-strong);background:var(--surface)}
+/* ---- 랭킹 테이블 — 흰 카드 컨테이너 + 밀도 높은 행(아실식) ---- */
+.tablewrap{background:var(--surface);border:1px solid var(--hairline);border-radius:var(--r-card);
+  box-shadow:var(--shadow-card);overflow:hidden}
 .scrollx{overflow-x:auto}
 table.picks{border-collapse:collapse;width:100%;min-width:820px}
 .picks th,.picks td{padding:0 var(--cell-px);height:var(--row-h);text-align:left;vertical-align:middle;
   border-bottom:1px solid var(--hairline)}
-.picks thead th{position:sticky;top:48px;background:#fff;z-index:1;height:34px;
-  font-size:var(--t-note);letter-spacing:var(--ls-label);color:var(--muted-2);
+.picks thead th{position:sticky;top:0;background:var(--surface-2);z-index:1;height:34px;
+  font-size:var(--t-note);letter-spacing:var(--ls-label);color:var(--muted);
   font-weight:700;border-bottom:1px solid var(--hairline-strong)}
 .picks tbody tr:last-child td{border-bottom:none}
 .picks tbody tr:hover{background:var(--accent-tint)}
@@ -179,8 +184,10 @@ table.picks{border-collapse:collapse;width:100%;min-width:820px}
 .picks .scorecell{width:96px}
 .money{font-weight:700}.money .u{color:var(--muted-2);font-weight:500;font-size:.85em;margin-left:1px}
 
-/* ---- 필터(한 줄 컴팩트 바) ---- */
-.filters{display:flex;flex-wrap:wrap;gap:var(--sp-2);align-items:flex-end;margin:var(--sp-3) 0 var(--sp-4)}
+/* ---- 필터(흰 카드 바) ---- */
+.filters{display:flex;flex-wrap:wrap;gap:var(--sp-2);align-items:flex-end;margin:var(--sp-3) 0 var(--sp-4);
+  background:var(--surface);border:1px solid var(--hairline);border-radius:var(--r-card);
+  box-shadow:var(--shadow-card);padding:10px 14px}
 .filters label{display:flex;flex-direction:column;gap:3px;font-size:var(--t-note);color:var(--muted-2);
   font-weight:600;letter-spacing:var(--ls-label)}
 .filters input,.filters select{font:inherit;font-size:var(--t-data);padding:5px 8px;border:1px solid var(--border-field);
@@ -191,10 +198,12 @@ table.picks{border-collapse:collapse;width:100%;min-width:820px}
 .filters button:hover{background:var(--accent-hover)}
 .filters .reset{font-size:var(--t-note);color:var(--muted);padding:6px 4px}
 
-/* ---- 섹션/키밸류(상세) — 네모 카드 폐기, 상단 굵은 룰 + 헤어라인 구분 ---- */
-.cards{display:grid;grid-template-columns:repeat(auto-fit,minmax(280px,1fr));gap:var(--sp-2) var(--sp-6);margin-top:var(--sp-5)}
-.card{background:transparent;border:none;border-top:2px solid var(--ink-strong);border-radius:0;padding:var(--sp-3) 0 var(--sp-4)}
-.card h2{font-size:var(--t-label);letter-spacing:var(--ls-label);color:var(--ink-strong);margin:0 0 var(--sp-2);font-weight:800}
+/* ---- 섹션 카드(상세) — 회색 캔버스 위 흰 카드 레이어 ---- */
+.cards{display:grid;grid-template-columns:repeat(auto-fit,minmax(300px,1fr));gap:var(--sp-3);margin-top:var(--sp-4)}
+.card{background:var(--surface);border:1px solid var(--hairline);border-radius:var(--r-card);
+  box-shadow:var(--shadow-card);padding:var(--sp-4) var(--sp-5)}
+.card h2{font-size:var(--t-label);letter-spacing:var(--ls-label);color:var(--muted);margin:0 0 var(--sp-2);font-weight:700;
+  text-transform:none;border-bottom:1px solid var(--hairline);padding-bottom:8px}
 .kv{display:flex;justify-content:space-between;gap:12px;padding:6px 0;border-bottom:1px solid var(--hairline);font-size:var(--t-data)}
 .kv:last-child{border-bottom:none}.kv .k{color:var(--muted)}
 .kv .v{font-weight:700;font-variant-numeric:tabular-nums}
@@ -217,10 +226,10 @@ table.picks{border-collapse:collapse;width:100%;min-width:820px}
 .formula .w2{color:var(--accent);font-weight:700}
 .formula .w3{color:var(--warn);font-weight:700}
 table.params{border-collapse:collapse;width:100%;font-size:var(--t-data);background:var(--surface);
-  border-top:2px solid var(--ink-strong)}
+  border:1px solid var(--hairline);border-radius:var(--r-card);overflow:hidden;box-shadow:var(--shadow-card)}
 .params th,.params td{padding:7px 10px;border-bottom:1px solid var(--hairline);text-align:left}
 .params tbody tr:last-child td{border-bottom:none}
-.params thead th{background:#fff;font-size:var(--t-note);letter-spacing:var(--ls-label);color:var(--muted-2);border-bottom:1px solid var(--hairline-strong)}
+.params thead th{background:var(--surface-2);font-size:var(--t-note);letter-spacing:var(--ls-label);color:var(--muted);border-bottom:1px solid var(--hairline-strong)}
 .params tbody tr:hover{background:var(--accent-tint)}
 .chips{display:flex;gap:8px;flex-wrap:wrap;margin-top:12px}
 .chips .chip{background:var(--surface-2);border:1px solid var(--hairline);border-radius:var(--r-ctl);padding:6px 12px;font-size:var(--t-data)}
