@@ -14,7 +14,7 @@ from datetime import datetime, timedelta, timezone
 
 from .models import ScoredListing
 
-SCHEMA_VERSION = 2
+SCHEMA_VERSION = 3
 
 DDL = """
 CREATE TABLE IF NOT EXISTS scored_listings (
@@ -27,6 +27,7 @@ CREATE TABLE IF NOT EXISTS scored_listings (
     court TEXT NOT NULL DEFAULT '',
     item_no TEXT NOT NULL DEFAULT '',
     doc_id TEXT NOT NULL DEFAULT '',
+    market_scope TEXT NOT NULL DEFAULT '',
     PRIMARY KEY (court, case_no, item_no)
 );
 """
@@ -51,7 +52,7 @@ _COLS = [
     "est_market_price", "matched_trades", "confidence",
     "real_acquisition_cost", "expected_profit", "gap_rate",
     "gap_score", "rights_score", "liquidity_score", "arb_score", "grade",
-    "court", "item_no", "doc_id",
+    "court", "item_no", "doc_id", "market_scope",
 ]
 
 # v1(구스키마)에서 이관 대상 컬럼 — court/item_no/doc_id는 v1에 없으므로 '' 기본값.
@@ -76,27 +77,35 @@ def connect(db_path: str = "auction.db") -> sqlite3.Connection:
 
 
 def _migrate(conn: sqlite3.Connection) -> None:
-    """구스키마(case_no 단일 PK) → v2(복합 PK) 자동 이관.
+    """구스키마 자동 이관 — v1(case_no 단일 PK) → v2(복합 PK) → v3(market_scope).
 
-    구스키마 데이터는 item_no=''로 이관된다(당시 물건번호 미수집 — 소실된 게 아니라 원래 없던 정보).
-    다음 전량 새로고침이 실제 item_no로 채운다. 트랜잭션이므로 실패 시 원상 복구.
+    v1 데이터는 item_no=''로 이관된다(당시 물건번호 미수집 — 소실된 게 아니라 원래 없던 정보).
+    market_scope도 ''(레거시)로 시작해 다음 전량 새로고침이 실제 값으로 채운다.
+    트랜잭션이므로 실패 시 원상 복구.
     """
     row = conn.execute(
         "SELECT 1 FROM sqlite_master WHERE type='table' AND name='scored_listings'"
     ).fetchone()
     if row is None:
-        return  # 신규 DB — connect()가 v2 DDL로 생성
+        return  # 신규 DB — connect()가 최신 DDL로 생성
     cols = {r["name"] for r in conn.execute("PRAGMA table_info(scored_listings)")}
-    if "item_no" in cols:
-        return  # 이미 v2
-    with conn:
-        conn.execute("ALTER TABLE scored_listings RENAME TO scored_listings_v1")
-        conn.execute(DDL)
-        src = ",".join(_V1_COLS)
-        conn.execute(
-            f"INSERT INTO scored_listings ({src}) SELECT {src} FROM scored_listings_v1"
-        )
-        conn.execute("DROP TABLE scored_listings_v1")
+    if "item_no" not in cols:
+        # v1 → 최신: PK 변경은 ALTER 불가 → 재생성 이관(최신 DDL이라 v3 컬럼 포함)
+        with conn:
+            conn.execute("ALTER TABLE scored_listings RENAME TO scored_listings_v1")
+            conn.execute(DDL)
+            src = ",".join(_V1_COLS)
+            conn.execute(
+                f"INSERT INTO scored_listings ({src}) SELECT {src} FROM scored_listings_v1"
+            )
+            conn.execute("DROP TABLE scored_listings_v1")
+        return
+    if "market_scope" not in cols:
+        # v2 → v3: 컬럼 추가만 — ALTER로 충분(데이터 이동 없음)
+        with conn:
+            conn.execute(
+                "ALTER TABLE scored_listings ADD COLUMN market_scope TEXT NOT NULL DEFAULT ''"
+            )
 
 
 def _insert_rows(conn: sqlite3.Connection, items: Iterable[ScoredListing]) -> int:

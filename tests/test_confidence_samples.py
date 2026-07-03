@@ -4,6 +4,8 @@
   1) 신뢰계수는 표본수에 대해 '단조 비감소'다 (1건→낮음, 다수→높음).
   2) 라이브 매칭 표본이 빈약했던 원인 = 좁은 면적밴드 + 짧은 수집 개월수.
      → config.SAMPLE(area_band / live_months)를 넓히면 표본수가 실제로 늘어난다.
+     (T3 이후) 밴드 확대는 '같은 평형 표본이 없을 때'의 tier2(인접 평형)에만 작동 —
+     같은 평형 표본이 있으면 인접 평형을 섞지 않는다(비교군 희석 방지).
   3) 표본수 증가가 신뢰계수 증가로 이어져(estimate_market_price → confidence) 스코어에 반영된다.
 
 이 파일이 만드는 표본수별 신뢰계수 표는 evidence/confidence_samples.txt 로 덤프된다.
@@ -89,9 +91,14 @@ def test_more_matches_never_lowers_final_score_confidence():
 
 # ── 2) 빈약 원인 = 좁은 밴드 + 짧은 개월수 (넓히면 표본↑) ─────────────────────
 
-def test_wider_area_band_increases_sample_count():
-    """면적밴드 ±10%→±15%로 넓히면 인접 평형이 comps에 포함돼 표본이 는다."""
-    pool = MULTI_MONTH_TRADES + NEAR_BAND_TRADES
+def test_wider_area_band_increases_sample_count_when_no_same_area():
+    """(T3 갱신) 같은 평형 표본이 '없을 때' 밴드 확대가 인접 평형 표본을 늘린다.
+
+    T3 계층 매칭 후 밴드 확대는 tier2(인접 평형)에서만 작동한다 — 같은 평형 표본이
+    있으면 인접 평형을 섞지 않는다(비교군 희석 방지가 개편 목적). 따라서 이 튜닝 노브의
+    효과는 same-area 표본 부재 상황으로 한정된다.
+    """
+    pool = list(NEAR_BAND_TRADES)   # 같은 평형(84.9) 없음 — ±12.8%/+13.1%만
 
     config.SAMPLE = config.SampleConfig(area_band=0.10)
     narrow = len(match_trades(_lst(), pool))
@@ -99,9 +106,18 @@ def test_wider_area_band_increases_sample_count():
     config.SAMPLE = config.SampleConfig(area_band=0.15)
     wide = len(match_trades(_lst(), pool))
 
-    assert wide > narrow, f"밴드 확대가 표본을 늘리지 못함(narrow={narrow}, wide={wide})"
-    assert narrow == len(MULTI_MONTH_TRADES)   # 좁은 밴드는 정확 평형만
-    assert wide == len(pool)                    # 넓은 밴드는 인접 평형까지
+    assert narrow == 0                          # ±10%: 인접 평형은 밴드 밖
+    assert wide == len(NEAR_BAND_TRADES)        # ±15%: 인접 평형 포함
+    assert wide > narrow
+
+
+def test_same_area_comps_not_diluted_by_wide_band():
+    """(T3) 같은 평형 표본이 있으면 밴드를 넓혀도 인접 평형이 혼입되지 않는다."""
+    pool = MULTI_MONTH_TRADES + NEAR_BAND_TRADES
+    config.SAMPLE = config.SampleConfig(area_band=0.15)
+    matched = match_trades(_lst(), pool)
+    assert len(matched) == len(MULTI_MONTH_TRADES)
+    assert all(t.area_m2 == 84.9 for t in matched)
 
 
 def test_more_months_collect_more_ymds():

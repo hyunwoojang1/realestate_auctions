@@ -30,13 +30,15 @@
 - 평가자 MEDIUM(죽은 rh/sh/nrg/land 수집 API 쿼터 낭비)→B15 이월, LOW 2건(_WARN_GRADES·주석) 즉시 수정.
   오피스텔 '조건부'는 T5 표본게이트에서 강화(주석·GOAL 명시).
 
-### [ready] T3. 비교군 scope 저장
+### [done] T3. 비교군 scope 저장 ✅ 사이클#3 평가자 PASS
 - 왜: 시세 추정치가 "어떤 집합에서 나온 값인지"를 저장해야 신뢰 등급을 말할 수 있음.
-- 완료 정의 (전부 false):
-  - [ ] matcher가 `market_scope` 반환: same_complex_same_area / same_complex_near_area / same_dong_fallback / unsupported
-  - [ ] scored_listings에 market_scope 저장 + 웹 상세에 표기
-  - [ ] v1 추천 인정 = `same_complex_same_area`만. same_dong_fallback은 시세 참고치로만(추천 금지)
-  - [ ] 테스트: scope 판정 4분기 + 추천 게이트 + pytest 전체 + ruff 클린 + evidence/t3_scope.txt Read 확인
+- 완료 정의:
+  - [x] match_trades_scoped 계층 매칭(같은평형±3% → 인접평형±band → 법정동 폴백) + MarketEstimate(est,matched,scope)
+  - [x] scored_listings v3(market_scope) + v1/v2 자동 마이그레이션(실DB 2521건 보존) + 상세페이지 '시세 비교군' 행
+  - [x] 추천 게이트: score 등급 캡(폴백/인접평형 → '관심') + digest TOP은 same_complex_same_area만
+  - [x] 테스트 15개(test_market_scope.py) + confidence_samples 2건 T3 의미론 갱신
+  - [x] pytest 282 passed + ruff 클린 + evidence/t3_scope.txt Read 확인
+- 평가자 LOW 2건(레거시 "" 이중통과=의도적 하위호환·등급명 리터럴=기존 관행), INFO(목록에서 캡'관심' 구분 불가→T7에서 처리)
 
 ### [ready] T4. 시세 단일값 → 2선 가격 밴드
 - 왜: 중앙값 하나는 "정답 가격"처럼 보여 과신 유발. 검증 하한가/검증 기준가 밴드로.

@@ -1,20 +1,39 @@
 """경매 물건 ↔ 인근 실거래 매칭 → 추정 시세 산출.
 
-전략(PoC):
- 1) 같은 단지명(부분일치) + 전용면적 ±AREA_BAND 인 실거래로 평단가 중앙값 → 추정시세
- 2) 1)이 부족하면 같은 법정동의 동일 면적대 실거래로 폴백(신뢰계수 자연 하락)
-추정시세 = 중앙값(평단가) × 물건 전용면적.  매칭 0건이면 (None, 0).
+전략(T3 — 비교군 scope 계층화):
+ 1) 같은 단지명 + 같은 평형(±SAME_AREA_BAND)  → scope=same_complex_same_area (v1 추천 인정)
+ 2) 같은 단지명 + 인접 평형(±area_band)       → scope=same_complex_near_area (참고치)
+ 3) 같은 법정동 + 같은 유형 + 면적대           → scope=same_dong_fallback (참고치 — 추천 금지)
+추정시세 = 중앙값(평단가) × 물건 전용면적. 어떤 집합에서 나온 값인지(scope)를 함께 반환한다 —
+비교군이 틀리면 통계 방식이 아무리 좋아도 결과는 틀리므로(문서 13장), scope가 신뢰 등급의 근거가 된다.
 """
 from __future__ import annotations
 
 import logging
 import statistics
+from dataclasses import dataclass
 
 from .models import AuctionListing, Trade
 
 logger = logging.getLogger(__name__)
 
 AREA_BAND = 0.10  # ±10% 전용면적 (기본값; 실제 사용값은 config.SAMPLE.area_band)
+SAME_AREA_BAND = 0.03  # '같은 평형' 판정(±3%) — 84㎡ 타입 내 소수점 편차 허용, 59↔84 혼입 차단
+
+# ---- 비교군 scope (T3) — 시세 추정치가 "어떤 집합"에서 나왔는지 ----
+SCOPE_SAME_COMPLEX_SAME_AREA = "same_complex_same_area"  # 같은 단지·같은 평형 (v1 추천 인정)
+SCOPE_SAME_COMPLEX_NEAR_AREA = "same_complex_near_area"  # 같은 단지·인접 평형 (참고치)
+SCOPE_SAME_DONG_FALLBACK = "same_dong_fallback"          # 같은 법정동 폴백 (참고치 — 추천 금지)
+SCOPE_UNSUPPORTED = "unsupported"                        # v1 미지원 유형 (추정 안 함)
+SCOPE_NO_COMPS = "no_comps"                              # 지원 유형이나 표본 없음
+
+
+@dataclass(frozen=True)
+class MarketEstimate:
+    """시세 추정 결과 — 값(est)만이 아니라 근거 집합(scope)까지가 결과다."""
+    est: int | None
+    matched: int
+    scope: str
 
 
 def _area_band() -> float:
@@ -98,34 +117,52 @@ def _area_ok(a: float, b: float, band: float | None = None) -> bool:
     return abs(a - b) / b <= eff
 
 
-def match_trades(listing: AuctionListing, trades: list[Trade]) -> list[Trade]:
-    """유형(아파트/빌라/오피스텔) 분리 → 단지명+면적 우선, 부족하면 법정동+면적 폴백.
+def match_trades_scoped(listing: AuctionListing, trades: list[Trade]) -> tuple[list[Trade], str]:
+    """계층 매칭 — (비교군, scope). 좁고 강한 집합을 우선하고, 어느 층에서 나왔는지 밝힌다.
 
-    면적 허용밴드는 config.SAMPLE.area_band(기본 ±10%)로 튜닝 가능 — 라이브 comps가
-    빈약할 때 밴드를 넓히면 같은 단지의 인접 평형까지 표본에 포함된다.
+    1) 같은 단지 + 같은 평형(±SAME_AREA_BAND) → same_complex_same_area
+    2) 같은 단지 + 인접 평형(±area_band)      → same_complex_near_area
+    3) 같은 법정동 + 같은 유형 + 면적대        → same_dong_fallback
+    면적 허용밴드는 config.SAMPLE.area_band(기본 ±10%)로 튜닝 가능.
     """
     band = _area_band()
     want = expected_kind(listing.property_type)
     pool = [t for t in trades if _kind_ok(t, want)]
     name = _norm(listing.apt_name)
     dong = _norm(listing.dong)
-    # 단지명 부분일치 + 면적 + '같은 법정동' 제약. 동명이단지(다른 지역 같은 이름)를
-    # 시세 comps로 끌어오는 것을 막는다. 거래에 dong이 없으면(하위호환) 동 제약은 통과시킨다.
-    by_name = [
-        t for t in pool
-        if len(name) >= 2 and _norm(t.apt_name)
-        and (name in _norm(t.apt_name) or _norm(t.apt_name) in name)
-        and _area_ok(t.area_m2, listing.area_m2, band)
-        and (not _norm(t.dong) or _norm(t.dong) == dong)
-    ]
-    if by_name:
-        return by_name
+
+    def _by_name(eff_band: float) -> list[Trade]:
+        # 단지명 부분일치 + 면적 + '같은 법정동' 제약. 동명이단지(다른 지역 같은 이름)를
+        # 시세 comps로 끌어오는 것을 막는다. 거래에 dong이 없으면(하위호환) 동 제약은 통과시킨다.
+        return [
+            t for t in pool
+            if len(name) >= 2 and _norm(t.apt_name)
+            and (name in _norm(t.apt_name) or _norm(t.apt_name) in name)
+            and _area_ok(t.area_m2, listing.area_m2, eff_band)
+            and (not _norm(t.dong) or _norm(t.dong) == dong)
+        ]
+
+    # 운영자가 area_band를 3% 미만으로 좁혔다면 그 값을 '같은 평형' 기준으로 존중.
+    same_area = _by_name(min(SAME_AREA_BAND, band))
+    if same_area:
+        return same_area, SCOPE_SAME_COMPLEX_SAME_AREA
+    near_area = _by_name(band)
+    if near_area:
+        return near_area, SCOPE_SAME_COMPLEX_NEAR_AREA
     # 폴백: 같은 법정동 + 면적대 (유형 분리는 유지 — 다세대↔아파트 혼입 방지)
     by_dong = [
         t for t in pool
         if dong and _norm(t.dong) == dong and _area_ok(t.area_m2, listing.area_m2, band)
     ]
-    return by_dong
+    if by_dong:
+        return by_dong, SCOPE_SAME_DONG_FALLBACK
+    return [], SCOPE_NO_COMPS
+
+
+def match_trades(listing: AuctionListing, trades: list[Trade]) -> list[Trade]:
+    """하위호환 래퍼 — 비교군 리스트만. scope가 필요하면 match_trades_scoped."""
+    matched, _ = match_trades_scoped(listing, trades)
+    return matched
 
 
 RECENCY_WINDOW_MONTHS = 12   # 최근 N개월 거래만 사용(오래된 거래는 시세 신선도↓)
@@ -158,8 +195,8 @@ def trim_outliers(values: list[float]) -> list[float]:
     return sorted(values)[1:-1]
 
 
-def estimate_market_price(listing: AuctionListing, trades: list[Trade]) -> tuple[int | None, int]:
-    """(추정시세_원, 매칭건수) 반환. 매칭 0건이면 (None, 0).
+def estimate_market(listing: AuctionListing, trades: list[Trade]) -> MarketEstimate:
+    """시세 추정 — 값·표본수·비교군 scope를 함께 반환 (T3).
 
     매칭 → 최근성 필터 → 평단가 이상치 트림 → 중앙값 × 전용면적.
     신뢰계수 산정용 매칭건수는 트림 전 원 매칭 수를 유지한다(품질 보정이 신뢰를 부풀리지 않게).
@@ -169,21 +206,27 @@ def estimate_market_price(listing: AuctionListing, trades: list[Trade]) -> tuple
         # '같은 법정동+비슷한 면적' 중앙값은 이들 유형에서 실제 시세와 크게 어긋날 수 있다(과신 유발).
         logger.debug("미지원 유형 물건(%s, %s) — 시세추정불가(v1 정책)",
                      listing.case_no, listing.property_type)
-        return None, 0
+        return MarketEstimate(None, 0, SCOPE_UNSUPPORTED)
     if listing.area_m2 <= 0:
         # 면적 파싱 실패(0/미상)면 comps 매칭이 무조건 비어 '시세추정불가'가 된다.
         # 진짜 comps 부재와 파싱실패를 구분할 수 있도록 로그를 남긴다(침묵실패 방지).
         logger.debug("면적 0/미상 물건(%s) — comps 매칭 불가 → 시세추정불가", listing.case_no)
-        return None, 0
-    matched = match_trades(listing, trades)
+        return MarketEstimate(None, 0, SCOPE_NO_COMPS)
+    matched, scope = match_trades_scoped(listing, trades)
     if not matched:
-        return None, 0
+        return MarketEstimate(None, 0, SCOPE_NO_COMPS)
     matched_count = len(matched)
     recent = filter_recent(matched)
     ppm2_list = [t.price_per_m2() for t in recent if t.area_m2 > 0]
     if not ppm2_list:
-        return None, 0
+        return MarketEstimate(None, 0, SCOPE_NO_COMPS)
     ppm2_list = trim_outliers(ppm2_list)
     median_ppm2 = statistics.median(ppm2_list)
     est = int(round(median_ppm2 * listing.area_m2))
-    return est, matched_count
+    return MarketEstimate(est, matched_count, scope)
+
+
+def estimate_market_price(listing: AuctionListing, trades: list[Trade]) -> tuple[int | None, int]:
+    """하위호환 래퍼 — (추정시세_원, 매칭건수). scope까지 필요하면 estimate_market."""
+    m = estimate_market(listing, trades)
+    return m.est, m.matched

@@ -87,6 +87,10 @@ class ScoredListing:
     court: str = ""                   # 관할 법원 (복합 식별자 구성요소)
     item_no: str = ""                 # 물건번호(maemulSer). 샘플/미상은 ""
     doc_id: str = ""                  # courtauction 고유 문서 id
+    # ---- 비교군 scope (T3): 시세가 "어떤 집합"에서 나왔는지 — 신뢰 등급의 근거 ----
+    # same_complex_same_area(추천 인정) / same_complex_near_area / same_dong_fallback(참고치)
+    # / unsupported / no_comps. ""=레거시(스코프 미기록).
+    market_scope: str = ""
 
     @property
     def uid(self) -> str:

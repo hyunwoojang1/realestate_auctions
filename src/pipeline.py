@@ -9,7 +9,7 @@ import logging
 import os
 from pathlib import Path
 
-from .matcher import estimate_market_price
+from .matcher import estimate_market
 from .models import AuctionListing, ScoredListing, Trade
 from .molit_client import (
     fetch_trades_months,
@@ -266,8 +266,8 @@ def run(use_live: bool = False, deal_ymd: str | None = None,
 
     scored: list[ScoredListing] = []
     for lst in listings:
-        est, n = estimate_market_price(lst, trade_pool)
-        scored.append(score_listing(lst, est, n))
+        m = estimate_market(lst, trade_pool)
+        scored.append(score_listing(lst, m.est, m.matched, market_scope=m.scope))
 
     scored.sort(key=lambda s: (s.arb_score is None, -(s.arb_score or 0)))
     return scored

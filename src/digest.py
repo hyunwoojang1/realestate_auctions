@@ -6,13 +6,20 @@ HTML은 report.to_html(갭미터)을 재사용한다.
 from __future__ import annotations
 
 from . import query, report
+from .matcher import SCOPE_SAME_COMPLEX_SAME_AREA
 from .models import ScoredListing
 
 
 def top_listings(scored: list[ScoredListing], n: int = 10,
                  min_profit: int | None = None) -> list[ScoredListing]:
-    """예상차익 있는 물건을 금액순 정렬해 상위 N개. min_profit(원) 지정 시 하한 필터."""
-    items = [s for s in scored if s.expected_profit is not None]
+    """예상차익 있는 물건을 금액순 정렬해 상위 N개. min_profit(원) 지정 시 하한 필터.
+
+    (T3) 추천 표면이므로 비교군 scope 게이트 적용 — '같은 단지·같은 평형' 표본으로 추정한
+    물건만 인정한다. 인접평형·법정동 폴백 시세는 참고치일 뿐, 차익 추천의 근거가 될 수 없다.
+    ""(레거시, scope 미기록 구 데이터)는 하위호환으로 통과시킨다.
+    """
+    items = [s for s in scored if s.expected_profit is not None
+             and s.market_scope in ("", SCOPE_SAME_COMPLEX_SAME_AREA)]
     if min_profit is not None:
         items = [s for s in items if s.expected_profit >= min_profit]
     return query.sort_items(items, "profit")[:n]

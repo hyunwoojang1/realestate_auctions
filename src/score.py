@@ -10,6 +10,8 @@ score = ( 가격갭×w_gap + 권리×w_rights + 환금성×w_liq ) × 신뢰계�
 from __future__ import annotations
 
 from .config import CONFIG
+from .matcher import SCOPE_SAME_COMPLEX_SAME_AREA as SCOPE_RECOMMENDABLE
+from .matcher import is_estimation_supported
 from .models import AuctionListing, ScoredListing
 
 
@@ -92,8 +94,12 @@ def grade_of(arb: float | None) -> str:
     return CONFIG.grade_thresholds[-1][1]
 
 
-def score_listing(listing: AuctionListing, est_market_price: int | None, matched_trades: int) -> ScoredListing:
-    """한 물건을 채점해 ScoredListing 반환."""
+def score_listing(listing: AuctionListing, est_market_price: int | None, matched_trades: int,
+                  market_scope: str = "") -> ScoredListing:
+    """한 물건을 채점해 ScoredListing 반환.
+
+    market_scope(T3): 시세 비교군의 출처. ""=레거시 호출(스코프 게이트 미적용).
+    """
     conf = confidence_from_matches(matched_trades)
     cost = real_acquisition_cost(listing)
     r = rights_score(listing)
@@ -105,7 +111,6 @@ def score_listing(listing: AuctionListing, est_market_price: int | None, matched
         # (이상치 1건이 허위 차익을 만드는 것을 막는다).
         # (T2) v1 미지원 유형(빌라/상가/토지/유형불명)은 '데이터가 부족해서'가 아니라
         # '정책상 추정하지 않아서'임을 구분해 표기한다 — 사용자가 원인을 알아야 신뢰가 생긴다.
-        from .matcher import is_estimation_supported  # noqa: PLC0415 — 순환 import 회피
         na_grade = grade_of(None) if is_estimation_supported(listing.property_type) else "미지원유형"
         return ScoredListing(
             case_no=listing.case_no, apt_name=listing.apt_name, address=listing.address,
@@ -117,6 +122,7 @@ def score_listing(listing: AuctionListing, est_market_price: int | None, matched
             gap_score=0.0, rights_score=r, liquidity_score=liq, arb_score=None,
             grade=na_grade, rights_verified=listing.rights_verified,
             court=listing.court, item_no=listing.item_no, doc_id=listing.doc_id,
+            market_scope=market_scope,
         )
 
     gap_rate = (est_market_price - cost) / est_market_price
@@ -142,6 +148,11 @@ def score_listing(listing: AuctionListing, est_market_price: int | None, matched
         # 권리분석 미수행(라이브 크롤 등) → 점수는 참고로 남기되 등급은 비단정 '권리미확인'.
         # 허위 안전신호('차익 유력'·초록 안전문구)를 절대 부여하지 않는다.
         grade = "권리미확인"
+    elif market_scope not in ("", SCOPE_RECOMMENDABLE) and grade in (top_grade, second_grade):
+        # (T3) 비교군 scope 게이트 — v1 추천은 '같은 단지·같은 평형' 표본만 인정(문서 15장 3단계).
+        # 인접 평형·같은 법정동 폴백 표본은 시세 참고치일 뿐 — 상위 등급('차익 유력'/'양호') 금지.
+        # ""(레거시 호출·구 DB)는 게이트 미적용(하위호환).
+        grade = "관심"
     elif matched_trades < CONFIG.min_comps_confident and grade == top_grade:
         # 표본 부족(신뢰계수 1.0 미만)인데 최상위면 한 단계 강등(1~2건 표본으로 '차익 유력' 금지).
         grade = second_grade
@@ -156,4 +167,5 @@ def score_listing(listing: AuctionListing, est_market_price: int | None, matched
         gap_score=gap, rights_score=r, liquidity_score=liq, arb_score=arb,
         grade=grade, rights_verified=listing.rights_verified,
         court=listing.court, item_no=listing.item_no, doc_id=listing.doc_id,
+        market_scope=market_scope,
     )
