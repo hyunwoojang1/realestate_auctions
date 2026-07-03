@@ -103,6 +103,10 @@ def score_listing(listing: AuctionListing, est_market_price: int | None, matched
         # 시세 추정 불가 — 정직하게 차익을 계산하지 않는다.
         # 표본이 min_comps_price(기본 2건) 미만이면 1건짜리 중앙값을 '시세'로 신뢰하지 않는다
         # (이상치 1건이 허위 차익을 만드는 것을 막는다).
+        # (T2) v1 미지원 유형(빌라/상가/토지/유형불명)은 '데이터가 부족해서'가 아니라
+        # '정책상 추정하지 않아서'임을 구분해 표기한다 — 사용자가 원인을 알아야 신뢰가 생긴다.
+        from .matcher import is_estimation_supported  # noqa: PLC0415 — 순환 import 회피
+        na_grade = grade_of(None) if is_estimation_supported(listing.property_type) else "미지원유형"
         return ScoredListing(
             case_no=listing.case_no, apt_name=listing.apt_name, address=listing.address,
             property_type=listing.property_type, area_m2=listing.area_m2,
@@ -111,7 +115,7 @@ def score_listing(listing: AuctionListing, est_market_price: int | None, matched
             est_market_price=None, matched_trades=matched_trades, confidence=conf,
             real_acquisition_cost=cost, expected_profit=None, gap_rate=None,
             gap_score=0.0, rights_score=r, liquidity_score=liq, arb_score=None,
-            grade=grade_of(None), rights_verified=listing.rights_verified,
+            grade=na_grade, rights_verified=listing.rights_verified,
             court=listing.court, item_no=listing.item_no, doc_id=listing.doc_id,
         )
 

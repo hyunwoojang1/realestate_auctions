@@ -81,7 +81,7 @@ class ScoredListing:
     rights_score: float
     liquidity_score: float
     arb_score: float | None        # 최종 차익 스코어 0~100. 시세추정불가면 None
-    grade: str                        # 차익 유력 / 양호 / 관심 / 주의 / 권리미확인 / 차익없음 / 위험 / 시세추정불가
+    grade: str                        # 차익 유력 / 양호 / 관심 / 주의 / 권리미확인 / 차익없음 / 위험 / 시세추정불가 / 미지원유형
     rights_verified: bool = False     # 권리분석 수행 여부 — 상세페이지 안전문구·뱃지 게이트
     # ---- 식별 보강 (T1): case_no 단일키는 같은 사건의 다른 물건번호를 덮어쓴다 ----
     court: str = ""                   # 관할 법원 (복합 식별자 구성요소)

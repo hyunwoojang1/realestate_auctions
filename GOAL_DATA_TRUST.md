@@ -19,14 +19,16 @@
   - [x] pytest 253 passed(245→253) + ruff 클린 + evidence/t1_pk_migration.txt Read 확인
 - 평가자 MEDIUM 2건(상세 라우트·watchlist 등 소비단계 case_no 잔존) → BACKLOG B14 이월
 
-### [ready] T2. 추천 대상 아파트 제한 + 유형 불명 시 시세추정불가
+### [done] T2. 추천 대상 아파트 제한 + 유형 불명 시 시세추정불가 ✅ 사이클#2 평가자 PASS
 - 왜: 빌라/상가/토지는 현 비교군 방식으로는 위험. 유형 매핑 실패(want None) 시 모든 kind 통과는 치명적.
-- 완료 정의 (전부 false):
-  - [ ] `_kind_ok`의 `want is None → 통과` 제거: 유형 불명이면 비교군 생성 금지 → 시세추정불가(est=None)
-  - [ ] kind="" (미태깅 거래) 통과도 제거 — 신뢰 중심 반대 방향(문서 5장)
-  - [ ] 추천(랭킹/알림/digest) 대상 = 아파트만. 오피스텔은 조건부(same-complex 표본 충분 시), 그 외 유형은 "미지원 유형" 표시(목록에서 배제하지 않되 추천·상위 노출 금지)
-  - [ ] 테스트: 유형불명→est None / 빌라 fallback 추천 안 됨 / 아파트 정상 추천
-  - [ ] pytest 전체 + ruff 클린 + evidence/t2_apt_only.txt Read 확인
+- 완료 정의:
+  - [x] `_kind_ok` 재정의: `want is not None and trade.kind == want` — 유형불명·미태깅 통과 전부 제거
+  - [x] SUPPORTED_ESTIMATION_KINDS={apt,officetel} + estimate_market_price 조기 차단(비교군 자체를 안 만듦)
+  - [x] '미지원유형' 등급 신설(시세추정불가=데이터부족과 원인 구분), 뱃지 5템플릿+방법론 문서화, digest/랭킹 구조적 배제
+  - [x] 테스트 13개(test_estimation_policy.py) + 구정책 테스트 4건 정책반전 갱신
+  - [x] pytest 267 passed + ruff 클린 + evidence/t2_apt_only.txt Read 확인
+- 평가자 MEDIUM(죽은 rh/sh/nrg/land 수집 API 쿼터 낭비)→B15 이월, LOW 2건(_WARN_GRADES·주석) 즉시 수정.
+  오피스텔 '조건부'는 T5 표본게이트에서 강화(주석·GOAL 명시).
 
 ### [ready] T3. 비교군 scope 저장
 - 왜: 시세 추정치가 "어떤 집합에서 나온 값인지"를 저장해야 신뢰 등급을 말할 수 있음.

@@ -22,7 +22,7 @@ def to_markdown(items: list[ScoredListing], title: str = "이번 주 차익 매�
     lines = [f"# {title} {len(items)}", ""]
     lines.append("| # | 예상차익 | 갭 | 단지 | 유형 | 최저가 | 추정시세 | 경고 |")
     lines.append("|---|---|---|---|---|---|---|---|")
-    warn_grades = {"권리미확인", "위험", "시세추정불가", "차익없음"}
+    warn_grades = {"권리미확인", "위험", "시세추정불가", "차익없음", "미지원유형"}
     for i, s in enumerate(items, 1):
         warn = s.grade if s.grade in warn_grades else ""
         lines.append(

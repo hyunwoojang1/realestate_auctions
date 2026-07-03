@@ -15,6 +15,22 @@
 
 ---
 
+## 2026-07-03 13:38 KST — 🏢 신뢰루프 사이클 #2: T2 시세추정 아파트·오피스텔 한정 + 유형불명 차단
+- 무엇: 유형 매핑 실패 시 모든 kind 거래가 비교군에 혼입되던 치명 결함 제거(문서 5장) +
+  v1 시세추정을 아파트·오피스텔로 제한(문서 6장 — 빌라/상가/토지는 개별성 때문에 동네 중앙값 위험).
+  - matcher.py: `_kind_ok = want is not None and trade.kind == want`(유형불명·미태깅 통과 제거),
+    SUPPORTED_ESTIMATION_KINDS={apt,officetel}, estimate_market_price 미지원 유형 조기 차단.
+  - score.py: '미지원유형' 등급 신설 — '시세추정불가'(데이터 부족)와 원인 구분(정책상 미추정).
+  - 템플릿 5곳 warnbadge + methodology 정책 문단, report/digest 경고등급 목록에 미지원유형 추가.
+  - 구정책 테스트 4건 정책반전 갱신(백테스트 빌라 제외·토지 추정금지·미태깅 불매칭), 신규 13개.
+- 증거: evidence/t2_apt_only.txt — 샘플 6건 중 다세대만 미지원유형·est None, digest TOP 5 전부
+  아파트/오피스텔, GET / 뱃지·/methodology 문구 노출. 평가자가 독립 재실행으로 재현 확인.
+- 게이트: pytest 267 passed(+14), ruff 클린.
+- 평가자: PASS. MEDIUM(죽은 rh/sh/nrg/land 라이브 수집 쿼터 낭비)→B15 이월, LOW 2건 즉시 수정.
+  기존이슈 노트: digest TOP에 '위험' 등급이 profit 정렬로 1위 노출 가능(경고칼럼은 표시) → B15에 포함.
+- 커밋: (이 항목과 함께 커밋)
+- 다음: 사이클 #3 = T3 비교군 scope 저장(same_complex_same_area 등 4분기 + 추천 게이트).
+
 ## 2026-07-03 13:29 KST — 🔑 신뢰루프 사이클 #1: T1 식별자 구조 수정 (복합 PK + raw 보존)
 - 무엇: case_no 단일 PK가 같은 사건의 다른 물건번호를 조용히 덮어쓰던 구조 결함 수정(문서 3장, 최우선).
   - store.py: `PRIMARY KEY (court, case_no, item_no)` + user_version=2 + 구스키마 자동 마이그레이션

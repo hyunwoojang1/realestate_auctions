@@ -69,6 +69,16 @@
   - [x] evidence/snapshot_missing_smoke.txt(없음O·빈{}오안내사라짐+변동없음O·손상배너O) Read 확인
 - 평가자 PASS(C/H/M/L 0).
 
+## [ready] B15 죽은 시세 수집 제거 — rh/sh/nrg/land 라이브 호출 스킵 (출처: T2 평가자 MEDIUM, 2026-07-03)
+- 왜: T2로 시세 추정이 아파트·오피스텔만 지원되면서 load_live_trades의 rh 기본 수집(pipeline.py:198)과
+  sh/nrg/land 확장 수집(186~187)이 어떤 물건과도 매칭 불가 → 국토부 API 쿼터만 소모(죽은 코드).
+  단, T5 표본게이트·향후 유형 확대 시 재사용 가능성 있어 삭제 아닌 '수집 스킵 + 재활성 스위치' 권장.
+- 완료 정의(전부 false):
+  - [ ] load_live_trades가 SUPPORTED_ESTIMATION_KINDS 기준으로만 수집(rh/확장 스킵, config로 재활성 가능)
+  - [ ] digest '위험' 등급 TOP 노출 정책 점검(경고 칼럼만으로 충분한지 — T7 문구 개편과 함께)
+  - [ ] 테스트 + pytest 전체 + ruff 클린
+- 제약: 라이브 경로 변경 — 오프라인 테스트로만 검증, 실호출 금지.
+
 ## [ready] B14 multi-item 사건의 소비단계 식별 모호성 해소 (출처: T1 평가자 MEDIUM 2건, 2026-07-03)
 - 왜: T1로 저장 누락은 해소됐으나, `/api/listings/<case_no>`·`/property/<case_no>` 상세 라우트와
   watchlist(스냅샷 dict)·backtest(조인)·compare(by_case)가 여전히 case_no 단일 키 → 한 사건에 물건

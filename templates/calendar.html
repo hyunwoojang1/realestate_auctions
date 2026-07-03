@@ -5,6 +5,7 @@
 {%- if s.grade == '권리미확인' -%}<span class="badge b-unknown">권리미확인</span>
 {%- elif s.grade == '위험' -%}<span class="badge b-risk">위험</span>
 {%- elif s.grade == '시세추정불가' -%}<span class="badge b-na">시세추정불가</span>
+{%- elif s.grade == '미지원유형' -%}<span class="badge b-na">미지원 유형</span>
 {%- elif s.grade == '차익없음' -%}<span class="badge b-none">차익없음</span>
 {%- endif -%}
 {%- endmacro -%}

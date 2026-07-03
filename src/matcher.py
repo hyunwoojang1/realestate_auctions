@@ -65,13 +65,30 @@ def _norm(s: str) -> str:
 
 
 def expected_kind(property_type: str) -> str | None:
-    """물건유형 문자열 → 실거래 종류. 매핑 없는 유형(상가/토지 등)은 None(유형필터 미적용)."""
+    """물건유형 문자열 → 실거래 종류. 매핑 없는 유형은 None(=유형 불명)."""
     return _PROPERTY_KIND.get((property_type or "").strip())
 
 
+# v1 시세 추정 허용 유형 (데이터 신뢰도 개편 T2 — 문서 6장).
+# 아파트: 같은 단지+같은 평형 비교군이 강해 초보자에게 상대적으로 안전.
+# 오피스텔: 조건부 포함(같은 건물 실거래 충분할 때만 — 표본 게이트는 T5에서 강화).
+# 빌라/다세대/단독/상가/토지: 개별성이 커서 '같은 법정동+면적' 중앙값은 위험 → 시세추정불가.
+SUPPORTED_ESTIMATION_KINDS = frozenset({"apt", "officetel"})
+
+
+def is_estimation_supported(property_type: str) -> bool:
+    """이 물건유형의 시세 추정을 v1에서 지원하는가."""
+    return expected_kind(property_type) in SUPPORTED_ESTIMATION_KINDS
+
+
 def _kind_ok(trade: Trade, want: str | None) -> bool:
-    """유형 일치 필터. 미지원 유형(None)이거나 태깅 안 된 거래(kind="")는 통과(하위호환)."""
-    return want is None or not trade.kind or trade.kind == want
+    """유형 일치 필터 — 정확히 같은 kind만 통과.
+
+    (T2) 과거의 '유형 불명(None)·미태깅("") 통과' 하위호환을 제거했다:
+    유형을 모르면 비교군을 만들면 안 된다(아파트/빌라/상가 혼입 → 중앙값 무의미 → 차익 왜곡).
+    신뢰 중심 방향은 반대다 — "유형을 모르면 시세 추정 불가".
+    """
+    return want is not None and trade.kind == want
 
 
 def _area_ok(a: float, b: float, band: float | None = None) -> bool:
@@ -147,6 +164,12 @@ def estimate_market_price(listing: AuctionListing, trades: list[Trade]) -> tuple
     매칭 → 최근성 필터 → 평단가 이상치 트림 → 중앙값 × 전용면적.
     신뢰계수 산정용 매칭건수는 트림 전 원 매칭 수를 유지한다(품질 보정이 신뢰를 부풀리지 않게).
     """
+    if not is_estimation_supported(listing.property_type):
+        # (T2) v1 미지원 유형(빌라/다세대/단독/상가/토지/유형불명) — 비교군 자체를 만들지 않는다.
+        # '같은 법정동+비슷한 면적' 중앙값은 이들 유형에서 실제 시세와 크게 어긋날 수 있다(과신 유발).
+        logger.debug("미지원 유형 물건(%s, %s) — 시세추정불가(v1 정책)",
+                     listing.case_no, listing.property_type)
+        return None, 0
     if listing.area_m2 <= 0:
         # 면적 파싱 실패(0/미상)면 comps 매칭이 무조건 비어 '시세추정불가'가 된다.
         # 진짜 comps 부재와 파싱실패를 구분할 수 있도록 로그를 남긴다(침묵실패 방지).

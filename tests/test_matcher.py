@@ -13,12 +13,13 @@ def _lst(**kw) -> AuctionListing:
     return AuctionListing(**d)
 
 
+# T2: 유형 미태깅("") 거래는 더 이상 매칭되지 않는다 — 아파트 거래는 kind="apt" 명시.
 TRADES = [
-    Trade(apt_name="상계주공", area_m2=84.9, price=630_000_000, deal_ym="202604", dong="상계동"),
-    Trade(apt_name="상계주공", area_m2=83.0, price=620_000_000, deal_ym="202605", dong="상계동"),
-    Trade(apt_name="상계주공", area_m2=84.9, price=645_000_000, deal_ym="202605", dong="상계동"),
-    Trade(apt_name="상계벽산", area_m2=59.8, price=490_000_000, deal_ym="202605", dong="상계동"),
-    Trade(apt_name="다른단지", area_m2=120.0, price=900_000_000, deal_ym="202605", dong="중계동"),
+    Trade(apt_name="상계주공", area_m2=84.9, price=630_000_000, deal_ym="202604", dong="상계동", kind="apt"),
+    Trade(apt_name="상계주공", area_m2=83.0, price=620_000_000, deal_ym="202605", dong="상계동", kind="apt"),
+    Trade(apt_name="상계주공", area_m2=84.9, price=645_000_000, deal_ym="202605", dong="상계동", kind="apt"),
+    Trade(apt_name="상계벽산", area_m2=59.8, price=490_000_000, deal_ym="202605", dong="상계동", kind="apt"),
+    Trade(apt_name="다른단지", area_m2=120.0, price=900_000_000, deal_ym="202605", dong="중계동", kind="apt"),
 ]
 
 
@@ -63,10 +64,10 @@ def test_filter_recent_excludes_old():
 def test_estimate_ignores_outlier():
     lst = _lst()  # 상계주공 84.9
     trades = [
-        Trade("상계주공", 84.9, 630_000_000, "202605", "상계동"),
-        Trade("상계주공", 84.9, 620_000_000, "202605", "상계동"),
-        Trade("상계주공", 84.9, 640_000_000, "202604", "상계동"),
-        Trade("상계주공", 84.9, 1_300_000_000, "202605", "상계동"),  # 이상치(2배)
+        Trade("상계주공", 84.9, 630_000_000, "202605", "상계동", kind="apt"),
+        Trade("상계주공", 84.9, 620_000_000, "202605", "상계동", kind="apt"),
+        Trade("상계주공", 84.9, 640_000_000, "202604", "상계동", kind="apt"),
+        Trade("상계주공", 84.9, 1_300_000_000, "202605", "상계동", kind="apt"),  # 이상치(2배)
     ]
     est, n = estimate_market_price(lst, trades)
     assert n == 4
@@ -102,10 +103,14 @@ def test_match_villa_no_villa_comps_returns_empty():
     assert est is None and n == 0
 
 
-def test_untagged_trades_still_match_backward_compat():
-    """kind 미태깅(="") 거래는 기존처럼 매칭된다(하위호환)."""
-    matched = match_trades(_lst(), TRADES)  # TRADES는 kind 미지정
-    assert len(matched) == 3
+def test_untagged_trades_no_longer_match():
+    """(T2 정책 반전) kind 미태깅(="") 거래는 매칭되지 않는다 — 유형 혼입 방지.
+
+    과거 하위호환(미태깅 통과)은 유형을 모르는 거래가 비교군을 오염시키는 경로였다.
+    """
+    untagged = [Trade(apt_name="상계주공", area_m2=84.9, price=630_000_000,
+                      deal_ym="202605", dong="상계동")]  # kind=""
+    assert match_trades(_lst(), untagged) == []
 
 
 # ---- E: 확장 유형(단독/상업/토지) 매칭 ----
@@ -119,13 +124,15 @@ def test_expected_kind_extended_types():
     assert expected_kind("모르는유형") is None
 
 
-def test_land_listing_matches_extra_land_by_dong():
-    """토지 물건은 단지명 없이 같은 법정동 land 실거래로 시세추정(dong+면적+kind 분리)."""
+def test_land_listing_never_estimates_v1_policy():
+    """(T2 정책 반전) 토지는 land 실거래가 있어도 시세추정불가 — v1 미지원 유형.
+
+    '같은 법정동+비슷한 면적' 토지 중앙값은 도로접면·용도지역·형상 개별성을 무시한다(문서 6장).
+    """
     land = _lst(apt_name="", property_type="토지", dong="역삼동", lawd_cd="11680", area_m2=200.0)
     trades = [
         Trade("", 205.0, 900_000_000, "202605", "역삼동", kind="land"),
         Trade("", 198.0, 880_000_000, "202605", "역삼동", kind="land"),
-        Trade("아무아파트", 84.0, 1_500_000_000, "202605", "역삼동", kind="apt"),  # 유형 다름 → 제외
     ]
     est, n = estimate_market_price(land, trades)
-    assert n == 2 and est is not None
+    assert est is None and n == 0

@@ -84,11 +84,20 @@ def test_fatal_special_right_hard_gate():
 
 
 def test_no_market_estimate_is_honest():
-    lst = _base(property_type="다세대")
+    # T2: 지원 유형(아파트)인데 comps가 없는 경우 — '시세추정불가'(데이터 부족).
+    lst = _base(property_type="아파트")
     s = score.score_listing(lst, est_market_price=None, matched_trades=0)
     assert s.arb_score is None
     assert s.grade == "시세추정불가"
     assert s.confidence == 0.60
+
+
+def test_unsupported_type_is_labeled_distinctly():
+    # T2: 미지원 유형(다세대)은 '정책상 미추정' — 별도 등급 '미지원유형'.
+    lst = _base(property_type="다세대")
+    s = score.score_listing(lst, est_market_price=None, matched_trades=0)
+    assert s.arb_score is None
+    assert s.grade == "미지원유형"
 
 
 def test_negative_gap_is_labeled_no_profit():
