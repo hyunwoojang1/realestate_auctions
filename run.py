@@ -126,6 +126,12 @@ def main(argv=None) -> int:
     # (파싱 버그·스키마 개편 시 재처리 원천 + 수집 감사 증거).
     if args.source == "courtauction":
         store.save_raw_records(conn, records)
+        # 지도 좌표 캐시(KATEC→WGS84, 시도 bbox 검증) — /map 이 조인해 핀을 찍는다.
+        from src import coords  # noqa: PLC0415
+        cstats = coords.build_coord_cache(records)
+        if not args.json:
+            print(f"  좌표 캐시: {cstats['ok']}/{cstats['total']}건 "
+                  f"(좌표없음 {cstats['no_coord']}·검증탈락 {cstats['bbox_reject']})")
     # 풀스냅샷(전국 실크롤 또는 캐시 전량, 라이브 시세)은 전량 교체로 만료매물 제거. 그 외는 병합.
     full_snapshot = args.nationwide or args.from_cache
     if args.source == "courtauction" and use_live and full_snapshot:

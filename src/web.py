@@ -189,6 +189,40 @@ def create_app() -> Flask:
             matches = [s for s in matches if s.court == court]
         return matches
 
+    @app.get("/api/listings.geojson")
+    def listings_geojson():
+        """지도용 GeoJSON — 목록과 동일 필터. 좌표는 KATEC→WGS84 캐시(coords.py) 조인."""
+        from . import coords  # noqa: PLC0415
+        from . import query as q
+        cache = coords.load_coord_cache()
+        feats = []
+        skipped = 0
+        for s in _filtered(request.args):
+            pt = coords.lookup(cache, s.uid, s.case_no)
+            if not pt:
+                skipped += 1
+                continue
+            p = q.decision_profit(s)
+            feats.append({
+                "type": "Feature",
+                "geometry": {"type": "Point", "coordinates": [pt[1], pt[0]]},
+                "properties": {
+                    "case_no": s.case_no, "item_no": s.item_no,
+                    "apt_name": s.apt_name, "property_type": s.property_type,
+                    "grade": s.grade, "profit": p,
+                    "conservative": s.profit_low is not None,
+                    "min_bid": s.min_bid_price,
+                    "url": f"/property/{s.case_no}" + (f"?item={s.item_no}" if s.item_no else ""),
+                },
+            })
+        return jsonify({"type": "FeatureCollection", "features": feats,
+                        "no_coord_count": skipped})
+
+    @app.get("/map")
+    def map_page():
+        return render_template("map.html",
+                               data_source=getattr(g, "data_source", "n/a"))
+
     @app.get("/api/listings/<case_no>")
     def listing_detail(case_no: str):
         matches = _find_by_case(case_no)
