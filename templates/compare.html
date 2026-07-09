@@ -12,7 +12,7 @@
 
 {% block content %}
 <a class="back" href="/">← 1차 필터 목록</a>
-<h1 class="page-h" style="margin-top:12px">물건 비교</h1>
+<h1 class="page-h2" style="margin-top:12px">물건 비교</h1>
 
 {% if missing_cases %}
 <div class="note-box n-warn">요청 {{ requested }}건 중 <b>{{ items|length }}건만 조회</b>됐습니다.
@@ -22,11 +22,11 @@
 {% endif %}
 
 {% if items|length < 2 %}
-<p class="page-sub">비교하려면 <b>2건 이상</b> 필요합니다(현재 {{ items|length }}건).
+<p class="page-lead">비교하려면 <b>2건 이상</b> 필요합니다(현재 {{ items|length }}건).
 <a href="/watchlist">관심물건</a>에서 담거나 목록에서 ★로 저장 후 비교하세요.
 최대 {{ 4 }}건까지 나란히 비교됩니다.</p>
 {% else %}
-<p class="page-sub">보수 기준 차익 = 검증 하한가 − (최저입찰가 + 취득세, {{ tax_label }} 기준). 변동비 제외.
+<p class="page-lead">보수 기준 차익 = 검증 하한가 − (최저입찰가 + 취득세, {{ tax_label }} 기준). 변동비 제외.
 밴드 없는 물건은 기준 시세 차익 폴백.</p>
 <div class="tablewrap"><div class="scrollx">
 <table class="params">

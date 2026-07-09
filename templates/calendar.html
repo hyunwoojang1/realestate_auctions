@@ -12,8 +12,8 @@
 
 {% block content %}
 <a class="back" href="/">← 1차 필터 목록</a>
-<h1 class="page-h" style="margin-top:12px">경매 일정</h1>
-<p class="page-sub">매각기일 기준 일정입니다. 기일이 임박한 물건부터 입찰 준비 —
+<h1 class="page-h2" style="margin-top:12px">경매 일정</h1>
+<p class="page-lead">매각기일 기준 일정입니다. 기일이 임박한 물건부터 입찰 준비 —
 차익·권리 근거는 각 물건 상세에서 확인하세요.</p>
 
 <div class="chips">
@@ -56,7 +56,7 @@
 {% endfor %}
 
 {% if not months %}
-<p class="page-sub" style="margin-top:24px">표시할 일정이 없습니다.
+<p class="page-lead" style="margin-top:24px">표시할 일정이 없습니다.
 {% if not show_all and past_count %}<a href="/calendar?all=1">지난 기일 포함해 보기</a>{% endif %}</p>
 {% endif %}
 

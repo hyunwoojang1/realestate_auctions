@@ -15,6 +15,17 @@
 
 ---
 
+## 2026-07-09 14:53 KST — 🎨 잔여 보조페이지 헤더 일관성 패스 (방법론·일정·관심·지도·비교·물건선택)
+- 무엇: 아직 옛 헤더(.page-h/.page-sub)를 쓰던 보조 템플릿 6종을 새 스케일(.page-h2/.page-lead)로
+  스왑해 재디자인 페이지와 코히런트하게. 본문 컴포넌트(.formula·.params 표·.chips·.note-box·핀 색)는
+  토큰 별칭 매핑으로 이미 새 색·그림자·라운드를 상속 중이라 그대로 유지. 대상: methodology·calendar·
+  watchlist·compare·map·choose_item.
+- 증거: 전 템플릿 grep으로 잔여 .page-h/.page-sub 0 확인. pytest -q → 366 passed. Playwright 스크린샷
+  (방법론·관심·비교·지도 데스크톱) — 새 헤더+새 토큰 컴포넌트 코히런트, 무깨짐 확인. 방법론 nav pill=
+  '샘플 데이터'(백테스트 sample) 정상.
+- 커밋: feat/ui-redesign 2차 커밋 예정(6개 보조 템플릿 + versions.md).
+- 다음: ultracode 전수 감사(다관점 디자인·회귀·접근성) → 확정 이슈 수정.
+
 ## 2026-07-09 14:45 KST — 🎨 가이드 페이지 재디자인 + 재디자인 묶음 커밋 (Claude Design · guide)
 - 무엇: 가이드 페이지를 에디토리얼 디자인으로 이식(참조=flask guide, 내 아키텍처·전체 콘텐츠 보존).
   base.html에 가이드 CSS 추가(.doc·.jump·.sec-head·.check 체크리스트카드·.callout 다크/라이트·.gtable
