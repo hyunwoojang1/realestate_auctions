@@ -1,79 +1,108 @@
 {% extends "base.html" %}
-{% block title %}매각·차익 통계{% endblock %}
+{% block title %}통계 · 아파트 경매 1차 필터{% endblock %}
 
 {% block content %}
-<a class="back" href="/">← 1차 필터 목록</a>
-<h1 class="page-h" style="margin-top:12px">매각·차익 통계</h1>
-<p class="page-sub">현재 적재된 물건 전체의 분포입니다. 시세는 국토부 실거래 기반 추정이며,
-산식은 <a href="/methodology">방법론</a> 참고.</p>
-
 {% set o = d.overview %}
-<div class="chips">
-  <div class="chip">전체 <b>{{ o.count }}건</b></div>
-  <div class="chip">시세추정 성공률 <b>{{ '%.0f%%'|format(o.est_success_rate * 100) if o.est_success_rate is not none else '-' }}</b></div>
-  <div class="chip">차익 양수(기준 시세 차익 기준) <b>{{ o.positive_profit_count }}건</b></div>
-  <div class="chip">평균 갭률 <b>{{ pct(o.avg_gap_rate) if o.avg_gap_rate is not none else '-' }}</b></div>
-  <div class="chip">평균 차익(기준 시세 기준) <b>{{ won(o.avg_expected_profit | round | int) if o.avg_expected_profit is not none else '-' }}</b></div>
-</div>
-
-<h2>용도별</h2>
-<table class="params">
-<thead><tr><th scope="col">용도</th><th class="num" scope="col">건수</th>
-<th class="num" scope="col">평균 갭률</th><th class="num" scope="col">평균 차익(기준 시세 기준)</th>
-<th class="num" scope="col">최고 스코어</th></tr></thead>
-<tbody>
-{% for r in d.by_property_type %}
-<tr><td>{{ r.name }}</td><td class="num">{{ r.count }}</td>
-<td class="num">{{ pct(r.avg_gap_rate) if r.avg_gap_rate is not none else '-' }}</td>
-<td class="num">{{ won(r.avg_expected_profit | round | int) if r.avg_expected_profit is not none else '-' }}</td>
-<td class="num">{{ '%.0f'|format(r.top_score) if r.top_score is not none else '-' }}</td></tr>
-{% endfor %}
-</tbody>
-</table>
-
-<h2>지역별 (시도)</h2>
-<table class="params">
-<thead><tr><th scope="col">시도</th><th class="num" scope="col">건수</th>
-<th class="num" scope="col">평균 갭률</th><th class="num" scope="col">평균 차익(기준 시세 기준)</th>
-<th class="num" scope="col">최고 스코어</th></tr></thead>
-<tbody>
-{% for r in d.by_sido %}
-<tr><td>{{ r.name }}</td><td class="num">{{ r.count }}</td>
-<td class="num">{{ pct(r.avg_gap_rate) if r.avg_gap_rate is not none else '-' }}</td>
-<td class="num">{{ won(r.avg_expected_profit | round | int) if r.avg_expected_profit is not none else '-' }}</td>
-<td class="num">{{ '%.0f'|format(r.top_score) if r.top_score is not none else '-' }}</td></tr>
-{% endfor %}
-</tbody>
-</table>
-
-<h2>차익 스코어 분포</h2>
+{% set total = o.count %}
+{% set pending = (d.grade_distribution | selectattr('name','equalto','권리미확인') | map(attribute='count') | sum) %}
+{% set confirmed = total - pending %}
+{% set pending_pct = (pending / total * 100) | round | int if total else 0 %}
+{% set region_max = (d.by_sido | map(attribute='count') | max) if d.by_sido else 1 %}
+{% set type_max = (d.by_property_type | map(attribute='count') | max) if d.by_property_type else 1 %}
 {% set sd = d.score_distribution %}
-{% set maxc = sd.buckets | map(attribute='count') | max %}
-<table class="params">
-<tbody>
-{% for b in sd.buckets %}
-<tr><td style="width:6em">{{ b.label }}</td>
-<td><div style="background:var(--accent, #2f6f4f);height:12px;border-radius:3px;
-  width:{{ (b.count / maxc * 100) | round | int if maxc else 0 }}%;min-width:{{ '2px' if b.count else '0' }}"></div></td>
-<td class="num" style="width:4em">{{ b.count }}</td></tr>
-{% endfor %}
-</tbody>
-</table>
-{% if sd.none_count %}<p class="page-sub">시세추정불가(스코어 없음) {{ sd.none_count }}건 별도.</p>{% endif %}
+{% set gain_max = (sd.buckets | map(attribute='count') | max) if sd.buckets else 1 %}
+{% set fail_max = (d.fail_count_distribution | map(attribute='count') | max) if d.fail_count_distribution else 1 %}
 
-<h2>유찰 횟수 분포</h2>
-<div class="chips">
-{% for r in d.fail_count_distribution %}
-  <div class="chip">{{ r.label }} <b>{{ r.count }}건</b></div>
-{% endfor %}
+<div class="container" style="padding:0">
+  <a class="back" href="/">← 1차 필터 목록</a>
+  <div style="margin:var(--sp-3) 0 var(--sp-6)">
+    <h1 class="page-h2">통계</h1>
+    <p class="page-lead">현재 DB에 적재된 물건의 분포 요약. 표시값은 1차 필터 기준 표면차익이며 권리·세금 반영 전입니다. 산식은 <a href="/methodology">방법론</a> 참고.</p>
+  </div>
+
+  <!-- KPI -->
+  <div class="kpi">
+    <div class="cell"><div class="k">전체 물건</div><div class="v">{{ '{:,}'.format(total) }}<span class="u">건</span></div></div>
+    <div class="cell"><div class="k">차익 양수 <span style="font-weight:500;color:var(--ink-400)">(기준 시세)</span></div><div class="v gain">{{ o.positive_profit_count }}<span class="u">건</span></div></div>
+    <div class="cell"><div class="k">평균 차익 <span style="font-weight:500;color:var(--ink-400)">(기준 시세)</span></div><div class="v">{{ won(o.avg_expected_profit | round | int) if o.avg_expected_profit is not none else '—' }}</div></div>
+    <div class="cell"><div class="k"><span class="dot"></span>권리미확인 비율</div><div class="v">{{ pending_pct }}<span class="u">%</span></div></div>
+  </div>
+
+  <!-- 지역별 · 스코어 분포 -->
+  <div class="grid-2" style="margin-bottom:var(--sp-4)">
+    <div class="scard">
+      <h2 class="scard-title">지역별 물건 수 <span class="sub">· 평균 차익</span></h2>
+      <div class="bars">
+        {% for r in d.by_sido[:12] %}
+        <div class="bar-row">
+          <span class="bar-row__label">{{ r.name }}</span>
+          <span class="bar-row__track"><span class="bar-row__fill" style="width:{{ (r.count / region_max * 100)|round(1) }}%"></span></span>
+          <span class="bar-row__val">{{ r.count }}<span class="sub"> · {{ won(r.avg_expected_profit | round | int) if r.avg_expected_profit is not none else '—' }}</span></span>
+        </div>
+        {% endfor %}
+      </div>
+    </div>
+
+    <div class="scard">
+      <h2 class="scard-title">차익 스코어 분포 <span class="sub">· 0~100</span></h2>
+      <div class="hist">
+        {% for b in sd.buckets %}
+        <div class="hist__col">
+          <span class="hist__n">{{ b.count }}</span>
+          <span class="hist__bar {{ 'hist__bar--accent' if loop.index0 >= (sd.buckets|length - 2) }}" style="height:{{ (b.count / gain_max * 100)|round(1) if gain_max else 0 }}%"></span>
+          <span class="hist__x">{{ b.label }}</span>
+        </div>
+        {% endfor %}
+      </div>
+      {% if sd.none_count %}<p style="margin:var(--sp-3) 0 0;font-size:12px;color:var(--ink-400)">시세추정불가(스코어 없음) {{ sd.none_count }}건 별도.</p>{% endif %}
+    </div>
+  </div>
+
+  <!-- 권리 도넛 · 유찰 바 -->
+  <div class="grid-2" style="margin-bottom:var(--sp-4)">
+    <div class="scard">
+      <h2 class="scard-title">권리 상태 비율</h2>
+      <div class="donut">
+        <div class="donut__ring" style="background:conic-gradient(var(--pending-dot) 0 {{ pending_pct }}%, var(--gain) {{ pending_pct }}% 100%)">
+          <div class="donut__hole"><span class="donut__pct">{{ pending_pct }}%</span><span class="donut__cap">미확인</span></div>
+        </div>
+        <div class="legend">
+          <div class="legend__item"><span class="legend__dot" style="background:var(--pending-dot)"></span>권리미확인 <b>{{ pending }}건</b></div>
+          <div class="legend__item"><span class="legend__dot" style="background:var(--gain)"></span>권리확인 완료 <b>{{ confirmed }}건</b></div>
+          <p style="margin:6px 0 0;font-size:12px;color:var(--ink-400);line-height:1.6">라이브 물건 대부분이 미확인 상태입니다. 확인은 매각물건명세서·등기부 검토 후 수동 반영됩니다.</p>
+        </div>
+      </div>
+    </div>
+
+    <div class="scard">
+      <h2 class="scard-title">유찰 회차 분포</h2>
+      <div class="bars">
+        {% for f in d.fail_count_distribution %}
+        <div class="bar-row">
+          <span class="bar-row__label">{{ f.label }}</span>
+          <span class="bar-row__track"><span class="bar-row__fill bar-row__fill--gain" style="width:{{ (f.count / fail_max * 100)|round(1) if fail_max else 0 }}%"></span></span>
+          <span class="bar-row__val">{{ f.count }}</span>
+        </div>
+        {% endfor %}
+      </div>
+      <p style="margin:var(--sp-4) 0 0;font-size:12px;color:var(--ink-400);line-height:1.6">유찰이 많을수록 최저가가 낮아 표면차익은 커지지만, 그만큼 권리·물건 하자 가능성도 함께 살펴야 합니다.</p>
+    </div>
+  </div>
+
+  <!-- 용도별 -->
+  <div class="scard" style="margin-bottom:var(--sp-4)">
+    <h2 class="scard-title">용도별 물건 수 <span class="sub">· 평균 차익 · 최고 스코어</span></h2>
+    <div class="bars">
+      {% for r in d.by_property_type %}
+      <div class="bar-row">
+        <span class="bar-row__label">{{ r.name }}</span>
+        <span class="bar-row__track"><span class="bar-row__fill" style="width:{{ (r.count / type_max * 100)|round(1) }}%"></span></span>
+        <span class="bar-row__val">{{ r.count }}<span class="sub"> · {{ won(r.avg_expected_profit | round | int) if r.avg_expected_profit is not none else '—' }} · 최고 {{ '%.0f'|format(r.top_score) if r.top_score is not none else '—' }}</span></span>
+      </div>
+      {% endfor %}
+    </div>
+  </div>
+
+  <p class="foot" style="color:var(--ink-400)">집계는 현재 적재분 기준이며 신규 사건 수집 시 갱신됩니다. 표면차익 분포이며 세금·인수금액 반영 전 수치입니다. 본 통계는 투자판단 보조 자료입니다.</p>
 </div>
-
-<h2>등급 분포</h2>
-<div class="chips">
-{% for r in d.grade_distribution %}
-  <div class="chip">{{ r.name }} <b>{{ r.count }}건</b></div>
-{% endfor %}
-</div>
-
-<p class="foot">본 통계는 적재 시점 스냅샷 기준이며 투자판단 보조 자료입니다.</p>
 {% endblock %}

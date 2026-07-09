@@ -71,7 +71,7 @@ def test_property_detail_found():
     r = _client().get("/property/2024타경51234")  # 상계주공
     assert r.status_code == 200
     body = r.get_data(as_text=True)
-    assert "상계주공" in body and "차익 근거" in body and "권리 안전성" in body
+    assert "상계주공" in body and "차익 근거" in body and "사도 되는가" in body
 
 
 def test_property_detail_404():

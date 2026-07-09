@@ -95,14 +95,14 @@ def test_listing_hero_is_conservative_and_not_risky():
     """
     html = _client().get("/").get_data(as_text=True)
     # 히어로 블록 추출(첫 hero div ~ 다음 tablewrap 전)
-    start = html.find('<div class="hero')
-    end = html.find('<div class="tablewrap')
+    start = html.find('<div class="hero2')
+    end = html.find('<div class="rank-head')
     assert start != -1 and end > start
     hero_html = html[start:end]
     assert "보수 기준 차익" in hero_html          # 보수 라벨
     assert "건 기준" in hero_html                 # 표본 근거 병기
     assert "예상 차익 ·" not in hero_html         # 구 라벨 금지(밴드 있는 샘플 기준)
-    assert 'b-risk' not in hero_html              # 위험 뱃지가 히어로에 없음
+    assert 'chip risk' not in hero_html           # 위험 칩이 히어로에 없음
     # 위험 물건(해운대)은 목록 테이블에는 남는다(배제 아님)
     table_html = html[end:]
     assert "해운대마린시티자이" in table_html

@@ -411,6 +411,12 @@ def create_app() -> Flask:
     def stats_api():
         return jsonify(stats.summarize(_scored()))
 
+    @app.get("/guide")
+    def guide():
+        # 정적 경매 지식(권리분석·세금·체크리스트). 물건 데이터와 무관한 개념 가이드.
+        return render_template("guide.html",
+                               data_source=getattr(g, "data_source", "n/a"))
+
     @app.get("/methodology")
     def methodology():
         from . import tax  # noqa: PLC0415

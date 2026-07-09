@@ -61,9 +61,9 @@ def test_hero_absent_on_legacy_db_with_banner(monkeypatch):
     """전량 레거시 DB → 히어로 없음 + '구버전 채점 데이터' 배너 + 구 기준 라벨."""
     c = _client(monkeypatch, [_legacy("L1"), _legacy("L2", apt_name="딴단지")])
     html = c.get("/").get_data(as_text=True)
-    assert '<span class="hero-caption"' not in html    # 히어로 미표시(CSS 정의는 base 공통)
+    assert 'class="hero2' not in html                  # 히어로 미표시
     assert "구버전 채점 데이터" in html
-    assert "차익(기준 시세·구 데이터)" in html          # 헤더 라벨 전환
+    assert "기준 시세 차익" in html                     # 헤더/랭킹 라벨 구 기준 전환
 
 
 def test_hero_present_for_gated_item(monkeypatch):
@@ -72,7 +72,7 @@ def test_hero_present_for_gated_item(monkeypatch):
     ok = _scored("OK")
     c = _client(monkeypatch, [fallback_big, ok])       # 정렬상 fallback이 앞
     html = c.get("/").get_data(as_text=True)
-    start, end = html.find('<div class="hero'), html.find('<div class="tablewrap')
+    start, end = html.find('<div class="hero2'), html.find('<div class="rank-head')
     hero_html = html[start:end]
     assert "OK" in hero_html and 'href="/property/F' not in hero_html
     assert "검증 게이트 통과" in hero_html             # 새 캡션
