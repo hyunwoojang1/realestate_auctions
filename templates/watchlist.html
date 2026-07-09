@@ -2,11 +2,11 @@
 {% block title %}관심물건{% endblock %}
 
 {%- macro warnbadge(s) -%}
-{%- if s.grade == '권리미확인' -%}<span class="badge b-unknown">권리미확인</span>
-{%- elif s.grade == '위험' -%}<span class="badge b-risk">위험</span>
-{%- elif s.grade == '시세추정불가' -%}<span class="badge b-na">시세추정불가</span>
-{%- elif s.grade == '미지원유형' -%}<span class="badge b-na">미지원 유형</span>
-{%- elif s.grade == '차익없음' -%}<span class="badge b-none">차익없음</span>
+{%- if s.grade == '권리미확인' -%}<span class="chip pending sm"><span class="cdot"></span>권리미확인</span>
+{%- elif s.grade == '위험' -%}<span class="chip risk sm">위험</span>
+{%- elif s.grade == '시세추정불가' -%}<span class="chip na sm">시세추정불가</span>
+{%- elif s.grade == '미지원유형' -%}<span class="chip na sm">미지원 유형</span>
+{%- elif s.grade == '차익없음' -%}<span class="chip none sm">차익없음</span>
 {%- endif -%}
 {%- endmacro -%}
 
@@ -74,8 +74,8 @@
 </tbody>
 </table>
 {% else %}
-<p class="page-lead" style="margin-top:16px">아직 저장한 물건이 없습니다.
-<a href="/">목록</a>에서 ★를 눌러 추가하세요.</p>
+<div class="empty2" style="margin-top:var(--sp-4)">아직 저장한 물건이 없습니다.<br>
+목록·상세 페이지에서 ★를 눌러 추가하세요. <a href="/">목록으로 →</a></div>
 {% endif %}
 
 {% if missing %}

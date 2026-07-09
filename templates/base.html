@@ -320,6 +320,9 @@ table.params{border-collapse:collapse;width:100%;font-size:var(--t-data);backgro
 .foot{margin-top:var(--sp-6);color:var(--muted-2);font-size:var(--t-note);line-height:1.7;
   border-top:1px solid var(--hairline);padding-top:var(--sp-3)}
 .back{color:var(--muted);font-size:var(--t-data)}.back:hover{color:var(--accent)}
+/* 접근성: 본문 바로가기(스킵 링크) */
+.skip{position:absolute;left:-9999px;top:0;z-index:100;background:var(--brand);color:#fff;padding:10px 16px;border-radius:0 0 var(--r-md) 0;font-weight:600;font-size:14px}
+.skip:focus{left:0}
 
 /* ============================================================
    List Page (Claude Design · List Page.dc.html)
@@ -332,8 +335,8 @@ table.params{border-collapse:collapse;width:100%;font-size:var(--t-data);backgro
 .kpi .k{font-size:12px;font-weight:600;color:var(--ink-500);letter-spacing:.02em;margin-bottom:6px;display:flex;align-items:center;gap:6px}
 .kpi .k .dot{width:7px;height:7px;border-radius:50%;background:var(--pending-dot)}
 .kpi .v{font-size:32px;font-weight:800;color:var(--ink-900);letter-spacing:-.01em;line-height:1;font-variant-numeric:tabular-nums}
-.kpi .v .u{font-size:16px;font-weight:600;color:var(--ink-400);margin-left:1px}
-.kpi .v.gain{color:var(--gain)}.kpi .v.gain .u{color:var(--gain-line)}
+.kpi .v .u{font-size:16px;font-weight:600;color:var(--ink-500);margin-left:1px}
+.kpi .v.gain{color:var(--gain)}.kpi .v.gain .u{color:var(--gain)}
 @media(max-width:640px){.kpi{grid-template-columns:repeat(2,1fr)}}
 /* filter bar */
 .filterbar{background:var(--surface);border:1px solid var(--hairline);border-radius:var(--r-lg);box-shadow:var(--e1);padding:var(--sp-4) var(--sp-5);margin-bottom:var(--sp-8)}
@@ -357,7 +360,7 @@ table.params{border-collapse:collapse;width:100%;font-size:var(--t-data);backgro
 .hero2 .nm{font-size:22px;font-weight:700;color:var(--ink-900);letter-spacing:-.01em}
 .hero2 .nm:hover{color:var(--brand)}
 .hero2 .ad{font-size:13px;color:var(--ink-500);line-height:1.5;margin-top:4px}
-.hero2 .chips{display:flex;gap:8px;margin-top:var(--sp-3);flex-wrap:wrap}
+.hero2 .chiprow{display:flex;gap:8px;margin-top:var(--sp-3);flex-wrap:wrap}
 .hero2 .seeall{position:relative;z-index:2;font-size:14px;font-weight:600;color:var(--brand)}
 @media(max-width:859px){.hero2-grid{grid-template-columns:1fr;gap:var(--sp-5)}}
 /* status chips */
@@ -367,7 +370,7 @@ table.params{border-collapse:collapse;width:100%;font-size:var(--t-data);backgro
 .chip.pending .cdot{background:var(--pending-dot)}
 .chip.risk{background:var(--risk);color:#fff}
 .chip.na{background:transparent;color:var(--ink-400);border:1px dashed var(--hairline-strong)}
-.chip.none{background:var(--surface-sunken);color:var(--ink-500);border:1px solid var(--hairline)}
+.chip.none{background:var(--surface-sunken);color:var(--ink-600);border:1px solid var(--hairline)}
 .chip.muted{background:var(--surface-sunken);color:var(--ink-600)}
 .chip.sm{font-size:11px;padding:2px 8px}.chip.sm .cdot{width:5px;height:5px}
 /* gap meter v2 */
@@ -376,30 +379,30 @@ table.params{border-collapse:collapse;width:100%;font-size:var(--t-data);backgro
 .gm2-band{position:absolute;top:0;bottom:0;background:var(--gain-weak);border:1px solid var(--gain-line);border-radius:var(--r-pill)}
 .gm2-gain{position:absolute;top:0;bottom:0;background:var(--gain);border-radius:var(--r-pill)}
 .gm2-cost{position:absolute;top:-2px;bottom:-2px;width:2px;background:var(--ink-800);transform:translateX(-50%)}
-.gm2-lab{display:flex;justify-content:space-between;gap:8px;font-size:10px;color:var(--ink-400);margin-top:6px;white-space:nowrap;font-variant-numeric:tabular-nums}
+.gm2-lab{display:flex;justify-content:space-between;gap:8px;font-size:10px;color:var(--ink-500);margin-top:6px;white-space:nowrap;font-variant-numeric:tabular-nums}
 .gm2.lg .gm2-track{height:14px}.gm2.lg .gm2-lab{font-size:12px;color:var(--ink-500);margin-top:8px}
-.gm2-na{color:var(--ink-300);font-weight:700;font-size:12px}
+.gm2-na{color:var(--ink-500);font-weight:700;font-size:12px}
 /* ranking header */
 .rank-head{display:flex;align-items:baseline;justify-content:space-between;gap:var(--sp-3);margin-bottom:var(--sp-4)}
 .rank-head h2{margin:0;font-size:20px;font-weight:700;color:var(--ink-900);letter-spacing:-.01em}
-.rank-head .sub{font-size:14px;font-weight:500;color:var(--ink-400)}
-.rank-head .cnt{font-size:13px;color:var(--ink-400);font-variant-numeric:tabular-nums;flex:none}
+.rank-head .sub{font-size:14px;font-weight:500;color:var(--ink-500)}
+.rank-head .cnt{font-size:13px;color:var(--ink-500);font-variant-numeric:tabular-nums;flex:none}
 /* desktop ranking grid */
-.picks2{background:var(--surface);border:1px solid var(--hairline);border-radius:var(--r-lg);box-shadow:var(--e2);overflow:hidden}
-.picks2 .phead,.picks2 .prow{display:grid;grid-template-columns:44px 150px minmax(150px,1fr) 200px 100px 98px;gap:var(--sp-4);align-items:center;padding:14px var(--sp-5);border-bottom:1px solid var(--hairline)}
+.picks2{background:var(--surface);border:1px solid var(--hairline);border-radius:var(--r-lg);box-shadow:var(--e2);overflow-x:auto;overflow-y:hidden}
+.picks2 .phead,.picks2 .prow{display:grid;grid-template-columns:44px 150px minmax(150px,1fr) 200px 100px 98px;gap:var(--sp-4);align-items:center;padding:14px var(--sp-5);border-bottom:1px solid var(--hairline);min-width:840px}
 .picks2 .phead{padding:12px var(--sp-5);background:var(--surface-sunken);font-size:12px;font-weight:600;color:var(--ink-500)}
 .picks2 .phead .r{text-align:right}
 .picks2 .prow{position:relative}
 .picks2 .prow:last-child{border-bottom:none}
 .picks2 .prow:hover{background:var(--surface-hover)}
 .picks2 .prow.dim{opacity:.6}
-.pk-rank{font-size:14px;color:var(--ink-400);font-weight:600;font-variant-numeric:tabular-nums}
+.pk-rank{font-size:14px;color:var(--ink-500);font-weight:600;font-variant-numeric:tabular-nums}
 .pk-gain{font-size:22px;font-weight:800;color:var(--gain);letter-spacing:-.01em;line-height:1.05;font-variant-numeric:tabular-nums}
-.pk-gain.neg{color:var(--risk)}.pk-gain.na{font-size:16px;color:var(--ink-300);font-weight:700}
-.pk-sub{font-size:11px;color:var(--ink-400);margin-top:4px}
+.pk-gain.neg{color:var(--risk)}.pk-gain.na{font-size:16px;color:var(--ink-500);font-weight:700}
+.pk-sub{font-size:11px;color:var(--ink-500);margin-top:4px}
 .pk-name{display:block;font-size:15px;font-weight:600;color:var(--ink-900);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .pk-addr{font-size:12px;color:var(--ink-500);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;margin-top:2px}
-.pk-case{font-size:11px;color:var(--ink-400);margin-top:2px;font-variant-numeric:tabular-nums;display:flex;align-items:center;gap:4px}
+.pk-case{font-size:11px;color:var(--ink-500);margin-top:2px;font-variant-numeric:tabular-nums;display:flex;align-items:center;gap:4px}
 .pk-min{text-align:right;font-size:16px;font-weight:700;color:var(--ink-800);font-variant-numeric:tabular-nums}
 .pk-trust{text-align:right}
 .trustbox{display:inline-flex;flex-direction:column;align-items:flex-end;font-size:11px;color:var(--ink-500);border:1px solid var(--hairline);border-radius:var(--r-md);padding:5px 8px;line-height:1.35;font-variant-numeric:tabular-nums}
@@ -415,7 +418,7 @@ table.params{border-collapse:collapse;width:100%;font-size:var(--t-data);backgro
 .mcard .ad{font-size:12px;color:var(--ink-500);margin-top:2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .mcard .grow{display:flex;align-items:baseline;gap:var(--sp-3);margin:var(--sp-3) 0 var(--sp-2)}
 .mcard .g{font-size:30px;font-weight:800;color:var(--gain);letter-spacing:-.01em;line-height:1;font-variant-numeric:tabular-nums}
-.mcard .g.neg{color:var(--risk)}.mcard .g.na{font-size:18px;color:var(--ink-300)}
+.mcard .g.neg{color:var(--risk)}.mcard .g.na{font-size:18px;color:var(--ink-500)}
 .mcard .mmin{font-size:13px;color:var(--ink-500);font-variant-numeric:tabular-nums}
 .empty2{background:var(--surface);border:1px solid var(--hairline);border-radius:var(--r-lg);box-shadow:var(--e1);padding:var(--sp-12);text-align:center;color:var(--ink-500);font-size:14px}
 @media(max-width:859px){.picks2{display:none}.mcards{display:flex}}
@@ -426,7 +429,7 @@ table.params{border-collapse:collapse;width:100%;font-size:var(--t-data);backgro
 .dtitle{display:flex;justify-content:space-between;align-items:flex-start;gap:var(--sp-4);flex-wrap:wrap}
 .dtitle .hd{display:flex;align-items:baseline;gap:10px;flex-wrap:wrap}
 .dtitle h1{margin:0;font-size:clamp(23px,3vw,30px);font-weight:800;color:var(--ink-900);letter-spacing:-.02em}
-.dtitle .case{font-size:13px;color:var(--ink-400);font-variant-numeric:tabular-nums}
+.dtitle .case{font-size:13px;color:var(--ink-500);font-variant-numeric:tabular-nums}
 .dtitle .meta{margin:6px 0 0;font-size:13px;color:var(--ink-500);line-height:1.6;max-width:74ch}
 .watchbtn{flex:none;height:40px;background:var(--surface);color:var(--ink-700);border:1px solid var(--hairline-strong);border-radius:var(--r-md);padding:0 16px;font-size:14px;font-weight:600;cursor:pointer}
 .watchbtn:hover{background:var(--surface-hover);border-color:var(--ink-300)}
@@ -437,7 +440,7 @@ table.params{border-collapse:collapse;width:100%;font-size:var(--t-data);backgro
 .dhero .lead{font-size:13px;color:var(--ink-500);font-weight:500;margin-bottom:2px}
 .dhero .big{font-size:clamp(38px,6vw,52px);font-weight:800;color:var(--gain);letter-spacing:-.02em;line-height:1;font-variant-numeric:tabular-nums}
 .dhero .big.neg{color:var(--risk)}
-.dhero .chips{display:flex;gap:8px;margin-top:var(--sp-3);flex-wrap:wrap}
+.dhero .chiprow{display:flex;gap:8px;margin-top:var(--sp-3);flex-wrap:wrap}
 @media(max-width:859px){.dhero-grid{grid-template-columns:1fr;gap:var(--sp-5)}}
 /* 통합 게이트 배너 */
 .gatebar{display:flex;gap:12px;background:var(--caution-weak);border:1px solid var(--caution-line);border-left:3px solid var(--caution);border-radius:var(--r-md);padding:14px 16px;margin-bottom:var(--sp-6)}
@@ -490,7 +493,7 @@ table.params{border-collapse:collapse;width:100%;font-size:var(--t-data);backgro
 .hist__n{font-size:11px;color:var(--ink-500);font-variant-numeric:tabular-nums}
 .hist__bar{width:100%;max-width:34px;background:var(--surface-sunken);border-radius:var(--r-sm) var(--r-sm) 0 0;min-height:2px}
 .hist__bar--accent{background:var(--gain)}
-.hist__x{font-size:9.5px;color:var(--ink-400);white-space:nowrap}
+.hist__x{font-size:9.5px;color:var(--ink-500);white-space:nowrap}
 .donut{display:flex;align-items:center;gap:var(--sp-5);flex-wrap:wrap}
 .donut__ring{width:120px;height:120px;border-radius:50%;flex:none;display:flex;align-items:center;justify-content:center}
 .donut__hole{width:78px;height:78px;border-radius:50%;background:var(--surface);display:flex;flex-direction:column;align-items:center;justify-content:center}
@@ -545,10 +548,35 @@ table.params{border-collapse:collapse;width:100%;font-size:var(--t-data);backgro
 .inline-warn p{margin:0;font-size:12.5px;line-height:1.6;color:var(--caution)}
 .twobox{display:grid;grid-template-columns:1fr 1fr;gap:var(--sp-4)}
 @media(max-width:560px){.twobox{grid-template-columns:1fr}.check{flex-wrap:wrap}.check__where{margin-left:44px}}
+
+/* ============================================================
+   Calendar Page (Claude Design 정합 · 모바일 카드)
+   ============================================================ */
+.cal-month{margin:var(--sp-8) 0 var(--sp-3);font-size:18px;font-weight:700;color:var(--ink-900)}
+.cal-month .cnt{font-size:13px;font-weight:500;color:var(--ink-500);margin-left:6px}
+.cal-card{background:var(--surface);border:1px solid var(--hairline);border-radius:var(--r-lg);box-shadow:var(--e1);overflow:hidden}
+.cal-item{display:grid;grid-template-columns:104px minmax(0,1fr) auto auto;gap:var(--sp-3);align-items:center;padding:12px var(--sp-5);border-bottom:1px solid var(--hairline)}
+.cal-item:last-child{border-bottom:none}
+.cal-item.dim{opacity:.55}
+.cal-date{font-size:13px;font-weight:700;color:var(--ink-800);display:flex;align-items:center;gap:6px;flex-wrap:wrap}
+.cal-body{min-width:0}
+.cal-nm{display:block;font-size:15px;font-weight:600;color:var(--ink-900);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.cal-ad{font-size:12px;color:var(--ink-500);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;margin-top:2px}
+.cal-pf{text-align:right;font-size:15px;font-weight:700;white-space:nowrap;font-variant-numeric:tabular-nums;color:var(--ink-800)}
+.cal-pf.gain{color:var(--gain)}.cal-pf.neg{color:var(--risk)}
+.cal-pf .u{display:block;font-size:11px;font-weight:500;color:var(--ink-500)}
+@media(max-width:640px){
+  .cal-item{grid-template-columns:minmax(0,1fr) auto;grid-template-areas:'date date' 'body pf' 'chip pf';gap:4px var(--sp-3);align-items:start}
+  .cal-date{grid-area:date;margin-bottom:2px}
+  .cal-body{grid-area:body}
+  .cal-chip{grid-area:chip;align-self:end;margin-top:6px}
+  .cal-pf{grid-area:pf;align-self:center;text-align:right}
+}
 </style>
 {% block head %}{% endblock %}
 </head>
 <body>
+<a href="#main" class="skip">본문 바로가기</a>
 <header class="site" id="siteHeader">
   <div class="wrap nav-wrap">
     <a href="/" class="brand">
@@ -574,7 +602,7 @@ table.params{border-collapse:collapse;width:100%;font-size:var(--t-data);backgro
     </nav>
   </div>
 </header>
-<main class="wrap">
+<main class="wrap" id="main">
 {% block content %}{% endblock %}
 </main>
 <script>

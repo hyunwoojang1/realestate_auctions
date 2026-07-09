@@ -1,12 +1,12 @@
 {% extends "base.html" %}
 {% block title %}경매 일정 캘린더{% endblock %}
 
-{%- macro warnbadge(s) -%}
-{%- if s.grade == '권리미확인' -%}<span class="badge b-unknown">권리미확인</span>
-{%- elif s.grade == '위험' -%}<span class="badge b-risk">위험</span>
-{%- elif s.grade == '시세추정불가' -%}<span class="badge b-na">시세추정불가</span>
-{%- elif s.grade == '미지원유형' -%}<span class="badge b-na">미지원 유형</span>
-{%- elif s.grade == '차익없음' -%}<span class="badge b-none">차익없음</span>
+{%- macro calchip(s) -%}
+{%- if s.grade == '권리미확인' -%}<span class="chip pending sm"><span class="cdot"></span>권리미확인</span>
+{%- elif s.grade == '위험' -%}<span class="chip risk sm">위험</span>
+{%- elif s.grade == '시세추정불가' -%}<span class="chip na sm">시세추정불가</span>
+{%- elif s.grade == '미지원유형' -%}<span class="chip na sm">미지원</span>
+{%- elif s.grade == '차익없음' -%}<span class="chip none sm">차익없음</span>
 {%- endif -%}
 {%- endmacro -%}
 
@@ -16,7 +16,7 @@
 <p class="page-lead">매각기일 기준 일정입니다. 기일이 임박한 물건부터 입찰 준비 —
 차익·권리 근거는 각 물건 상세에서 확인하세요.</p>
 
-<div class="chips">
+<div class="chips" style="margin-top:var(--sp-4)">
   <div class="chip">예정 <b>{{ upcoming_count }}건</b></div>
   <div class="chip">지난 기일 <b>{{ past_count }}건</b></div>
   {% if unknown_count %}<div class="chip">기일 미상 <b>{{ unknown_count }}건</b></div>{% endif %}
@@ -28,36 +28,31 @@
 </div>
 
 {% for m in months %}
-<h2>{{ m.month[:4] }}년 {{ m.month[5:] | int }}월 <span style="color:var(--muted);font-weight:400">{{ m.count }}건</span></h2>
-<table class="params">
-<tbody>
+<h2 class="cal-month">{{ m.month[:4] }}년 {{ m.month[5:] | int }}월 <span class="cnt">{{ m.count }}건</span></h2>
+<div class="cal-card">
 {% for day in m.days %}
 {% for s in day['items'] %}
-<tr{% if day.date < today %} class="dim"{% endif %}>
-  {% if loop.first %}
-  <td rowspan="{{ day['items'] | length }}" style="width:9em;white-space:nowrap;vertical-align:top">
-    <b>{{ day.date[8:] | int }}일 ({{ weekday(day.date) }})</b>
-    {% if day.date == today %}<span class="badge b-unknown">오늘</span>{% endif %}
-  </td>
-  {% endif %}
-  <td><a class="name" href="/property/{{ s.case_no }}{% if s.item_no %}?item={{ s.item_no }}{% endif %}">{{ s.apt_name or s.property_type }}</a>
-      <div class="addr">{{ s.address }} · {{ s.property_type }} · 유찰 {{ s.fail_count }}회</div></td>
-  <td>{{ warnbadge(s) }}</td>
-  <td class="num" style="white-space:nowrap">
-    {#- (T8 감사 수정) T7 보수 기준 통일 — 목록과 같은 물건이 다른 수치로 보이지 않게 -#}
-    {%- set p = s.profit_low if s.profit_low is not none else s.expected_profit -%}
-    {% if p is not none %}{% if s.profit_low is not none %}보수 기준 차익{% else %}차익(기준 시세){% endif %} <b>{{ won(p) }}</b>{% else %}—{% endif %}
-    <div style="font-size:var(--t-note);color:var(--muted)">최저가 {{ won(s.min_bid_price) }}</div></td>
-</tr>
+{%- set p = s.profit_low if s.profit_low is not none else s.expected_profit -%}
+<div class="cal-item{% if day.date < today %} dim{% endif %}">
+  <div class="cal-date">{{ day.date[8:] | int }}일 ({{ weekday(day.date) }}){% if day.date == today %} <span class="chip pending sm"><span class="cdot"></span>오늘</span>{% endif %}</div>
+  <div class="cal-body">
+    <a class="cal-nm" href="/property/{{ s.case_no }}{% if s.item_no %}?item={{ s.item_no }}{% endif %}">{{ s.apt_name or s.property_type }}</a>
+    <div class="cal-ad">{{ s.address }} · {{ s.property_type }} · 유찰 {{ s.fail_count }}회</div>
+  </div>
+  <div class="cal-chip">{{ calchip(s) }}</div>
+  <div class="cal-pf{% if p is not none and p > 0 %} gain{% elif p is not none and p < 0 %} neg{% endif %}">
+    {% if p is not none %}{{ won(p) }}{% else %}—{% endif %}
+    <span class="u">{% if s.profit_low is not none %}보수 기준 차익{% else %}기준 시세 차익{% endif %}<br>최저 {{ won(s.min_bid_price) }}</span>
+  </div>
+</div>
 {% endfor %}
 {% endfor %}
-</tbody>
-</table>
+</div>
 {% endfor %}
 
 {% if not months %}
-<p class="page-lead" style="margin-top:24px">표시할 일정이 없습니다.
-{% if not show_all and past_count %}<a href="/calendar?all=1">지난 기일 포함해 보기</a>{% endif %}</p>
+<div class="empty2" style="margin-top:var(--sp-6)">표시할 일정이 없습니다.
+{% if not show_all and past_count %}<br><a href="/calendar?all=1">지난 기일 포함해 보기 →</a>{% endif %}</div>
 {% endif %}
 
 <p class="foot">매각기일은 법원 사정으로 변경·취하될 수 있습니다. 입찰 전 대법원 법원경매정보에서

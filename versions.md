@@ -15,6 +15,24 @@
 
 ---
 
+## 2026-07-09 15:19 KST — 🔬 ultracode 전수 감사 확정 18건 수정 (다관점+적대적검증)
+- 무엇: 6관점 병렬 감사(33에이전트, 27발견→적대적반증→18확정) 결과 전부 수정.
+- HIGH: (1)일정 모바일 table→카드 전환(오버플로/차익값 클립 해소, 신호색·필칩 포함 calendar.html
+  전면 재작성+base.html .cal-* CSS) (2)ink-400(#98a2b3 2.6:1) 텍스트 대비 WCAG AA 미달 8개 규칙
+  →ink-500(gm2-lab·pk-sub·pk-case·pk-rank·rank-head·dtitle .case·hist__x).
+- MEDIUM: (3)일정 차익 양/음 신호색 (4)지도 사이드바 차익 강조 size+gain/risk색 (5)picks2 860~928px
+  '신뢰'열 클립→overflow-x:auto+min-width (6)칩 클래스충돌(.chips .chip가 필 덮음)→히어로 컨테이너
+  .chiprow 분리 (7)정렬 라벨 고정('차익 큰 순')→filters.sort 분기 (8)상세 탭 ARIA(role=tab/tablist/
+  tabpanel·aria-selected) (9)KPI 단위색(gain-line 1.45:1)→gain/ink-500.
+- LOW: (10)관심 빈상태 .empty2 카드화 (11)지도 범례 nowrap+wrap (12)히어로 '1위'표기 오류→'추천'+
+  순번 loop.index (13)ink-300 NA텍스트(1.67:1)→ink-500 (14).chip.none 4.05:1→ink-600 (15)스킵링크
+  추가(#main) (16)비교 차익 양/음색 (17)뱃지→필칩 통일(compare·watchlist) (18)가이드·방법론 데이터
+  배지 실제출처 반영(_mark_source).
+- 증거: pytest 366 passed(일정 라벨 불변식 유지 위해 cal-pf 서브라인에 '보수/기준 시세 차익' 라벨
+  복원). Playwright 재검증: 일정 모바일 카드·차익색·필칩, 목록 히어로 필칩·대비, 관심 빈카드 확인.
+- 커밋: feat/ui-redesign 3차 커밋 예정.
+- 다음: (선택) 잔여 반증 9건은 실제 문제 아님. 사용자 지시 시 push.
+
 ## 2026-07-09 14:53 KST — 🎨 잔여 보조페이지 헤더 일관성 패스 (방법론·일정·관심·지도·비교·물건선택)
 - 무엇: 아직 옛 헤더(.page-h/.page-sub)를 쓰던 보조 템플릿 6종을 새 스케일(.page-h2/.page-lead)로
   스왑해 재디자인 페이지와 코히런트하게. 본문 컴포넌트(.formula·.params 표·.chips·.note-box·핀 색)는

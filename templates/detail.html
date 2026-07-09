@@ -64,7 +64,7 @@
         {%- else -%}시세 추정 불가{%- endif -%}
       </div>
       <div class="big{% if hero_p is not none and hero_p < 0 %} neg{% endif %}">{% if hero_p is not none %}{{ won(hero_p) }}{% else %}—{% endif %}</div>
-      <div class="chips">
+      <div class="chiprow">
         {{ statuschip(s) }}
         <span class="chip muted">신뢰 {{ '%.2f'|format(s.confidence) }} · 매칭 {{ s.matched_trades }}건</span>
       </div>
@@ -92,18 +92,18 @@
 </div>
 
 <!-- 탭 -->
-<div class="tabbar" id="dtabs">
-  <button class="on" data-tab="all">전체</button>
-  <button data-tab="t-gap">차익 근거</button>
-  <button data-tab="t-tax">세금</button>
-  <button data-tab="t-rights">권리 · 게이트</button>
-  <button data-tab="t-site">현장</button>
+<div class="tabbar" id="dtabs" role="tablist" aria-label="물건 상세 섹션">
+  <button class="on" role="tab" aria-selected="true" data-tab="all">전체</button>
+  <button role="tab" aria-selected="false" data-tab="t-gap">차익 근거</button>
+  <button role="tab" aria-selected="false" data-tab="t-tax">세금</button>
+  <button role="tab" aria-selected="false" data-tab="t-rights">권리 · 게이트</button>
+  <button role="tab" aria-selected="false" data-tab="t-site">현장</button>
 </div>
 
 <div class="dflow">
 
   <!-- STEP 1 -->
-  <section id="t-gap">
+  <section id="t-gap" role="tabpanel" aria-label="차익 근거">
     <div class="dstep-head"><span class="dstep-num">1</span>
       <h2>얼마가 남는가 <span class="sub">· 차익 근거(객관)</span></h2></div>
     <div class="dpanel">
@@ -137,7 +137,7 @@
   </section>
 
   <!-- STEP 2 -->
-  <section id="t-tax">
+  <section id="t-tax" role="tabpanel" aria-label="세금·비용">
     <div class="dstep-head"><span class="dstep-num">2</span>
       <h2>세금·비용 빼면 진짜 얼마 <span class="sub">· 취득세({{ tax_label }})</span></h2></div>
     <div class="dpanel">
@@ -150,7 +150,7 @@
   </section>
 
   <!-- STEP 3 — 게이트 -->
-  <section id="t-rights">
+  <section id="t-rights" role="tabpanel" aria-label="권리 게이트">
     {% if not s.rights_verified %}
     <div class="dstep-head"><span class="dstep-num gate">⛔</span>
       <h2>사도 되는가 <span class="sub gate">· 권리 게이트 — 미확인</span></h2></div>
@@ -182,7 +182,7 @@
   </section>
 
   <!-- STEP 4 -->
-  <section id="t-site">
+  <section id="t-site" role="tabpanel" aria-label="현장 확인">
     <div class="dstep-head"><span class="dstep-num">4</span>
       <h2>실물 확인 <span class="sub">· 현장</span></h2></div>
     <div class="dpanel" style="padding:var(--sp-5)">
@@ -203,8 +203,8 @@
   var secs = ids.map(function(id){ return document.getElementById(id); });
   bar.addEventListener('click', function(e){
     var btn = e.target.closest('button'); if (!btn) return;
-    bar.querySelectorAll('button').forEach(function(b){ b.classList.remove('on'); });
-    btn.classList.add('on');
+    bar.querySelectorAll('button').forEach(function(b){ b.classList.remove('on'); b.setAttribute('aria-selected','false'); });
+    btn.classList.add('on'); btn.setAttribute('aria-selected','true');
     var t = btn.dataset.tab;
     secs.forEach(function(c){ if (c) c.style.display = (t === 'all' || c.id === t) ? '' : 'none'; });
   });

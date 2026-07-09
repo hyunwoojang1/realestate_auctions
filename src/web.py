@@ -413,7 +413,8 @@ def create_app() -> Flask:
 
     @app.get("/guide")
     def guide():
-        # 정적 경매 지식(권리분석·세금·체크리스트). 물건 데이터와 무관한 개념 가이드.
+        # 정적 경매 지식(권리분석·세금·체크리스트). 헤더 데이터배지는 실제 출처 반영(일관성).
+        _mark_source(_probe_source())
         return render_template("guide.html",
                                data_source=getattr(g, "data_source", "n/a"))
 
@@ -423,9 +424,11 @@ def create_app() -> Flask:
         rows = backtest.evaluate()
         cal = backtest.calibration(rows)
         prec = {t: backtest.precision_at(rows, t) for t in (80, 60, 40)}
+        # 헤더 데이터배지는 실제 출처 반영(백테스트 표본과 별개 — 다른 페이지와 일관).
+        _mark_source(_probe_source())
         return render_template("methodology.html", cfg=score.CONFIG, cal=cal, prec=prec,
                                won=report.won, tax_label=tax.PROFILE.label(),
-                               data_source="sample")
+                               data_source=getattr(g, "data_source", "n/a"))
 
     return app
 

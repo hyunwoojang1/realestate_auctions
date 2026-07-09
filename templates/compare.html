@@ -2,11 +2,11 @@
 {% block title %}물건 비교{% endblock %}
 
 {%- macro warn(g) -%}
-{%- if g == '권리미확인' -%}<span class="badge b-unknown">권리미확인</span>
-{%- elif g == '위험' -%}<span class="badge b-risk">위험</span>
-{%- elif g == '시세추정불가' -%}<span class="badge b-na">시세추정불가</span>
-{%- elif g == '미지원유형' -%}<span class="badge b-na">미지원 유형</span>
-{%- elif g == '차익없음' -%}<span class="badge b-none">차익없음</span>
+{%- if g == '권리미확인' -%}<span class="chip pending sm"><span class="cdot"></span>권리미확인</span>
+{%- elif g == '위험' -%}<span class="chip risk sm">위험</span>
+{%- elif g == '시세추정불가' -%}<span class="chip na sm">시세추정불가</span>
+{%- elif g == '미지원유형' -%}<span class="chip na sm">미지원 유형</span>
+{%- elif g == '차익없음' -%}<span class="chip none sm">차익없음</span>
 {%- endif -%}
 {%- endmacro -%}
 
@@ -39,7 +39,7 @@
 <tr><td>경고</td>{% for s in items %}<td>{{ warn(s.grade) }}</td>{% endfor %}</tr>
 <tr><td><b>{% if any_band %}보수 기준 차익</b> <span style="color:var(--muted-2)">(검증 하한가 기준 · 밴드 없으면 기준 차익)</span>{% else %}차익(기준 시세·구 데이터)</b>{% endif %}</td>{% for s in items %}
   {%- set cp = s.profit_low if s.profit_low is not none else s.expected_profit -%}
-  <td class="num"><b class="{% if cp is not none and cp < 0 %}gm-loss{% endif %}">{{ won(cp) }}</b></td>{% endfor %}</tr>
+  <td class="num"><b style="font-weight:800;{% if cp is not none and cp > 0 %}color:var(--gain){% elif cp is not none and cp < 0 %}color:var(--risk){% endif %}">{{ won(cp) }}</b></td>{% endfor %}</tr>
 <tr><td>기준 차익 <span style="color:var(--muted-2)">(기준가 기준)</span></td>{% for s in items %}
   <td class="num">{{ won(s.expected_profit) }}</td>{% endfor %}</tr>
 <tr><td>근거 표본</td>{% for s in items %}<td class="num">{{ s.market_sample_basis if s.market_sample_basis is not none else s.matched_trades }}건</td>{% endfor %}</tr>

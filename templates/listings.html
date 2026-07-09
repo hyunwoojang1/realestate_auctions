@@ -112,7 +112,7 @@
 {%- set hero_p = hero.profit_low if hero.profit_low is not none else hero.expected_profit -%}
 <div class="hero2{% if hero.grade == '권리미확인' %} unv{% endif %}">
   <div class="hero2-top">
-    <span class="chip" style="background:var(--brand-weak);color:var(--brand-ink);border:1px solid var(--brand-line)">★ 보수 기준 1위 · 검증 게이트 통과</span>
+    <span class="chip" style="background:var(--brand-weak);color:var(--brand-ink);border:1px solid var(--brand-line)">★ 검증 게이트 통과 · 추천</span>
     <a class="seeall" href="{{ proplink(hero) }}">상세 보기 →</a>
   </div>
   <div class="hero2-grid">
@@ -121,7 +121,7 @@
       <div class="big{% if hero_p < 0 %} neg{% endif %}">{{ won(hero_p) }}</div>
       <a class="nm rowlink" href="{{ proplink(hero) }}" style="position:static">{{ hero.apt_name or hero.property_type }}</a>
       <div class="ad">{{ hero.address }} · {{ hero.property_type }} · {{ '%.0f'|format(hero.area_m2) }}㎡ · 유찰 {{ hero.fail_count }}회</div>
-      <div class="chips">
+      <div class="chiprow">
         {{ statuschip(hero) }}
         <span class="chip muted">신뢰 {{ '%.2f'|format(hero.confidence) }} · 매칭 {{ hero.matched_trades }}건</span>
       </div>
@@ -139,7 +139,7 @@
 
 <!-- RANKING -->
 <div class="rank-head">
-  <h2>랭킹 <span class="sub">· {% if legacy_only %}기준 시세 차익{% else %}보수 기준 차익{% endif %} 큰 순</span></h2>
+  <h2>랭킹 <span class="sub">· {% if legacy_only %}기준 시세 차익 큰 순{% elif filters.sort == 'gap' %}갭률 높은 순{% else %}보수 기준 차익 큰 순{% endif %}</span></h2>
   <span class="cnt">{{ count }}건</span>
 </div>
 
@@ -157,7 +157,7 @@
   {% for s in items if s != hero %}
   {%- set p = s.profit_low if s.profit_low is not none else s.expected_profit -%}
   <div class="prow{% if p is none or p <= 0 %} dim{% endif %}">
-    <div class="pk-rank">{{ loop.index + (1 if hero else 0) }}</div>
+    <div class="pk-rank">{{ loop.index }}</div>
     <div>
       {%- if p is not none -%}<div class="pk-gain{% if p < 0 %} neg{% endif %}">{{ won(p) }}</div>
       <div class="pk-sub">{% if s.profit_low is not none %}보수 기준 · 근거 표본 {{ s.market_sample_basis if s.market_sample_basis is not none else s.matched_trades }}건{% else %}기준 시세 · 대비 {{ pct(s.gap_rate) }}{% endif %}</div>
@@ -187,7 +187,7 @@
   <div class="mcard{% if p is none or p <= 0 %} dim{% endif %}">
     <div class="top">
       <div style="min-width:0">
-        <a class="nm rowlink" href="{{ proplink(s) }}">{{ loop.index + (1 if hero else 0) }}. {{ s.apt_name or s.property_type }}</a>
+        <a class="nm rowlink" href="{{ proplink(s) }}">{{ loop.index }}. {{ s.apt_name or s.property_type }}</a>
         <div class="ad">{{ s.address }} · {{ s.property_type }} · {{ '%.0f'|format(s.area_m2) }}㎡</div>
       </div>
       <span style="flex:none;position:relative;z-index:2">{{ statuschip(s, sm=True) }}</span>
