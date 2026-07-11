@@ -33,11 +33,14 @@ from .models import AuctionListing
 SPECIAL_RIGHT_KEYWORDS: dict[str, tuple[str, ...]] = {
     "유치권": ("유치권",),
     "법정지상권": ("법정지상권", "관습법상 법정지상권", "관습상 법정지상권"),
-    "지분": ("지분매각", "지분 매각", "지분경매", "일부 지분", "분의", "지분"),
+    # '분의' 단독은 '부분의'에 부분문자열 오탐(재검증 감사 idx11) — 정규식(_SHARE_RE)으로 분리.
+    "지분": ("지분매각", "지분 매각", "지분경매", "일부 지분", "지분"),
     "분묘기지권": ("분묘기지권", "분묘 기지권", "분묘"),
     "대지권미등기": ("대지권미등기", "대지권 미등기", "대지권 없음", "대지권미등기임"),
     "위반건축물": ("위반건축물", "위반 건축물", "무허가", "제시외 건물"),
 }
+# 지분 표기 "2분의 1"·"3분의2" — 숫자 사이의 '분의'만 지분 신호(‘부분의’ 오탐 차단).
+_SHARE_RE = re.compile(r"\d+\s*분의\s*\d+")
 
 
 def detect_special_rights(*texts: str) -> list[str]:
@@ -50,6 +53,8 @@ def detect_special_rights(*texts: str) -> list[str]:
     found: list[str] = []
     for label, variants in SPECIAL_RIGHT_KEYWORDS.items():
         if any(v in blob for v in variants):
+            found.append(label)
+        elif label == "지분" and _SHARE_RE.search(blob):
             found.append(label)
     return found
 
@@ -104,16 +109,66 @@ _OPPOSABLE_PHRASES = (
 # 명세서 표준 경고문(항상 인쇄되는 안내)은 대항력 '존재' 신호가 아니다 → 제외.
 _BOILERPLATE = "임차보증금은 매수인에게 인수되는 경우가 발생할 수 있고"
 
+# 인수 '해소' 문맥(재검증 감사 2026-07-11 확정 idx9·10 오탐 수정) — 이 표현이 붙은 절은
+# 위험 신호가 아니라 반대(인수 없음 확정/말소 예정) 신호다. 절 단위로 제거 후 매칭한다.
+#  - "…매수인이 인수하지 아니함"(특별매각조건으로 인수 0원 확정)
+#  - "임차권등기 말소 동의(확약)" / "대항력 포기" / "말소조건 매각" — 임차권등기가 있어도 소멸 예정
+_OPPOSABLE_NEGATIONS = (
+    "인수하지 아니",
+    "인수하지 않",
+    "인수되지 아니",
+    "인수되지 않",
+    "인수할 권리 없",
+    "말소 동의",
+    "말소동의",
+    "말소에 동의",
+    "말소를 조건",
+    "말소 조건",
+    "말소조건",
+    "대항력 포기",
+    "대항력을 포기",
+    "임차권등기 말소",
+    "임차권등기의 말소",
+)
+
+
+def _strip_negated_clauses(text: str) -> str:
+    """인수-해소 표현이 포함된 '절'(문장 조각)을 제거한 텍스트 반환.
+
+    절 단위(마침표·개행·세미콜론 구분)로 잘라 해소 표현이 있는 절만 버린다 — 같은 명세서에
+    '5번 임차권은 말소 동의, 7번 임차권은 인수' 처럼 혼재할 때 인수 절은 살아남아야 하므로
+    문서 전체를 버리면 안 된다(미탐 방지).
+    """
+    out = []
+    for clause in re.split(r"[.\n;·]", text or ""):
+        if any(neg in clause for neg in _OPPOSABLE_NEGATIONS):
+            continue
+        out.append(clause)
+    return " ".join(out)
+
+
+# 약한 신호 — 존재만으로 위험 추정하는 phrase(임차권등기 자체). 문서에 해소 표현이 하나라도
+# 있으면 이 신호는 억제한다(말소동의·대항력 포기가 다른 절에 있는 경우가 흔함 — 실측 15건 오탐).
+_WEAK_PHRASES = ("임차권등기",)
+_STRONG_PHRASES = tuple(p for p in _OPPOSABLE_PHRASES if p not in _WEAK_PHRASES)
+
 
 def detect_tenant_opposable(myeongsaeseo: str, *others: str) -> bool:
-    """대항력 있는(배당 못 받는) 임차인 존재 여부.
+    """대항력 있는(배당 못 받는) 임차인 존재 여부 — 2단계 판정.
 
-    항상 인쇄되는 표준 경고문(boilerplate)만으로는 True로 보지 않는다. 그 문장을
-    제거한 뒤 구체적 인수 문구가 남아 있을 때만 대항력 위험으로 판정.
+    (재검증 감사 idx9·10 오탐 수정)
+    1) 강한 신호(인수 명시 문구): 인수-해소 절("인수하지 아니함"·"말소 동의" 등)을 제거한
+       나머지에서 찾는다 — 같은 문서에 '5번은 말소동의, 7번은 인수' 혼재 시 인수 절은 살린다.
+    2) 약한 신호(임차권등기 존재): 문서 어디에도 해소 표현이 없을 때만 위험으로 본다 —
+       말소동의 확약·대항력 포기가 다른 절에 있으면 등기 존재만으로 True 를 주지 않는다.
+    표준 경고문(boilerplate)은 신호가 아니다.
     """
-    blob = "\n".join([myeongsaeseo, *others])
-    stripped = blob.replace(_BOILERPLATE, "")
-    return any(p in stripped for p in _OPPOSABLE_PHRASES)
+    blob = "\n".join([myeongsaeseo, *others]).replace(_BOILERPLATE, "")
+    stripped = _strip_negated_clauses(blob)
+    if any(p in stripped for p in _STRONG_PHRASES):
+        return True
+    has_release = any(neg in blob for neg in _OPPOSABLE_NEGATIONS)
+    return (not has_release) and any(p in stripped for p in _WEAK_PHRASES)
 
 
 # ---------------------------------------------------------------------------
@@ -121,34 +176,61 @@ def detect_tenant_opposable(myeongsaeseo: str, *others: str) -> bool:
 # ---------------------------------------------------------------------------
 # "매수인이 인수하는 금액 ... 금80,000,000원" / "인수 ... 150,000,000원" 등.
 _AMOUNT_RE = re.compile(r"(?:금)?\s*([\d,]{4,})\s*원")
+# 한글 단위 금액(재검증 감사 idx8 확정 — "4억5,000만원"·"금1억2천만원"·"6,500만원" 이 전혀
+# 안 읽혀 실보증금 5건이 0원): 억/천만/만 단위를 원으로 환산.
+_KOREAN_AMOUNT_RE = re.compile(
+    r"(?:금)?\s*(?:(\d[\d,]*)\s*억)?\s*(?:(\d[\d,]*)\s*천만)?\s*(?:(\d[\d,]*)\s*만)?\s*원")
 _ASSUME_CONTEXT = ("인수", "미배당", "떠안", "부담")
-# 부정/소멸 문맥 — 같은 줄에 있으면 그 금액은 '인수액'이 아니다.
-# 예: "인수할 권리 없음", "근저당 … 전액 말소 예정"(=소멸). 오탐(안전물건→위험 오판) 방지.
-# 주의: 스캐폴딩 단계 휴리스틱 — 실제 매각물건명세서 HTML 확보 후 정규식/문맥 튜닝 필요.
+# 부정/소멸 문맥 — 같은 줄(절)에 있으면 그 금액은 '인수액'이 아니다.
+# ⚠ 이중부정(재검증 감사 idx7 확정): "말소되지 않고 … 매수인이 인수함"은 '말소' 문자가
+# 있어도 **인수**다 — 부정의 부정 패턴을 먼저 판정해 negation 체크를 건너뛴다.
 _ASSUME_NEGATION = ("없", "말소", "소멸")
+_DOUBLE_NEGATION = ("말소되지 않", "말소되지 아니", "소멸되지 않", "소멸되지 아니",
+                    "변제되지 아니", "변제되지 않")
+
+
+def _amounts_in(line: str) -> list[int]:
+    """한 줄에서 금액(원) 전부 — 숫자 표기 + 한글 단위 표기."""
+    out = [to_won(m.group(1)) for m in _AMOUNT_RE.finditer(line)]
+    for m in _KOREAN_AMOUNT_RE.finditer(line):
+        eok, cheonman, man = m.groups()
+        if not (eok or cheonman or man):
+            continue
+        won = 0
+        if eok:
+            won += to_won(eok) * 100_000_000
+        if cheonman:
+            won += to_won(cheonman) * 10_000_000
+        if man:
+            won += to_won(man) * 10_000
+        if won >= 1_000_000:   # 소액 잡음(수수료 등) 제외
+            out.append(won)
+    return [a for a in out if a > 0]
 
 
 def detect_assumed_amount(*texts: str) -> int:
-    """인수 문맥이 있는 줄에서 가장 큰 금액(원)을 인수금액으로 추정.
+    """인수 문맥 줄들의 금액으로 인수 총액 추정.
 
-    보수적으로 '최댓값'을 택한다(과소추정이 스코어 과대평가로 이어지는 침묵실패 방지).
-    단 같은 줄에 부정/소멸 표현(없음·말소·소멸)이 있으면 그 줄은 인수액이 아니므로 제외한다.
-    인수 문맥 줄이 없으면 0.
+    - 이중부정("말소되지 않고 … 인수") 줄은 negation 이 있어도 인수로 판정(idx7).
+    - 한글 단위 금액(억/천만/만원)도 읽는다(idx8).
+    - 서로 다른 금액이 여러 줄이면 **distinct 합산**(idx12 — 다건 임차권 과소추정 방지.
+      같은 보증금이 여러 절에 반복 인용되는 경우는 중복 제거로 이중계산 방지).
     """
-    best = 0
+    picked: set[int] = set()
     for text in texts:
         if not text:
             continue
         for line in text.splitlines():
             if not any(k in line for k in _ASSUME_CONTEXT):
                 continue
-            if any(neg in line for neg in _ASSUME_NEGATION):
+            double_neg = any(dn in line for dn in _DOUBLE_NEGATION)
+            if not double_neg and any(neg in line for neg in _ASSUME_NEGATION):
                 continue
-            for m in _AMOUNT_RE.finditer(line):
-                amt = to_won(m.group(1))
-                if amt > best:
-                    best = amt
-    return best
+            amts = _amounts_in(line)
+            if amts:
+                # 한 줄 안에서는 최대 1건(같은 보증금의 표기 중복 방지), 줄 간에는 distinct 합산
+                picked.add(max(amts))
+    return sum(picked)
 
 
 # ---------------------------------------------------------------------------

@@ -216,23 +216,18 @@ def save_rights(conn: sqlite3.Connection, rights_rows: Iterable[dict]) -> int:
 
 def load_rights(conn: sqlite3.Connection, court: str, case_no: str,
                 item_no: str = "") -> dict | None:
-    """단건 권리 요지 조회. item_no 매칭 우선, 없으면 **같은 법원** 같은 사건 폴백.
+    """단건 권리 요지 조회 — (court, case_no, item_no) **정확 매칭만**.
 
-    폴백은 물건번호 미기록 레거시 행 대비(사건 단위 명세서는 물건 간 대부분 공유).
-    ⚠ court 조건은 폴백에서도 유지 — 사건번호는 법원마다 독립 채번이라 타법원 동명 사건이
-    실재하며(예: 2025타경1235 가 대구·타법원에 각각 존재), court 를 빼면 엉뚱한 법원의
-    권리 내역이 상세 페이지에 표시되는 침묵 오표시가 난다.
+    (재검증 감사 2026-07-11 idx16) 과거의 '같은 사건 아무 물건' 폴백은 다물건 사건에서
+    형제 물건의 명세서를 이 물건 것처럼 표시하고 rights_verified=True 로 하드게이트까지
+    발동시키는 과신이었다(실측 15건). 매각물건명세서는 물건번호별로 인수권리가 다를 수 있다
+    — 크롤이 물건번호 단위(dspslGdsSeq)로 수집하므로 정확 매칭 실패 = 미크롤로 취급한다.
     """
     cur = conn.execute(
         "SELECT * FROM listing_rights WHERE court=? AND case_no=? AND item_no=?",
         (court, case_no, str(item_no or "")),
     )
     row = cur.fetchone()
-    if row is None:
-        cur = conn.execute(
-            "SELECT * FROM listing_rights WHERE court=? AND case_no=? LIMIT 1",
-            (court, case_no))
-        row = cur.fetchone()
     return dict(row) if row is not None else None
 
 

@@ -156,16 +156,17 @@ def test_replace_all_upserts_then_deletes_stale(monkeypatch):
     assert order[-1][1].startswith("lt.")
 
 
-def test_fetch_rights_fallback_keeps_court(monkeypatch):
-    """폴백 쿼리에서도 court 조건 유지 — 타법원 동명 사건번호 오표시 회귀 방지."""
+def test_fetch_rights_exact_match_only(monkeypatch):
+    """(재검증 감사 idx16) 정확 매칭만 — 폴백 쿼리 없음(형제 물건 명세서 과신 금지),
+    court 조건 필수(타법원 동명 사건 오표시 방지)."""
     calls = []
 
     def fake_get(url, headers=None, params=None, timeout=None):
         calls.append(dict(params))
-        return FakeResp([])   # 항상 미발견 → 폴백까지 진행
+        return FakeResp([])
 
     monkeypatch.setattr(store_rest.requests, "get", fake_get)
     assert store_rest.fetch_rights("대구지방법원", "2025타경1235", "1") is None
-    assert len(calls) == 2
-    for p in calls:
-        assert p.get("court") == "eq.대구지방법원"   # 두 쿼리 모두 court 고정
+    assert len(calls) == 1                                # 폴백 쿼리 없음
+    assert calls[0].get("court") == "eq.대구지방법원"
+    assert calls[0].get("item_no") == "eq.1"

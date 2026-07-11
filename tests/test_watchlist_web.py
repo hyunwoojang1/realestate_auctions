@@ -143,3 +143,26 @@ def test_watchlist_page_survives_corrupt_file_with_banner(tmp_path, monkeypatch)
     r = c.get("/watchlist")
     assert r.status_code == 200                       # 500 아님
     assert "손상" in r.get_data(as_text=True)         # 원인 배너 노출
+
+
+# ---- 2026-07-11 감사 후속: 복합키(court|case_no|item_no) 전환 ----
+
+def test_toggle_with_court_item_uses_composite_key(client):
+    """court/item 폼 필드가 있으면 복합키로 저장 — 동명 사건 임의 물건 등록 방지."""
+    r = client.post(f"/watchlist/toggle/{SAMPLE_CASE}",
+                    data={"court": "서울북부지방법원", "item": "1"})
+    assert r.status_code == 302
+    stored = client.get("/api/watchlist").get_json()
+    assert stored == [f"서울북부지방법원|{SAMPLE_CASE}|1"]
+    # 같은 폼으로 다시 토글 → 해제
+    client.post(f"/watchlist/toggle/{SAMPLE_CASE}",
+                data={"court": "서울북부지방법원", "item": "1"})
+    assert client.get("/api/watchlist").get_json() == []
+
+
+def test_legacy_bare_case_entry_still_matches(client, tmp_path):
+    """구 파일의 bare case_no 엔트리도 관심 표시·해제가 계속 동작(하위호환)."""
+    import json as _json
+    (tmp_path / "watchlist.json").write_text(_json.dumps([SAMPLE_CASE]), encoding="utf-8")
+    body = client.get("/watchlist").get_data(as_text=True)
+    assert "상계주공" in body          # 레거시 엔트리로도 매칭

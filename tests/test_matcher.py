@@ -171,3 +171,10 @@ def test_appraisal_zero_skips_sanity():
     from src.matcher import estimate_market
     m = estimate_market(_lst(appraisal_price=0), TRADES)
     assert m.est is not None
+
+
+def test_unregistered_land_right_never_estimates():
+    """감사 L1: '대지권미등기'도 온전가 시세 추정 금지(지분과 같은 계열)."""
+    from src.matcher import SCOPE_SHARE_SALE, estimate_market
+    m = estimate_market(_lst(special_rights=["대지권미등기"]), TRADES)
+    assert m.est is None and m.scope == SCOPE_SHARE_SALE

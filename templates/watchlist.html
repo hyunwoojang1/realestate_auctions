@@ -46,7 +46,7 @@
 <h2>저장한 물건 <span style="color:var(--muted);font-weight:400">{{ watched | length }}건</span>
 {%- if watched | length >= 2 %}
   <a class="go" style="font-size:var(--t-data);margin-left:10px"
-     href="/compare?{% for s in watched[:4] %}case={{ s.case_no | urlencode }}{% if not loop.last %}&{% endif %}{% endfor %}">↔ 비교하기(상위 {{ [watched|length,4]|min }}건)</a>
+     href="/compare?{% for s in watched[:4] %}case={{ (s.court ~ '|' ~ s.case_no ~ '|' ~ s.item_no) | urlencode }}{% if not loop.last %}&{% endif %}{% endfor %}">↔ 비교하기(상위 {{ [watched|length,4]|min }}건)</a>
 {%- endif %}</h2>
 {% if watched %}
 <table class="params">
@@ -68,6 +68,7 @@
   <td class="num">{{ won(s.min_bid_price) }}</td>
   <td>{{ s.sale_date or '미상' }}</td>
   <td><form method="post" action="/watchlist/toggle/{{ s.case_no }}" style="margin:0">
+      <input type="hidden" name="court" value="{{ s.court }}"><input type="hidden" name="item" value="{{ s.item_no }}">
       <button type="submit" title="관심 해제">★ 해제</button></form></td>
 </tr>
 {% endfor %}
@@ -84,8 +85,9 @@
 대법원 법원경매정보에서 직접 확인하세요.</p>
 <div class="chips">
 {% for c in missing %}
-  <form method="post" action="/watchlist/toggle/{{ c }}" style="display:inline;margin:0">
-    <span class="chip mono">{{ c }} <button type="submit" title="관심 해제"
+  {#- c 는 복합키(court|case_no|item_no) 또는 레거시 case_no — 그대로 토글 키로 사용 -#}
+  <form method="post" action="/watchlist/toggle/{{ c | urlencode }}" style="display:inline;margin:0">
+    <span class="chip mono">{{ c.split('|')[1] if '|' in c else c }} <button type="submit" title="관심 해제"
       style="border:none;background:none;cursor:pointer">✕</button></span>
   </form>
 {% endfor %}

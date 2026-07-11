@@ -397,9 +397,11 @@ class CourtAuctionClient:
                 break
         full_pages = -(-total // PAGE_SIZE)
         if last_page < full_pages:
-            # max_pages 상한으로 의도적으로 일부만 수집 — 손실 아님(INFO)
-            logger.info("검색 일부수집 %d행 (max_pages=%d 제한, 총 %d중 %d페이지)",
-                        yielded, max_pages, total, last_page)
+            # (재검증 감사 2026-07-11 idx21 CRITICAL) max_pages 잘림은 '의도적'이어도 침묵하면
+            # 안 된다 — 기본값 10p=400행에서 부산 등 대형 시도의 유효매물 수백 건이 매일 조용히
+            # 누락됐다. WARNING 으로 승격해 수집 배치 로그에서 즉시 드러나게 한다.
+            logger.warning("⚠ 검색 잘림: %d행만 수집 (max_pages=%d 제한, 총 %d건 중 %d건 누락 "
+                           "— --max-pages 상향 필요)", yielded, max_pages, total, total - yielded)
         elif yielded < total * 0.9:
             # 전 페이지를 돌았는데도 10%+ 부족 = 진짜 누락(서버이상/조용한차단) → 경고
             logger.warning("검색 종료 %d행 — 전 페이지 순회했으나 totalCnt %d 대비 누락률 %.0f%%",

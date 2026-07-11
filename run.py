@@ -35,7 +35,9 @@ def main(argv=None) -> int:
     ap.add_argument("--cash", type=int, default=None,
                     help="가용현금(원). courtauction 소스에서 '최저가<=현금' 매물만(감정가버퍼로 서버축소)")
     ap.add_argument("--sido", default="", help="courtauction 시도코드(11=서울 …). 미지정=전국")
-    ap.add_argument("--max-pages", type=int, default=10, help="courtauction 페이지 상한(1p=40건)")
+    # (재검증 감사 idx21) 기본 10p=400행은 부산 등 대형 시도에서 매일 수백 건을 조용히 잘랐다
+    # → 25p=1000행으로 상향(17개 시도 × 25p = 425요청, daily_cap 500 내).
+    ap.add_argument("--max-pages", type=int, default=25, help="courtauction 페이지 상한(1p=40건)")
     ap.add_argument("--appraisal-buffer", type=float, default=3.0,
                     help="affordable 감정가 상한 배수(현금×버퍼). 다회유찰 저가매물 누락 방지(기본 3)")
     ap.add_argument("--nationwide", action="store_true",
@@ -115,6 +117,14 @@ def main(argv=None) -> int:
         from src.courtauction_fields import merge_mokmul_rows  # noqa: E402, PLC0415
         merged_records = merge_mokmul_rows(records)
         listings = [to_auction_listing(r) for r in merged_records]
+        # 만료 방어(재검증 감사 idx26): 매각기일이 지난 물건은 채점·서빙 대상에서 제외
+        # (크롤 원본에 과거 기일 행이 섞여 들어옴 — 7/7 수집분에 461행 실측).
+        from datetime import date as _date  # noqa: PLC0415
+        _today = _date.today().isoformat()
+        n_before = len(listings)
+        listings = [x for x in listings if not x.sale_date or x.sale_date >= _today]
+        if len(listings) < n_before and not args.json:
+            print(f"  만료(기일 경과) 제외: {n_before - len(listings)}건")
         scored = pipeline.run(use_live=use_live, deal_ymd=args.ym, auctions=listings)
     else:
         scored = pipeline.run(use_live=use_live, deal_ymd=args.ym)

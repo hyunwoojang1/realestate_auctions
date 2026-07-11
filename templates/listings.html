@@ -167,8 +167,10 @@
       <a class="pk-name rowlink" href="{{ proplink(s) }}">{{ s.apt_name or s.property_type }}</a>
       <div class="pk-addr">{{ s.address }} · {{ s.property_type }} · {{ '%.0f'|format(s.area_m2) }}㎡</div>
       <div class="pk-case">{{ s.case_no }}
+        {%- set on = (s.court ~ '|' ~ s.case_no ~ '|' ~ s.item_no) in (watched or []) or s.case_no in (watched or []) -%}
         <form method="post" action="/watchlist/toggle/{{ s.case_no }}" style="display:inline;margin:0">
-          <button type="submit" class="pk-star" title="{% if s.case_no in (watched or []) %}관심 해제{% else %}관심 등록{% endif %}">{% if s.case_no in (watched or []) %}★{% else %}☆{% endif %}</button>
+          <input type="hidden" name="court" value="{{ s.court }}"><input type="hidden" name="item" value="{{ s.item_no }}">
+          <button type="submit" class="pk-star" title="{% if on %}관심 해제{% else %}관심 등록{% endif %}">{% if on %}★{% else %}☆{% endif %}</button>
         </form>
         {{ burdenchip(b) }}{{ statuschip(s, sm=True, skip_pending=(b is not none)) }}
       </div>

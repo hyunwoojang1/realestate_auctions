@@ -38,7 +38,9 @@ def test_parse_first_row_core_fields():
     assert rec.court == "서울중앙지방법원"
     assert rec.dept == "경매8계"
     assert rec.appraisal_price == 95_000_000
-    assert rec.min_bid_price == 76_000_000
+    # (재검증 감사 idx15) 최저입찰가 = 다가오는 기일의 공고가(notifyMinmaePrice1=60.8M).
+    # fixture의 minmaePrice 76M은 '직전 회차' 가격 — 과거엔 이를 오용했다.
+    assert rec.min_bid_price == 60_800_000
     assert rec.fail_count == 2
     assert rec.area_m2 == 33.56
     assert rec.lawd_cd == "11620"          # 국토부 LAWD_CD 5자리
@@ -91,8 +93,8 @@ def test_free_text_name_masking_in_bigo():
 
 def test_discount_vs_appraisal():
     rec = parse_row(_rows()[0])
-    # (95,000,000 - 76,000,000)/95,000,000 = 0.2
-    assert abs(rec.discount_vs_appraisal - 0.2) < 1e-9
+    # (95,000,000 - 60,800,000)/95,000,000 = 0.36 — 공고가(notify1) 기준(idx15)
+    assert abs(rec.discount_vs_appraisal - 0.36) < 1e-9
 
 
 def test_to_auction_listing_maps_to_pipeline_model():
@@ -102,7 +104,7 @@ def test_to_auction_listing_maps_to_pipeline_model():
     assert lst.case_no == "2025타경1352"
     assert lst.lawd_cd == "11620"
     assert lst.appraisal_price == 95_000_000
-    assert lst.min_bid_price == 76_000_000
+    assert lst.min_bid_price == 60_800_000   # 공고가(notify1) 기준 — idx15
     assert lst.area_m2 == 33.56
 
 

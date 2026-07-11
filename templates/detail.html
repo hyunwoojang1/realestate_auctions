@@ -23,6 +23,7 @@
     <p class="meta">{{ s.address }} · {{ s.property_type }} · {{ '%.1f'|format(s.area_m2) }}㎡ · 유찰 {{ s.fail_count }}회 · 매각기일 {{ s.sale_date }} · 준공연도 미확인<span style="color:var(--ink-300)">(건축물대장 API 대기)</span></p>
   </div>
   <form method="post" action="/watchlist/toggle/{{ s.case_no }}" style="margin:0">
+    <input type="hidden" name="court" value="{{ s.court }}"><input type="hidden" name="item" value="{{ s.item_no }}">
     <button type="submit" class="watchbtn">{% if watching %}★ 관심 해제{% else %}☆ 관심 등록{% endif %}</button>
   </form>
 </div>
@@ -142,7 +143,7 @@
       {% if s.market_sample_basis is not none and s.est_market_price is not none %}
       <div class="drow"><span class="k">밴드 근거 표본 <span class="hint">(12개월·이상치 제외)</span></span><span class="v">{{ s.market_sample_basis }}건</span></div>
       {% endif %}
-      {%- set scope_names = {'same_complex_same_area':'같은 단지·같은 평형 (추천 인정)','same_complex_near_area':'같은 단지·인접 평형 (참고)','same_dong_fallback':'같은 법정동 폴백 (참고·추천 제외)','unsupported':'미지원 유형','no_comps':'표본 없음','share_sale':'지분 매각 — 온전가 비교 무의미(추정 안 함)','appraisal_mismatch':'감정가 괴리 — 비교군 불신(추정 무효)'} -%}
+      {%- set scope_names = {'same_complex_same_area':'같은 단지·같은 평형 (추천 인정)','same_complex_near_area':'같은 단지·인접 평형 (참고)','same_dong_fallback':'같은 법정동 폴백 (참고·추천 제외)','unsupported':'미지원 유형','no_comps':'표본 없음','share_sale':'지분·대지권 문제 — 온전가 비교 무의미(추정 안 함)','appraisal_mismatch':'감정가 괴리 — 비교군 불신(추정 무효)'} -%}
       {% if s.market_scope %}<div class="drow"><span class="k">시세 비교군</span><span class="v" style="font-weight:600;color:var(--ink-600);font-size:13px">{{ scope_names.get(s.market_scope, s.market_scope) }}</span></div>{% endif %}
       {% if ask_points %}
       {%- set pos_names = {'below':'밴드 아래','inside':'밴드 안','above':'밴드 위'} -%}

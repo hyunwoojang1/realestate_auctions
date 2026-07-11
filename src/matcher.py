@@ -110,8 +110,24 @@ _PROPERTY_KIND = {
 }
 
 
+# 단지명 한↔영 브랜드 표기 통일(재검증 감사 idx28 HIGH — '신천엘에이치' vs 'LH신천' 등
+# 표기 차이로 같은 단지·같은 평형 실거래를 놓치고 fallback 참고치로 새던 문제).
+# 정규화 후(공백 제거·소문자) 기준의 치환 테이블 — 영문을 한글 표기로 통일.
+_BRAND_ALIASES = (
+    ("lh", "엘에이치"),
+    ("gs", "지에스"),
+    ("sk", "에스케이"),
+    ("kcc", "케이씨씨"),
+    ("e편한세상", "이편한세상"),
+    ("xi", "자이"),
+)
+
+
 def _norm(s: str) -> str:
-    return s.replace(" ", "").lower()
+    out = s.replace(" ", "").lower()
+    for eng, kor in _BRAND_ALIASES:
+        out = out.replace(eng, kor)
+    return out
 
 
 def expected_kind(property_type: str) -> str | None:
@@ -243,10 +259,12 @@ def estimate_market(listing: AuctionListing, trades: list[Trade]) -> MarketEstim
         logger.debug("미지원 유형 물건(%s, %s) — 시세추정불가(v1 정책)",
                      listing.case_no, listing.property_type)
         return MarketEstimate(None, 0, SCOPE_UNSUPPORTED)
-    if "지분" in (listing.special_rights or []):
-        # 지분 매각(실사고 2026-07-10: 비고 '지분매각'인데 온전 아파트 시세가 붙어 허상 차익):
-        # 낙찰 대상이 소유권 일부라 '온전 물건 실거래' 비교 자체가 무의미 — 시세를 말하지 않는다.
-        logger.debug("지분 매각 물건(%s) — 온전가 시세 추정 금지", listing.case_no)
+    _sr = listing.special_rights or []
+    if "지분" in _sr or "대지권미등기" in _sr:
+        # 온전 소유권이 아닌 매각(실사고 2026-07-10 + 감사 L1): 지분 매각은 소유권 일부,
+        # 대지권미등기는 대지 지분 없는 전유부 — 둘 다 '온전 물건 실거래' 비교가 무의미해
+        # 시세를 말하지 않는다(페널티 점수만으로는 허상 차익이 남는다).
+        logger.debug("지분/대지권미등기 물건(%s) — 온전가 시세 추정 금지", listing.case_no)
         return MarketEstimate(None, 0, SCOPE_SHARE_SALE)
     if listing.area_m2 <= 0:
         # 면적 파싱 실패(0/미상)면 comps 매칭이 무조건 비어 '시세추정불가'가 된다.

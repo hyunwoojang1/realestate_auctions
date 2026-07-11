@@ -338,6 +338,19 @@ class CourtAuctionRecord:
         return label_row(self.raw)
 
 
+def _clean_lawd(raw: str) -> str:
+    """법정동코드 정제 — 콤마 오염(',47290'·'51150,42150' 실측 10건, 재검증 감사 idx29)이
+    있으면 첫 유효 5자리를 취한다. 오염 그대로면 MOLIT 조회가 무조건 0건으로 침묵한다."""
+    s = (raw or "").strip()
+    if "," not in s:
+        return s
+    for part in s.split(","):
+        p = part.strip()
+        if len(p) == 5 and p.isdigit():
+            return p
+    return s.replace(",", "")[:5]
+
+
 def _has_building(rec: "CourtAuctionRecord") -> bool:
     """이 목적물 행에 건물 실체 표식이 있는가(집합건물 전유 행 판별)."""
     r = rec.raw or {}
@@ -395,13 +408,17 @@ def parse_row(raw: dict) -> CourtAuctionRecord:
         sido=clean.get("hjguSido", ""),
         sigu=clean.get("hjguSigu", ""),
         dong=clean.get("hjguDong", ""),
-        lawd_cd=clean.get("srchHjguSiguCd", ""),
+        lawd_cd=_clean_lawd(clean.get("srchHjguSiguCd", "")),
         jibun=clean.get("daepyoLotno", ""),
         building_name=clean.get("buldNm", ""),
         building_detail=clean.get("buldList", ""),
         area_m2=area,
         appraisal_price=to_won(clean.get("gamevalAmt")),
-        min_bid_price=to_won(clean.get("minmaePrice")),
+        # (재검증 감사 2026-07-11 idx15 CRITICAL) minmaePrice 는 '직전 회차' 가격이고,
+        # 다가오는 매각기일의 실제 공고 최저가는 notifyMinmaePrice1 이다(법원 검색화면 표시값,
+        # 전 매물의 73.6%에서 두 값이 다름 — 실측). 공고가 우선, 없으면 minmae 폴백.
+        min_bid_price=(to_won(clean.get("notifyMinmaePrice1"))
+                       or to_won(clean.get("minmaePrice"))),
         fail_count=to_int(clean.get("yuchalCnt")),
         sale_date=ymd_to_iso(clean.get("maeGiil")),
         sale_place=clean.get("maePlace", ""),

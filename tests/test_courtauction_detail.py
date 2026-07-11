@@ -106,7 +106,67 @@ def test_store_load_rights_fallback_keeps_court(tmp_path):
         "claim_amt": None, "demand_end": "", "spec_write_ymd": "", "court_dept": "",
         "schedule": "[]", "fetched_at": "",
     }])
-    # 같은 사건번호, 다른 법원으로 조회 → 폴백이 타법원 행을 반환하면 안 됨
+    # 같은 사건번호, 다른 법원 → None (타법원 오표시 금지)
     assert store.load_rights(conn, "대구지방법원", "2025타경1", "2") is None
-    # 같은 법원이면 item 폴백은 동작
-    assert store.load_rights(conn, "다른법원", "2025타경1", "2") is not None
+    # (재검증 감사 idx16) 같은 법원이어도 다른 물건번호는 None — 형제 물건 명세서 과신 금지
+    assert store.load_rights(conn, "다른법원", "2025타경1", "2") is None
+    # 정확 매칭만 반환
+    assert store.load_rights(conn, "다른법원", "2025타경1", "1") is not None
+
+
+# ---- 2026-07-11 재검증 감사 확정 — 권리 문구 파서 회귀 ----
+
+def test_double_negation_is_assumption(): 
+    """idx7 CRITICAL: '말소되지 않고 … 인수함'은 negation('말소')이 있어도 인수다."""
+    from src.courtauction_rights import detect_assumed_amount
+    txt = "을구 5번 임차권등기(임대차보증금 450,000,000원)는 말소되지 않고 매수인이 인수함"
+    assert detect_assumed_amount(txt) == 450_000_000
+
+
+def test_korean_unit_amounts_parsed():
+    """idx8 CRITICAL: 억/천만/만원 한글 단위 금액도 읽는다."""
+    from src.courtauction_rights import detect_assumed_amount
+    assert detect_assumed_amount("임차보증금 4억5,000만원을 매수인이 인수함") == 450_000_000
+    assert detect_assumed_amount("보증금 금1억 원 매수인이 인수") == 100_000_000
+    assert detect_assumed_amount("6,500만원 인수 부담") == 65_000_000
+
+
+def test_no_assumption_phrase_not_opposable():
+    """idx9 HIGH: '매수인이 인수하지 아니함'(인수 0원 확정)은 opposable 아님."""
+    from src.courtauction_rights import detect_tenant_opposable
+    txt = "특별매각조건: 임차보증금은 매수인이 인수하지 아니함"
+    assert detect_tenant_opposable(txt) is False
+
+
+def test_release_consent_not_opposable():
+    """idx10 HIGH: 임차권등기라도 말소 동의·대항력 포기 문맥이면 opposable 아님."""
+    from src.courtauction_rights import detect_tenant_opposable
+    assert detect_tenant_opposable("을구 5번 임차권등기 있음. 임차인은 말소 동의 확약서 제출") is False
+    assert detect_tenant_opposable("임차인 대항력 포기. 임차권등기의 말소를 조건으로 매각") is False
+    # 해소 문구 없는 진짜 인수 절은 여전히 True (혼재 문서에서 미탐 금지)
+    assert detect_tenant_opposable(
+        "5번 임차권등기 말소 동의. 7번 임차권등기는 매수인이 인수함") is True
+
+
+def test_share_keyword_not_matched_in_bubun():
+    """idx11 MEDIUM: '부분의'가 지분으로 오탐되면 안 된다. 'N분의 M'은 지분."""
+    from src.courtauction_rights import detect_special_rights
+    assert "지분" not in detect_special_rights("건물 일부분의 하자 있음")
+    assert "지분" in detect_special_rights("소유권 2분의 1 매각")
+
+
+def test_multiple_deposits_summed_distinct():
+    """idx12 MEDIUM: 서로 다른 보증금 여러 건은 합산, 같은 금액 반복은 1회."""
+    from src.courtauction_rights import detect_assumed_amount
+    txt = ("갑 임차인 보증금 100,000,000원 매수인이 인수함\n"
+           "을 임차인 보증금 50,000,000원 매수인이 인수함\n"
+           "위 보증금 100,000,000원 인수 관련 재안내")
+    assert detect_assumed_amount(txt) == 150_000_000
+
+
+def test_empty_case_rights_is_empty():
+    """idx17 HIGH: 실체 신호 전무한 요지는 is_empty — clean 배지로 오판 금지."""
+    empty = CaseRights(court="법원", case_no="2025타경1", item_no="1")
+    assert empty.is_empty is True
+    filled = normalize(DMA)
+    assert filled.is_empty is False

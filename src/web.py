@@ -145,8 +145,20 @@ def _rights_badges() -> dict:
     return out
 
 
-def _filtered(args):
-    """요청 쿼리(min_profit[억]/min_score/type/region/sort)로 필터·정렬된 목록."""
+def _burden_of(badges: dict):
+    """badges → (물건 → 인수금액 원) 콜러블. 미크롤 물건은 0(차감 없음)."""
+    def f(s):
+        b = badges.get(f"{s.court}|{s.case_no}|{s.item_no}")
+        return b.assumed if b else 0
+    return f
+
+
+def _filtered(args, badges: dict | None = None):
+    """요청 쿼리(min_profit[억]/min_score/type/region/sort)로 필터·정렬된 목록.
+
+    정렬·최소차익 필터는 인수금 차감 후 유효 차익 기준 — 화면 표시(p_adj)와 일치
+    (감사 2026-07-10: 순위-표시 역전 해소).
+    """
     min_score = args.get("min_score", type=float)          # API 하위호환용
     min_profit_eok = args.get("min_profit", type=float)    # UI: 억 단위 입력
     min_profit = int(min_profit_eok * 1e8) if min_profit_eok else None
@@ -155,8 +167,11 @@ def _filtered(args):
     sort = args.get("sort", query.DEFAULT_SORT)
     if sort not in query.SORT_KEYS:
         sort = query.DEFAULT_SORT
+    burden = _burden_of(badges if badges is not None else _rights_badges())
     return query.sort_items(
-        query.apply_filters(_scored(), min_score, ptype, region, min_profit=min_profit), sort)
+        query.apply_filters(_scored(), min_score, ptype, region,
+                            min_profit=min_profit, burden_of=burden),
+        sort, burden_of=burden)
 
 
 def create_app() -> Flask:
@@ -173,7 +188,9 @@ def create_app() -> Flask:
     @app.get("/")
     def index():
         from . import tax  # noqa: PLC0415
-        items = _filtered(request.args)
+        # 인수 부담 배지(법원 명세서 크롤분) — '낙찰가 외 추가 부담' 여부를 목록에서 구분.
+        badges = _rights_badges()
+        items = _filtered(request.args, badges=badges)
         filters = {
             "min_profit": request.args.get("min_profit", ""),
             "type": request.args.get("type", ""),
@@ -181,18 +198,29 @@ def create_app() -> Flask:
             "sort": request.args.get("sort", query.DEFAULT_SORT),
             "clean": request.args.get("clean", ""),
         }
-        # 인수 부담 배지(법원 명세서 크롤분) — '낙찰가 외 추가 부담' 여부를 목록에서 구분.
-        badges = _rights_badges()
         if filters["clean"]:
             # '추가 인수 없음만' — 명세서로 clean 확인된 물건만(미확인은 보수적으로 제외).
+            # (재검증 감사 idx5) 시세추정불가·미지원유형 등 값이 전부 '—'인 물건도 제외 —
+            # 권리만 깨끗하고 판단 근거(시세·차익)가 없는 행이 섞이면 필터 취지가 흐려진다.
             items = [s for s in items
                      if (b := badges.get(f"{s.court}|{s.case_no}|{s.item_no}"))
-                     and b.is_clean]
+                     and b.is_clean
+                     and (s.profit_low is not None or s.expected_profit is not None)]
         # (T7→T8 감사 수정) 히어로 스포트라이트는 최대 추천 표면 — digest와 동일 게이트를
         # 레거시 통과 없이(strict) 적용한다: 보수차익 양수·같은단지같은평형·basis≥5·비위험.
         # 게이트 정보가 없는 구 DB에서는 히어로를 띄우지 않는다(검증 안 된 헤드라인 금지).
         from .digest import passes_recommend_gates  # noqa: PLC0415
-        hero = next((s for s in items if passes_recommend_gates(s, allow_legacy=False)), None)
+        # 히어로는 최대 추천 표면 — 채점 게이트에 더해 인수 부담 배지도 본다(감사 2026-07-10:
+        # '대항력+인수 3.3억, 실질 음수' 물건이 hero 로 뽑히던 사각). 명세서로 clean 확인된
+        # 물건만 허용하되, 배지 데이터가 아예 없는 환경(rights 미크롤 DB)은 기존 동작 유지.
+        def _hero_ok(s):
+            if not passes_recommend_gates(s, allow_legacy=False):
+                return False
+            if not badges:
+                return True
+            b = badges.get(f"{s.court}|{s.case_no}|{s.item_no}")
+            return b is not None and b.is_clean
+        hero = next((s for s in items if _hero_ok(s)), None)
         # (T8 감사 HIGH) 표시 물건 전부가 레거시(보수차익 미계산·구 채점)면 라벨-값 불일치가
         # 생기므로 배너로 고지하고 컬럼 라벨도 구 기준임을 표기한다.
         legacy_only = bool(items) and all(s.profit_low is None for s in items)
@@ -212,18 +240,30 @@ def create_app() -> Flask:
 
     @app.get("/api/listings")
     def listings():
-        return jsonify([s.to_row() for s in _filtered(request.args)])
+        # (재검증 감사 idx4) API 에도 인수 부담 필드 병기 — 소비자가 인수 미반영 profit 만
+        # 보고 실질 음수 물건을 양수로 오인하지 않게.
+        badges = _rights_badges()
+        out = []
+        for s in _filtered(request.args, badges=badges):
+            row = s.to_row()
+            b = badges.get(f"{s.court}|{s.case_no}|{s.item_no}")
+            row["burden_status"] = ("clean" if b and b.is_clean
+                                    else "burden" if b else "unknown")
+            row["assumed_amount"] = b.assumed if b else None
+            out.append(row)
+        return jsonify(out)
 
     @app.get("/export.csv")
     def export_csv():
         # 목록과 동일 필터·정렬 결과를 CSV로 다운로드(엑셀 검토용). 순수 조회.
-        items = _filtered(request.args)
+        badges = _rights_badges()
+        items = _filtered(request.args, badges=badges)
         # 저장된 CSV 파일만 봐도 출처를 알 수 있게 파일명에 각인 — 샘플 폴백(DB 장애/미적재)을
         # 라이브로 오인하는 침묵실패 방지(감사 #12 HIGH). db가 아니면 _SAMPLE 접미사.
         src = getattr(g, "data_source", "n/a")
         fname = "auction_arbitrage.csv" if src == "db" else "auction_arbitrage_SAMPLE.csv"
         # UTF-8-SIG BOM: 엑셀이 한글을 깨지 않게. report.csv_text 재사용(중복 구현 금지).
-        body = "﻿" + report.csv_text(items)
+        body = "﻿" + report.csv_text(items, badges=badges)
         resp = app.response_class(body, mimetype="text/csv")
         resp.headers["Content-Disposition"] = f'attachment; filename="{fname}"'
         resp.charset = "utf-8"
@@ -253,12 +293,17 @@ def create_app() -> Flask:
         cache = coords.load_coord_cache()
         feats = []
         skipped = 0
-        for s in _filtered(request.args):
+        geo_badges = _rights_badges()
+        for s in _filtered(request.args, badges=geo_badges):
             pt = coords.lookup(cache, s.uid, s.case_no, court=s.court)
             if not pt:
                 skipped += 1
                 continue
             p = q.decision_profit(s)
+            # (재검증 감사 idx4) 지도 핀 차익도 인수금 차감한 유효 차익으로.
+            b = geo_badges.get(f"{s.court}|{s.case_no}|{s.item_no}")
+            if p is not None and b and b.assumed:
+                p = p - b.assumed
             feats.append({
                 "type": "Feature",
                 "geometry": {"type": "Point", "coordinates": [pt[1], pt[0]]},
@@ -266,6 +311,7 @@ def create_app() -> Flask:
                     "case_no": s.case_no, "item_no": s.item_no,
                     "apt_name": s.apt_name, "property_type": s.property_type,
                     "grade": s.grade, "profit": p,
+                    "burden": ("clean" if b and b.is_clean else "burden" if b else "unknown"),
                     "conservative": s.profit_low is not None,
                     "min_bid": s.min_bid_price,
                     "url": f"/property/{s.case_no}" + (f"?item={s.item_no}" if s.item_no else ""),
@@ -381,7 +427,8 @@ def create_app() -> Flask:
             meter=report.gap_meter_html(s, askings=ask_points), won=report.won, pct=report.pct,
             gated=gated, gate_reason=", ".join(gate_reasons),
             tax_parts=tax_parts, tax_label=tax.PROFILE.label(),
-            watching=case_no in watchlist.load_watchlist(watchlist.watchlist_path()),
+            watching=watchlist.is_watched(
+                watchlist.load_watchlist(watchlist.watchlist_path()), s),
             data_source=getattr(g, "data_source", "n/a"),
             sample_gate_low=sample_gate_low, band_confident=band_confident_basis(),
             ask_points=ask_points, ask_overstated=ask_overstated,
@@ -393,12 +440,14 @@ def create_app() -> Flask:
         n = request.args.get("n", default=10, type=int)
         min_profit_eok = request.args.get("min_profit", type=float)
         min_profit = int(min_profit_eok * 1e8) if min_profit_eok else None
-        items = digest.top_listings(_scored(), n=n, min_profit=min_profit)
+        digest_badges = _rights_badges()
+        items = digest.top_listings(_scored(), n=n, min_profit=min_profit,
+                                    badges=digest_badges)
         filters = {"min_profit": request.args.get("min_profit", ""), "type": "", "region": "",
                    "sort": query.DEFAULT_SORT, "clean": ""}
         return render_template(
             "listings.html", items=items, count=len(items), filters=filters,
-            badges=_rights_badges(),
+            badges=digest_badges,
             won=report.won, pct=report.pct, meter=report.gap_meter_html,
             tax_label=tax.PROFILE.label(),
             data_source=getattr(g, "data_source", "n/a"))
@@ -418,8 +467,11 @@ def create_app() -> Flask:
         from . import tax  # noqa: PLC0415
         items = _scored()
         wl, wl_corrupt = watchlist.load_watchlist_status(watchlist.watchlist_path())
-        watched = query.sort_items([s for s in items if s.case_no in wl])
-        missing = sorted(wl - {s.case_no for s in items})
+        # 복합키(court|case_no|item_no) 우선 매칭 + 레거시(bare case_no) 하위호환.
+        watched = query.sort_items([s for s in items if watchlist.is_watched(wl, s)])
+        present = ({watchlist.wl_key(s.court, s.case_no, s.item_no) for s in items}
+                   | {s.case_no for s in items})
+        missing = sorted(wl - present)
         snap_path = watchlist.snapshot_path()
         prev, snap_corrupt = watchlist.load_snapshot_status(snap_path)
         events = (watchlist.detect_changes(prev, watchlist.snapshot_from_scored(items), wl)
@@ -438,28 +490,44 @@ def create_app() -> Flask:
     def watchlist_api_list():
         return jsonify(sorted(watchlist.load_watchlist(watchlist.watchlist_path())))
 
+    def _wl_key_from_request(case_no: str) -> str:
+        """요청의 court/item 파라미터로 복합키 구성 — 없으면(레거시 클라이언트) case_no 단독.
+
+        동명 사건(복수 법원)·다물건 사건에서 정확한 물건 하나만 등록/해제되게 한다(감사 2026-07-10).
+        """
+        court = request.values.get("court", "")
+        item = request.values.get("item", "")
+        if court:
+            return watchlist.wl_key(court, case_no, item)
+        return case_no
+
     @app.post("/api/watchlist/<case_no>")
     def watchlist_api_add(case_no: str):
         if not _case_exists(case_no):
             abort(404)
-        watchlist.add_watch(case_no, watchlist.watchlist_path())
+        watchlist.add_watch(_wl_key_from_request(case_no), watchlist.watchlist_path())
         return {"ok": True, "watching": True}
 
     @app.delete("/api/watchlist/<case_no>")
     def watchlist_api_remove(case_no: str):
-        watchlist.remove_watch(case_no, watchlist.watchlist_path())
+        p = watchlist.watchlist_path()
+        # 복합키·레거시 둘 다 제거(어느 쪽으로 등록됐든 해제되게)
+        watchlist.remove_watch(_wl_key_from_request(case_no), p)
+        watchlist.remove_watch(case_no, p)
         return {"ok": True, "watching": False}
 
     @app.post("/watchlist/toggle/<case_no>")
     def watchlist_toggle(case_no: str):
         p = watchlist.watchlist_path()
         wl = watchlist.load_watchlist(p)
-        if case_no in wl:
-            watchlist.remove_watch(case_no, p)
+        key = _wl_key_from_request(case_no)
+        if key in wl or case_no in wl:
+            watchlist.remove_watch(key, p)
+            watchlist.remove_watch(case_no, p)   # 레거시 엔트리도 함께 해제
         else:
             if not _case_exists(case_no):
                 abort(404)
-            watchlist.add_watch(case_no, p)
+            watchlist.add_watch(key, p)
         return redirect(_safe_back())
 
     @app.get("/calendar")
@@ -479,8 +547,22 @@ def create_app() -> Flask:
 
     @app.get("/stats")
     def stats_page():
-        d = stats.summarize(_scored())
-        return render_template("stats.html", d=d, won=report.won, pct=report.pct,
+        items = _scored()
+        d = stats.summarize(items)
+        # 권리 도넛 정직화(재검증 감사 idx2 HIGH): 과거 '전체 − 권리미확인 = 확인 완료(96%)'는
+        # 명세서를 한 번도 안 본 물건(차익없음·미지원유형 등)까지 '확인 완료'로 세는 왜곡.
+        # 실제 확인(=법원 명세서 크롤) 여부는 badges 존재로 센다.
+        badges = _rights_badges()
+        keys = {f"{s.court}|{s.case_no}|{s.item_no}" for s in items}
+        crawled = [k for k in keys if k in badges]
+        rights_stats = {
+            "crawled": len(crawled),
+            "burden": sum(1 for k in crawled if not badges[k].is_clean),
+            "clean": sum(1 for k in crawled if badges[k].is_clean),
+            "uncrawled": len(keys) - len(crawled),
+        }
+        return render_template("stats.html", d=d, rights=rights_stats,
+                               won=report.won, pct=report.pct,
                                data_source=getattr(g, "data_source", "n/a"))
 
     @app.get("/compare")
@@ -488,9 +570,12 @@ def create_app() -> Flask:
         from . import tax  # noqa: PLC0415
         cases = request.args.getlist("case")[:compare.MAX_COMPARE]  # 입력 개수 하드캡(방어)
         items = compare.select_for_compare(_scored(), cases)
-        # 요청했으나 조회 결과에 없는 사건(매각·취하 등으로 목록에서 사라짐) — 침묵 드롭 방지
-        found = {s.case_no for s in items}
-        missing_cases = [c for c in cases if c not in found]
+        # 요청했으나 조회 결과에 없는 사건(매각·취하 등으로 목록에서 사라짐) — 침묵 드롭 방지.
+        # 식별자는 복합키/레거시 혼재 — 둘 다 found 로 인정.
+        found = ({s.case_no for s in items}
+                 | {f"{s.court}|{s.case_no}|{s.item_no}" for s in items})
+        missing_cases = [c.split("|")[1] if "|" in c else c
+                         for c in cases if c not in found]
         taxes = {s.case_no: tax.acquisition_tax_breakdown(s.min_bid_price, s.property_type, s.area_m2)
                  for s in items}
         return render_template("compare.html", items=items, taxes=taxes,

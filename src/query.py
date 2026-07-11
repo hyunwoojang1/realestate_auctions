@@ -40,12 +40,18 @@ def decision_profit(s: ScoredListing) -> int | None:
 
 def apply_filters(items: list[ScoredListing], min_score: float | None = None,
                   property_type: str | None = None, region: str | None = None,
-                  min_profit: int | None = None) -> list[ScoredListing]:
-    """물건종류·지역·최소차익(원, 보수 기준)·(내부용) 최소점수 필터."""
+                  min_profit: int | None = None, burden_of=None) -> list[ScoredListing]:
+    """물건종류·지역·최소차익(원, 보수 기준)·(내부용) 최소점수 필터.
+
+    burden_of: 물건 → 인수금액(원). 주어지면 최소차익 비교도 인수 차감 후 값으로
+    (감사 2026-07-10: 필터·정렬은 저장 차익, 화면은 차감 차익 — 불일치 해소).
+    """
     out = items
     if min_profit is not None:
-        out = [s for s in out
-               if decision_profit(s) is not None and decision_profit(s) >= min_profit]
+        def _eff(s):
+            p = decision_profit(s)
+            return None if p is None else p - (burden_of(s) if burden_of else 0)
+        out = [s for s in out if _eff(s) is not None and _eff(s) >= min_profit]
     if min_score is not None:   # 내부/API 하위호환용 — UI는 min_profit 사용
         out = [s for s in out if s.arb_score is not None and s.arb_score >= min_score]
     if property_type:
@@ -55,14 +61,21 @@ def apply_filters(items: list[ScoredListing], min_score: float | None = None,
     return out
 
 
-def sort_items(items: list[ScoredListing], key: str = DEFAULT_SORT) -> list[ScoredListing]:
-    """정렬 — 기본(profit)은 비교군 신뢰 티어 → 보수 차익 내림차순. gap/score 는 기존 유지.
+def sort_items(items: list[ScoredListing], key: str = DEFAULT_SORT,
+               burden_of=None) -> list[ScoredListing]:
+    """정렬 — 기본(profit)은 비교군 신뢰 티어 → 유효 차익(인수금 차감) 내림차순.
 
     검증 비교군(같은 단지) 물건이 폴백 참고치보다 항상 위 — '추천 금지 참고치'의 부풀린
     차익이 첫 화면 헤드라인을 차지하지 않게 한다(감사 2026-07-10).
+    burden_of 가 주어지면 정렬 차익에서 인수금을 차감 — 화면 표시(p_adj)와 순위가 일치한다
+    (인수 5억 물건이 표시상 −2.96억인데 상위 랭크에 남는 순위-표시 역전 해소).
     """
     if key == "gap":
         return sorted(items, key=lambda s: (s.gap_rate is None, -(s.gap_rate or 0)))
     if key == "score":
         return sorted(items, key=lambda s: (s.arb_score is None, -(s.arb_score or 0)))
-    return sorted(items, key=lambda s: (scope_tier(s), -(decision_profit(s) or 0)))
+
+    def _eff(s):
+        p = decision_profit(s)
+        return None if p is None else p - (burden_of(s) if burden_of else 0)
+    return sorted(items, key=lambda s: (scope_tier(s), -(_eff(s) or 0)))

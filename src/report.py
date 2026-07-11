@@ -43,13 +43,30 @@ def to_console(items: list[ScoredListing]) -> str:
     return "\n".join(lines)
 
 
-def csv_text(items: Iterable[ScoredListing]) -> str:
+def csv_text(items: Iterable[ScoredListing], badges: dict | None = None) -> str:
     """채점 결과를 CSV 문자열로. 웹 다운로드(/export.csv)·파일 저장(to_csv) 공통 소스.
 
-    빈 목록이면 빈 문자열(헤더도 없음 — 열 스키마는 행에서 파생하므로).
-    줄바꿈은 CSV 표준 CRLF. BOM은 붙이지 않는다(파일/HTTP 계층에서 인코딩 선택).
+    badges 가 주어지면 인수 부담 3열 병기(재검증 감사 idx4 HIGH — 인수 미반영 profit 만
+    export 돼 실질 음수 물건이 양수로 나가던 문제): 인수부담(없음/있음/미확인)·인수금액(원)·
+    유효차익(보수차익−인수금액; 금액 미상 burden 은 공란 = 판단 불가).
+    빈 목록이면 빈 문자열. 줄바꿈은 CSV 표준 CRLF.
     """
-    rows = [s.to_row() for s in items]
+    rows = []
+    for s in items:
+        row = s.to_row()
+        if badges is not None:
+            b = badges.get(f"{s.court}|{s.case_no}|{s.item_no}")
+            p = s.profit_low if s.profit_low is not None else s.expected_profit
+            if b is None:
+                row["인수부담"], row["인수금액"], row["유효차익"] = "미확인", "", ""
+            elif b.is_clean:
+                row["인수부담"], row["인수금액"] = "없음(명세서 확인)", 0
+                row["유효차익"] = p if p is not None else ""
+            else:
+                row["인수부담"] = "있음" + ("(금액 미상)" if b.amount_unknown else "")
+                row["인수금액"] = b.assumed or ""
+                row["유효차익"] = (p - b.assumed) if (p is not None and b.assumed) else ""
+        rows.append(row)
     if not rows:
         return ""
     buf = io.StringIO()

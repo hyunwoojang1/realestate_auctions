@@ -35,11 +35,25 @@ def snapshot_path() -> Path:
     return Path(os.environ.get("AUCTION_SNAPSHOT") or SNAPSHOT_PATH)
 
 
+def wl_key(court: str, case_no: str, item_no: str = "") -> str:
+    """관심물건·스냅샷 식별 키 — (court|case_no|item_no) 복합.
+
+    감사(2026-07-10) 확정: 사건번호는 법원별 독립 채번 + 한 사건에 물건 여러 개 —
+    case_no 단독 키는 동명 사건 67건·다물건 사건에서 임의 물건을 표시/알림하는 구조였다.
+    """
+    return f"{court}|{case_no}|{item_no or ''}"
+
+
+def is_watched(watched: set[str], s: ScoredListing) -> bool:
+    """복합키 우선, 레거시 항목(구 파일의 bare case_no)은 하위호환 매칭."""
+    return wl_key(s.court, s.case_no, s.item_no) in watched or s.case_no in watched
+
+
 def snapshot_from_scored(scored: list[ScoredListing]) -> dict:
     return {
-        s.case_no: {
+        wl_key(s.court, s.case_no, s.item_no): {
             "arb_score": s.arb_score, "min_bid_price": s.min_bid_price,
-            "apt_name": s.apt_name, "grade": s.grade,
+            "apt_name": s.apt_name, "grade": s.grade, "case_no": s.case_no,
         }
         for s in scored
     }
@@ -130,22 +144,31 @@ def detect_changes(prev: dict, current: dict, watchlist: set[str] | None = None,
                    threshold: float = DEFAULT_THRESHOLD) -> list[dict]:
     """직전(prev) 대비 현재(current) 변동 이벤트 목록. 둘 다 case_no→{arb_score,min_bid_price,...}."""
     events: list[dict] = []
-    cases = [c for c in current if (watchlist is None or c in watchlist)]
+    # watchlist 엔트리는 복합키 또는 레거시 case_no — 둘 다 매칭(하위호환).
+    def _watched(key: str, cur: dict) -> bool:
+        if watchlist is None:
+            return True
+        return key in watchlist or cur.get("case_no", key) in watchlist
+
+    cases = [c for c in current if _watched(c, current[c])]
     for c in cases:
         cur = current[c]
-        p = prev.get(c)
-        name = cur.get("apt_name", c)
+        # 표시·링크용은 실제 사건번호(복합키가 아니라) — 템플릿 /property/<case_no> 링크 정합.
+        case_no = cur.get("case_no", c)
+        # 구 스냅샷(bare case_no 키) 폴백 — 복합키 전환 직후 첫 비교가 끊기지 않게(하위호환).
+        p = prev.get(c) or prev.get(case_no)
+        name = cur.get("apt_name") or case_no
         if p is None:
             continue
         ps, cs = _score(p), _score(cur)
         if ps < threshold <= cs:
-            events.append({"case_no": c, "apt_name": name, "type": "차익 임계 돌파",
+            events.append({"case_no": case_no, "apt_name": name, "type": "차익 임계 돌파",
                            "detail": f"스코어 {ps:.0f}→{cs:.0f} (≥{threshold:.0f})"})
         elif cs > ps:
-            events.append({"case_no": c, "apt_name": name, "type": "스코어 상승",
+            events.append({"case_no": case_no, "apt_name": name, "type": "스코어 상승",
                            "detail": f"스코어 {ps:.0f}→{cs:.0f}"})
         pm, cm = p.get("min_bid_price", 0), cur.get("min_bid_price", 0)
         if cm and pm and cm < pm:
-            events.append({"case_no": c, "apt_name": name, "type": "최저가 하락(유찰)",
+            events.append({"case_no": case_no, "apt_name": name, "type": "최저가 하락(유찰)",
                            "detail": f"{pm / 1e8:.2f}억→{cm / 1e8:.2f}억"})
     return events

@@ -191,24 +191,20 @@ def upsert_rights(rows: list[dict]) -> int:
 
 
 def fetch_rights(court: str, case_no: str, item_no: str = "") -> dict | None:
-    """단건 권리 요지 조회(클라우드 서빙). item_no 매칭 우선, 없으면 **같은 법원** 사건 폴백.
+    """단건 권리 요지 조회(클라우드 서빙) — (court, case_no, item_no) 정확 매칭만.
 
-    ⚠ 폴백에서도 court 조건 유지 — 타법원 동명 사건번호가 실재하므로 court 를 빼면
-    엉뚱한 법원의 권리 내역이 표시된다(store.load_rights 와 동일 규칙).
+    (재검증 감사 idx16) 사건 단위 폴백은 형제 물건 명세서 과신 — store.load_rights 와
+    동일하게 정확 매칭 실패 = 미크롤 취급.
     """
     url, key, _ = _cfg()
-    for params in (
-        {"court": f"eq.{court}", "case_no": f"eq.{case_no}",
-         "item_no": f"eq.{item_no or ''}", "limit": 1},
-        {"court": f"eq.{court}", "case_no": f"eq.{case_no}", "limit": 1},
-    ):
-        r = requests.get(_endpoint(url, RIGHTS_TABLE), headers=_headers(key),
-                         params={"select": "*", **params}, timeout=15)
-        r.raise_for_status()
-        rows = r.json()
-        if rows:
-            return rows[0]
-    return None
+    r = requests.get(_endpoint(url, RIGHTS_TABLE), headers=_headers(key),
+                     params={"select": "*", "court": f"eq.{court}",
+                             "case_no": f"eq.{case_no}",
+                             "item_no": f"eq.{item_no or ''}", "limit": 1},
+                     timeout=15)
+    r.raise_for_status()
+    rows = r.json()
+    return rows[0] if rows else None
 
 
 def replace_all(items: Iterable[ScoredListing]) -> int:

@@ -81,6 +81,17 @@ class CaseRights:
         """인수 권리 또는 유치권류에 실질 문구가 있으면 True(상세 배너 강조용)."""
         return is_substantive(self.surviving_rights) or is_substantive(self.lien_note)
 
+    @property
+    def is_empty(self) -> bool:
+        """명세서 실체 신호가 전무한(빈/부분 응답) 요지 — clean 으로 오판하면 안 된다.
+
+        (재검증 감사 2026-07-11 idx17) 빈 pgj15B 응답이 badge=clean('낙찰 후 추가 인수
+        없음')으로 표시되는 것은 '애매하면 burden' 보수 원칙과 모순 — 작성일도 최선순위도
+        없는 요지는 판정 근거가 없으므로 저장·판정 대상에서 제외한다.
+        """
+        return not (self.spec_write_ymd or self.senior_lien.strip()
+                    or self.surviving_rights.strip() or self.lien_note.strip())
+
     def to_row(self) -> dict:
         d = asdict(self)
         d["schedule"] = json.dumps(self.schedule, ensure_ascii=False)

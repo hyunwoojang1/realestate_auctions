@@ -4,8 +4,9 @@
 {% block content %}
 {% set o = d.overview %}
 {% set total = o.count %}
-{% set pending = (d.grade_distribution | selectattr('name','equalto','권리미확인') | map(attribute='count') | sum) %}
-{% set confirmed = total - pending %}
+{# (재검증 감사 idx2) 권리 확인 = 법원 명세서 실제 크롤 여부(rights) — grade 기반 '나머지 전부
+   확인 완료' 왜곡 제거. #}
+{% set pending = rights.uncrawled if rights is defined else total %}
 {% set pending_pct = (pending / total * 100) | round | int if total else 0 %}
 {% set region_max = (d.by_sido | map(attribute='count') | max) if d.by_sido else 1 %}
 {% set type_max = (d.by_property_type | map(attribute='count') | max) if d.by_property_type else 1 %}
@@ -61,17 +62,22 @@
   <!-- 권리 도넛 · 유찰 바 -->
   <div class="grid-2" style="margin-bottom:var(--sp-4)">
     <div class="scard">
-      <h2 class="scard-title">권리 상태 비율</h2>
+      <h2 class="scard-title">권리 확인 현황 <span class="sub">· 법원 매각물건명세서 수집 기준</span></h2>
+      {% if rights is defined %}
+      {% set clean_pct = (rights.clean / total * 100) | round(1) if total else 0 %}
+      {% set burden_pct = (rights.burden / total * 100) | round(1) if total else 0 %}
       <div class="donut">
-        <div class="donut__ring" style="background:conic-gradient(var(--pending-dot) 0 {{ pending_pct }}%, var(--gain) {{ pending_pct }}% 100%)">
+        <div class="donut__ring" style="background:conic-gradient(var(--gain) 0 {{ clean_pct }}%, var(--risk) {{ clean_pct }}% {{ clean_pct + burden_pct }}%, var(--pending-dot) {{ clean_pct + burden_pct }}% 100%)">
           <div class="donut__hole"><span class="donut__pct">{{ pending_pct }}%</span><span class="donut__cap">미확인</span></div>
         </div>
         <div class="legend">
-          <div class="legend__item"><span class="legend__dot" style="background:var(--pending-dot)"></span>권리미확인 <b>{{ pending }}건</b></div>
-          <div class="legend__item"><span class="legend__dot" style="background:var(--gain)"></span>권리확인 완료 <b>{{ confirmed }}건</b></div>
-          <p style="margin:6px 0 0;font-size:12px;color:var(--ink-400);line-height:1.6">라이브 물건 대부분이 미확인 상태입니다. 확인은 매각물건명세서·등기부 검토 후 수동 반영됩니다.</p>
+          <div class="legend__item"><span class="legend__dot" style="background:var(--gain)"></span>명세서 확인 · 인수 없음 <b>{{ rights.clean }}건</b></div>
+          <div class="legend__item"><span class="legend__dot" style="background:var(--risk)"></span>명세서 확인 · 인수 부담 <b>{{ rights.burden }}건</b></div>
+          <div class="legend__item"><span class="legend__dot" style="background:var(--pending-dot)"></span>명세서 미수집 <b>{{ rights.uncrawled }}건</b></div>
+          <p style="margin:6px 0 0;font-size:12px;color:var(--ink-400);line-height:1.6">'확인'은 법원 매각물건명세서 요지를 실제 수집한 물건만 집계합니다. 미수집 물건은 권리 위험을 알 수 없습니다.</p>
         </div>
       </div>
+      {% endif %}
     </div>
 
     <div class="scard">

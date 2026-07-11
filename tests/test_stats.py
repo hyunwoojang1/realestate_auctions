@@ -125,5 +125,5 @@ def test_stats_page_renders():
     r = create_app().test_client().get("/stats")
     assert r.status_code == 200
     body = r.get_data(as_text=True)
-    assert "권리 상태 비율" in body            # 재디자인 통계 대표 섹션
+    assert "권리 확인 현황" in body            # 재검증 감사 idx2: 명세서 수집 기준 도넛
     assert "용도별" in body and "지역별" in body

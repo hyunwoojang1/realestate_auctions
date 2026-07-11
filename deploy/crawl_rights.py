@@ -77,7 +77,7 @@ def main(argv=None) -> int:
         return 0
 
     client = CourtAuctionClient()
-    ok, fail = 0, 0
+    ok, fail, skipped_empty = 0, 0, 0
     batch: list[dict] = []
     now = datetime.now(_KST).strftime("%Y-%m-%d %H:%M:%S")
     try:
@@ -92,16 +92,26 @@ def main(argv=None) -> int:
                 continue
             cr = normalize(dma, court=t["court"], case_no=t["case_no"],
                            item_no=t["item_no"], fetched_at=now)
+            if cr.is_empty:
+                # (재검증 감사 idx17) 빈/부분 응답은 저장하지 않는다 — 저장하면 clean 배지로
+                # 오판돼 '낙찰 후 추가 인수 없음'이라는 거짓 안전 신호가 된다.
+                skipped_empty += 1
+                print(f"  [{i}/{len(targets)}] {t['case_no']} 빈 명세서 응답 — 스킵(미확인 유지)")
+                continue
             batch.append(cr.to_row())
             ok += 1
-            if i % 10 == 0 or i == len(targets):
+            if i % 10 == 0:
                 store.save_rights(conn, batch)
-                print(f"  [{i}/{len(targets)}] 적재 누적 {ok}건 (실패 {fail})")
+                print(f"  [{i}/{len(targets)}] 적재 누적 {ok}건 (실패 {fail}·빈응답 {skipped_empty})")
                 batch = []
     except CourtAuctionBlocked as e:
+        print(f"[!] 차단/상한 신호로 중단(수집분은 저장됨): {e}", file=sys.stderr)
+    finally:
+        # (재검증 감사 idx18) 마지막 타깃이 실패/스킵이어도 잔여 batch 는 반드시 저장 —
+        # 'i == len(targets)' 조건은 continue 경로에서 건너뛰어져 최대 9건이 무경고 유실됐다.
         if batch:
             store.save_rights(conn, batch)
-        print(f"[!] 차단/상한 신호로 중단(수집분은 저장됨): {e}", file=sys.stderr)
+            print(f"  잔여 배치 저장 {len(batch)}건 (적재 총 {ok}·실패 {fail}·빈응답 {skipped_empty})")
 
     total = conn.execute("SELECT COUNT(*) FROM listing_rights").fetchone()[0]
     print(f"[+] listing_rights 총 {total}건")
