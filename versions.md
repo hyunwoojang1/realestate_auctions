@@ -15,6 +15,201 @@
 
 ---
 
+## 2026-07-11 16:20 KST — 🔬 다관점 감사 확정 13건 전면 수정 (7관점×적대검증, 사용자: "모든 배치 PASS면 진행")
+- 감사 결과: 원발견 50건 → 재현자+반증자 **만장일치 확정 13건**(CRITICAL 3·HIGH 6·MEDIUM 3·LOW 1),
+  기각/미검증 37건(상당수는 API 세션한도로 verify 미완 — 보고서 docs/audit-crawl-20260710.json).
+- **C1(CRITICAL) 유형분류 근본 결함**: dspslUsgNm 은 물건 용도가 아니라 법원 검색 **그룹명**
+  ("상가,오피스텔,근린시설" 889건 → 전량 '오피스텔' 분류 → 근생·사무소·지식산업센터 호실이
+  오피스텔 시세로 차익 산정, 35% 오염). 카테고리 '아파트' 안의 오피스텔 코드 물건 4건이
+  아파트 시세로 rank 10·11·26 노출. → **sclsUtilCd(세부용도코드)를 1차 분류 소스로 전환**
+  (_SCLS_TYPE/_SCLS_PREFIX_TYPE + classify_by_scls), 코드 미상+콤마 그룹명은 '혼합'(추정 미지원).
+  '아파트형공장' 데드룰도 선순위로 수정.
+- **C2(CRITICAL) 타지역 동명(洞名) comps 혼입**: trades 전국 풀에서 '동 이름'만 비교 —
+  서울 신정동↔대구 신정동 실거래 혼입 구조. → Trade.lawd_cd 신설, molit fetch 시 태깅,
+  matcher 풀 필터에 같은 시군구 제약(레거시 빈 값 통과).
+- **C3(CRITICAL) crawl_rights 조인 court 누락**: 타법원 boCd 로 엉뚱한 사건 권리 크롤·적재.
+  → 조인에 court 추가 + 동명사건(73개 case_no) rights 3건 삭제(재크롤 대상).
+- **H1 목적물(mokmulSer) 다중 행**: doc_id dedup 이 건물행·토지행을 모두 살려
+  INSERT OR REPLACE 마지막 행 승리(순서 의존) — 아파트 3건이 토지로 강등된 원인.
+  → merge_mokmul_rows(건물행 우선 병합) 신설, run.py 채점 직전 적용(raw 보존은 전 행 유지).
+- **H2 coords case: 폴백 court 누락**(인천 물건이 대구·전주 핀) → 키를 case:<court>|<case_no> 로.
+- **M1 기본정렬 scope 미반영**(상위 50 의 84%가 '추천 금지' fallback) → sort_items 기본 정렬을
+  [같은 단지(0) → 레거시(1) → 동 폴백(2) → 시세 없음(3)] 티어 내 차익 내림차순으로.
+- 게이트 강화: gate_scls_consistency 신설(시세 물건의 코드-유형 모순 — 첫 실행서 25건 적발),
+  gate_type_physical 을 다중행 그룹 판정으로 개선(건물행 있으면 정상).
+- 데이터 정정: scls 모순 25건 유형 교정+시세 무효화, 동명사건 rights 3건 로컬·클라우드 삭제,
+  무효화 행 전체(2,828) Supabase 재미러. **전 게이트 PASS 확인 후 미러**(사용자 정책 준수).
+- 테스트: 신규 4건(scls 분류·혼합·데드룰·mokmul 병합 양방향) + 구버그를 정답으로 고정하던
+  test_classify 1건·coords 키 2건 정책 갱신 — 전체 **407 passed**.
+- 남은 확정: H3(compare/watchlist 등 case_no 단일 키 표면 — 구조 변경 커서 백로그),
+  L1(대지권미등기 게이트 미발동 2건 — share_sale 게이트가 커버 중). 기각 37건 중 세션한도
+  미검증분은 차기 감사에서 재검증.
+
+## 2026-07-10 17:13 KST — 🛡️ 품질 게이트 도입 + 크롤 논리 다관점 감사 (사용자: "이런 오류 재발 금지, 전 배치 PASS여야 진행")
+- 배경(사용자): 침산동류 오류를 사람이 눈으로 잡는 구조 금지 — 크롤·검증 논리를 여러 구조로
+  나눠 다양하게 검사하고, 모든 배치가 맞다고 할 때만 진행하라.
+- **src/data_gates.py 신설** — 독립 관점 8종 배치(유형-물리 정합 / 가격 괴리(시세>감정×2.5) /
+  조인 무결성(court 복합키) / 지분·건물만·대지권 문구 / 만료 매물 / PK·가격 sanity /
+  권리 JSON 무결성 / 밴드 순서 불변식). 게이트 예외도 FAIL 로 표면화(조용한 통과 금지).
+  deploy/validate_data.py 실행기(종료코드로 차단 신호). **run.py·crawl_rights.py 미러 직전
+  배선 — 전 게이트 PASS 아니면 Supabase(서빙) 반영 차단, 로컬만 유지.**
+- 게이트 첫 실행이 즉시 잡아낸 추가 오염 **38건**(어제 5건 수정은 빙산의 일각이었음):
+  ①유형-물리 29건(주거 전 유형으로 확대 시 — 어제는 '아파트' 용도명만) ②비고 '지분매각'인데
+  온전가 시세 매칭 4건 ③감정가 괴리 5건 — **금오아파트(사용자에게 소개했던 물건!) 감정 1.4억
+  →est 6.3억(4.5배), 신천엘에이치 1.2억→13.7억(11배)**: same_dong_fallback 이 같은 동
+  '다른 단지(신축)' 실거래로 시세를 만드는 구조적 함정.
+- **matcher.py 원천 방어 2종**: (1) special_rights '지분' → 시세 추정 금지(scope=share_sale)
+  (2) est > 감정가×EST_VS_APPRAISAL_MAX(2.5) → 시세 무효화(scope=appraisal_mismatch, 경고 로그).
+  신규 scope 2종 detail.html 라벨 등록. 38건 일회성 정정(무효화) + Supabase 미러.
+- 검증: 정정 후 **전 게이트 PASS**. 테스트 신규 13건(matcher 회귀 4 + 게이트 9: 위반 검출/클린
+  통과/게이트 크래시 표면화/scope 라벨) — 전체 **401 passed**. 프로덕션 확인: 금오·신천
+  appraisal_mismatch 강등, 새 상위에 same_complex 물건 부상.
+- 진행 중: ultracode 다관점 감사 워크플로(7관점 find→만장일치 verify) 백그라운드 — 확정 발견
+  나오면 추가 수정 예정(이미 자체 발견·수정한 항목: rights 폴백 court 무시 건은 워크플로 결과
+  대조 후 처리).
+
+## 2026-07-10 14:3x KST — 🐛 나대지가 '아파트'로 둔갑한 허상 차익 수정 (사용자 검증 지적)
+- 발단(사용자): "1번 침산동 아파트(차익 4.45억) 말이 안 되잖아, 진짜 인수 없는 거 맞아?"
+- 진단: 감정가 1.5억 vs 시세 5.2억 괴리 → 상세 API 감정평가 요항 실측 — **"세장형의 토지로서
+  주거나지임"** = 침산동화타운 '인근' 나대지 109㎡. 법원 데이터가 용도명(dspslUsgNm)을
+  '아파트'로 등록 → classify_property_type 이 용도명만 신뢰 → 침산동 아파트 실거래와
+  오매칭(same_dong_fallback·표본3) → 4.45억 허상 차익이 랭킹 2위 노출. **인수권리 없음(clean)
+  판정 자체는 정확** — 문제는 물건유형 오분류.
+- 영향 범위(정밀 스캔, court 포함 조인 — 초기 스캔은 타법원 동명사건 오탐 31→**실제 5건**):
+  용도명 아파트+건물표식 전무+지목 있음 = 5건, 그중 시세 오매칭 허상 차익은 침산동 1건뿐
+  (나머지 4건은 면적 커서 매칭 실패로 이미 무해).
+- 수정: courtauction_fields.**verify_property_type()** 신설 — 주거유형인데 건물 표식
+  (buldNm/buldList/pjbBuldList) 전무 + 지목(jimokList) 존재 → '토지' 교정(미지원유형 정책 적용).
+  parse_row 에 배선. 기존 DB 5건(scored 4행) 정정(토지·미지원유형·시세/차익 NULL·scope=
+  unsupported) + Supabase 미러. 유닛 회귀 1건 추가 — 전체 **388 passed**.
+- 검증: 프로덕션 재조회 — 침산동={type:토지, grade:미지원유형, profit:None}, 랭킹 상위에서 강등.
+  새 상위 = 범어(+α경고)·금오·청주개신푸르지오.
+- 교훈: 법원 용도명 단독 신뢰 금지 — 물리 신호(건물표식·지목) 교차검증. 유사 패턴(감정가 대비
+  시세 3배↑ 괴리 게이트)은 후속 검토.
+
+## 2026-07-10 14:08 KST — 💰 예상 투입 분리: '낙찰가만 내면 끝' vs '인수 부담' 물건 구분 (사용자 요구)
+- 배경(사용자): 명세서 인수 정보를 각 물건에 넣어 "실제 유찰가 / 예상 투입 2개로 나눠 —
+  낙찰만 하면 따로 돈 낼 거 없는 물건과 아닌 물건을 바로 구분".
+- 판정: courtauction_detail.**summarize()→RightsBadge** — clean(명세서 확인, 인수신호 없음) /
+  burden(대항력·인수문구·특수권리·인수금액, 금액 미상이면 amount_unknown=+α). 판정 재료는 기존
+  courtauction_rights 파서 재사용, 보수 원칙(애매=burden).
+- 목록: **예상 투입 컬럼 신설**(입찰가+취득세+인수금) — clean="이게 전부(인수 없음)" /
+  금액파싱="인수금 포함"(빨강) / 미상="+α 보증금 인수 별도"(빨강) / 미크롤="인수 미확인".
+  칩 3분류(✓인수 없음 초록 / ⚠인수 금액·+α 빨강 / 권리미확인). **예상 차익 = 시세−예상 투입**
+  으로 인수금 반영(미상은 "−α 인수 미반영⚠" 병기), 반영 후 ≤0이면 dim. 모바일 3-stat도 투입 중심.
+  **"인수 없음만" 필터 체크박스**(clean=1, 미확인은 보수적으로 제외). 히어로에도 칩.
+- 상세: 히어로 차익에 인수금 차감 반영(+계산식에 "−인수금액"/"−α" 항), 미상이면
+  "실제 차익은 이보다 작습니다" 경고.
+- 배선: store.fetch_all_rights / store_rest.load_all_rights(TTL캐시)+upsert_rights 캐시무효 /
+  web._rights_badges()(court|case_no|item_no 키) → index·digest 렌더에 badges 전달.
+- 크롤: 상위 200건 배치 완료(194행, 실패 0). 판정 분포 = **clean 99 / 인수+금액 33 / 인수+미상 62**
+  — 상위 차익의 절반이 인수 부담(기능 존재 이유 실증). Supabase auction_listing_rights 미러
+  194건(사용자 DDL Run 후, 재조회 대조 일치).
+- 검증: 육안 — 8위 반월당효성 인수 5.00억 반영 → 차익 2억대→**−2.96억 손실 반전**(dim),
+  11위 트윈스 인수 1.3억→0.63억 축소. clean=1 → 정확히 99건. 테스트 신규 3건(summarize
+  clean/burden금액/burden미상) — 전체 **387 passed**. 프로덕션 배포·라이브 확인(투입 컬럼 전 행·
+  보증금별도 62·clean필터 99·상세 인수경고).
+- 다음: 크롤 커버리지 확대(일 500 cap 내 스케줄러), 명세서 임차인 표(보증금 금액) 추가 수집 검토.
+
+## 2026-07-10 13:50 KST — ⚖️ 권리분석 연결: 법원 매각물건명세서 요지 + 기일 역사 (사용자 요구)
+- 배경(사용자): "유찰 10회짜리 말도 안 되는 물건들 — 권리분석 왜 연결 안 했냐. 딱 보자마자 권리
+  내역(근저당 언제, 임차 등) 나오게 해달라."
+- 데이터 원천 확보: 법원경매정보 물건상세 JSON API **실측 발굴**(Playwright XHR 캡처 →
+  `POST /pgj/pgj15B/selectAuctnCsSrchRslt.on`, 미니멀 페이로드 csNo+cortOfcCd+dspslGdsSeq+pgmId
+  로 requests 동작 검증). 응답에 매각물건명세서 요지(ndstrcRghCtt 인수권리 /
+  tprtyRnkHypthcStngDts 최선순위=말소기준 / sprfcExstcDts 유치권)·청구금액·배당요구종기·기일역사.
+  기일 결과/종류 공식 코드표(sccd/list.on)도 실측 확보. ※등기부 전체 역사는 인터넷등기소 유료라 제외.
+- 구현: courtauction_client.case_detail(기존 스로틀·서킷·kill-switch 경유, _post url/validator
+  파라미터화) · **src/courtauction_detail.py** 신규(normalize→CaseRights, 코드표 매핑, 기일 최신순)
+  · store.py listing_rights 테이블+save/load · store_rest upsert_rights/fetch_rights ·
+  **deploy/crawl_rights.py** 배치(우선순위=보수차익 양수→유찰多, 재실행 안전, 차단시 저장 후 중단)
+  · web.py property_detail: rights 로드(SQLite/REST)→listing 권리필드 실채움(rights_verified 해제)
+  · detail.html STEP3: §명세서 요지 패널(⛔인수권리 빨간배너/최선순위/유치권/비고/청구액/종기)
+  + ↻기일 내역 테이블(유찰 역사, 결과 색).
+- 🐛 실측 미탐 수정: 1위 물건(2025타경669, 유찰10회) 원문 "매수인에게 대항할 수 있는 …
+  임차권등기 … 매수인이 인수함"이 기존 _OPPOSABLE_PHRASES 미매칭(조사 차이) →
+  tenant_opposable=False 로 초록 "✓치명적 인수권리 미발견" 오도. phrase 3종 보강
+  ("매수인에게 대항할 수 있는"/"매수인이 인수"/"임차권등기") + STEP3 에 '대항력 임차인 주의'
+  위험 분기 신설(하드게이트 아님이어도 초록 체크 금지).
+- 검증: 라이브 3건 크롤→1위 임차권등기·2위 2021.4.28.근저당·3위 2016.1.14.근저당 정확 추출.
+  로컬 렌더 스크린샷(명세서 배너+기일 12건 8.3억→0.23억 유찰 계단). 테스트 신규 6건
+  (normalize·코드매핑·라운드트립·실측미탐 회귀) — 전체 **384 passed**.
+- 진행: 상위 200건 배치 크롤 백그라운드 실행 중(3~8s 스로틀). deploy/supabase_rights.sql 준비
+  (auction_listing_rights, 사용자 SQL Editor Run 대기) → 미러 → Vercel 재배포 예정.
+
+## 2026-07-10 12:06 KST — 🎨 UX 개편: 목록 단순화 + 상세 '가격 지도' (사용자 가독성 피드백)
+- 배경(사용자 피드백): ①목록 게이지 막대 의미 불명("초록 칸이 뭔지") ②용어 혼란("원가"? 초록 가격이
+  유찰가인지 시세인지, "최저가"?) ③해법 = 목록은 간단히, 눌러 들어간 상세에서 밴드·시세·호가·유찰가
+  시각화를 제대로.
+- 목록(listings.html): gm2 게이지 전면 제거. 데스크톱 컬럼 = 단지/소재지 · **최저입찰가**(이번 회차
+  시작가) · **예상 시세**(실거래 검증 하한) · **예상 차익**(시세−최저입찰가+취득세) · 매각기일 — 헤더에
+  용어 힌트 병기. 모바일 카드 = 라벨 붙은 3-stat. 히어로 = 게이지 대신 최저입찰가→예상 시세 스탯.
+  "원가"·무라벨 초록 숫자 목록에서 소멸.
+- 상세(detail.html): 히어로에 **가격 지도(pxm)** 신설 — 한 축 위에 감정가(→유찰 N회 −저감%),
+  최저입찰가, 총 취득원가(=최저입찰가+취득세), 실거래 검증 밴드, 호가 점을 전부 이름+금액 라벨로 배치,
+  범례+계산식(검증 시세(하한) − 취득원가) 첨부. 좌표는 신규 src/pricemap.py 서버 계산(축 클램프·edge
+  정렬 힌트로 모바일 라벨 잘림 방지). web.py property_detail 이 pmap 전달.
+- 🐛 테스트 전역 오염 수정: run.py CLI 가 .env 를 environ 에 로드(원래 동작) + 어제 .env 에 SUPABASE_*
+  추가 + 오늘 클라우드에 3,622건 적재 → run.py 호출 테스트 이후 모든 테스트의 _scored() 가 클라우드
+  실데이터를 읽어 21건 연쇄 실패(어제까지는 빈 테이블 폴백으로 잠복). **tests/conftest.py 신설** —
+  autouse 로 매 테스트 AUCTION_DB/SUPABASE_* 삭제(라이브 0 원칙, 명시 setenv 한 테스트만 백엔드 사용).
+- 테스트: test_pricemap.py 신규 6건(순서·경계·보수 gain·폴백·클램프). trust_copy 카피 1건 갱신
+  ("건 기준"→"근거 표본", 불변식 유지). 전체 **379 passed**.
+- 증거: Playwright 스크린샷 4장(scratchpad ux_*.png) — 데스크톱 목록/상세, 모바일 목록카드/상세
+  (edge-l 적용 후 취득원가 라벨 잘림 해소 확인). 로컬 :8100 재기동 검증.
+- 평가자: -
+- 다음: Vercel prod 재배포 → 라이브 검증.
+
+## 2026-07-10 11:23 KST — 🚀 Vercel 프로덕션 라이브 (실 Supabase 데이터, 노트북 독립)
+- 무엇: DDL 실행(사용자, 테이블 생성 rows:0 확인) 후 이관→프로덕션 배포→전수 검증 완료.
+- 이관: `python -m deploy.migrate_to_supabase` → scored_listings 3,622건 Supabase 업서트, 클라우드 재조회 대조 일치.
+- 배포: `vercel deploy --prod`(hyunwoo-jang-s-projects/auction-arbitrage). 프로덕션 도메인
+  https://auction-arbitrage-hyunwoo-jang-s-projects.vercel.app — 공개(ssoProtection=null).
+- 🐛 상세페이지 404 버그 수정: Vercel 이 PATH_INFO 를 URL-디코딩 없이 원본(%ED%83%80…)으로 넘김
+  → Werkzeug 가 리터럴 매칭 실패 → 한글 사건번호 상세만 404(퍼센트 없는 목록/통계는 정상이던 이유).
+  진단(?diag=1 환경덤프)으로 확정 후 api/index.py 에 _DecodePathInfo WSGI 미들웨어 추가
+  (unquote_to_bytes→latin-1, '%' 있는 경로만). 재배포 후 상세 200 확인.
+- 검증: 11개 라우트(/,stats,guide,calendar,map,methodology,watchlist,compare,api/listings,geojson,health)
+  전부 200 + X-Data-Source: db. 상세 3건(범어월드메르디앙/금오아파트/…) 200. API 건수 3,622.
+- 증거: curl 라이브 응답(위 라우트/상세 http=200, X-Data-Source db).
+- 평가자: -
+- 상태: 서빙 클라우드 완료(노트북 꺼도 링크 유지). 수집=로컬 스케줄러(--live 미러링) 미등록 → 후속.
+- 미완: (1)로컬 새로고침 스케줄러에 Supabase 미러링 등록(econ 방식). (2)관심목록 Vercel /tmp 휘발
+  →추후 Supabase 백업 승격. (3)코드 커밋/푸시 미실시(사용자 요청 시). (4)Tailscale :8443 서브는 이제 중복.
+
+## 2026-07-10 00:2x KST — ☁ Supabase+Vercel 클라우드 이관 (코드·배포검증 완료, DDL 대기)
+- 무엇: 노트북 독립 영구 링크 위해 서빙을 Vercel(Supabase REST 읽기)로 전환하는 이관 구현.
+  수집=로컬 스케줄러 유지(사용자 결정), 서빙=클라우드. DB접근=REST-only(econ service키 재사용, 새 비번 X).
+- 스키마: 별도 auction 스키마 대신 `public.auction_scored_listings`(prefix 격리) — econ 공유
+  PostgREST 설정 무변경, 즉시 REST 작동. raw_listings는 로컬 유지, scored만 클라우드. +refreshed_at(만료삭제용).
+- 코드: src/store_rest.py 신규(PostgREST 읽기 페이지네이션+120s TTL캐시, has_rows content-range,
+  upsert 청킹, replace_all=업서트후 lt.stamp 만료삭제). web.py _scored/_probe_source 백엔드 분기
+  (우선순위 AUCTION_DB>SUPABASE_URL>sample, REST 있으면 라이브 'db'). run.py 라이브적재 시 Supabase
+  자동 미러링(--no-cloud로 차단, 실패해도 로컬 보존). api/index.py(WSGI 진입,/tmp 상태경로)+vercel.json
+  (includeFiles templates,data + rewrite)+.vercelignore(pyproject 제외=uv회피→pip).
+- 테스트: tests/test_store_rest.py 신규 7건(모킹). 기존 test_web 백엔드 미설정 케이스 SUPABASE도 clear.
+  전체 **373 passed**.
+- 배포검증: vercel 링크(hyunwoo-jang-s-projects/auction-arbitrage) + env 3종(SUPABASE_* Production).
+  preview 빌드 성공(pyproject 제외로 uv→pip 우회 후), 진입점 스모크=모든 페이지 200(REST 오류시 샘플 폴백,
+  500 없음). ssoProtection=null로 공개 전환(경매=공개정보, service키는 서버 env). preview 공개 200 확인.
+- 증거: preview https://auction-arbitrage-4gwbnlgay-hyunwoo-jang-s-projects.vercel.app (200, 샘플).
+- 평가자: -
+- 미완(사용자/후속): (1)★사용자가 deploy/supabase_setup.sql 을 Supabase SQL Editor Run(테이블 생성).
+  (2)그 후 `python -m deploy.migrate_to_supabase`(3,751건 이관). (3)`vercel deploy --prod`(실데이터 링크).
+  (4)로컬 스케줄러에 --live 미러링 등록. 코드 커밋/푸시 미실시(사용자 요청 시).
+- 다음: 사용자 DDL Run 확인 → 이관 → prod 배포 → 최종 공개 링크 제공.
+
+## 2026-07-09 23:52 KST — 🔗 라이브 링크 개통 (Tailscale HTTPS :8443, 다람 공존)
+- 무엇: 재디자인 반영본을 노트북 밖에서 접속 가능하게 노출. 경매 사이트를 8100 포트로 waitress 서빙
+  (`AUCTION_DB=auction.db AUCTION_PORT=8100 python -m src.serve`, scored_listings 3,751건 라이브)
+  + `tailscale serve --bg --https=8443 http://127.0.0.1:8100`.
+- 링크: https://notebiz53.tail4271f6.ts.net:8443/ (tailnet-only, hyunwoojang1@ 개인계정 디바이스만)
+- 다람 공존: 기본 443→:8000(다람 healthkr)은 그대로 두고 경매는 별도 HTTPS 포트 8443로 격리해 URL 충돌 회피.
+- 증거: curl https://…:8443/ → HTTP 200 6.46MB, <title>아파트 경매 1차 필터</title> 렌더. /guide 200.
+- 평가자: -
+- 한계: 노트북+Tailscale 상시 ON 의존(백그라운드 서버 죽으면 링크 끊김). 영구 무의존은 Supabase+Vercel(B안) 남음.
+- 다음: 사용자 접속 확인 → (택1) 상시화(스케줄러/서비스 등록) 또는 Supabase 스키마 SQL 재생성→클라우드 이관.
+
 ## 2026-07-09 15:19 KST — 🔬 ultracode 전수 감사 확정 18건 수정 (다관점+적대적검증)
 - 무엇: 6관점 병렬 감사(33에이전트, 27발견→적대적반증→18확정) 결과 전부 수정.
 - HIGH: (1)일정 모바일 table→카드 전환(오버플로/차익값 클립 해소, 신호색·필칩 포함 calendar.html

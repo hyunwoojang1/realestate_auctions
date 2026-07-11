@@ -161,13 +161,15 @@ def load_sample_trades() -> list[Trade]:
     return trades
 
 
-def _extra_to_trade(et) -> Trade:
+def _extra_to_trade(et, lawd_cd: str = "") -> Trade:
     """확장 실거래(ExtraTrade: 단독/상업/토지)를 매칭용 Trade로 정규화.
 
     단지명이 없으므로 apt_name은 비워 두고(법정동+면적 매칭으로만 사용), kind로 유형을 분리한다.
+    lawd_cd 태깅으로 타지역 동명 혼입을 막는다(감사 2026-07-10).
     """
     return Trade(apt_name="", area_m2=et.area_m2, price=et.price,
-                 deal_ym=et.deal_ym, dong=et.dong, floor=et.floor, kind=et.kind)
+                 deal_ym=et.deal_ym, dong=et.dong, floor=et.floor, kind=et.kind,
+                 lawd_cd=lawd_cd)
 
 
 def load_live_trades(listings: list[AuctionListing], api_key: str,
@@ -206,7 +208,7 @@ def load_live_trades(listings: list[AuctionListing], api_key: str,
             for ymd in ymds:
                 calls += 1
                 try:
-                    trades.extend(_extra_to_trade(t)
+                    trades.extend(_extra_to_trade(t, lawd_cd=lst.lawd_cd)
                                   for t in fetch_extra_trades(kind, lst.lawd_cd, ymd, api_key))
                 except Exception as e:  # noqa: BLE001
                     fails += 1

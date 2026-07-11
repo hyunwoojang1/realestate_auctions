@@ -197,23 +197,91 @@ def parse_area_m2(*texts: str) -> float:
     return 0.0
 
 
-# dspslUsgNm 키워드 → AuctionListing.property_type (matcher 환금성 버킷과 정합)
+# ── 세부용도코드(sclsUtilCd) → 표준 물건유형 ──────────────────────────────
+# 감사(2026-07-10 CRITICAL) 확정: dspslUsgNm 은 개별 물건 용도가 아니라 법원 검색 카테고리
+# **그룹명**("상가,오피스텔,근린시설" 등 — 관측 고유값 19종 전부 그룹명)이다. 그룹명 키워드
+# 매칭은 근생·사무소·지식산업센터 호실을 '오피스텔'로, 오피스텔을 '아파트'로 오분류해
+# 엉뚱한 유형의 실거래 시세가 붙는 사고를 냈다(그룹 혼합 889건 중 시세 매칭 60건의 35%가
+# 비오피스텔 실체, 오피스텔 코드 물건이 아파트 시세로 기본정렬 rank 10·11 노출).
+# → 물건별 실체를 말하는 sclsUtilCd 를 1차 신뢰 소스로 쓰고, 없을 때만 그룹명 폴백.
+_SCLS_TYPE = {
+    "20101": "단독", "20102": "단독", "20103": "단독",   # 단독/다가구/다중
+    "20104": "아파트",
+    "20105": "연립", "20106": "다세대",
+    "20110": "오피스텔",
+    "20107": "빌라", "20108": "다세대",                   # 도시형생활주택 계열(관측 시 보수 매핑)
+}
+_SCLS_PREFIX_TYPE = [
+    ("101", "토지"),      # 10101 전 / 10102 답 / 10105 임야 / 10108 대지 / 10114 잡종지 …
+    ("211", "상가"),      # 21101 근생 / 21104 점포 / 21111 사무소 / 21199 기타상업 …
+    ("212", "상가"),
+    ("221", "공장"),      # 22101 공장(지식산업센터 포함)
+]
+
+
+def classify_by_scls(scls: str) -> str:
+    """세부용도코드 → 표준 유형. 미상 코드는 ''(폴백 신호)."""
+    s = (scls or "").strip()
+    if not s:
+        return ""
+    if s in _SCLS_TYPE:
+        return _SCLS_TYPE[s]
+    for prefix, typ in _SCLS_PREFIX_TYPE:
+        if s.startswith(prefix):
+            return typ
+    return ""
+
+
+# dspslUsgNm(그룹명) 키워드 폴백 — scls 미상일 때만. 그룹명 특성상 콤마 복수 용도가 흔해
+# 여기서 확정 주거유형을 말하면 위험하므로, 콤마 포함 그룹은 '혼합'(시세추정 미지원)으로 둔다.
 _TYPE_KEYWORDS = [
+    ("아파트형공장", "상가"),   # '아파트' 선매칭 방지 — 구체 키워드를 먼저
     ("아파트", "아파트"), ("오피스텔", "오피스텔"), ("다세대", "다세대"), ("연립", "연립"),
     ("빌라", "빌라"), ("도시형생활주택", "다세대"), ("단독", "단독"), ("다가구", "단독"),
     ("상가", "상가"), ("근린", "상가"), ("점포", "상가"), ("사무실", "상가"),
     ("공장", "공장"), ("토지", "토지"), ("대지", "토지"), ("임야", "토지"), ("전", "토지"), ("답", "토지"),
-    ("주택", "단독"), ("아파트형공장", "상가"),
+    ("주택", "단독"),
 ]
 
 
-def classify_property_type(usg_nm: str) -> str:
-    """매각물건용도명(dspslUsgNm) → 표준 물건유형. 미상이면 원문(앞 12자)."""
+def classify_property_type(usg_nm: str, scls: str = "") -> str:
+    """물건유형 분류 — sclsUtilCd(물건 실체) 우선, 그룹명(dspslUsgNm)은 폴백.
+
+    그룹명이 콤마 복수 용도("상가,오피스텔,근린시설")인데 scls 도 미상이면 어느 실체인지
+    알 수 없으므로 '혼합'(시세추정 미지원 유형)으로 정직하게 둔다 — 틀린 시세보다 무추정이 낫다.
+    """
+    by_code = classify_by_scls(scls)
+    if by_code:
+        return by_code
     s = (usg_nm or "").strip()
+    if "," in s:
+        return "혼합"
     for kw, typ in _TYPE_KEYWORDS:
         if kw in s:
             return typ
     return s[:12] if s else "기타"
+
+
+# 물리 검증 대상 — 용도명이 이들인데 건물 실체 신호가 전무하면 토지 의심.
+_HOUSING_TYPES = ("아파트", "오피스텔", "다세대", "연립", "빌라")
+
+
+def verify_property_type(ptype: str, clean: dict) -> str:
+    """용도명 기반 분류를 물건의 물리 신호로 교차검증(실측 버그 수정, 2026-07-10).
+
+    실측(대구 2025타경7938): 나대지(지목 '대', 주거나지)가 법원 용도명 '아파트'로 등록
+    → 아파트 실거래와 오매칭 → 4.45억 허상 차익이 랭킹 상위 노출.
+    집합건물 전유는 건물 표식(buldNm/buldList/pjbBuldList)이 있고 지목(jimokList)이 없다.
+    반대로 건물 표식이 전무한데 지목이 있으면 실체는 토지 — 용도명이 뭐라 하든 '토지'로
+    교정해 기존 미지원유형 정책(아파트·오피스텔만 시세 추정)이 적용되게 한다.
+    """
+    if ptype not in _HOUSING_TYPES:
+        return ptype
+    has_building = any(clean.get(k) for k in ("buldNm", "buldList", "pjbBuldList"))
+    has_jimok = bool(clean.get("jimokList"))
+    if not has_building and has_jimok:
+        return "토지"
+    return ptype
 
 
 # ---------------------------------------------------------------------------
@@ -270,6 +338,46 @@ class CourtAuctionRecord:
         return label_row(self.raw)
 
 
+def _has_building(rec: "CourtAuctionRecord") -> bool:
+    """이 목적물 행에 건물 실체 표식이 있는가(집합건물 전유 행 판별)."""
+    r = rec.raw or {}
+    return bool(rec.building_name or rec.building_detail or r.get("pjbBuldList"))
+
+
+def merge_mokmul_rows(records: list["CourtAuctionRecord"]) -> list["CourtAuctionRecord"]:
+    """같은 물건(court,case_no,item_no)의 목적물(mokmulSer)별 다중 행을 1행으로 병합.
+
+    감사(2026-07-10 HIGH) 확정: 검색 API 는 일괄매각 물건을 목적물 단위(docid 끝=mokmulSer)로
+    여러 행 반환하고, doc_id dedup 은 이들을 전부 살린다. 그대로 채점하면 INSERT OR REPLACE
+    (PK=court,case_no,item_no)에서 API 순서상 **마지막 행이 이기는 순서 의존 침묵 오류** —
+    토지 목적물 행이 마지막이면 진짜 아파트가 '토지'로 강등된 실사례 3건.
+
+    병합 규칙: 건물 표식 있는 행 우선(집합건물의 본체 — 유형·면적의 근거),
+    동률이면 doc_id 낮은 행(주 목적물). raw 보존은 save_raw_records 가 전 행을 따로 담당.
+    """
+    groups: dict[tuple, list] = {}
+    order: list[tuple] = []
+    for r in records:
+        k = (r.court, r.case_no, r.item_no)
+        if k not in groups:
+            groups[k] = []
+            order.append(k)
+        groups[k].append(r)
+    out = []
+    for k in order:
+        rows = groups[k]
+        if len(rows) == 1:
+            out.append(rows[0])
+            continue
+        rows.sort(key=lambda r: (not _has_building(r), r.doc_id))
+        out.append(rows[0])
+    dropped = len(records) - len(out)
+    if dropped:
+        logger.info("목적물 다중 행 병합: %d행 → %d물건(건물행 우선, %d행 병합됨)",
+                    len(records), len(out), dropped)
+    return out
+
+
 def parse_row(raw: dict) -> CourtAuctionRecord:
     """검색응답 1행(dict) → CourtAuctionRecord. 개인정보는 raw에서 제거."""
     clean = sanitize_row(raw)
@@ -279,7 +387,9 @@ def parse_row(raw: dict) -> CourtAuctionRecord:
         case_no=clean.get("srnSaNo", ""),
         court=clean.get("jiwonNm", ""),
         dept=clean.get("jpDeptNm", ""),
-        property_type=classify_property_type(clean.get("dspslUsgNm", "")),
+        property_type=verify_property_type(
+            classify_property_type(clean.get("dspslUsgNm", ""),
+                                   clean.get("sclsUtilCd", "")), clean),
         usage_name=clean.get("dspslUsgNm", ""),
         address=clean.get("printSt") or clean.get("convAddr", ""),
         sido=clean.get("hjguSido", ""),

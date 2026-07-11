@@ -37,6 +37,33 @@ CREATE TABLE IF NOT EXISTS scored_listings (
 );
 """
 
+# 권리·기일 요지(물건상세 크롤) — 상세 페이지 '권리 내역' 렌더의 원천.
+# 매각물건명세서 요지(인수권리/최선순위/유치권)·청구금액·배당요구종기·기일역사(JSON).
+DDL_RIGHTS = """
+CREATE TABLE IF NOT EXISTS listing_rights (
+    court TEXT NOT NULL DEFAULT '',
+    case_no TEXT NOT NULL,
+    item_no TEXT NOT NULL DEFAULT '',
+    surviving_rights TEXT NOT NULL DEFAULT '',
+    senior_lien TEXT NOT NULL DEFAULT '',
+    lien_note TEXT NOT NULL DEFAULT '',
+    remark TEXT NOT NULL DEFAULT '',
+    claim_amt INTEGER,
+    demand_end TEXT NOT NULL DEFAULT '',
+    spec_write_ymd TEXT NOT NULL DEFAULT '',
+    court_dept TEXT NOT NULL DEFAULT '',
+    schedule TEXT NOT NULL DEFAULT '[]',
+    fetched_at TEXT NOT NULL DEFAULT '',
+    PRIMARY KEY (court, case_no, item_no)
+);
+"""
+
+_RIGHTS_COLS = [
+    "court", "case_no", "item_no", "surviving_rights", "senior_lien", "lien_note",
+    "remark", "claim_amt", "demand_end", "spec_write_ymd", "court_dept",
+    "schedule", "fetched_at",
+]
+
 # 원본 보존: 파싱/채점과 무관하게 수집 시점의 raw row(개인정보 제거본)를 남긴다.
 # 파싱 버그·스키마 개편 시 재처리의 원천이자, "무엇을 수집했는가"의 감사 증거.
 DDL_RAW = """
@@ -79,6 +106,7 @@ def connect(db_path: str = "auction.db") -> sqlite3.Connection:
     _migrate(conn)
     conn.execute(DDL)
     conn.execute(DDL_RAW)
+    conn.execute(DDL_RIGHTS)
     conn.execute(f"PRAGMA user_version={SCHEMA_VERSION}")
     return conn
 
@@ -171,6 +199,47 @@ def save_raw_records(conn: sqlite3.Connection, records: Iterable, fetched_at: st
             rows,
         )
     return len(rows)
+
+
+def save_rights(conn: sqlite3.Connection, rights_rows: Iterable[dict]) -> int:
+    """권리·기일 요지 upsert — 같은 (court,case_no,item_no)는 최신 크롤로 갱신."""
+    rows = [tuple(r.get(c) for c in _RIGHTS_COLS) for r in rights_rows]
+    placeholders = ",".join("?" * len(_RIGHTS_COLS))
+    with conn:
+        conn.executemany(
+            f"INSERT OR REPLACE INTO listing_rights ({','.join(_RIGHTS_COLS)}) "
+            f"VALUES ({placeholders})",
+            rows,
+        )
+    return len(rows)
+
+
+def load_rights(conn: sqlite3.Connection, court: str, case_no: str,
+                item_no: str = "") -> dict | None:
+    """단건 권리 요지 조회. item_no 매칭 우선, 없으면 **같은 법원** 같은 사건 폴백.
+
+    폴백은 물건번호 미기록 레거시 행 대비(사건 단위 명세서는 물건 간 대부분 공유).
+    ⚠ court 조건은 폴백에서도 유지 — 사건번호는 법원마다 독립 채번이라 타법원 동명 사건이
+    실재하며(예: 2025타경1235 가 대구·타법원에 각각 존재), court 를 빼면 엉뚱한 법원의
+    권리 내역이 상세 페이지에 표시되는 침묵 오표시가 난다.
+    """
+    cur = conn.execute(
+        "SELECT * FROM listing_rights WHERE court=? AND case_no=? AND item_no=?",
+        (court, case_no, str(item_no or "")),
+    )
+    row = cur.fetchone()
+    if row is None:
+        cur = conn.execute(
+            "SELECT * FROM listing_rights WHERE court=? AND case_no=? LIMIT 1",
+            (court, case_no))
+        row = cur.fetchone()
+    return dict(row) if row is not None else None
+
+
+def fetch_all_rights(conn: sqlite3.Connection) -> list[dict]:
+    """권리 요지 전량(목록 배지 조인용 — 수백 행 수준의 작은 테이블)."""
+    cur = conn.execute("SELECT * FROM listing_rights")
+    return [dict(r) for r in cur.fetchall()]
 
 
 def fetch_ranked(conn: sqlite3.Connection) -> list[dict]:

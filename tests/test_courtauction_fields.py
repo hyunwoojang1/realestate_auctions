@@ -137,6 +137,70 @@ def test_helpers():
 
 def test_classify_property_type():
     assert classify_property_type("아파트") == "아파트"
-    assert classify_property_type("상가,오피스텔,근린시설") == "오피스텔"  # 키워드 우선순위
+    # (감사 2026-07-10 CRITICAL 정정) 콤마 그룹명은 코드 없인 실체 불명 → '혼합'(추정 미지원).
+    # 과거 '오피스텔' 기대는 근생·공장 호실에 오피스텔 시세를 붙이던 버그를 정답으로 고정한 것.
+    assert classify_property_type("상가,오피스텔,근린시설") == "혼합"
     assert classify_property_type("대지") == "토지"
     assert classify_property_type("") == "기타"
+
+
+def test_verify_property_type_land_disguised_as_apartment():
+    """실측 회귀(2026-07-10, 대구 2025타경7938): 나대지가 법원 용도명 '아파트'로 등록
+    → 아파트 시세 오매칭 → 4.45억 허상 차익. 건물 표식 전무 + 지목 있음 → '토지' 교정."""
+    from src.courtauction_fields import verify_property_type
+    land_clean = {"buldNm": "", "buldList": "", "pjbBuldList": "", "jimokList": "대"}
+    assert verify_property_type("아파트", land_clean) == "토지"
+    # 진짜 아파트(건물 표식 있음)는 유지
+    apt_clean = {"buldNm": "", "buldList": "101동 3층302호", "pjbBuldList": "", "jimokList": ""}
+    assert verify_property_type("아파트", apt_clean) == "아파트"
+    # 비주거 유형은 검증 대상 아님(그대로)
+    assert verify_property_type("토지", land_clean) == "토지"
+    assert verify_property_type("상가", {"jimokList": "대"}) == "상가"
+
+
+# ---- 2026-07-10 다관점 감사 확정 발견 회귀 ----
+
+def test_classify_by_scls_primary_source():
+    """CRITICAL 회귀: dspslUsgNm 은 그룹명 — sclsUtilCd(물건 실체)가 1차 분류 소스."""
+    from src.courtauction_fields import classify_property_type
+    # 그룹명 '상가,오피스텔,근린시설' 안의 근생(21101)은 상가, 오피스텔(20110)만 오피스텔
+    assert classify_property_type("상가,오피스텔,근린시설", "21101") == "상가"
+    assert classify_property_type("상가,오피스텔,근린시설", "20110") == "오피스텔"
+    assert classify_property_type("상가,오피스텔,근린시설", "22101") == "공장"
+    # 카테고리 '아파트'인데 코드=오피스텔 → 오피스텔(아파트 시세 오매칭 방지, rank 10·11 사고)
+    assert classify_property_type("아파트", "20110") == "오피스텔"
+    assert classify_property_type("아파트", "20104") == "아파트"
+    # 토지 코드
+    assert classify_property_type("기타", "10108") == "토지"
+
+
+def test_classify_comma_group_without_scls_is_mixed():
+    """코드 미상 + 콤마 그룹명 → '혼합'(시세추정 미지원) — 틀린 시세보다 무추정."""
+    from src.courtauction_fields import classify_property_type
+    from src.matcher import is_estimation_supported
+    assert classify_property_type("상가,오피스텔,근린시설", "") == "혼합"
+    assert is_estimation_supported("혼합") is False
+
+
+def test_classify_keyword_order_apartment_factory():
+    """'아파트형공장'이 '아파트'로 선매칭되던 데드 룰 수정 확인."""
+    from src.courtauction_fields import classify_property_type
+    assert classify_property_type("아파트형공장", "") == "상가"
+
+
+def test_merge_mokmul_rows_prefers_building_row():
+    """HIGH 회귀: 목적물 다중 행(건물행+토지행)은 건물행으로 병합 — 순서 무관."""
+    from src.courtauction_fields import merge_mokmul_rows, parse_row
+    base = {"srnSaNo": "2024타경15058", "jiwonNm": "인천지방법원", "maemulSer": "1",
+            "dspslUsgNm": "아파트", "sclsUtilCd": "20104", "gamevalAmt": "300000000",
+            "minmaePrice": "210000000", "yuchalCnt": "1", "maeGiil": "20260801",
+            "hjguDong": "구월동", "srchHjguSiguCd": "28170"}
+    bld = parse_row({**base, "docid": "D1", "buldList": "가동 1층102호",
+                     "pjbBuldList": "철근콘크리트 58.05㎡", "areaList": "58.05㎡"})
+    land = parse_row({**base, "docid": "D2", "buldList": "", "jimokList": "대",
+                      "areaList": "120㎡"})
+    for rows in ([bld, land], [land, bld]):     # API 순서 양방향
+        merged = merge_mokmul_rows(rows)
+        assert len(merged) == 1
+        assert merged[0].doc_id == "D1"          # 건물행 승리
+        assert merged[0].property_type == "아파트"

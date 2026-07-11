@@ -11,6 +11,24 @@ from .region import matches_region
 SORT_KEYS = ("profit", "gap", "score")
 DEFAULT_SORT = "profit"
 
+# 비교군 신뢰 티어(감사 2026-07-10 MEDIUM): T3 정책상 same_dong_fallback 은 '참고치 — 추천
+# 금지'인데 기본 정렬이 scope 를 안 봐 상위 50 의 84%를 fallback 허상 차익이 독식했다.
+# 기본(차익) 정렬은 [검증 비교군 → 참고치 → 시세 없음] 티어 안에서 차익 내림차순.
+# 0 = 같은 단지(추천 인정·인접 평형), 1 = 레거시(스코프 미기록 — 구 DB 하위호환),
+# 2 = 동 폴백(참고치), 3 = 시세 없음/무효.
+_SCOPE_TIER = {
+    "same_complex_same_area": 0,
+    "same_complex_near_area": 0,
+    "": 1,
+    "same_dong_fallback": 2,
+}
+
+
+def scope_tier(s: ScoredListing) -> int:
+    if decision_profit(s) is None:
+        return 3
+    return _SCOPE_TIER.get(s.market_scope, 3)
+
 
 def decision_profit(s: ScoredListing) -> int | None:
     """판단용 차익 — 보수 차익(profit_low) 우선, 없으면(레거시 행) 기준 차익.
@@ -38,9 +56,13 @@ def apply_filters(items: list[ScoredListing], min_score: float | None = None,
 
 
 def sort_items(items: list[ScoredListing], key: str = DEFAULT_SORT) -> list[ScoredListing]:
-    """보수 차익 금액(기본)/갭률/점수 내림차순. None은 맨 뒤."""
+    """정렬 — 기본(profit)은 비교군 신뢰 티어 → 보수 차익 내림차순. gap/score 는 기존 유지.
+
+    검증 비교군(같은 단지) 물건이 폴백 참고치보다 항상 위 — '추천 금지 참고치'의 부풀린
+    차익이 첫 화면 헤드라인을 차지하지 않게 한다(감사 2026-07-10).
+    """
     if key == "gap":
         return sorted(items, key=lambda s: (s.gap_rate is None, -(s.gap_rate or 0)))
     if key == "score":
         return sorted(items, key=lambda s: (s.arb_score is None, -(s.arb_score or 0)))
-    return sorted(items, key=lambda s: (decision_profit(s) is None, -(decision_profit(s) or 0)))
+    return sorted(items, key=lambda s: (scope_tier(s), -(decision_profit(s) or 0)))

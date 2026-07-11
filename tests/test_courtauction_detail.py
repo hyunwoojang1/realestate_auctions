@@ -1,0 +1,112 @@
+"""물건상세(pgj15B) 정규화 + 권리 문구 판정 회귀 테스트.
+
+fixture 는 2026-07-10 실측 응답(대구 2025타경669 — 유찰 10회·대항력 임차권등기 물건)의
+축약본. 이 물건이 이 기능의 존재 이유("왜 유찰 10회인지 딱 보이게")라 회귀 기준으로 고정한다.
+"""
+from __future__ import annotations
+
+from src.courtauction_detail import CaseRights, is_substantive, normalize
+from src.courtauction_rights import detect_tenant_opposable
+
+# 실측 축약 fixture — 개인정보(채무자 성명)는 가명으로 치환
+DMA = {
+    "csBaseInfo": {"clmAmt": 707479451, "cortAuctnJdbnNm": "경매9계", "userCsNo": "2025타경669"},
+    "dstrtDemnInfo": [{"dstrtDemnLstprdYmd": "20250527"}],
+    "dspslGdsDxdyInfo": {
+        "ndstrcRghCtt": "- 매수인에게 대항할 수 있는 을구 순위번호 5번 임차권등기(2023.08.04.등기) 있음. "
+                        "배당에서 보증금 전액이 변제되지 아니하면 잔액을 매수인이 인수함",
+        "tprtyRnkHypthcStngDts": "홍지분(2분의1)\n2024.02.02.압류",
+        "sprfcExstcDts": "해당사항없음",
+        "gdsSpcfcRmk": None, "dspslGdsRmk": None, "gdsSpcfcWrtYmd": "20260617",
+    },
+    "gdsDspslDxdyLst": [
+        {"dxdyYmd": "20250819", "auctnDxdyKndCd": "01", "auctnDxdyRsltCd": "002",
+         "tsLwsDspslPrc": "830000000"},
+        {"dxdyYmd": "20260715", "auctnDxdyKndCd": "01", "auctnDxdyRsltCd": "000",
+         "tsLwsDspslPrc": "33492000"},
+        {"dxdyYmd": "20260722", "auctnDxdyKndCd": "02", "auctnDxdyRsltCd": "000",
+         "tsLwsDspslPrc": None},
+    ],
+}
+
+
+def test_normalize_extracts_core_fields():
+    r = normalize(DMA, court="대구지방법원", case_no="2025타경669", item_no="1",
+                  fetched_at="2026-07-10 12:00:00")
+    assert "임차권등기(2023.08.04" in r.surviving_rights
+    assert "2024.02.02.압류" in r.senior_lien
+    assert r.lien_note == "해당사항없음"
+    assert r.claim_amt == 707479451
+    assert r.demand_end == "2025-05-27"
+    assert r.spec_write_ymd == "2026-06-17"
+    assert r.court_dept == "경매9계"
+
+
+def test_normalize_schedule_mapped_and_sorted_desc():
+    r = normalize(DMA)
+    assert [e["ymd"] for e in r.schedule] == ["2026-07-22", "2026-07-15", "2025-08-19"]
+    ev = r.schedule[-1]
+    assert ev["kind"] == "매각기일" and ev["result"] == "유찰" and ev["price"] == 830_000_000
+    assert r.schedule[0]["kind"] == "매각결정기일" and r.schedule[0]["price"] is None
+
+
+def test_has_risk_text_and_substantive():
+    r = normalize(DMA)
+    assert r.has_risk_text is True            # 인수 문구 있음 → 위험 강조
+    assert is_substantive("해당사항없음") is False
+    assert is_substantive("") is False
+    assert is_substantive("유치권 신고 있음") is True
+
+
+def test_row_roundtrip():
+    r = normalize(DMA, court="대구지방법원", case_no="2025타경669", item_no="1")
+    row = r.to_row()
+    back = CaseRights.from_row(row)
+    assert back.schedule == r.schedule and back.surviving_rights == r.surviving_rights
+
+
+def test_summarize_burden_on_opposable_without_amount():
+    """대항력 임차권 물건(실측 1위) — 금액 미상이어도 burden + amount_unknown."""
+    from src.courtauction_detail import summarize
+    b = summarize(normalize(DMA))
+    assert b.status == "burden" and b.opposable is True
+    assert b.amount_unknown is True and not b.is_clean
+
+
+def test_summarize_clean_when_no_signals():
+    from src.courtauction_detail import summarize
+    clean_dma = {**DMA, "dspslGdsDxdyInfo": {**DMA["dspslGdsDxdyInfo"],
+                 "ndstrcRghCtt": "해당사항없음", "sprfcExstcDts": "해당사항없음"}}
+    b = summarize(normalize(clean_dma))
+    assert b.is_clean and not b.opposable and b.assumed == 0
+
+
+def test_summarize_burden_with_amount():
+    from src.courtauction_detail import summarize
+    amt_dma = {**DMA, "dspslGdsDxdyInfo": {**DMA["dspslGdsDxdyInfo"],
+               "ndstrcRghCtt": "임차보증금 금80,000,000원을 매수인이 인수함"}}
+    b = summarize(normalize(amt_dma))
+    assert b.status == "burden" and b.assumed == 80_000_000 and not b.amount_unknown
+
+
+def test_opposable_detected_on_real_phrase():
+    """실측 미탐 회귀(2026-07-10): '매수인이 인수함'(조사)·'대항할 수 있는' 변형이
+    기존 phrase 목록에 없어 False 로 판정되던 버그 — 반드시 True."""
+    r = normalize(DMA)
+    assert detect_tenant_opposable(r.surviving_rights) is True
+
+
+def test_store_load_rights_fallback_keeps_court(tmp_path):
+    """SQLite 폴백도 court 유지 — 타법원 동명 사건의 권리가 새어 나오면 안 된다."""
+    from src import store
+    conn = store.connect(str(tmp_path / "r.db"))
+    store.save_rights(conn, [{
+        "court": "다른법원", "case_no": "2025타경1", "item_no": "1",
+        "surviving_rights": "유치권", "senior_lien": "", "lien_note": "", "remark": "",
+        "claim_amt": None, "demand_end": "", "spec_write_ymd": "", "court_dept": "",
+        "schedule": "[]", "fetched_at": "",
+    }])
+    # 같은 사건번호, 다른 법원으로 조회 → 폴백이 타법원 행을 반환하면 안 됨
+    assert store.load_rights(conn, "대구지방법원", "2025타경1", "2") is None
+    # 같은 법원이면 item 폴백은 동작
+    assert store.load_rights(conn, "다른법원", "2025타경1", "2") is not None

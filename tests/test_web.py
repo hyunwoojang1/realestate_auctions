@@ -147,7 +147,11 @@ def test_falls_back_to_sample_when_no_env(monkeypatch):
 # ---- 데이터 출처 표시(샘플/라이브 오인 방지) ----
 
 def test_data_source_header_sample_when_no_env(monkeypatch):
+    # 데이터 백엔드가 하나도 설정되지 않은 상태 → 샘플 폴백. 백엔드는 둘(SQLite/Supabase)이므로
+    # 둘 다 비운다(주변 환경/셸 프로필에 SUPABASE_URL 이 있어도 이 케이스는 '미설정'을 의미).
     monkeypatch.delenv("AUCTION_DB", raising=False)
+    monkeypatch.delenv("SUPABASE_URL", raising=False)
+    monkeypatch.delenv("SUPABASE_SECRET_KEY", raising=False)
     r = create_app().test_client().get("/api/listings")
     assert r.headers["X-Data-Source"] == "sample(no-db)"
 

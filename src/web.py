@@ -27,6 +27,7 @@ from . import (
     score,
     stats,
     store,
+    store_rest,
     watchlist,
 )
 from .models import AuctionListing
@@ -54,16 +55,21 @@ def _probe_source() -> str:
     반환: db | sample(db-empty) | sample(db-error) | sample(no-db)
     """
     db_path = os.environ.get(DB_ENV)
-    if not db_path:
-        return "sample(no-db)"
-    try:
-        conn = store.connect(db_path)
+    if db_path:
         try:
-            return "db" if store.has_rows(conn) else "sample(db-empty)"
-        finally:
-            conn.close()
-    except Exception:  # noqa: BLE001 — 상태 조회 실패도 폴백 상태의 일부
-        return "sample(db-error)"
+            conn = store.connect(db_path)
+            try:
+                return "db" if store.has_rows(conn) else "sample(db-empty)"
+            finally:
+                conn.close()
+        except Exception:  # noqa: BLE001 — 상태 조회 실패도 폴백 상태의 일부
+            return "sample(db-error)"
+    if store_rest.enabled():
+        try:
+            return "db" if store_rest.has_rows() else "sample(db-empty)"
+        except Exception:  # noqa: BLE001
+            return "sample(db-error)"
+    return "sample(no-db)"
 
 
 def _scored():
@@ -92,9 +98,51 @@ def _scored():
         except Exception as e:  # noqa: BLE001 — DB 문제 시 샘플로 안전 폴백
             logger.error("DB 서빙 실패(%s) → 샘플 폴백: %s", db_path, e, exc_info=True)
             _mark_source("sample(db-error)")
+    elif store_rest.enabled():
+        # 클라우드 서빙(Vercel): AUCTION_DB 미설정 + SUPABASE_URL 있으면 REST 에서 읽는다.
+        try:
+            rows = store_rest.load_scored()
+            if rows:
+                _mark_source("db")
+                return rows
+            logger.warning(
+                "Supabase 연결됐으나 적재 결과 0건 → 샘플 폴백(라이브 데이터 아님). "
+                "새로고침(run.py --live)이 실패했거나 아직 실행 전일 수 있음.")
+            _mark_source("sample(db-empty)")
+        except Exception as e:  # noqa: BLE001 — REST 문제 시 샘플로 안전 폴백
+            logger.error("Supabase 서빙 실패 → 샘플 폴백: %s", e, exc_info=True)
+            _mark_source("sample(db-error)")
     else:
         _mark_source("sample(no-db)")
     return pipeline.run()
+
+
+def _rights_badges() -> dict:
+    """(court|case_no|item_no) → RightsBadge. 크롤된 물건만 담긴다(없으면 '미확인' 렌더).
+
+    목록의 '인수 부담' 칩·예상 투입 계산용. rights 테이블은 수백 행 수준이라 요청당
+    로드해도 가볍고, 클라우드는 store_rest 가 TTL 캐시로 왕복을 줄인다.
+    """
+    from .courtauction_detail import CaseRights, summarize  # noqa: PLC0415
+    rows: list[dict] = []
+    db_path = os.environ.get(DB_ENV)
+    try:
+        if db_path:
+            conn = store.connect(db_path)
+            try:
+                rows = store.fetch_all_rights(conn)
+            finally:
+                conn.close()
+        elif store_rest.enabled():
+            rows = store_rest.load_all_rights()
+    except Exception as e:  # noqa: BLE001 — 배지 실패는 목록을 막지 않음(미확인으로 폴백)
+        logger.warning("권리 배지 로드 실패 → 전량 '미확인' 폴백: %s", e)
+        return {}
+    out = {}
+    for r in rows:
+        cr = CaseRights.from_row(r)
+        out[f"{cr.court}|{cr.case_no}|{cr.item_no}"] = summarize(cr)
+    return out
 
 
 def _filtered(args):
@@ -131,7 +179,15 @@ def create_app() -> Flask:
             "type": request.args.get("type", ""),
             "region": request.args.get("region", ""),
             "sort": request.args.get("sort", query.DEFAULT_SORT),
+            "clean": request.args.get("clean", ""),
         }
+        # 인수 부담 배지(법원 명세서 크롤분) — '낙찰가 외 추가 부담' 여부를 목록에서 구분.
+        badges = _rights_badges()
+        if filters["clean"]:
+            # '추가 인수 없음만' — 명세서로 clean 확인된 물건만(미확인은 보수적으로 제외).
+            items = [s for s in items
+                     if (b := badges.get(f"{s.court}|{s.case_no}|{s.item_no}"))
+                     and b.is_clean]
         # (T7→T8 감사 수정) 히어로 스포트라이트는 최대 추천 표면 — digest와 동일 게이트를
         # 레거시 통과 없이(strict) 적용한다: 보수차익 양수·같은단지같은평형·basis≥5·비위험.
         # 게이트 정보가 없는 구 DB에서는 히어로를 띄우지 않는다(검증 안 된 헤드라인 금지).
@@ -142,7 +198,7 @@ def create_app() -> Flask:
         legacy_only = bool(items) and all(s.profit_low is None for s in items)
         return render_template(
             "listings.html", items=items, count=len(items), filters=filters,
-            hero=hero, legacy_only=legacy_only,
+            hero=hero, legacy_only=legacy_only, badges=badges,
             won=report.won, pct=report.pct, meter=report.gap_meter_html,
             tax_label=tax.PROFILE.label(),
             watched=watchlist.load_watchlist(watchlist.watchlist_path()),
@@ -198,7 +254,7 @@ def create_app() -> Flask:
         feats = []
         skipped = 0
         for s in _filtered(request.args):
-            pt = coords.lookup(cache, s.uid, s.case_no)
+            pt = coords.lookup(cache, s.uid, s.case_no, court=s.court)
             if not pt:
                 skipped += 1
                 continue
@@ -264,6 +320,37 @@ def create_app() -> Flask:
                 appraisal_price=s.appraisal_price, min_bid_price=s.min_bid_price,
                 fail_count=s.fail_count, sale_date=s.sale_date,
             )
+        # 권리·기일 요지 로드(물건상세 크롤분: 로컬 SQLite 우선, 클라우드는 REST) —
+        # 있으면 매각물건명세서 문구로 권리 필드를 실채움해 '권리미확인'을 해제하고
+        # 하드게이트가 실제 문서 기반으로 작동하게 한다.
+        rights = None
+        rights_row = None
+        db_path = os.environ.get(DB_ENV)
+        try:
+            if db_path:
+                rconn = store.connect(db_path)
+                try:
+                    rights_row = store.load_rights(rconn, s.court, s.case_no, s.item_no)
+                finally:
+                    rconn.close()
+            elif store_rest.enabled():
+                rights_row = store_rest.fetch_rights(s.court, s.case_no, s.item_no)
+        except Exception as e:  # noqa: BLE001 — 권리 요지 실패는 상세 페이지를 막지 않음
+            logger.warning("권리 요지 로드 실패(%s %s): %s", s.court, s.case_no, e)
+        badge = None
+        if rights_row:
+            import dataclasses  # noqa: PLC0415
+
+            from .courtauction_detail import CaseRights, summarize  # noqa: PLC0415
+            rights = CaseRights.from_row(rights_row)
+            badge = summarize(rights)
+            listing = dataclasses.replace(
+                listing,
+                special_rights=badge.special,
+                tenant_opposable=badge.opposable,
+                assumed_amount=badge.assumed,
+                rights_verified=True,
+            )
         gated = score.is_hard_gated(listing)
         gate_reasons = []
         if gated:
@@ -286,8 +373,11 @@ def create_app() -> Flask:
         askings = asking_mod.load_asking_prices().get(case_no, [])
         ask_points = asking_mod.asking_points(askings, s.market_band_low, s.market_band_high)
         ask_overstated = asking_mod.band_overstated(askings, s.market_band_low)
+        # 가격 지도 — 감정가·최저입찰가·취득원가·밴드·호가를 한 축에 그릴 좌표(UX 개편).
+        from . import pricemap  # noqa: PLC0415
+        pmap = pricemap.build(s, ask_points)
         return render_template(
-            "detail.html", s=s, listing=listing,
+            "detail.html", s=s, listing=listing, pmap=pmap, rights=rights, badge=badge,
             meter=report.gap_meter_html(s, askings=ask_points), won=report.won, pct=report.pct,
             gated=gated, gate_reason=", ".join(gate_reasons),
             tax_parts=tax_parts, tax_label=tax.PROFILE.label(),
@@ -305,9 +395,10 @@ def create_app() -> Flask:
         min_profit = int(min_profit_eok * 1e8) if min_profit_eok else None
         items = digest.top_listings(_scored(), n=n, min_profit=min_profit)
         filters = {"min_profit": request.args.get("min_profit", ""), "type": "", "region": "",
-                   "sort": query.DEFAULT_SORT}
+                   "sort": query.DEFAULT_SORT, "clean": ""}
         return render_template(
             "listings.html", items=items, count=len(items), filters=filters,
+            badges=_rights_badges(),
             won=report.won, pct=report.pct, meter=report.gap_meter_html,
             tax_label=tax.PROFILE.label(),
             data_source=getattr(g, "data_source", "n/a"))

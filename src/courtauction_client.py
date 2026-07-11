@@ -43,6 +43,9 @@ _RETRY_AFTER_MIN = 60.0   # 429 시 최소 대기(서버가 더 길게 요청하
 BASE = "https://www.courtauction.go.kr"
 INDEX_URL = f"{BASE}/pgj/index.on"
 SEARCH_URL = f"{BASE}/pgj/pgjsearch/searchControllerMain.on"
+# 물건상세(사건 단위) — 매각물건명세서 요지(인수권리·최선순위)·기일내역·청구금액 등.
+# 실측(2026-07-10, Playwright XHR 캡처): 미니멀 페이로드(csNo+cortOfcCd+dspslGdsSeq+pgmId)로 동작.
+DETAIL_URL = f"{BASE}/pgj/pgj15B/selectAuctnCsSrchRslt.on"
 
 # 브라우저 위장 헤더(실측상 필수 6종 + 보강). requests 기본 UA는 즉시 봇 차단됨.
 _UA = ("Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 "
@@ -222,9 +225,10 @@ class CourtAuctionClient:
             if wait > 0:
                 time.sleep(wait)
 
-    def _post(self, body: dict) -> dict:
-        """검색 POST 1회(재시도 포함) — 스로틀·백오프·차단감지 내장. 정상 JSON dict 반환.
+    def _post(self, body: dict, url: str = SEARCH_URL, validator=None) -> dict:
+        """POST 1회(재시도 포함) — 스로틀·백오프·차단감지 내장. 정상 JSON dict 반환.
 
+        url/validator 파라미터로 검색 외 엔드포인트(물건상세 등)도 같은 안전장치를 경유한다.
         _request_count는 '실제 서버로 보낸 요청 수'(재시도 포함)를 센다 — WAF가 보는 트래픽과 일치.
         직렬화는 루프 밖에서 1회만(직렬화/프로그래밍 오류는 재시도 없이 즉시 전파).
         """
@@ -240,7 +244,7 @@ class CourtAuctionClient:
             self._last_request_ts = time.monotonic()
             self._request_count += 1
             try:
-                resp = s.post(SEARCH_URL, headers=_POST_HEADERS, data=payload,
+                resp = s.post(url, headers=_POST_HEADERS, data=payload,
                               timeout=self.timeout, allow_redirects=False)
             except requests.exceptions.RequestException as e:
                 # 네트워크/HTTP 라이브러리 오류만 재시도. 그 외(프로그래밍 오류)는 전파됨.
@@ -264,7 +268,7 @@ class CourtAuctionClient:
                 # 응답 본문은 민감정보(쿠키·내부오류·PII) 포함 가능 → 예외엔 안 싣고 DEBUG 로그만.
                 logger.debug("예상치 못한 HTTP %s 응답본문: %.200s", status, resp.text)
                 raise CourtAuctionError(f"예상치 못한 HTTP {status} (본문은 DEBUG 로그 참조)")
-            return self._validate_payload(resp)
+            return (validator or self._validate_payload)(resp)
 
     def _sleep_backoff(self, attempt: int, why: str, retry_after: str | None = None) -> None:
         delay = self._parse_retry_after(retry_after)
@@ -307,7 +311,38 @@ class CourtAuctionClient:
             raise CourtAuctionBlocked("응답에 dma_pageInfo 없음 — 스키마 붕괴/차단 의심.")
         return j
 
+    def _validate_detail(self, resp) -> dict:
+        """물건상세 응답 회로차단기 — dma_result 스키마 확인(검색과 응답 형태가 다름)."""
+        ctype = resp.headers.get("Content-Type", "")
+        if "json" not in ctype.lower():
+            raise CourtAuctionBlocked(f"상세 200인데 비-JSON({ctype}) — 위장차단 의심. 중단.")
+        try:
+            j = resp.json()
+        except Exception as e:  # noqa: BLE001
+            raise CourtAuctionBlocked(f"상세 200인데 JSON 파싱불가 — 위장차단 의심: {e}") from e
+        data = j.get("data") if isinstance(j, dict) else None
+        if not isinstance(data, dict) or not isinstance(data.get("dma_result"), dict):
+            errs = j.get("errors") if isinstance(j, dict) else None
+            raise CourtAuctionBlocked(f"상세 응답 스키마 이상(dma_result 없음). errors={errs}")
+        return j
+
     # --- 공개 API ---
+    def case_detail(self, cort_ofc_cd: str, cs_no: str, gds_seq: str = "1",
+                    warm: bool = True) -> dict:
+        """물건상세(사건 단위) 조회 → dma_result dict.
+
+        포함(실측): csBaseInfo(청구금액·경매계), dspslGdsDxdyInfo(매각물건명세서 요지 —
+        ndstrcRghCtt 인수권리 / tprtyRnkHypthcStngDts 최선순위 설정 / sprfcExstcDts 유치권),
+        gdsDspslDxdyLst(기일 역사), dstrtDemnInfo(배당요구종기).
+        cs_no 는 사용자 포맷("2025타경669")·내부 포맷 둘 다 서버가 수용(실측은 사용자 포맷).
+        """
+        if warm and not self._client_ip:
+            self._warm_session()
+        body = {"dma_srchGdsDtlSrch": {"csNo": cs_no, "cortOfcCd": cort_ofc_cd,
+                                       "dspslGdsSeq": str(gds_seq), "pgmId": "PGJ151F01"}}
+        j = self._post(body, url=DETAIL_URL, validator=self._validate_detail)
+        return j["data"]["dma_result"]
+
     def canary(self) -> int:
         """반드시 결과가 나오는 알려진 쿼리(서울 부동산 1페이지)로 정상성 확인. totalCnt 반환."""
         self._warm_session()

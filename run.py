@@ -54,6 +54,8 @@ def main(argv=None) -> int:
     ap.add_argument("--sort", choices=query.SORT_KEYS, default=query.DEFAULT_SORT,
                     help="정렬 기준(profit/gap/score, 기본 profit)")
     ap.add_argument("--json", action="store_true", help="결과를 JSON으로 stdout 출력")
+    ap.add_argument("--no-cloud", dest="no_cloud", action="store_true",
+                    help="Supabase 클라우드 미러링 비활성(기본: 라이브+SUPABASE_URL 설정 시 자동 미러링)")
     ap.add_argument("--live-months", dest="live_months", type=int, default=None,
                     help="라이브 시세 수집 개월수(표본 폭). 미지정=config/env/기본(3)")
     ap.add_argument("--area-band", dest="area_band", type=float, default=None,
@@ -108,7 +110,11 @@ def main(argv=None) -> int:
         if not args.json:
             print(f"  courtauction 수집 {len(records)}건 — {diff.summary} (캐시 {cache_path})")
 
-        listings = [to_auction_listing(r) for r in records]
+        # 목적물(mokmulSer) 다중 행 병합 — 건물행 우선(감사 2026-07-10 HIGH: 마지막 행 승리로
+        # 아파트가 토지로 강등되던 순서 의존 오류). raw 보존(save_raw_records)은 전 행 유지.
+        from src.courtauction_fields import merge_mokmul_rows  # noqa: E402, PLC0415
+        merged_records = merge_mokmul_rows(records)
+        listings = [to_auction_listing(r) for r in merged_records]
         scored = pipeline.run(use_live=use_live, deal_ymd=args.ym, auctions=listings)
     else:
         scored = pipeline.run(use_live=use_live, deal_ymd=args.ym)
@@ -138,6 +144,35 @@ def main(argv=None) -> int:
         n = store.replace_all(conn, scored)
     else:
         n = store.upsert(conn, scored)   # 전체 저장
+
+    # 클라우드 미러링: 라이브 적재분을 Supabase(REST)로도 반영 → Vercel 서빙이 최신을 읽는다.
+    # 로컬 SQLite 적재가 끝난 뒤에 하며, 실패해도 로컬 결과는 보존(클라우드 오류가 새로고침을 깨지 않음).
+    # 드라이런(비라이브)은 절대 클라우드에 쓰지 않는다(샘플을 라이브로 오인 방지).
+    if use_live and not args.no_cloud:
+        # 품질 게이트: 전 배치 PASS 여야 서빙 반영(침산동 나대지 사고 재발 방지 — 사람이 아닌
+        # 시스템이 매 적재마다 검사). FAIL 이면 로컬엔 남기되 클라우드 미러는 차단.
+        from src import data_gates  # noqa: PLC0415
+        gate_results = data_gates.run_gates(conn)
+        if not args.json:
+            print(data_gates.report(gate_results))
+        if not data_gates.all_pass(gate_results):
+            print("  ⛔ 품질 게이트 FAIL — Supabase 미러링 건너뜀(로컬 적재는 유지). "
+                  "deploy/validate_data.py 로 위반 사례 확인 후 수정.", file=sys.stderr)
+            args.no_cloud = True
+    if use_live and not args.no_cloud:
+        from src import store_rest  # noqa: PLC0415
+        if store_rest.enabled():
+            try:
+                if full_snapshot:
+                    cn = store_rest.replace_all(scored)
+                else:
+                    cn = store_rest.upsert(scored)
+                if not args.json:
+                    print(f"  ☁ Supabase 미러링: {cn}건 "
+                          f"({'전량교체' if full_snapshot else '병합'})")
+            except Exception as e:  # noqa: BLE001 — 클라우드 실패는 로컬 새로고침을 깨지 않음
+                if not args.json:
+                    print(f"  ⚠ Supabase 미러링 실패(로컬은 정상 적재됨): {e}")
 
     view = query.sort_items(
         query.apply_filters(scored, args.min_score, args.ptype, args.region,

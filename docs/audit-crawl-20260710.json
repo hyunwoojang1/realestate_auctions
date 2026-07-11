@@ -1,0 +1,284 @@
+{
+ "confirmed": [
+  {
+   "dim": "type-integrity",
+   "severity": "CRITICAL",
+   "title": "법원 검색용 그룹명 '상가,오피스텔,근린시설'을 통째로 '오피스텔'로 분류 → 근생·상가·사무소·지식산업센터 호실이 오피스텔 실거래 시세로 차익 산정",
+   "file": "src/courtauction_fields.py",
+   "claim": "dspslUsgNm은 개별 물건 용도가 아니라 법원 검색 카테고리 그룹명(관측된 고유값 19종 전부가 '전답','기타','상가,오피스텔,근린시설' 같은 그룹명)이다. classify_property_type이 이 문자열에 substring 매칭을 하므로 '상가,오피스텔,근린시설'(스냅샷 889건)이 전량 '오피스텔'로 분류되고, 오피스텔은 v1 시세추정 지원 유형이라 그 안의 근린생활시설·점포·사무소·지식산업센터(공장) 호실까지 오피스텔 실거래 comps로 시세·차익이 계산된다. raw에 이미 있는 세부용도코드(sclsUtilCd: 20110=오피스텔, 21101=근생, 22101=공장 — usg='오피스텔' 그룹의 94%가 20110, '근린시설' 그룹 대다수가 21101로 교차검증됨)는 분류에 전혀 쓰이지 않는다.",
+   "evidence": "스냅샷(auction_snapshot.db, 2026-07-10 17:14) 실측: 혼합그룹 889건 → scored 549건 전원 property_type='오피스텔', 그중 est_market_price>0 60건. 60건의 scls 분포 = {20110(오피스텔):39, 21101(근생):12, 21111(사무소류):4, 20104(아파트):2, 22101(공장):1, 기타:2} → 21건(35%)이 오피스텔이 아닌 실체로 오피스텔 시세 매칭. 보수차익 양수+권리미확인으로 기본정렬(차익순) 노출권 10건. 사례: 부산 2024타경4864-4(1층116호, mulBigo '상호: 가인필라테스…', scls=21101) est 1억9,956만·보수차익 5,930만·기본정렬 rank 79/3622. 의정부 2024타경81902-25는 mulBigo에 '공부상 근린생활시설임'이 명시돼 있는데도 오피스텔 시세로 차익 2,902만 표시. 서울동부 2025타경238-2는 '집합건축물대장상 공장(지식산업센터)'인데 est 3억2,950만 계산(현재 차익없음이라 미노출). 재현: 프로젝트 루트에서 PYTHONUTF8=1 .venv/Scripts/python.exe [scratchpad]/audit5_final.py 및 scls 분해 스니펫(같은 폴더 audit2.py) — scratchpad = C:\\Users\\NOTEBI~1\\AppData\\Local\\Temp\\claude\\C--Users-notebiz765-OneDrive-------\\9f3972d9-90e0-4633-8426-63fa1022c3f0\\scratchpad, 스냅샷 DB 동봉(auction_snapshot.db).",
+   "fix_hint": "그룹명(콤마 포함/복수 용도)은 '혼합/미상'으로 두고 시세추정 미지원 처리하거나, sclsUtilCd(20110만 오피스텔, 20104만 아파트)로 확정 분류. verify_property_type에 scls 교차검증 추가.",
+   "verify_notes": "재현 성공(건수>0, 실사례 다수) — 발견의 메커니즘·수치·사례가 라이브 auction.db에서 전부 그대로 재현됨. dspslUsgNm은 실측 고유값 19종 전부가 그룹명이고, classify_property_type('상가,오피스텔,근린시설')='오피스텔'(실행 확인), sclsUtilCd는 src/ 전체에서 라벨 딕셔너리 1곳 외 미사용. 혼합그룹 889키 → scored 536건 오피스텔 분류 → 시세추정 60건 중 21건(35%)이 비오피스텔 실체(근생12·사무소류4·공장1 등)인데 오피스텔 실거래 comps로 차익 산정, 그중 보수차익 양수 10건이 기본정렬(profit_low desc) 노출. 부산 2024타경4864-4는 기본정렬 79/3622위로 발견 주장과 정확히 일치. 유일한 미세 편차: '전원 오피스텔'이 아니라 13건은 verify_property_type이 토지로 교정(건물표식 無 건만) — 핵심 주장에 영향 없음. 이미 처리됨 아님: 기존 verify_property_type은 건물 실체가 있는 근생/사무소/공장 호실을 구제하지 못하는 구조적 사각지대. | 독립 재현 성공. 코드와 auction.db(프로젝트 본 DB, 스냅샷 아닌 원본) 양쪽에서 주장 전부가 실측으로 확인됨. src/courtauction_fields.py의 _TYPE_KEYWORDS(201~207행)는 (\"오피스텔\",\"오피스텔\")을 (\"상가\",\"상가\")보다 먼저 검사하므로 그룹명 '상가,오피스텔,근린시설'이 substring 매칭으로 통째 '오피스텔'이 되고, sclsUtilCd(세부용도코드)는 FIELD_LABELS(102행) 라벨로만 존재할 뿐 분류 로직 어디에도 쓰이지 않음. matcher.py 80행에서 '오피스텔'→officetel comps로 시세추정 지원유형이라 근생·사무소·공장 호실이 오피스텔 실거래 시세로 차익 산정됨. 유일한 미세 차이: 혼합그룹 scored 549건 중 '전원' 오피스텔이라는 표현은 536건이 정확(13건은 verify_property_type이 건물표식 부재로 '토지' 교정) — 발견의 본질에는 영향 없음."
+  },
+  {
+   "dim": "type-integrity",
+   "severity": "HIGH",
+   "title": "한 물건의 목적물(mokmulSer)별 다중 행이 같은 (court,case_no,item_no)로 채점돼 INSERT OR REPLACE 마지막 행이 유형·면적을 결정 — 실제 아파트 3건이 '토지'로 강등",
+   "file": "src/pipeline.py",
+   "claim": "검색 API는 일괄매각 물건을 목적물 단위(docid 끝자리=mokmulSer)로 여러 행 반환한다. load_courtauction_nationwide가 doc_id로 dedup하므로 같은 매물(maemulSer 동일)의 건물행·토지행이 둘 다 살아남아 각각 채점되고, store의 INSERT OR REPLACE(PK=court,case_no,item_no)에서 API 순서상 마지막 행이 이긴다. 토지 목적물 행이 마지막이면 verify_property_type이 그 행(건물표식 없음+지목 있음)을 '토지'로 교정해 진짜 아파트가 미지원유형으로 강등되고, 순서가 반대면 나대지 쪽 정보가 사라지는 순서 의존적 침묵 오류다. 면적(area_m2)도 마지막 목적물 행 하나의 areaList만 반영된다.",
+   "evidence": "auction.db 실측: 최신 수집배치에서 같은 키에 행 2개 이상인 키 916건(최대 21행 — 의정부 2024타경72144-1), 행 간 verify 유형이 갈리는 키 40건, scored 존재 23건. 그중 '아파트' 목적물 행이 있는데 scored='토지'(미지원유형)로 저장된 3건: 인천 2024타경15058-1(uid …505811: buldList '가동 1층102호'·pjb 58.05㎡ vs uid …505812: buldList ''·jimok '대' — maemulSer 둘 다 '1', mokmulSer 1/2), 춘천 2025타경50960-1, 강릉 2025타경206-1. 재현: audit3.py 실행(같은 scratchpad) — '인천 2024타경15058 필드' 섹션과 유형충돌 집계 출력.",
+   "fix_hint": "dedup 키를 (court,case_no,item_no)로 하고 목적물 행들을 병합(건물행 우선, 면적은 건물 전유면적, 지목은 부속 필지로 보존)하거나 mokmulSer별 행을 채점 전에 그룹핑.",
+   "verify_notes": "Fully reproduced on current auction.db with a fresher batch than the original evidence. Code path confirmed: parse_row (courtauction_fields.py:330) keys item_no=maemulSer while doc_id=docid (ends in mokmulSer); pipeline.py:99 dedups by doc_id so all mokmul rows of one maemul survive; store.py:159 INSERT OR REPLACE on PK (court,case_no,item_no) lets the last API row silently win. All three claimed apartment-to-토지 demotions reproduce exactly, and order-dependence is proven by scored.doc_id/area_m2 matching the highest-mokmulSer row in every case. | 발견을 독립 스크립트로 완전 재현. 메커니즘(pipeline.py:99 doc_id dedup → mokmulSer별 행 잔존, courtauction_fields.py:330 item_no=maemulSer, store.py:159 INSERT OR REPLACE PK=(court,case_no,item_no) 마지막 행 승리)이 코드와 실데이터 양쪽에서 확인됨. 핵심 수치(유형충돌·scored 23건, 아파트→토지 강등 3건, 최대 21행 키)는 정확히 일치하고, 총계(916→920, 40→41)의 미세 차이는 발견 작성 이후 2026-07-10 새 수집배치가 적재된 데 따른 자연 드리프트로 설명됨."
+  },
+  {
+   "dim": "type-integrity",
+   "severity": "HIGH",
+   "title": "법원 카테고리 '아파트'인데 세부용도코드가 아파트가 아닌 42건 — 오피스텔 코드 물건 4건이 아파트 실거래 시세로 계산돼 기본정렬 rank 10·11·26에 노출",
+   "file": "src/courtauction_fields.py",
+   "claim": "parse_row가 property_type을 dspslUsgNm(카테고리)만으로 정하고 raw에 있는 sclsUtilCd를 버리기 때문에, 법원이 '아파트' 카테고리에 넣었지만 등기·건축물대장상 오피스텔(scls=20110)·연립/다세대(20105/20106)·근생(21101)인 물건이 아파트 comps(같은 법정동 아파트 평단가)로 시세·차익이 산정된다.",
+   "evidence": "스냅샷 실측: usg='아파트' 1,034건 중 scls≠20104(아파트)가 42건, 그중 est>0 8건. scls=20110(오피스텔) 4건이 아파트 시세로 계산돼 전면 노출 — 대전 2025타경504110-1(est 3억5,459만, 보수차익 1억9,274만, 기본정렬 rank 10), 대구 2025타경8897-1(1억9,249만, rank 11), 대구 2024타경129122-1(1억805만, rank 26), 청주 2025타경51805-1(5,880만). 기본정렬 rank 3 서울중앙 2024타경1775-1도 scls=20106·buldNm='주건축물'(단지명 아님)인데 same_dong_fallback 아파트 시세로 보수차익 2억2,570만 표시. 재현: scratchpad의 usg=아파트&scls≠20104 스니펫(본 감사 audit 로그) — SELECT raw_json… + sclsUtilCd 비교, 42건/est>0 8건 재현.",
+   "fix_hint": "A1과 동일 근본원인 — sclsUtilCd를 1차 신뢰 소스로 삼고 dspslUsgNm은 폴백으로만. 코드-카테고리 모순 시 시세추정 보류가 안전.",
+   "verify_notes": "재현 성공 — 발견은 사실이며, 원 주장보다 더 강한 근거(법원 감정 건물내역 원문)까지 확인됨. (1) 코드: src/courtauction_fields.py parse_row(L304-305)는 property_type을 classify_property_type(dspslUsgNm)만으로 정하고, verify_property_type(L223-238)은 '건물표식 없음+지목 있음→토지' 교정만 수행 — sclsUtilCd는 라벨 사전(L102)에만 존재하고 분류에 전혀 쓰이지 않음. 오피스텔 코드 물건도 buldNm이 있으면 그대로 '아파트'로 통과. (2) DB 실측(auction.db 읽기전용): usg='아파트' 1,034건 중 scls≠20104가 43건(주장 42건과 1건 차이 — 05:30 일일 새로고침에 의한 스냅샷 드리프트, 방향 불변), 그중 scored & est>0 정확히 8건. 인용 4건 전부 수치·순위 일치 재현: 대전 2025타경504110-1(scls=20110, est 354,594,060, profit_low 192,741,548, 기본정렬 rank 10), 대구 2025타경8897-1(rank 11, profit_low 192,487,366), 대구 2024타경129122-1(rank 26, profit_low 108,053,101), 청주 2025타경51805-1(profit_low 58,804,683, rank 80). 서울중앙 2024타경1775-1도 scls=20106(다세대)·buldNm='주건축물'인데 same_dong_fallback 아파트 comps로 rank 3(profit_low 225,696,734). (3) 결정적 반증 시도 결과 오히려 확증: 3건의 raw pjbBuldList(감정 건물내역)에 '오피스텔' 명기 — 대전 504110-1 \"철근콘크리트구조 오피스텔 68.358㎡\"(건물명은 '트윈스아파트'!), 대구 8897-1 \"업무시설(오피스텔) 82.3474㎡\", 대구 129122-1 \"업무시설(오피스텔) 50.25㎡\". 즉 법원 데이터 자체가 오피스텔이라 말하는 물건이 아파트 평단가로 시세·차익 산정돼 기본정렬 top 11에 2건 노출. matcher.py의 _kind_ok는 want='apt'로 아파트 실거래만 comps로 쓰므로(same_dong_fallback) 유형 오분류가 곧바로 교차유형 시세 오염으로 이어짐 — 나대지 사고와 동일 계열의 '조용히 틀린 데이터'. | 독립 재현 성공 — 코드 경로와 DB 실측 모두 주장과 일치. (1) src/courtauction_fields.py:304-305의 parse_row는 property_type을 classify_property_type(dspslUsgNm)만으로 정하고, verify_property_type(223-238행)은 건물표식/지목 물리신호만 교차검증할 뿐 raw의 sclsUtilCd(용도소분류코드)는 어디서도 참조하지 않음. (2) auction.db 실측에서 카테고리='아파트'인데 세부코드≠아파트(20104)인 물건이 스냅샷 42건, 그중 오피스텔 코드(20110) 물건 4건이 같은 법정동 아파트 시세(same_dong_fallback)로 차익이 산정돼 기본정렬 rank 10·11·26에 실제 노출됨을 확인. rank 3의 서울중앙 2024타경1775-1(scls=20106, buldNm='주건축물')도 재현됨."
+  },
+  {
+   "dim": "type-integrity",
+   "severity": "MEDIUM",
+   "title": "기본정렬(차익 큰 순) 상위 50건 중 42건이 '추천 금지 참고치'인 same_dong_fallback 시세 — rank 1은 감정가의 2.06배 est로 보수차익 7.35억 헤드라인",
+   "file": "src/query.py",
+   "claim": "T3 정책은 dong-fallback을 '참고치 — 추천 금지'로 규정하고 등급만 '관심'으로 강등하지만, 웹 기본정렬(DEFAULT_SORT='profit', decision_profit 내림차순)은 scope를 전혀 반영하지 않는다. 결과적으로 비교군이 가장 약한(같은 법정동 아무 아파트) 물건들의 부풀려진 차익이 첫 화면 최상단을 지배해, 나대지-아파트 사고와 같은 '비교군 오류발(發) 허상 차익'이 정렬을 통해 그대로 재노출된다.",
+   "evidence": "스냅샷 실측: est>0 물건을 decision_profit 내림차순 정렬 시 top50 중 same_dong_fallback 42건(84%). rank 1 대구 2025타경669-1: '범어 월드메르디앙 웨스턴카운티' 132.69㎡, 감정가 8.3억·유찰 10회·최저가 3,349만인데 est 17억1,243만(감정가 대비 2.06배, 범어동 고가 신축 아파트 comps 혼입, basis 40) → 보수차익 7억3,518만이 '권리미확인' 상태로 목록 1위. 이 물건은 courtauction_rights.py 주석에 기록된 대항력 임차권등기 물건이기도 함. 재현: audit4.py '기본정렬 상위 30' 및 scope 집계 스니펫.",
+   "fix_hint": "기본정렬에서 dong-fallback은 감점 또는 별도 섹션으로 분리, 최소한 est가 감정가의 1.5배를 넘으면 밴드 불신 플래그.",
+   "verify_notes": "전 항목 재현 성공. 기본정렬(src/query.py sort_items, DEFAULT_SORT='profit')은 decision_profit(=profit_low 우선)만으로 내림차순 정렬하며 market_scope를 전혀 반영하지 않음(query.py는 working tree에서도 미수정). auction.db(2026-07-10 06:14 새로고침분) 실측: top50 중 same_dong_fallback 42건(84%), rank 1 = 대구 2025타경669-1 범어 월드메르디앙 웨스턴카운티(est 17.12억=감정가 8.3억의 2.06배, profit_low 7.35억, 유찰 10회, basis 40, grade=권리미확인) — 발견의 수치와 정확히 일치. 실제 Flask 앱을 AUCTION_DB로 부팅해 GET / 렌더 확인: 테이블 1위에 해당 물건이 '예상 차익 7.35억'으로 노출되고, 컬럼 라벨('실거래 검증 하한')과 페이지 문구('같은 단지·같은 평형 실거래로 검증한 하한값')가 fallback 42건에 대해 사실과 다르게 표시되며, 페이지 어디에도 fallback/참고치 표기 없음. 히어로만 scope 게이트 적용(51185 선정), 목록 정렬은 미적용. 오늘자 미커밋 수정(EST_VS_APPRAISAL_MAX=2.5, 지분 게이트)으로도 미해결 — rank1은 2.06배<2.5라 통과하고 mulBigo 비어 지분 게이트도 미발동. | 독립 재작성한 읽기 전용 쿼리로 전 수치가 그대로 재현됨. (1) 코드: src/query.py DEFAULT_SORT='profit', sort_items()는 decision_profit(profit_low→expected_profit 폴백)만으로 내림차순 정렬하며 market_scope를 전혀 참조하지 않음. apply_filters()에도 scope 파라미터 없음. src/web.py _filtered()(155~159행)가 이 정렬을 기본 목록에 그대로 사용 — scope 게이트는 히어로(passes_recommend_gates, same_complex_same_area+basis≥5 필수)와 digest TOP에만 적용되고 목록 순서에는 미적용. (2) DB: 기본정렬 top50 = same_dong_fallback 42건(84%) + same_complex_same_area 8건 — est>0 필터 유무와 무관하게 동일. 참고로 est>0 모집단(468건)의 fallback 비율은 73.9%(346건)라 상위권에서 과대표집(84%>74%)도 확인. (3) rank 1 = 대구지방법원 2025타경669-1 '범어 월드메르디앙 웨스턴카운티' 132.6887㎡: appraisal 8.3억, min_bid 3,349.2만, 유찰 10회, est 17억1,243만(감정가 2.063배), scope=same_dong_fallback, basis 40, profit_low 7억3,518만, grade='권리미확인' — 클레임 수치와 원 단위까지 일치. (4) courtauction_rights.py 98행 주석이 이 사건(대구 2025타경669)의 매각물건명세서 원문 '대항력 임차권등기 인수' 문구 미탐을 실측 보강 사례로 기록 — 대항력 위험 물건이 맞음. (5) 추가 신호: top50 fallback 42건 중 30건이 est>감정가 1.3배로 비교군 혼입 부풀림 패턴 뚜렷."
+  },
+  {
+   "dim": "type-integrity",
+   "severity": "LOW",
+   "title": "'대지권미등기'는 하드게이트 없이 아파트 시세 매칭 통과(2건), '건물만 매각' 계열 1,595건은 현재 우연히만 차단 — 위험 문구가 시세추정을 막지 않음",
+   "file": "src/config.py",
+   "claim": "SPECIAL_RIGHT_KEYWORDS가 '대지권미등기'를 검출해도 fatal_special=['유치권']뿐이라 감점(15점)만 되고 시세추정·차익 계산은 그대로 진행된다. '건물만 매각(토지 제외)'·'토지만 매각'은 키워드 사전에 아예 없어 검출조차 안 된다. 현재는 해당 물건 대부분이 미지원유형이거나 차익없음으로 강등돼 노출 피해가 없지만, 차단이 '정책'이 아니라 '우연'에 의존한다.",
+   "evidence": "스냅샷 실측: mulBigo '대지권 미등기' 계열 50건 중 아파트 시세 매칭 2건 — 울산 2025타경11704-1(est 1억1,092만, mulBigo '일부 대지권 미등기이며, 대지권 유무는 알 수 없음…'), 울산 2025타경11814-1(est 2억9,484만) — 둘 다 현재 '차익없음' 등급이라 미노출. '건물만/토지제외/제시외' 계열 1,595건·'토지만/건물제외' 55건은 est>0 0건(전부 미지원유형·comps 부재로 우연 차단). 재현: audit_type.py [H3].",
+   "fix_hint": "'대지권미등기'·'건물만'·'토지만' 검출 시 시세밴드에 불확실 플래그 또는 상세 크롤 전까지 추정 보류. '건물만','토지 제외' 키워드를 SPECIAL_RIGHT_KEYWORDS에 추가.",
+   "verify_notes": "재현 성공 — 핵심 주장 전부가 현행 코드·현행 auction.db에서 그대로 확인됨. (1) 코드: src/score.py is_hard_gated()는 assumed_ratio>0.30 또는 fatal_special(=['유치권'] 단독, src/config.py:31)만 차단하므로 '대지권미등기'는 rights_score 감점 15점뿐이고 시세·차익 계산은 진행된다. '건물만 매각(토지 제외)'·'토지만 매각'은 SPECIAL_RIGHT_KEYWORDS(src/courtauction_rights.py:33)에 없어 detect_special_rights가 빈 리스트를 반환(실행 확인). (2) DB: 발견이 지목한 울산 2건이 원 단위까지 일치하는 est로 실재하며(11704-1 est=110,923,720 / 11814-1 est=294,838,956), 특히 11704-1은 expected_profit=+27,415,120원·arb 75.7인데 보수차익(p_low≤0)이라는 무관한 메커니즘 때문에만 '차익없음'으로 강등돼 미노출 — '우연 차단' 주장의 실증. (3) 건물만/제시외 계열은 현 DB 1,074건 전부 미지원유형(1,071)/시세추정불가(3)로 유형정책에 의해서만 차단(est>0 0건), 토지만 계열 30건도 est>0 0건 — 권리 문구가 아니라 직교 메커니즘이 막고 있음. (4) '이미 처리됨' 반증 시도 실패: 사고 후 신설된 data_gates.gate_share_sale(run.py 미러 차단 게이트)조차 키워드에 띄어쓴 '대지권 미등기' 변형이 없어 이 울산 2건을 못 잡고 현 DB에서 PASS(위반 0건)를 반환 — 위험 문구→시세추정 차단이 정책화되지 않았다는 주장이 신설 게이트에도 그대로 성립한다. 유일한 차이는 표본수 드리프트(대지권 계열 50→25건, 건물만 1,595→1,074건, 토지만 55→30건)로 DB 새로고침에 따른 모수 변화일 뿐, 핵심 수치(아파트 시세매칭 2건, 건물만/토지만 est>0 0건)는 정확히 재현된다. | 독립 재작성한 쿼리·코드 점검으로 클레임의 전 요소가 재현됨. (1) 코드: src/courtauction_rights.py:38에서 '대지권미등기'(공백 변형 포함)를 검출하지만 src/config.py:31 fatal_special=[\"유치권\"]뿐이고, src/score.py:50-57 is_hard_gated()는 assumed_ratio와 fatal_special만 검사 → 대지권미등기는 15점 감점(config.py:28)만 받고 시세추정·차익 계산은 그대로 진행. '건물만 매각'/'토지만 매각'은 SPECIAL_RIGHT_KEYWORDS에 없어 검출 자체가 안 됨. (2) DB 실측: 대지권미등기 계열 중 아파트 시세 매칭 정확히 2건 — 울산 2025타경11704-1(est 110,923,720원)·2025타경11814-1(est 294,838,956원), 둘 다 '차익없음' 등급이라 미노출. (3) 건물만/토지제외/제시외 계열은 est>0 0건이지만 차단 경로가 미지원유형 506·scored 미존재 216·시세추정불가 4 — 권리 정책이 아닌 유형분류·comps 부재에 의한 우연 차단임을 확인. (4) 추가 확증: 새로 추가된 data_gates.gate_share_sale조차 키워드에 '대지권 미등기'(공백형)가 빠져 이 2건을 못 잡고 현 DB에서 PASS함."
+  },
+  {
+   "dim": "store-integrity",
+   "severity": "CRITICAL",
+   "title": "crawl_rights 조인에 court 누락 — 타법원 boCd로 크롤한 '엉뚱한 사건의 권리'가 DB에 이미 적재됨",
+   "file": "C:/Users/notebiz765/장현우/auction-arbitrage/deploy/crawl_rights.py",
+   "claim": "_targets()의 JOIN(36-38행)이 `ON r.case_no = s.case_no AND r.item_no = s.item_no`로 court를 빼고 조인해, 타법원 동명 사건의 raw_json에서 boCd를 꺼내(49행) 그 boCd로 case_detail을 호출(84행)한 뒤 결과를 scored 쪽 법원 이름으로 stamp해 listing_rights에 저장한다(91-93행). 같은 키가 조인으로 복수 생성돼 done-set을 통과한 두 boCd가 모두 크롤되고 INSERT OR REPLACE로 나중 것이 이기므로(비결정적), '다른 법원 사건의 매각물건명세서'가 조용히 저장된다. 실제 오염 확정 2건: (군산지원, 2025타경319, 1) 행의 remark가 \"농지취득자격증명 제출요·원상회복명령 가능성(부안면사무소)·토지 일부 도로 사용\"인데 이 물건의 실체는 익산시 부송동 아파트(감정 6,900만)다 — 내용은 정읍지원 동명 사건(부안군 연곡리 토지)의 명세서다. (대구지방법원, 2025타경1235, 1) — 과제에서 실재 확인된 그 동명 쌍(대구/제주) — 은 전 필드가 빈 껍데기 행으로 저장됐고(제주 boCd B000530으로 잘못 조회한 결과로 추정), summarize()가 이 빈 행을 status=clean으로 판정 + web.py가 rights_verified=True로 뒤집어, 3.16억 대구 아파트가 '명세서 확인됨·추가 인수 없음'으로 문서 근거 없이 표시된다. clean 필터(clean=1)에도 통과한다. 군산 2025타경462·울산 2025타경1059 2건도 boCd 2종이 공급된 키라 어느 법원 데이터인지 판별 불가(오염 의심). 재크롤 시 done-set이 오염 행을 건너뛰어 자가치유도 안 된다. 다음 실행 시 오염 위험 키가 총 200개다.",
+   "evidence": "실행: sqlite3 auction.db(읽기전용) — ① `SELECT COUNT(*) FROM scored_listings s JOIN raw_listings r ON r.case_no=s.case_no AND r.item_no=s.item_no WHERE r.court!=s.court` → 341건(타법원 짝). ② 같은 조인에서 boCd 2종 이상 공급되는 (s.court,s.case_no,s.item_no) 키 → 200개, 그중 listing_rights에 이미 행이 존재하는 키 → 4개(군산319·군산462·대구1235·울산1059). ③ 같은 scored 키가 조인으로 복제되는 키 → 756개. ④ 내용 대조: listing_rights(군산지원,2025타경319,1).remark='농지취득자격증명…부안면사무소' vs scored 군산지원 행=익산시 아파트, scored 정읍지원 동명 행=부안군 연곡리 토지(감정 7,236만) — 농지 문구는 아파트에 불가능. ⑤ listing_rights(대구지방법원,2025타경1235,1)=전필드 공백·schedule 없음·court_dept 공백, raw엔 대구(B000310)·제주(B000530) 둘 다 존재. ⑥ summarize() 실호출: 4행 전부 status=clean, is_clean=True (재현 스크립트: scratchpad audit_b2.py/audit_b3.py/audit_b4.py).",
+   "fix_hint": "JOIN에 `AND r.court = s.court` 추가 + boCd를 법원명→코드 매핑으로 교차검증. 오염 확정 2행(군산319, 대구1235)과 의심 2행(군산462, 울산1059)은 삭제 후 --refresh 재크롤. normalize 결과가 전 필드 공백이면 저장 거부(빈 껍데기=clean 오판 차단).",
+   "verify_notes": "모든 핵심 주장이 코드와 auction.db 실데이터로 정확히 재현됨. deploy/crawl_rights.py:36-37의 JOIN이 court를 누락해 타법원 동명 사건의 boCd로 크롤한 결과를 scored 법원 이름으로 저장하며, 실제 오염 행 4건이 listing_rights에 존재하고(오늘 정상 배치 크롤 산출물), 그중 2건은 내용상 오염이 확정적(군산319=아파트에 농지취득자격증명 문구, 대구1235=빈 껍데기가 clean·rights_verified=True로 노출). 자가치유 불가(done-set 스킵)와 INSERT OR REPLACE 비결정성도 코드로 확인. 반증 시도 전부 실패. | 독립 재작성 쿼리·스니펫으로 전 항목 재현됨. 코드 결함(court 누락 조인→타법원 boCd로 크롤→scored 법원명으로 stamp→INSERT OR REPLACE last-wins→done-set이 오염행 스킵) 및 실데이터 오염 2건(군산319=정읍 농지 명세서가 익산 아파트에 부착, 대구1235=빈 껍데기가 clean·rights_verified=True로 승격) 모두 실측 확인."
+  },
+  {
+   "dim": "store-integrity",
+   "severity": "HIGH",
+   "title": "load_rights/fetch_rights 폴백이 court·item_no를 무시(`WHERE case_no=? LIMIT 1`) — 현재 16개 물건이 남의 권리 내역을 표시",
+   "file": "C:/Users/notebiz765/장현우/auction-arbitrage/src/store.py",
+   "claim": "store.load_rights(229-231행)의 폴백이 `SELECT * FROM listing_rights WHERE case_no=? LIMIT 1`로 court와 item_no를 모두 버리고 ORDER BY도 없이 임의 1행을 반환한다. store_rest.fetch_rights(store_rest.py 196-199행)도 동일 패턴({\"case_no\": \"eq.…\", \"limit\": 1})이라 클라우드 서빙도 같다. web.py property_detail(333·337행)이 이 결과로 rights_verified=True를 세팅하고 하드게이트·인수금액·대항력까지 남의 문서로 계산한다. 실호출로 확인: load_rights(conn,'정읍지원','2025타경319','1')이 군산지원 행을 반환(타법원 권리 표시 확정 1건). 같은 법원이라도 다른 물건번호의 명세서로 폴백되는 물건이 15건 — 특히 의정부 2024타경81902는 물건 26·27·30이 크롤된 42개 물건 행 중 '임의의 1행'(SQLite 내부 순서)을 받는다. 다물건 사건은 물건별 점유·대항력이 갈리는 대표 사례라 '사건 단위 정보는 물건 간 공유된다'는 폴백 전제가 깨진다.",
+   "evidence": "실행: ① `SELECT s.court,s.case_no,s.item_no FROM scored_listings s WHERE NOT EXISTS(SELECT 1 FROM listing_rights r WHERE r.court=s.court AND r.case_no=s.case_no AND r.item_no=s.item_no) AND EXISTS(SELECT 1 FROM listing_rights r2 WHERE r2.case_no=s.case_no)` → 폴백 발동 16건. 그중 rights가 타법원 행뿐 → 1건(정읍지원 2025타경319 → 군산지원 행), 같은 법원·타물건 → 15건(강릉30677 물건2→1, 부산4864 물건1·2·3→4, 울산7378 물건1·2·5→3/4, 의정부81902 물건26·27·30→42행 중 임의, 제주2094 물건1·2→3 등). ② 파이썬 실호출 store.load_rights(conn,'정읍지원','2025타경319','1') → 반환 row의 court='군산지원'. ③ 동명 사건 규모: scored에서 case_no당 법원 2곳 이상 → 67개 case_no·184행, raw에선 156개 case_no (audit_b.py §1a-1c, audit_b2.py §A·B).",
+   "fix_hint": "폴백 1단계를 `WHERE court=? AND case_no=?`(같은 법원 내 물건 폴백)로 한정하고 타법원 폴백은 제거. 다물건 사건은 폴백 시 '다른 물건의 명세서' 경고 배지를 함께 렌더.",
+   "verify_notes": "부분 반증·핵심 재현. (반증된 부분) 현 워킹트리 src/store.py load_rights(217-236행)와 store_rest.py fetch_rights(193-211행)는 폴백에서도 court=? 를 유지하도록 이미 수정돼 있어(uncommitted, 경고 docstring 포함) 주장 속 코드 인용(`WHERE case_no=? LIMIT 1`)과 대표 재현(정읍지원 2025타경319 → 군산지원 행 반환)은 더 이상 성립하지 않음 — 실호출 결과 None, 타법원 오표시 0건. (확정된 부분) 그러나 폴백이 item_no를 버리는 문제는 그대로 남아 실호출 기준 15개 물건(주장 목록과 정확 일치)이 같은 사건 '다른 물건'의 매각물건명세서 행을 반환받고, web.py(341-353행)가 이를 rights_verified=True로 세팅해 하드게이트·인수금액·대항력을 남의 문서로 계산한다. 오류는 실질적: 대구6301 물건2가 물건1의 '매수인에게 대항할 수 있는 임차권등기'를 상속(오게이트), 제주2094 물건1·2가 물건3의 '해당사항없음'을 검증완료로 표시(위험 방향 false-clean), 울산7378 물건1·2·5에 물건3의 호실특정 비고('107호와 경계벽 없이…') 표시. docstring의 폴백 근거('물건번호 미기록 레거시 행 대비')는 데이터와 불일치 — 반환된 폴백 행들은 전부 구체적 타 item_no('1','3','4')를 가진 행이었다. 건수>0(15건)·실사례 재현이므로 confirmed=true, 단 심각도는 타법원 성분 해소로 원주장 대비 하향(16→15건, 전부 동일법원·동일사건 내 물건 간 혼선). | 핵심 결함(폴백이 다른 물건의 명세서를 반환하고 web.py가 rights_verified=True로 신뢰 처리)은 독립 재현됨. DB 증거 수치(폴백 16건, 동일법원·타물건 15건, 타법원 1건, 동명사건 scored 67개/184행·raw 156개)가 전부 실측과 일치. 단, court 탈락 부분은 현재 작업트리에서 이미 수정된 상태(폴백 SQL에 court=? 포함, 정읍지원 호출은 None 반환) — item_no 무시 폴백(15건, ORDER BY 없는 임의 1행)은 현재 코드에서도 그대로 재현되는 라이브 버그."
+  },
+  {
+   "dim": "store-integrity",
+   "severity": "HIGH",
+   "title": "coords 'case:' 폴백 키가 court 무시 — 인천 물건 2건이 지도에서 대구·전주에 찍힘(확정)",
+   "file": "C:/Users/notebiz765/장현우/auction-arbitrage/src/coords.py",
+   "claim": "build_coord_cache(106행)가 `out.setdefault(f\"case:{r.case_no}\", …)`로 법원 구분 없이 전국 크롤 중 '먼저 온 레코드'의 좌표를 case_no 단일 키에 심고, lookup(129행)이 uid 미스 시 이 키로 폴백한다. 타법원 동명 사건이 있으면 다른 법원 물건의 좌표가 반환된다. 실데이터에서 case: 키 2,461개 중 141개가 타법원 동명 사건과 공유되고, 현재 scored 행 중 6건이 실제로 이 폴백을 타는데 그중 2건이 확정 오좌표다: 인천지방법원 2025타경787(옹진군 영흥면)이 [35.6289, 128.8556](대구권 — 같은 case_no의 대구지법 물건 좌표)에, 인천지방법원 2025타경807(강화군)이 [35.8333, 127.1314](전주권 — 전주지법 동명 사건 좌표)에 찍힌다. 두 좌표 모두 자기 주소의 시도 bbox 검증을 통과하지 못하는 값인데, bbox 안전장치는 캐시 '생성' 시 원래 레코드에만 적용되고 폴백 조회엔 적용되지 않아 그대로 지도에 서빙된다(web.py listings_geojson 257행).",
+   "evidence": "실행: data/coords_cache.json 로드 + raw_listings 대조 — ① case: 키 총 2,461개 중 타법원 동명 case_no와 겹치는 키 141개. ② scored 전 행에 대해 uid(doc_id) 미스 & case: 히트 시뮬레이션 → 폴백 실발동 6건. ③ 그중 인천 2025타경787: 주소=인천 옹진군 영흥면 내리, case:좌표=[35.628871,128.85563], sido_of+_valid 검증=False, 같은 case_no raw 법원=['인천지방법원','대구지방법원']; 인천 2025타경807: 주소=강화군 용정리, case:좌표=[35.833255,127.131354], 검증=False, raw 법원=['인천','전주']. 나머지 4건은 단일 법원이라 좌표 자체는 정상(audit_b.py §4, audit_b2.py §D).",
+   "fix_hint": "폴백 키를 `case:{court}|{case_no}`로 바꾸거나, lookup 반환 좌표에도 주소 시도 bbox 검증을 적용해 불일치 시 None(핀 미표시) 처리.",
+   "verify_notes": "재현 성공 — 발견의 모든 수치·기제가 실데이터로 정확히 일치하며, 실서빙 엔드포인트까지 오좌표가 그대로 나간다. (1) 코드 기제 확인: src/coords.py 106행 out.setdefault(f\"case:{r.case_no}\", …)가 court 없이 전국 크롤 '먼저 온 레코드' 좌표를 심고, 129행 lookup이 uid 미스 시 이 키로 폴백. bbox 검증(_valid)은 캐시 생성 시 원 레코드에만 적용되고 폴백 조회에는 없음. (2) 실데이터 재현: case: 키 2,461개(주장과 일치), raw_listings에서 타법원 동명 case_no 156건 중 141건이 case: 키와 겹침(주장과 일치), scored 3,622행 전수 시뮬레이션에서 폴백 실발동 6건(일치), 그중 자기 주소 시도 bbox 검증 실패 2건: 인천지법 2025타경787(옹진군 영흥면 내리)→[35.628871,128.85563](대구권, raw 법원=인천+대구), 인천지법 2025타경807(강화군 용정리)→[35.833255,127.131354](전주권, raw 법원=인천+전주). (3) 영향 무시 불가: web.py _filtered→query.apply_filters는 기본 파라미터에서 grade 필터가 없어 '미지원유형' 행도 전부 서빙됨. Flask test client로 /api/listings.geojson 실호출 결과 features 3,598건에 두 인천 물건이 각각 오좌표로 실제 포함됨(실주소에서 약 250~300km 이탈한 핀). '이미 처리됨' 반증 시도(bbox 안전장치)는 실패 — 안전장치는 캐시 생성 경로에만 있고 폴백 서빙 경로는 통과함. | 독립 재현 성공 — 코드 경로·캐시 통계·폴백 발동 건수·확정 오좌표 2건·라이브 서빙까지 전부 실측으로 확인. coords.py 106행 setdefault가 court 없는 case: 키를 만들고, 129행 폴백과 web.py 257행 조회에 bbox 재검증이 없어 타법원 좌표가 그대로 지도에 서빙된다."
+  },
+  {
+   "dim": "store-integrity",
+   "severity": "HIGH",
+   "title": "compare·watchlist·스냅샷·지도URL이 case_no 단일 키 — 376개 동명/다물건 사건(1,514행)에서 임의 물건 표시·오알림 구조",
+   "file": "C:/Users/notebiz765/장현우/auction-arbitrage/src/compare.py",
+   "claim": "T1 복합키 개편이 저장 계층만 바꾸고 파생 표면 4곳은 여전히 case_no 단일 키다. ① compare.select_for_compare(21행) `by_case = {s.case_no: s for s in scored}` — 같은 case_no의 여러 물건(타법원 포함)이 dict에서 마지막 1건으로 붕괴돼 /compare가 사용자가 고른 것과 다른 법원/물건의 감정가·세금(웹 web.py 494행 taxes도 case_no 키)을 보여줄 수 있다. 현재 데이터에서 case_no 중복은 376개(행 1,514개, 전체 3,622행의 42%)이고 376개 전부 (court,item)이 다른 진짜 별개 물건이다. ② watchlist.snapshot_from_scored(38-45행)가 case_no 키 dict라 다물건 사건은 마지막 행이 앞 행을 덮어써, detect_changes가 서로 다른 물건의 min_bid/score를 비교해 가짜 '최저가 하락(유찰)'·'스코어 상승' 이벤트를 만든다(스냅샷 파일은 아직 없어 잠복 상태 — 기능 사용 즉시 발현). ③ watchlist 등록/조회(web.py 441-463행, 421행 `s.case_no in wl`)는 한 물건을 담으면 동명 타법원 물건까지 전부 '관심' 표시. ④ 지도 GeoJSON의 물건 URL(web.py 271행)이 `/property/{case_no}?item=`으로 court가 없어, (case_no,item_no)까지 같은 타법원 쌍 58개(122행)는 핀 클릭이 단건 상세로 못 가고 선택 페이지로 빠지거나 필터에 따라 다른 물건이 잡힌다. asking(374행 `.get(case_no)`)도 같은 계열.",
+   "evidence": "실행: ① `SELECT COUNT(*) FROM (SELECT case_no FROM scored_listings GROUP BY case_no HAVING COUNT(*)>1)` → 376, 해당 행 1,514, 그중 (court||item) distinct>1 → 376(전부). ② `SELECT case_no,item_no,COUNT(DISTINCT court) nc FROM scored_listings GROUP BY case_no,item_no HAVING nc>1` → 58쌍·122행(예: 2025타경1040 item1이 대구·울산·인천 3개 법원 — 대구=아파트 score 42.8, 울산=토지, 인천=오피스텔). ③ inspect.getsource(compare.select_for_compare)로 by_case dict 확인. ④ data/score_snapshot.json·watchlist.json 현재 미존재 확인(잠복). (audit_b.py §4·§7, audit_b2.py §F, audit_b3.py)",
+   "fix_hint": "비교·워치리스트·스냅샷 키를 s.uid(doc_id) 또는 court|case_no|item_no로 통일. 지도 URL에 &court= 추가. API 하위호환이 필요하면 case_no 입력을 uid로 리졸브하는 단계에서 다건이면 400/선택지 반환.",
+   "verify_notes": "재현 성공 — 발견의 4개 표면 모두 코드와 auction.db 실데이터로 확인됨. 반증 시도 결과: 주장한 건수(376 사건/1,514행/42%, 58쌍/122행)가 정확히 재현되고, 붕괴로 인한 '다른 물건 표시'가 실제 모듈 호출로 라이브 재현됨. 특히 ①은 잠복이 아니라 현재 즉시 발현: /compare?case=2025타경1040 요청 시 사용자가 (목록에서) 봤을 대구 아파트(정평현대타운, 2.43억)가 아닌 울산 토지(935만원, apt_name 공란)가 반환됨 — select_for_compare의 by_case dict가 마지막 행으로 붕괴. UI도 case_no 단일 키로만 링크를 만들어(watchlist.html:49 compare 링크, listings.html:170·detail.html:25 watch 토글) 사용자가 court/item을 지정할 방법 자체가 없음. ② snapshot_from_scored는 3,622행→2,484키로 1,138행을 침묵 소실시키며, 동일 데이터의 적재 순서만 바뀌어도 가짜 '스코어 상승 0→43' 이벤트가 detect_changes에서 실제 생성됨을 재현(스냅샷 파일 미존재로 잠복 상태라는 발견의 서술도 정확). ③ watch 토글은 case_no 존재만 확인(web.py:443 _case_exists)하고 표시도 s.case_no in wl(web.py:421)이라 동명 타법원 물건이 전부 관심 표시됨. ④ 지도 URL(web.py:271)은 court 누락 확인 — 단 _find_by_case(T8 수정)가 다건이면 choose_item 선택 페이지를 반환하므로 '조용히 틀린 데이터'가 아니라 '핀→단건 상세 불가·모호성'으로 발견 자체의 서술(\"선택 페이지로 빠지거나\")과 일치. 유일한 정도 조정: ②는 기능 사용 전 잠복, ④는 침묵 오표시가 아닌 UX 열화이나, 발견이 이미 그렇게 명시하고 있어 과장 없음. | 독립 재작성한 SQL과 실제 모듈 임포트 실행 모두에서 발견이 정확히 재현됨. 코드 4곳(compare.py:21, watchlist.py:38-45, web.py:271/373/421/441-463/489-495)이 실제로 case_no 단일 키를 사용하고, DB 실측 수치(376/1,514/58/122)와 예시 사건(2025타경1040)이 claim과 완전 일치. 나아가 select_for_compare와 snapshot_from_scored를 실데이터로 직접 실행해 '다른 법원의 다른 물건이 반환·저장되는' 오동작을 실증했다."
+  },
+  {
+   "dim": "store-integrity",
+   "severity": "MEDIUM",
+   "title": "raw_listings 중복·잔존 — 동일 (court,case_no,item_no)에 최대 21개 uid(여분 1,808행) + 만료 고아 2,788행이 B1 조인 오염의 연료",
+   "file": "C:/Users/notebiz765/장현우/auction-arbitrage/src/store.py",
+   "claim": "save_raw_records(183-201행)는 uid(=doc_id) 기준 REPLACE만 하는데 courtauction doc_id에 기일 회차가 들어가 있어 같은 물건이 회차마다 다른 uid로 누적된다 — 동일 (court,case_no,item_no)에 raw 행이 2~21개씩 쌓인 키가 920개(여분 1,808행)다. 또 scored는 replace_all로 전량 교체되지만 raw는 삭제가 없어 현 스냅샷(7/10)에 없는 만료 물건 2,788행(7/4~7/7 수집분)이 남아 있다. 원본 보존 자체는 설계 의도지만, court 없는 crawl_rights 조인(B1)이 이 중복·잔존 행까지 조인해 타깃 756키를 복제 크롤하고 낡은/타법원 boCd를 공급하는 실질 피해 경로가 된다. 조인 방향 자체는 건전: scored→raw 고아 0건, rights→scored 고아 0건, doc_id 중복 0건, scored.doc_id가 raw.uid에 전부 존재.",
+   "evidence": "실행: ① `SELECT court,case_no,item_no,COUNT(*) c FROM raw_listings GROUP BY 1,2,3 HAVING c>1` → 920키·여분 1,808행(최대 의정부 2024타경72144 item1 x21 — uid 끝자리만 다름). ② raw 고아: `SELECT COUNT(*) FROM raw_listings r WHERE NOT EXISTS(SELECT 1 FROM scored_listings s WHERE s.court=r.court AND s.case_no=r.case_no AND s.item_no=r.item_no)` → 2,788건, fetched_at 분포 7/4=7·7/5=330·7/6=801·7/7=1,650(전부 과거 크롤분; 현행 7/10 크롤=4,824행). ③ 역방향: scored→raw 고아 0, rights→scored 고아 0. ④ doc_id 중복(raw/scored) 0, 같은 doc_id가 복수 복합키 0, scored.doc_id∉raw.uid 0 (audit_b.py §2·§3, audit_b3.py).",
+   "fix_hint": "crawl_rights 타깃 조인에 court 추가(B1) + raw 중 '최신 fetched_at 1행'만 조인(GROUP BY 후 MAX). 만료 raw는 보존하되 is_stale 뷰나 fetched_at 컷으로 소비 측에서 제외.",
+   "verify_notes": "모든 수치가 실DB에서 정확히 재현됨: 중복 920키/여분 1,808행(최대 의정부 2024타경72144 x21, uid 끝자리=회차만 상이), raw 고아 2,788행(7/4=7·7/5=330·7/6=801·7/7=1,650), 역방향 위생 4종 전부 0. 핵심 피해 경로도 실재: crawl_rights._targets의 court 없는 조인(deploy/crawl_rights.py:37)이 5,170행으로 부풀어 756키 중복(done 제외 후에도 750키·여분 크롤 1,539건), scored.court≠raw.court 조인 341행이 타법원 boCd를 공급하며 그중 실사고 사건(대구 2025타경1235 ← 제주 boCd=B000530)이 포함됨 — 크롤 결과는 line 91에서 scored의 court로 낙인돼 listing_rights에 REPLACE되므로 타법원 권리내역 침묵 오기재가 실제 발생 가능. 코드에 이 조인을 고치는 처리 없음(load_rights의 court 가드는 읽기 전용, 쓰기 오염 미방지). 유일한 뉘앙스: 최다 중복 21개 uid가 전부 동일 타임스탬프(7/10 06:14:45) — 회차별 uid는 크롤 간 누적뿐 아니라 단일 크롤 내에서도 발생해 주장보다 오히려 강함. | Every numeric claim reproduced exactly with independently written queries against auction.db (read-only): 920 duplicate (court,case_no,item_no) keys / 1,808 excess rows / max 21 uids on 의정부 2024타경72144 item 1; 2,788 expired orphan raw rows with the claimed 7/4~7/7 date split; all reverse-direction integrity checks clean (0/0/0/0); and the B1 damage path (court-less join in crawl_rights.py) verified in code and quantified at exactly 756 multiplied scored keys plus 200 cross-court pulls. One mechanism refinement: duplication is mostly within a single crawl (search API returns one row per 기일 회차 in the same fetch — 914 of 920 dup keys have a single fetch date), not gradual cross-crawl accumulation; the material effect (REPLACE on uid cannot dedup, B1 join fans out) is unchanged."
+  },
+  {
+   "dim": "matcher-sanity",
+   "severity": "CRITICAL",
+   "title": "시군구를 무시한 법정동 '이름' 매칭 — 전국 풀에서 타지역 동명(洞名) 실거래가 comps로 혼입되어 시세 조작",
+   "file": "src/matcher.py (match_trades_scoped L143-182), src/models.py (Trade)",
+   "claim": "Trade 모델에 지역 식별자(lawd_cd/시군구)가 전혀 없고, match_trades_scoped는 `_norm(t.dong) == dong`(동 이름 문자열)만으로 비교군을 만든다. 수집 풀은 전국(수집된 모든 시군구 lawd_cd의 전 거래) 공유이므로, '신천동'(대구 동구)이 '신천동'(서울 송파구=잠실) 실거래와, '송정동'(광주 광산구)이 '송정동'(강릉시) 실거래와 그대로 섞인다. _by_name의 주석('동명이단지 차단')은 동명이 다른 경우만 막을 뿐, 동명이 같은 타지역은 same_complex 계층까지 뚫린다.",
+   "evidence": "재현1(원단위 일치): 대구 2025타경8744 신천엘에이치(45.68㎡, 감정 1.19억)의 DB est=1,370,726,363(감정가 11.5배). 프로젝트의 molit_client로 대구동구(27140)+송파구(11710) 202604-06 apt 풀을 재구성해 match_trades_scoped 실행 → matched 14건 중 8건이 '한신잠실코아'(송파 신천동, 27.9~34.5M원/㎡), 대구만의 풀이면 est=129,406,100(정상). 재현2(원단위 일치): 광주 2026타경30531 송정크레지움센트럴 DB est=348,489,266 — 강릉시(51150) 풀만 넣고 estimate_market 실행 시 est=348,489,266 완전 동일 재현(comps=강릉송정한신더휴·송정아이파크 등 강릉 송정동 4건, basis=4). 이 4개 물건(30531/30533/30382/32830)이 보수차익 +1.32~1.36억으로 현재 기본정렬 top-20의 #17~#20 점유. 노출 규모: est 보유 477행 중 115행(24%)이 수집물건 기준으로도 복수 지역에 존재하는 동명 동 소재(하한 — 거래 풀은 시군구 전체 동을 포함하므로 실제 노출은 더 큼). 실행: scratchpad t4_repro.py / t8_songjeong.py (읽기전용, MOLIT 공공 API GET).",
+   "fix_hint": "fetch_trades 호출 시 lawd_cd를 Trade에 태깅(파라미터로 이미 보유)하고 matcher의 모든 계층(_by_name·by_dong)에서 listing.lawd_cd 일치를 필수 조건으로 추가. 오늘 추가된 EST_VS_APPRAISAL_MAX=2.5 가드는 증상 완화일 뿐 1.7~2.3배 오염은 통과함.",
+   "verify_notes": "코드·실DB·라이브 API 3중으로 재현 성공. Trade 모델(src/models.py L44-52)에 지역 식별자가 없고, match_trades_scoped(src/matcher.py L151-190)는 동 이름 문자열(_norm(t.dong)==dong)만 비교하며, pipeline.run()은 전 지역 lawd_cd의 거래를 하나의 평면 리스트로 합쳐 모든 물건에 공유(load_live_trades L173-219)한다. 결정적 재현: 광주 광산구 송정동 '송정크레지움센트럴' 4건(2026타경30531/30382/30533, 2025타경32830)의 DB값 est=348,489,266 / matched=6 / basis=4 / band_low=340,701,796이 강릉시(51150) 단독 거래풀로 4개 필드 모두 원단위 완전 일치 재현됐고, 광주 광산구(29200) 자체 풀은 거래 0건 — 즉 추정치의 100%가 300km 떨어진 강릉 송정동(강릉송정신원아침도시 5건+송정아이파크 1건) 실거래에서 나왔다. 이 4건은 기본정렬(보수차익순) top-20의 #17~#20을 점유하며 허상 보수차익 +1.32~1.36억을 노출 중. 반증 시도 결과: (a) 감정가 2.5배 게이트는 대구 8744(11.5배)만 사후 무효화했고(현재 scope=appraisal_mismatch — 클레임의 해당 DB 수치는 구식) 송정 케이스(1.73배)는 통과, (b) same_dong_fallback '추천 금지'도 기본정렬 순위·차익 표시 자체는 막지 못함. 노출 규모: est 보유 468행 중 84행(약 18%, 주소 기반 보수 재집계)이 복수 시군구 동명 소재 — 송정동은 강릉/광주광산/울산북구 3중 충돌. | 독립 재현 성공 — 원 단위 완전 일치. 코드 구조(Trade에 지역 식별자 부재 + dong 문자열 매칭 + 전국 공유 풀)와 두 헤드라인 사례의 est 값이 모두 재현됐고, 오염된 4개 물건이 현재 기본정렬 top-20의 #17~#20을 점유함도 실측 확인. 단, 세부 2건 정정: (1) 대구 8744의 est=1,370,726,363은 2026-07-10 추가된 감정가 2.5배 게이트로 현재 DB에서는 무효화됨(est=None, scope=appraisal_mismatch — 그러나 오염 매칭 14건은 그대로이며 게이트는 1.7배인 송정 사례를 전혀 못 막음), (2) 4번째 물건은 2026타경32830이 아니라 2025타경32830(연도 오기)."
+  },
+  {
+   "dim": "matcher-sanity",
+   "severity": "HIGH",
+   "title": "same_dong_fallback이 같은 지역 안에서도 비교불능 단지(신축 대단지)를 혼입 — 2.5배 가드 아래의 잔존 허상 차익이 기본 정렬 상위 독식",
+   "file": "src/matcher.py (match_trades_scoped by_dong L176-181), src/query.py (sort_items), src/score.py (L161-170)",
+   "claim": "같은 법정동+유형+면적대(±10%) 중앙값은 구축 소단지와 신축 대단지를 구분하지 못한다. 스코프 게이트(T3)는 등급('차익 유력'/'양호')만 강등할 뿐, 기본 정렬(profit_low 내림차순)과 노출에서는 fallback을 전혀 배제하지 않아, '가장 크게 틀린 시세'가 목록 최상단에 온다. 오늘 추가된 감정가 2.5배 가드는 극단만 걸러 1.7~2.3배 오염은 그대로 남는다.",
+   "evidence": "재현(현재 코드·현재 API로 DB값 일치): 대전 2025타경504110 트윈스아파트(신탄진동 68.36㎡, 감정 1.56억) — 대덕구(30230) 풀로 재실행 시 est=354,594,060 DB와 동일, comps 11건 중 10건이 신축 '대전동일스위트리버스카이1단지'. 반면 MOLIT에 실존하는 동계열 거래 '트윈스Ⅱ'(신탄진동 84.925㎡)는 1.85억(2.18M/㎡) — 68㎡ 물건의 실제 시세는 감정가대인데 est는 약 2.3배. 이 행이 profit_low +192,741,548로 top-20 #10, grade=권리미확인으로 서빙 중. 집계(재채점 후 최신 DB): 기본 정렬 top-20 중 15건이 same_dong_fallback, fallback est 346건 중 121건이 양수 보수차익, 그중 75건이 +5천만원 초과. #1 범어 월드메르디앙(est/감정 2.06배, p_low +7.35억)도 동일 메커니즘 의심. 실행: scratchpad t7_residual.py + 스냅샷 쿼리.",
+   "fix_hint": "정렬·필터에서 same_dong_fallback을 추천 후보에서 제외(별도 '참고' 섹션)하거나 decision_profit을 same_complex 스코프에만 부여. fallback 유지 시 comps의 건축연도/단지 규모 층화가 최소 조건.",
+   "verify_notes": "전 항목이 실데이터로 정확히 재현됨. (1) 코드: src/matcher.py L184-189 by_dong 폴백은 법정동+유형+면적밴드(±10%)만 보고 단지를 구분하지 않음; src/score.py L161-165 스코프 게이트는 grade만 강등하며, L157-160 elif 순서상 rights_verified=False(라이브 크롤 전량)면 스코프 게이트에 도달조차 안 하고 '권리미확인'으로 서빙됨; src/query.py L40-46 기본 정렬은 profit_low 내림차순으로 scope를 전혀 반영하지 않고, src/web.py _filtered에도 scope 배제 없음(히어로만 passes_recommend_gates로 보호). (2) DB 집계 일치: 기본 정렬 top-20 중 15건이 same_dong_fallback, fallback est 346건 / profit_low>0 121건 / >5천만 75건 — 발견의 수치와 전부 동일. (3) 실사례 라이브 재현: 대전 2025타경504110 트윈스아파트(신탄진동 68.358㎡, 감정 1.56억)를 원본 JSON→parse_row→estimate_market로 재실행하니 est=354,594,060(DB와 바이트 동일), comps 11건 중 10건이 신축 '대전동일스위트리버스카이1단지'(512~536만/㎡)이고 실제 동계열 '트윈스Ⅱ'(신탄진동 84.925㎡)는 1.85억=217.8만/㎡로 MOLIT에 실존 — est가 실제 시세의 약 2.3배인데 est/감정=2.273<2.5라 가드 미발동, p_low +192,741,548로 top-20 #10에 '권리미확인' 등급으로 노출 중. (4) #1 범어 월드메르디앙도 fallback·est/감정 2.06·p_low 7.35억으로 동일 메커니즘이며, top-20 내 1.7~2.46배 fallback 행이 다수(에스에이치빌 2.46, 송정크레지움 1.69~1.73 등). 결론: 2.5배 가드는 극단만 거르고 1.7~2.3배 오염이 기본 정렬 최상단을 실제로 점유하고 있음 — 발견 확정. | 독립 재현 성공 — 코드·DB·라이브 API 3중 검증에서 발견의 모든 수치가 실측과 일치. (1) 코드: src/matcher.py L184-189 by_dong 폴백은 같은 법정동+유형+면적 ±10%만 보고 단지를 구분하지 않음. src/query.py sort_items는 scope 무관 profit_low 내림차순, src/web.py L158-159는 sort_items(apply_filters(...))로 폴백 배제 없이 서빙. src/score.py L161의 스코프 게이트는 elif 체인상 rights_verified 체크(L157) 뒤라서, 라이브 크롤 행(전부 권리미확인)에는 아예 발동하지 않고 등급만 건드릴 뿐 정렬·노출에 영향 없음 — 실제로 폴백 양수차익 121건 중 120건이 grade='권리미확인'으로 그대로 서빙됨. (2) 2.5배 가드는 est/감정 ≥2.5를 0건으로 소거했지만(가드 작동 확인, appraisal_mismatch 5건), 1.7~2.5배 구간의 폴백 양수차익 55건은 잔존. (3) 라이브 재현: 대덕구(30230) 최근 3개월 apt 실거래 352건으로 estimate_market 재실행 → 트윈스아파트 est=354,594,060 DB와 정확 일치, comps 11건 중 10건이 신축 '대전동일스위트리버스카이1단지'(514~536만/㎡), 실제 동계열 트윈스Ⅱ 84.925㎡는 1.85억(2.18M/㎡)으로 MOLIT에 실존 — 68㎡ 물건 실세는 감정가(1.56억)대인데 est는 2.27배로 가드 아래에서 생존, profit_low +1.93억 허상이 기본 정렬 #10에 노출 중."
+  },
+  {
+   "dim": "matcher-sanity",
+   "severity": "MEDIUM",
+   "title": "dspslUsgNm '상가,오피스텔,근린시설'(950건, 전체 12.5%)을 일괄 '오피스텔'로 분류 — 상가 유닛에 오피스텔 시세 부여",
+   "file": "src/courtauction_fields.py (classify_property_type L201-216)",
+   "claim": "복합 용도 카테고리 문자열에 '오피스텔' 키워드가 포함된다는 이유만으로 950건 전부를 property_type='오피스텔'(=v1 시세추정 지원 유형)로 분류한다. 실제 유닛이 상가/근생인 경우에도 오피스텔 실거래 comps와 매칭돼 양방향 왜곡(주로 저평가 → 허위 '차익없음', 일부 고평가)이 생긴다. 원본 raw에는 이를 구분할 수 있는 용도 소분류 코드(sclsUtilCd: 21101 계열 vs 20110 계열)가 있는데 무시된다.",
+   "evidence": "census(raw 7617건): '상가,오피스텔,근린시설'→'오피스텔' 950건. 그중 60건이 est 보유, 22건이 양수 보수차익. scls 코드 분포: (20000,21100,21101)=333 vs (20000,20100,20110)=333 등으로 상가/오피스텔 구분 신호 실재(심지어 lcls=10000 토지 26건 포함). est<감정가×0.4 전수 36건이 전부 오피스텔 분류+same_dong_fallback이었고 다수가 이 복합용도 계열(예: 서울 2024타경6213 아르젠종로 est 0.26배, 대전 라온팰리스 3건 0.26배). 실행: t5_area_class.py, t6_mixed_scls.py.",
+   "fix_hint": "sclsUtilCd/mclsUtilCd 코드표로 유닛 실용도를 우선 판정하고, 판정 불가 복합용도는 '기타'(시세추정불가)로 보수 처리.",
+   "verify_notes": "재현 성공(건수>0, 실사례 다수). classify_property_type(L201-216)은 '오피스텔' 키워드가 '상가'보다 먼저 검사되어 '상가,오피스텔,근린시설' 950건(raw 7,617건의 12.5%) 전부를 '오피스텔'로 분류하며, raw에 존재하는 용도 소분류 코드(sclsUtilCd)는 코드 어디서도 분류에 사용되지 않는다(FIELD_LABELS에만 존재). 순수 그룹 교차검증으로 코드 의미를 확정: 순수 '오피스텔' 행은 94%가 scls 20110, 순수 '근린시설'/'상가' 행은 21101/21104 — 즉 950건 중 약 474건(21101=333, 21104=39, 21111=69, 21199=33)은 실체가 상가/근생인데 오피스텔 시세 comps에 매칭된다. scored_listings 실측: 549건 채점(536건 오피스텔), 60건 est 보유(그중 16건 상가계 scls), 보수차익 양수 22건 중 9건이 상가계 — 의정부 2024타경81902-25는 비고에 '공부상 근린생활시설임'이 명기된 지하 상가인데 오피스텔 comps로 est 5,190만·보수차익 +2,900만이 노출되고, 대전 2025타경503614(세종한신휴시티 540호, scls 21101)는 최상위 scope 게이트(same_complex_same_area)까지 통과해 +3,690만 보수차익이 부여됐다. 반대 방향(저평가→허위 차익없음)도 울산 수아지오시티 상가 유닛 est=감정가 0.31배로 재현. verify_property_type은 토지(37건)만 교정하고 상가↔오피스텔 혼동은 잡지 못하며, scope/표본 게이트는 등급만 제한할 뿐 잘못된 est·profit_low 수치는 그대로 저장·표시된다. 단 하나의 부정확: 클레임 예시 중 아르젠종로(2024타경6213)는 scls 20110(진짜 오피스텔)이라 이 버그의 사례가 아니지만, 핵심 주장은 이 예시에 의존하지 않는다. | 독립 재현 성공. (1) raw_listings 7,617건 중 950건(12.5%)이 dspslUsgNm='상가,오피스텔,근린시설'이고, src/courtauction_fields.py L201-207의 _TYPE_KEYWORDS 순서상 '오피스텔' 키워드가 '상가'보다 먼저 검사되어 950건 전부 classify_property_type='오피스텔'로 분류됨(verify_property_type은 나대지 37건만 '토지'로 구제, 913건은 '오피스텔' 유지). (2) 원본에 구분 신호(sclsUtilCd)가 실재함을 순수 용도명 물건들로 독립 해독: 순수 '오피스텔'→20110(468/497), 순수 '상가'→21101(26/39), 순수 '근린시설'→21101(292/377). 혼합 950건 내부는 20110(진짜 오피스텔) 333 vs 21101(진짜 상가/근생) 333 + 21111 69 + 21104 39 등으로 갈라짐 — 즉 최소 절반 가량이 상가 유닛인데 전부 오피스텔 시세 comps를 받음. (3) 채점 실피해 실측: 혼합·오피스텔 분류 중 est 보유 60건, 보수차익 양수(profit_low>0) 22건 — claim 수치와 정확히 일치. est 보유 60건 중 17건이 상가계 scls(21xxx/22xxx)로 확인됨. (4) est<감정가×0.4 저평가 전수 36건이 전부 property_type='오피스텔' + market_scope='same_dong_fallback'(36/36)이며, 인용 사례(서울중앙 2024타경6213-1 아르젠종로 0.26배, 대전 라온팰리스 3건 0.26배) 재확인. 유일한 뉘앙스: 36건 중 혼합용도 출신은 8건(다수라기보다 22%)이나 핵심 주장에는 영향 없음."
+  }
+ ],
+ "rejected": [
+  {
+   "title": "지분매각 물건에 온전물건 시세로 est·차익 산정 — 시세추정 차단 게이트가 코드에 없음 (감사 당일 서빙 DB에서 허상차익 3.14억 실측)",
+   "why": "false:이미 처리됨. 발견이 지적한 지분 시세추정 차단 게이트가 현재 워킹트리에 존재하며(src/matcher.py:241-245, SCOPE_SHARE_SALE, mtime 2026-07-10 17:09:08 — 감사 실측 17:03~17:07 직후 적용된 미커밋 수정), DB도 수정 코드로 재채점 완료(auction.db mtime 17:29:37). 발견의 핵심 주장 '코드상 차단 장치는 여전히 없다'는 현재 상태에서 거짓이고, '17:11:38 이후 4건이 comps 부족으로 우연히 가려졌다'는 해석도 오류 — 실제로는 4건 모두 market_scope='share_sale'로 새 게이트가 의도적으로 차단한 것. 재현 시도 결과: 현 서빙 DB에서 지분 플래그 물건 524건 중 est_market_price 보유 0건, 인용 4건 전부 est/profit NULL·등급 '시세추정불가'. 원시데이터로 리스팅을 재구성해 온전물건 comps 8건을 주입한 엔드투엔드 테스트에서도 4건 전부 est=None·scope=share_sale로 게이트 정상 작동 — 허상 차익은 더 이상 발생 불가. (부수 주장인 fatal_special=['유치권']·지분 감점 20점은 사실이나, 유해 결과가 제거되어 발견 자체는 기각.) | true:독립 재현 성공 — 단, 원문 발견의 시점 이후 상황 변화 1건 확인: 발견이 지적한 '코드에 게이트 없음'은 감사 시점(git HEAD 0aec580, 2026-07-09 15:20) 기준으로 정확히 사실이며, 오늘(7/10) 17:13 KST에 미커밋 워킹트리 수정으로 share_sale 게이트가 추가되고 오염 4건이 DB에서 무효화(est/profit NULL)되어 현재 서빙 상태에서는 증상이 소거됨. 발견의 검증 가능한 모든 수치(263건·토지160·단독38·전체 3622건·아파트/오피스텔 지분 15건·잠재후보 2건 사건번호·4건 사례 신원·감정가·면적)가 독립 쿼리로 정확히 일치. 단 fatal_special=['유치권']은 수정 후에도 그대로라 '지분이 위험 등급으로 강등되지 않는다'는 지적은 현재도 유효(다만 시세 원천 차단으로 profit 노출은 해소)."
+  },
+  {
+   "title": "_TYPE_KEYWORDS 도달불능 규칙 — ('아파트형공장','상가')와 ('주택','단독')이 선행 키워드에 영구히 가려짐 (classify('아파트형공장')=='아파트' 재현)",
+   "why": "false:코드 레벨 재현은 사실이나(classify('아파트형공장')=='아파트', '전시장'/'충전소'/'전원주택'→'토지' 전부 재현됨, ('아파트형공장','상가')는 진짜 도달불능 죽은 규칙), 실데이터 발현 건수는 0건이다. raw_listings 7,617건 전수 스캔 결과 dspslUsgNm은 19종 고정 그룹명뿐이고 전부 의도대로 분류되며, 해당 키워드를 포함한 값이 하나도 없다. 유일한 '아파트형공장' 건물표기(울산 2025타경565-1)는 usg='기타'로 채점상 property_type='기타'·시세추정 None이라 허상 차익 0. classify 호출처도 dspslUsgNm 단일 경로뿐이라 현재 코드에서 세부 용도명 유입 경로가 없다. 게다가 주장 일부가 부정확: ('주택','단독')은 classify('주택')/'농가주택'으로 도달 가능해 '영구히 가려짐'이 아니고, buldList 증거 사례도 인천이 아닌 울산 건이다. 지식산업센터 오매칭 실피해는 별개 경로(A1, '상가,오피스텔,근린시설'→오피스텔)의 것으로 이 발견의 피해로 계상 불가. '조용히 틀린 데이터' 기준(건수>0 실사례)으로는 영향 무시 가능한 잠재 코드결함이므로 엄격 기준상 false. 단, 물건상세 확장 시를 대비해 키워드 정렬(긴 키워드 우선) 리팩터는 예방 차원에서 가치 있음. | true:핵심 주장 전부 독립 재현됨. (1) 코드 실행으로 classify_property_type('아파트형공장')=='아파트' 확인 — _TYPE_KEYWORDS(src/courtauction_fields.py:201-207) 20개 규칙 전수 도달성 검사에서 ('아파트형공장','상가')만 DEAD(자기 키워드 입력에도 '아파트' 반환, 선행 규칙 '아파트'와 '공장' 둘 다에 영구 가려짐). (2) ('전','토지') 단문자 삼킴 재현: '전시장'/'충전소'/'전원주택' 모두 '토지'. (3) auction.db raw_listings 7,617행 전수 스캔: dspslUsgNm 고유값 정확히 19종, '아파트형공장' 포함 0건 — 현재 데이터 미발현(잠복 지뢰) 확인. (4) 지식산업센터 A1 오매칭 실증: 서울동부 2025타경238-2(mulBigo='집합건축물대장상 공장(지식산업센터)', usg='상가,오피스텔,근린시설'→classify='오피스텔')가 오피스텔 실거래 3건으로 est_market_price=329,506,726원 채점됨(confidence=1.0). 단 세부 2건 정정: (a) '아파트형공장' 문자열 실존 위치는 원 주장(인천 1246-1 buldList)과 달리 울산 2025타경565-1 buldNm('울산아파트형공장', usg='기타'→'기타'로 채점·미지원유형)과 인천 2025타경1246-1 mulBigo('공부상 아파트형공장용도', usg='기타'→미채점) 2건; (b) ('주택','단독') 규칙은 완전 사문 아님 — 단독 입력 '주택'은 정상 도달('단독' 반환), '전원주택' 류 합성어에서만 '전'에 가려짐. 정정 사항은 주장 본질(사문 규칙+단문자 삼킴+잠복성+A1 실물 오매칭)을 훼손하지 않음."
+  },
+  {
+   "title": "감사 도중 scored_listings가 외부 프로세스에 의해 부분 재기록됨(17:11:38) — 공식 스케줄러(05:30)·웹서버(읽기전용) 외의 쓰기 경로 존재",
+   "why": "false:관측 사실(감사 도중 17:11:38에 auction.db가 바뀌고 지분 4건 est→NULL)은 정확하지만, 핵심 주장인 \"공식 경로 밖의 정체불명 쓰기 경로 존재·조용히 데이터가 바뀌는 운영 리스크\"는 반증됨. 쓰기 주체는 메인 개발 세션의 의도된·문서화된 정정 작업이었다: versions.md 2026-07-10 17:13 KST 항목이 data_gates 도입과 함께 \"비고 '지분매각'인데 온전가 시세 매칭 4건\" 등 38건 일회성 정정(무효화)+Supabase 미러를 명시했고, 변경된 4행 전부가 그 커밋이 신설한 market_scope='share_sale'을 달고 있어 인과가 확정된다(대구 2024타경5769-1 포함, 건수 4=문서와 정확히 일치). 파일 mtime 타임라인(run.py 17:04:45→templates 17:09:23→DB 17:11:38→tests 17:11:57→versions.md 17:13:56)도 일치. 변경 전 est=3.57억이 오히려 버그(지분매각을 온전가 시세로 매칭한 허상)였고 NULL이 수정본이므로 '데이터 오염'이 아니라 '치유'였다. 또한 발견의 프로세스 스냅샷은 정정 스크립트 종료 후 촬영돼 증거력이 없고, WAL 모드 DB 특성상 병렬 감사 에이전트의 비-ro 연결만으로도 mtime이 갱신됨(17:28:59·17:30:09 실측, 데이터 무변화)을 확인 — mtime 단독은 오신호. 문서화·테스트(401 passed)·게이트 검증까지 갖춘 정규 개발 워크플로였으므로 '조용한 쓰기 경로' 주장은 성립하지 않음. | true:독립 재현 성공 — 감사 도중 프로덕션 auction.db가 정규 스케줄(05:30) 밖에서 부분 재기록된 사실이 확인됨. 다만 원발견의 '쓰기 주체 불명' 부분은 해소됨: versions.md 2026-07-10 17:13 KST 항목이 기록한 병렬 수정 에이전트의 \"38건 일회성 정정(무효화) + Supabase 미러\"(data_gates.py 신설 + matcher.py 지분→share_sale 시세금지)가 17:11:38 쓰기의 주체다. 즉 '조용히 데이터가 바뀌는 운영 리스크(감사·서빙 중 무통지 쓰기)'라는 핵심 주장은 사실이며, 세부 수치 중 '지분 4건 est 3.5억대'는 부정확(4건 중 1건만 3.5억대, 실제 357M/215M/104M/269M), 'apt_name 채워짐→빈값'은 해당 행이 06:14 시점에도 이미 ''여서 재현 불가."
+  },
+  {
+   "title": "가설(5) item_no='' 레거시 vs dspslGdsSeq='1' 불일치 — 현 DB에는 해당 없음(0건, 잠복 코드만 존재)",
+   "why": "false:재현 불가·영향 0건 — 발견 스스로 인정하듯 현 DB에 item_no='' 행이 3개 테이블 모두 0건이며(독립 재검증 일치), \"잠복 경로\"조차 발견이 주장하는 것보다 더 막혀 있다. (1) 현 auction.db는 이미 schema v5(user_version=5, item_no 컬럼 존재)라 store._migrate의 v1→v2 분기('item_no' not in cols 조건)는 이 DB에서 다시는 발동할 수 없는 일회성 경로다. (2) 설령 외부 v1 DB를 이관해도 _migrate는 scored_listings만 재생성할 뿐 raw_listings에 item_no='' 짝을 만들지 않는데, crawl_rights._targets(36-37행)는 raw_listings와 case_no AND item_no 동등 JOIN을 요구하므로 scored의 '' 행은 대상 목록에 아예 오르지 못한다. (3) 추가로 52-53행 `if not bo: continue` 게이트가 raw_json의 boCd를 요구하는데 v1 시대(법원 크롤러 이전) 데이터에는 boCd가 없어 이 관문도 통과 불가 — 즉 84행 `t[\"item_no\"] or \"1\"`은 ''로 도달할 수 있는 실경로가 없다. (4) 라이브 크롤러(courtauction_fields.py 330행 maemulSer→item_no) 산출물도 전수 검사 결과 ''가 0건(7,617행 전부 숫자형 '1'~'12' 등). 코드 독해로는 성립하는 관찰이지만, 기준(건수>0 실사례=true, 재현불가·영향무시=false)상 실데이터 피해 0건 + 도달 불가 경로이므로 false. | true:독립 재현 성공. (a) 코드: deploy/crawl_rights.py 84행에 `client.case_detail(t[\"bo_cd\"], t[\"case_no\"], t[\"item_no\"] or \"1\")`이 실재하며, 91-92행에서 normalize()에 원래 item_no(빈 문자열 그대로)를 넘겨 저장하므로 item_no=''인 행이 있으면 '물건 1번을 크롤해 '' 키로 저장'하는 불일치가 코드상 성립. (b) 이관 경로: src/store.py _migrate(114행~)의 117행 주석 \"v1 데이터는 item_no=''로 이관된다\"가 실재해 잠복 유입 경로도 확인. (c) 실데이터: 직접 작성한 읽기전용 쿼리로 3개 테이블 모두 item_no='' 및 NULL, 공백/비숫자 item_no가 전부 0건임을 실측 — 현시점 피해 0건이라는 주장까지 정확히 일치."
+  },
+  {
+   "title": "MOLIT 지역 데이터 공백(광주 전역·전남)이 '정상 0건'으로 침묵 통과 — 공백 지역 물건이 타도(他道) 시세로 채워짐",
+   "why": "true:독립 재현 성공. (1) 라이브 API 프로브(자체 작성 스크립트)로 광주 전 5개 구·나주가 resultCode=000 + totalCount=0으로 확인됨(대조 지역은 정상 수백건) — 광주광역시 월 아파트 실거래가 0건일 수 없으므로 업스트림 공백. (2) 코드 정독으로 load_live_trades가 예외만 세고 '성공했지만 0건'은 무경고 통과함을 확인. (3) DB 실측으로 광주 소재 est 보유 물건 6건 전부 same_dong_fallback, 그중 4건이 +1.3억대 양수 profit_low(arb_score 95.5)로 확인. (4) matcher의 동 폴백이 법정동 '이름만' 비교(lawd_cd 미포함)하고 trades가 전 지역 풀로 합쳐지므로 타지역 동명(강릉 송정동·울산 송정동, 둘 다 수집범위 내 실재) 거래로 시세가 만들어지는 메커니즘도 코드로 확인."
+  },
+  {
+   "title": "buldNm 정규화 불일치(엘에이치↔LH 등)로 같은 단지·같은 평형 거래를 놓치고 fallback으로 유출",
+   "why": ""
+  },
+  {
+   "title": "parse_area_m2가 다필지/다동 areaList의 첫 ㎡만 채택 — 55건에서 대표면적이 실체와 다름(현재는 잠복)",
+   "why": "true:코드와 DB 실측 모두에서 발견이 독립 재현됨. parse_area_m2(src/courtauction_fields.py L186-197)는 _AREA_RE.search()로 첫 매치만 반환하고, L298에서 areaList를 첫 인자로 호출하므로 다필지/다동 면적 목록의 첫 ㎡값이 대표면적이 된다. raw 7617건 자체 재작성 쿼리로 263건(㎡ 2개 이상)/55건(첫값≠최대값)이 정확히 일치했고, 55건 중 scored_listings 존재 42건 전부 est_market_price 없음(0건)으로 '잠복' 상태도 확인됨."
+  },
+  {
+   "title": "말라붙은 lawd_cd(',47290', '51150,42150' 등 콤마 오염 10건) — 해당 물건의 MOLIT 조회가 무조건 0건으로 침묵",
+   "why": ""
+  },
+  {
+   "title": "classify_property_type 키워드 순서 버그 — ('아파트형공장'→'상가') 규칙이 영원히 도달 불가(데드 코드)",
+   "why": ""
+  },
+  {
+   "title": "'말소되지 않고 …인수함' 이중부정을 _ASSUME_NEGATION('말소')이 부정으로 오판 → 실제 4.5억 인수금액이 0원",
+   "why": ""
+  },
+  {
+   "title": "_AMOUNT_RE가 한글 단위 금액(억/천만원/N,NNN만원)을 전혀 못 읽어 5건의 실보증금이 0원 — 전부 하드게이트 대상인데 score 92.8로 노출",
+   "why": ""
+  },
+  {
+   "title": "'매수인이 인수' phrase가 '…매수인이 인수하지 아니함(특별매각조건)' 내부에 매칭 — 인수 0원 확정 물건에 opposable=True + 인수금 2억 부과, 상세페이지 하드게이트·차익 −1.5억 표기",
+   "why": ""
+  },
+  {
+   "title": "phrase '임차권등기'가 말소동의 확약서·대항력 포기·말소조건 매각 문맥에서 15건 오탐(opposable=True) — 동일 상황의 다른 2건은 False로 비일관",
+   "why": ""
+  },
+  {
+   "title": "지분 키워드 '분의'가 '부분의'에 부분문자열 매칭 → 지분매각 아닌 물건에 '지분' 특수권리 라벨(페널티 20점)",
+   "why": ""
+  },
+  {
+   "title": "detect_assumed_amount가 다건 임차권등기 보증금을 합산하지 않고 max만 채택 — 인수 위험 과소추정",
+   "why": ""
+  },
+  {
+   "title": "opposable=True인데 금액 미상(assumed=0)인 행이 51/84건 — D1·D2 미탐이 '+α 표기'에 숨어 게이트 전멸",
+   "why": ""
+  },
+  {
+   "title": "전국 샤딩이 max_pages(기본 10p=400행) 상한에서 '법원 블록' 단위로 조용히 잘림 — 부산 동부지원 233건 등 유효매물 471+건이 매일 수집 누락되고 replace_all로 서빙 DB에서 삭제됨",
+   "why": ""
+  },
+  {
+   "title": "crawl_rights._targets 조인에 court 누락 → 동명 사건번호의 타법원 boCd로 물건상세를 크롤해 listing_rights 오염 — 실사례: 대구 2025타경1235(스코어 87.8)가 '빈 권리 → clean 배지'로 서빙 중",
+   "why": ""
+  },
+  {
+   "title": "store.load_rights 폴백이 court·item을 무시(`WHERE case_no=? LIMIT 1`) → 타법원 동명사건의 명세서가 상세페이지에 서빙 — 실사례: 정읍지원 2025타경319가 군산지원 권리를 표시",
+   "why": ""
+  },
+  {
+   "title": "일괄매각 목적물(mokmulSer) 다중행이 같은 (court,case_no,item_no) PK로 붕괴 — 수집 4824행→저장 3622행(1202행 침묵 소멸), 살아남은 행은 '임의 목적물의 면적/유형 + 번들 전체 가격' 키메라. 침산동류 오분류의 구조적 뿌리",
+   "why": ""
+  },
+  {
+   "title": "캐시 diff의 '변경' 감지가 실전에서 한 번도 작동한 적 없음(8일간 0건) — 유찰·기일변경은 전부 '소멸→신규'로 위장되고, '소멸(낙찰/취하 추정)' 라벨은 truncation 잘림 471건과 뒤섞여 무의미",
+   "why": ""
+  },
+  {
+   "title": "만료(기일 경과) 물건 서빙 — 오늘 기준 DB엔 0건이지만 방어가 전무: 크롤 자체가 기일 지난 물건을 수집하고(7/7 크롤에 과거 기일 461행), 새로고침 실패 시(실측 7/8·7/9 연속 실패) 만료물건이 이틀간 그대로 서빙됐음",
+   "why": ""
+  },
+  {
+   "title": "시도 커버리지 자체는 17/17 완전(신코드 51 강원·52 전북 포함, 구코드 병기 물건도 수집됨) — 다만 '부동산' 검색에 자동차·중기·선박 물건이 섞여 들어와 scored에 잔류",
+   "why": ""
+  },
+  {
+   "title": "추천 게이트(hero/digest)가 인수 부담 배지를 안 봄 — 현재 hero가 '대항력+인수 3.3억, 실질 −1.04억' 물건인데 '검증 게이트 통과 · 추천' + 차익 2.26억 헤드라인",
+   "why": ""
+  },
+  {
+   "title": "목록 정렬은 저장된 profit_low, 화면 표시는 인수 차감 p_adj — 기본 목록에서 26건 전부 순위역전, 24건은 상위 랭크인 채 음수 차익으로 표시",
+   "why": ""
+  },
+  {
+   "title": "/stats 권리 도넛이 '권리확인 완료 3,465건(96%)' 표시 — 실제 명세서 크롤은 194건, 차익없음 318건은 전부 명세서 미크롤인데 '확인 완료'로 집계",
+   "why": ""
+  },
+  {
+   "title": "어제 토지 정정 4행의 잔여 스테일 — liquidity_score가 여전히 아파트 기준(100/90/76.5), 침산동 행은 scope=unsupported인데 matched_trades=5·confidence=1.0 모순, CSV·API·상세페이지로 누수",
+   "why": ""
+  },
+  {
+   "title": "/export.csv·/api/listings·geojson이 인수 미반영 profit을 내보내고 인수/배지 컬럼 자체가 없음 — 실질 음수 24건이 양수로, burden 68건이 무경고로 export",
+   "why": ""
+  },
+  {
+   "title": "clean 필터에 미지원유형·시세추정불가 9건(사고 물건 침산동 나대지 포함)이 '—' 값으로 혼입, stats KPI는 기준시세 양수 263건으로 화면(보수 158·배지반영 134)과 다른 세계값",
+   "why": ""
+  },
+  {
+   "title": "compare·watchlist가 case_no 단독 키 — 복수 법원 동명 사건 67건에서 /compare가 임의 법원 물건을 표시, 45물건 사건은 임의 1개로 대표됨",
+   "why": ""
+  },
+  {
+   "title": "crawl_rights 타깃 조인에 court 누락 — 타법원 동명 사건의 boCd로 상세를 크롤해 남의 사건 명세서가 저장됨 (실오염 2건 확정)",
+   "why": ""
+  },
+  {
+   "title": "min_bid_price가 '직전 회차' 가격(minmaePrice) — 다가오는 매각기일의 실제 공고최저가(notifyMinmaePrice1)와 전 매물의 74.5%(2,699/3,622)에서 불일치, 중앙값 1.43배 과대",
+   "why": ""
+  },
+  {
+   "title": "load_rights/fetch_rights의 case_no 단독 폴백 — 타법원(1건)·형제 물건(15건)의 명세서가 rights_verified=True로 다른 물건 상세에 렌더됨",
+   "why": ""
+  },
+  {
+   "title": "빈/부분 pgj15B 응답이 badge=clean('낙찰 후 추가 인수 없음')으로 판정 — '애매하면 burden' 보수 원칙과 모순",
+   "why": ""
+  },
+  {
+   "title": "crawl_rights 배치 flush가 '마지막 타깃 실패' 시 건너뛰어져 미저장 batch(최대 9건) 무경고 유실 가능",
+   "why": ""
+  },
+  {
+   "title": "listing_rights 재수집(refresh)·고아 정리 정책 부재 — 유찰 회차가 진행돼도 낡은 기일표가 rights_verified=True로 계속 서빙될 구조",
+   "why": ""
+  },
+  {
+   "title": "[반증·정상확인] 관점 G 가설 중 실데이터로 기각된 항목 — 다물건 사건단위 복제(아님), schedule 정렬 붕괴(없음), claim_amt 변환 실패(실사례 없음)",
+   "why": ""
+  }
+ ]
+}

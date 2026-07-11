@@ -26,6 +26,14 @@ SCOPE_SAME_COMPLEX_NEAR_AREA = "same_complex_near_area"  # 같은 단지·인접
 SCOPE_SAME_DONG_FALLBACK = "same_dong_fallback"          # 같은 법정동 폴백 (참고치 — 추천 금지)
 SCOPE_UNSUPPORTED = "unsupported"                        # v1 미지원 유형 (추정 안 함)
 SCOPE_NO_COMPS = "no_comps"                              # 지원 유형이나 표본 없음
+SCOPE_SHARE_SALE = "share_sale"                          # 지분 매각 — 온전가 비교 무의미(추정 안 함)
+SCOPE_APPRAISAL_MISMATCH = "appraisal_mismatch"          # 시세가 감정가와 괴리 — 비교군 불신(추정 무효)
+
+# 감정가 교차검증 상한(2026-07-10 실사고 계열 방어): 비교군 시세가 감정가의 이 배수를 넘으면
+# 비교군이 잘못됐다는 신호로 보고 시세를 말하지 않는다. 감정평가사가 2.5배 저평가할 확률은
+# 사실상 0이며, 실제 사고(같은 동 '다른 단지' 신축과 오매칭 4.5~11배·나대지 오분류 3.5배)는
+# 전부 이 선을 크게 넘었다. same_complex 도 안전망으로 동일 적용.
+EST_VS_APPRAISAL_MAX = 2.5
 
 
 @dataclass(frozen=True)
@@ -150,7 +158,12 @@ def match_trades_scoped(listing: AuctionListing, trades: list[Trade]) -> tuple[l
     """
     band = _area_band()
     want = expected_kind(listing.property_type)
-    pool = [t for t in trades if _kind_ok(t, want)]
+    # 지역 스코프(감사 2026-07-10 CRITICAL): trades 는 전국 풀인데 아래 매칭이 '동 이름'만
+    # 비교하면 타지역 동명(서울 신정동↔대구 신정동)의 실거래가 comps 로 혼입돼 시세가 왜곡된다.
+    # 물건의 시군구(lawd_cd)가 있으면 같은 시군구 거래만 풀에 남긴다(레거시 빈 값은 통과).
+    lawd = (listing.lawd_cd or "").strip()
+    pool = [t for t in trades if _kind_ok(t, want)
+            and (not lawd or not t.lawd_cd or t.lawd_cd == lawd)]
     name = _norm(listing.apt_name)
     dong = _norm(listing.dong)
 
@@ -230,6 +243,11 @@ def estimate_market(listing: AuctionListing, trades: list[Trade]) -> MarketEstim
         logger.debug("미지원 유형 물건(%s, %s) — 시세추정불가(v1 정책)",
                      listing.case_no, listing.property_type)
         return MarketEstimate(None, 0, SCOPE_UNSUPPORTED)
+    if "지분" in (listing.special_rights or []):
+        # 지분 매각(실사고 2026-07-10: 비고 '지분매각'인데 온전 아파트 시세가 붙어 허상 차익):
+        # 낙찰 대상이 소유권 일부라 '온전 물건 실거래' 비교 자체가 무의미 — 시세를 말하지 않는다.
+        logger.debug("지분 매각 물건(%s) — 온전가 시세 추정 금지", listing.case_no)
+        return MarketEstimate(None, 0, SCOPE_SHARE_SALE)
     if listing.area_m2 <= 0:
         # 면적 파싱 실패(0/미상)면 comps 매칭이 무조건 비어 '시세추정불가'가 된다.
         # 진짜 comps 부재와 파싱실패를 구분할 수 있도록 로그를 남긴다(침묵실패 방지).
@@ -255,6 +273,14 @@ def estimate_market(listing: AuctionListing, trades: list[Trade]) -> MarketEstim
         return MarketEstimate(None, matched_count, scope, basis=basis)
     median_ppm2 = statistics.median(ppm2_list)
     est = int(round(median_ppm2 * listing.area_m2))
+    if listing.appraisal_price > 0 and est > listing.appraisal_price * EST_VS_APPRAISAL_MAX:
+        # 감정가 교차검증(실사고 2026-07-10: 낡은 소형 단지를 같은 동 신축 대단지 실거래와
+        # 오매칭해 4.5~11배 시세·수억 허상 차익). 감정평가사가 이 배수를 놓칠 확률은 사실상 0
+        # — 비교군이 잘못된 것이므로 시세를 무효화하고 사유를 scope 로 정직하게 남긴다.
+        logger.warning("감정가 괴리 물건(%s): est %s > 감정 %s ×%.1f — 시세 무효화(scope=%s→%s)",
+                       listing.case_no, est, listing.appraisal_price, EST_VS_APPRAISAL_MAX,
+                       scope, SCOPE_APPRAISAL_MISMATCH)
+        return MarketEstimate(None, matched_count, SCOPE_APPRAISAL_MISMATCH, basis=basis)
     # (T4) 2선 밴드 — 하한가: 트림 후 최저 평단가(보수), 기준가: 트림 후 중앙값(=est, 호환 유지).
     band_low = int(round(min(ppm2_list) * listing.area_m2))
     return MarketEstimate(est, matched_count, scope, band_low=band_low, band_high=est,

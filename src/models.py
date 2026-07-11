@@ -50,6 +50,9 @@ class Trade:
     dong: str = ""
     floor: int = 0
     kind: str = ""    # 실거래 물건유형: apt | rh | officetel (유형 분리 매칭용)
+    # 시군구(LAWD_CD 5자리) — 전국 풀에서 타지역 동명(洞名) 혼입 방지(감사 2026-07-10 CRITICAL).
+    # ""=레거시(스코프 제약 미적용, 하위호환).
+    lawd_cd: str = ""
 
     def price_per_m2(self) -> float:
         return self.price / self.area_m2 if self.area_m2 else 0.0

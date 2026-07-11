@@ -138,3 +138,36 @@ def test_land_listing_never_estimates_v1_policy():
     ]
     est, n = estimate_market_price(land, trades)
     assert est is None and n == 0
+
+
+# ---- 2026-07-10 실사고 방어 회귀 ----
+
+def test_share_sale_never_estimates():
+    """지분 매각(비고 힌트로 special_rights에 '지분')은 온전가 시세 추정 금지 —
+    실사고: '지분매각' 비고인데 온전 아파트 시세가 붙어 허상 차익."""
+    from src.matcher import SCOPE_SHARE_SALE, estimate_market
+    m = estimate_market(_lst(special_rights=["지분"]), TRADES)
+    assert m.est is None and m.scope == SCOPE_SHARE_SALE
+
+
+def test_appraisal_mismatch_voids_estimate():
+    """비교군 시세가 감정가×2.5 초과면 비교군 불신 → 시세 무효 —
+    실사고: 낡은 소형 단지를 같은 동 신축 대단지와 오매칭(4.5~11배)."""
+    from src.matcher import SCOPE_APPRAISAL_MISMATCH, estimate_market
+    # 감정 1.4억짜리에 6억대 comps → 무효화돼야
+    m = estimate_market(_lst(appraisal_price=140_000_000), TRADES)
+    assert m.est is None and m.scope == SCOPE_APPRAISAL_MISMATCH
+
+
+def test_appraisal_sane_estimate_passes():
+    """감정가와 정합(6.2억 감정 vs 6.3억대 시세)하면 정상 추정 유지 — 오탐 방지."""
+    from src.matcher import estimate_market
+    m = estimate_market(_lst(), TRADES)   # 감정 6.2억, comps 6.2~6.45억
+    assert m.est is not None and m.scope == "same_complex_same_area"
+
+
+def test_appraisal_zero_skips_sanity():
+    """감정가 0/미상 물건은 교차검증 불가 — sanity 를 건너뛰고 추정은 유지."""
+    from src.matcher import estimate_market
+    m = estimate_market(_lst(appraisal_price=0), TRADES)
+    assert m.est is not None

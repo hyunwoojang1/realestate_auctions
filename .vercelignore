@@ -1,0 +1,20 @@
+# Vercel 배포 번들에서 제외 — 함수 크기·빌드시간 절약, 비밀 유출 방지.
+.venv/
+*.db
+*.db-wal
+*.db-shm
+.env
+tests/
+design-refs/
+evidence/
+harness/
+.git/
+__pycache__/
+*.pyc
+docs/
+info.md
+versions.md
+PROGRESS.md
+# pyproject 는 pytest/ruff 설정 전용([project] 없음). Vercel uv 빌더가 이를 보고
+# `uv lock`을 시도해 실패하므로 배포 번들에서 제외 → requirements.txt(pip) 경로로 빌드.
+pyproject.toml

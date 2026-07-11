@@ -103,7 +103,10 @@ def build_coord_cache(records, path: str | Path | None = None) -> dict:
         ok += 1
         uid = r.doc_id or f"{r.court}|{r.case_no}|{r.item_no}"
         out[uid] = [round(lat, 6), round(lon, 6)]
-        out.setdefault(f"case:{r.case_no}", [round(lat, 6), round(lon, 6)])
+        # 폴백 키에 court 포함(감사 2026-07-10 HIGH): 사건번호는 법원별 독립 채번 —
+        # case_no 단독 키는 타법원 동명 사건의 좌표를 물려줘 지도에 엉뚱한 지역 핀이 찍혔다
+        # (실사례: 인천 물건 2건이 대구·전주에 표시).
+        out.setdefault(f"case:{r.court}|{r.case_no}", [round(lat, 6), round(lon, 6)])
     p.parent.mkdir(parents=True, exist_ok=True)
     p.write_text(json.dumps(out, ensure_ascii=False), encoding="utf-8")
     stats = {"total": total, "ok": ok, "no_coord": bad_coord, "bbox_reject": bad_bbox}
@@ -124,6 +127,8 @@ def load_coord_cache(path: str | Path | None = None) -> dict[str, list[float]]:
     return raw if isinstance(raw, dict) else {}
 
 
-def lookup(cache: dict, uid: str, case_no: str) -> list[float] | None:
-    """uid 우선, 없으면 case_no 폴백(레거시 행)."""
-    return cache.get(uid) or cache.get(f"case:{case_no}")
+def lookup(cache: dict, uid: str, case_no: str, court: str = "") -> list[float] | None:
+    """uid 우선 → court|case_no 폴백(레거시 행). 구 캐시(case:<case_no>)도 한 세대 지원."""
+    return (cache.get(uid)
+            or cache.get(f"case:{court}|{case_no}")
+            or cache.get(f"case:{case_no}"))

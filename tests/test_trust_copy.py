@@ -120,7 +120,7 @@ def test_detail_page_rights_notice():
     html = c.get(f"/property/{case}").get_data(as_text=True)
     assert "권리 확인 완료 전까지 최종 판단 금지" in html
     assert "보수 가격 기준 차익" in html
-    assert "실거래" in html and "건 기준" in html   # 표본 근거 병기
+    assert "실거래" in html and "근거 표본" in html   # 표본 근거 병기(UX 개편 카피)
 
 
 def test_compare_page_conservative_row():

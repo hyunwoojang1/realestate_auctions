@@ -68,8 +68,11 @@ def test_cache_case_fallback_for_legacy_rows(tmp_path):
     p = tmp_path / "coords.json"
     build_coord_cache([_Rec(x, y, "서울특별시", doc_id="DOC9", case_no="2024타경5")], p)
     cache = load_coord_cache(p)
-    assert lookup(cache, "DOC9", "2024타경5") is not None          # uid 히트
-    assert lookup(cache, "||2024타경5|", "2024타경5") is not None  # 레거시 → case 폴백
+    assert lookup(cache, "DOC9", "2024타경5", court="법원") is not None          # uid 히트
+    # 레거시 행 → court|case 폴백 (감사 2026-07-10: case 단독 키는 타법원 동명사건 오표시)
+    assert lookup(cache, "||2024타경5|", "2024타경5", court="법원") is not None
+    # 다른 법원의 동명 사건은 폴백이 잡히면 안 된다
+    assert lookup(cache, "없는uid", "2024타경5", court="다른법원") is None
 
 
 def test_load_missing_or_corrupt_cache(tmp_path):
@@ -123,6 +126,6 @@ def test_coord_cache_json_shape(tmp_path):
     p = tmp_path / "coords.json"
     build_coord_cache([_Rec(x, y, "서울특별시", case_no="S1")], p)
     raw = json.loads(p.read_text(encoding="utf-8"))
-    assert "case:S1" in raw
-    lat, lon = raw["case:S1"]
+    assert "case:법원|S1" in raw     # court 포함 폴백 키(감사 2026-07-10)
+    lat, lon = raw["case:법원|S1"]
     assert isinstance(lat, float) and isinstance(lon, float)

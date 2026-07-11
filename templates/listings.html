@@ -3,10 +3,10 @@
 
 {%- macro proplink(s) -%}/property/{{ s.case_no }}{% if s.item_no %}?item={{ s.item_no }}{% if s.court %}&court={{ s.court }}{% endif %}{% endif %}{%- endmacro -%}
 
-{#- 상태 칩 — 등급별(권리미확인=조용한 pending / 위험=solid / 그 외=중립) -#}
-{%- macro statuschip(s, sm=False) -%}
+{#- 상태 칩 — 등급별. skip_pending=True 면 '권리미확인'은 생략(인수 칩이 대체하는 자리) -#}
+{%- macro statuschip(s, sm=False, skip_pending=False) -%}
 {%- set cls = 'chip' + (' sm' if sm else '') -%}
-{%- if s.grade == '권리미확인' -%}<span class="{{ cls }} pending"><span class="cdot"></span>권리미확인</span>
+{%- if s.grade == '권리미확인' -%}{%- if not skip_pending -%}<span class="{{ cls }} pending"><span class="cdot"></span>권리미확인</span>{%- endif -%}
 {%- elif s.grade == '위험' -%}<span class="{{ cls }} risk">위험</span>
 {%- elif s.grade == '시세추정불가' -%}<span class="{{ cls }} na">시세추정불가</span>
 {%- elif s.grade == '미지원유형' -%}<span class="{{ cls }} na">미지원 유형</span>
@@ -14,31 +14,21 @@
 {%- endif -%}
 {%- endmacro -%}
 
-{#- 갭미터 v2 — 최저가~시세 축 위 원가 마커 + 보수차익 스팬 + 밴드 틴트 -#}
-{%- macro gapmeter(s, lg=False) -%}
-{%- set lo = s.market_band_low -%}{%- set hi = s.market_band_high -%}{%- set cost = s.real_acquisition_cost -%}
-{%- if lo is not none and hi is not none and hi > 0 and cost is not none -%}
-  {%- set costp = (cost / hi * 100) if cost < hi else 100 -%}
-  {%- set gainw = ((lo - cost) / hi * 100) -%}
-  {%- set bandl = (lo / hi * 100) -%}{%- set bandw = ((hi - lo) / hi * 100) -%}
-  <div class="gm2{% if lg %} lg{% endif %}">
-    <div class="gm2-track">
-      <div class="gm2-band" style="left:{{ '%.1f'|format(bandl) }}%;width:{{ '%.1f'|format(bandw) }}%"></div>
-      {%- if gainw > 0.5 -%}<div class="gm2-gain" style="left:{{ '%.1f'|format(costp) }}%;width:{{ '%.1f'|format(gainw) }}%"></div>{%- endif -%}
-      <div class="gm2-cost" style="left:{{ '%.1f'|format(costp) }}%"></div>
-    </div>
-    <div class="gm2-lab"><span>▼ 원가 {{ won(cost) }}</span><span>밴드 {{ won(lo) }}~{{ won(hi) }}</span></div>
-  </div>
-{%- elif s.est_market_price and s.est_market_price > 0 and cost is not none -%}
-  {%- set costp = (cost / s.est_market_price * 100) if cost < s.est_market_price else 100 -%}
-  <div class="gm2{% if lg %} lg{% endif %}">
-    <div class="gm2-track">
-      {%- if costp < 99 -%}<div class="gm2-gain" style="left:{{ '%.1f'|format(costp) }}%;width:{{ '%.1f'|format(100-costp) }}%"></div>{%- endif -%}
-      <div class="gm2-cost" style="left:{{ '%.1f'|format(costp) }}%"></div>
-    </div>
-    <div class="gm2-lab"><span>▼ 원가 {{ won(cost) }}</span><span>시세 {{ won(s.est_market_price) }}</span></div>
-  </div>
-{%- else -%}<span class="gm2-na">시세 추정 불가</span>{%- endif -%}
+{#- 인수 부담 칩 — 법원 명세서 크롤분 기반. b=RightsBadge|None(미크롤) -#}
+{%- macro burdenchip(b, sm=True) -%}
+{%- set cls = 'chip' + (' sm' if sm else '') -%}
+{%- if b and b.is_clean -%}<span class="{{ cls }} clean">✓ 인수 없음</span>
+{%- elif b -%}<span class="{{ cls }} risk">⚠ 인수 {% if b.assumed %}{{ won(b.assumed) }}{% else %}+α{% endif %}</span>
+{%- endif -%}
+{%- endmacro -%}
+
+{#- 예상 시세 셀 — 검증 하한(밴드) 우선, 없으면 추정 시세. 목록은 숫자+라벨만(게이지 없음) -#}
+{%- macro pricecell(s) -%}
+{%- if s.market_band_low is not none -%}
+<div class="pk-val">{{ won(s.market_band_low) }}</div><div class="pk-vsub">실거래 검증 하한</div>
+{%- elif s.est_market_price -%}
+<div class="pk-val">{{ won(s.est_market_price) }}</div><div class="pk-vsub">추정 시세</div>
+{%- else -%}<div class="pk-val na">—</div><div class="pk-vsub">시세 추정 불가</div>{%- endif -%}
 {%- endmacro -%}
 
 {% block content %}
@@ -51,7 +41,8 @@
 {% set unverified = items|selectattr('grade','equalto','권리미확인')|list %}
 
 <h1 class="page-h2">아파트 경매 1차 필터</h1>
-<p class="page-lead"><b style="color:var(--ink-700)">보수 기준 차익 = 검증 하한가 − (최저입찰가 + 취득세)</b> 큰 순 · 검토 보조 도구 · 취득세 {{ tax_label }} 기준 · 산식·게이트는 <a href="/methodology">방법론</a></p>
+<p class="page-lead"><b style="color:var(--ink-700)">예상 차익 = 예상 시세 − (최저입찰가 + 취득세)</b> 큰 순.
+시세는 같은 단지·같은 평형 실거래로 검증한 <b>하한값(보수)</b>을 씁니다. 자세한 근거는 각 물건을 눌러 확인 · <a href="/methodology">방법론</a></p>
 
 {% if legacy_only %}
 <div class="note-box n-warn" style="margin-top:var(--sp-5)">⚠ <b>구버전 채점 데이터</b>: 현재 물건은 신뢰 개편(비교군 검증·가격 밴드·표본 게이트) <b>이전</b> 채점 데이터입니다. 아래 차익은 <b>보수 기준이 아닌 기준 시세 차익</b>이며, 다음 전량 새로고침 후 보수 기준으로 전환됩니다.</div>
@@ -99,6 +90,9 @@
         {% endfor %}
       </select>
     </label>
+    <label class="chk" title="법원 매각물건명세서에서 인수 권리·대항력 신호가 없다고 확인된 물건만 (미확인 물건은 제외)">
+      <input type="checkbox" name="clean" value="1" {% if filters.clean %}checked{% endif %}> 인수 없음만
+    </label>
     <button type="submit" class="apply">필터 적용</button>
     <div class="aux">
       <a href="/">초기화</a>
@@ -122,16 +116,20 @@
       <a class="nm rowlink" href="{{ proplink(hero) }}" style="position:static">{{ hero.apt_name or hero.property_type }}</a>
       <div class="ad">{{ hero.address }} · {{ hero.property_type }} · {{ '%.0f'|format(hero.area_m2) }}㎡ · 유찰 {{ hero.fail_count }}회</div>
       <div class="chiprow">
-        {{ statuschip(hero) }}
+        {%- set hb = badges.get(hero.court ~ '|' ~ hero.case_no ~ '|' ~ hero.item_no) if badges is defined else none -%}
+        {{ burdenchip(hb, sm=False) }}{{ statuschip(hero, skip_pending=(hb is not none)) }}
         <span class="chip muted">신뢰 {{ '%.2f'|format(hero.confidence) }} · 매칭 {{ hero.matched_trades }}건</span>
       </div>
     </div>
-    <div style="min-width:0">
-      <div class="gm2-lab" style="font-size:12px;color:var(--ink-500);margin:0 0 2px">
-        <span>최저가 <b style="color:var(--ink-800)">{{ won(hero.min_bid_price) }}</b></span>
-        <span>추정 시세 <b style="color:var(--ink-800)">{{ won(hero.est_market_price) }}</b></span>
-      </div>
-      <div style="margin-top:24px">{{ gapmeter(hero, lg=True) }}</div>
+    <div class="hero2-stats">
+      <div class="hs"><span class="k">최저입찰가 <span class="hh">이번 회차 시작가</span></span><b>{{ won(hero.min_bid_price) }}</b></div>
+      <div class="hs-arrow">→</div>
+      {% if hero.market_band_low is not none %}
+      <div class="hs"><span class="k">예상 시세 <span class="hh">실거래 검증 하한</span></span><b>{{ won(hero.market_band_low) }}</b></div>
+      {% else %}
+      <div class="hs"><span class="k">예상 시세 <span class="hh">추정</span></span><b>{{ won(hero.est_market_price) }}</b></div>
+      {% endif %}
+      <div class="hs-note">차익 = 시세 − (최저입찰가+취득세) · 상세에서 가격 지도로 확인</div>
     </div>
   </div>
 </div>
@@ -150,20 +148,21 @@
 <!-- desktop -->
 <div class="picks2">
   <div class="phead">
-    <div>#</div><div>{% if legacy_only %}차익(구){% else %}보수 기준 차익{% endif %}</div>
-    <div>단지 / 소재지</div><div>갭 (최저가 → 시세)</div>
-    <div class="r">최저가</div><div class="r">신뢰</div>
+    <div>#</div>
+    <div>단지 / 소재지</div>
+    <div class="r">최저입찰가<span class="hh">이번 회차 시작가</span></div>
+    <div class="r">예상 투입<span class="hh">입찰가+취득세+인수금</span></div>
+    <div class="r">예상 시세<span class="hh">실거래 검증 하한</span></div>
+    <div class="r">예상 차익<span class="hh">시세 − 예상 투입</span></div>
+    <div class="r">매각기일</div>
   </div>
   {% for s in items if s != hero %}
   {%- set p = s.profit_low if s.profit_low is not none else s.expected_profit -%}
-  <div class="prow{% if p is none or p <= 0 %} dim{% endif %}">
+  {%- set b = badges.get(s.court ~ '|' ~ s.case_no ~ '|' ~ s.item_no) if badges is defined else none -%}
+  {%- set outlay = s.real_acquisition_cost + (b.assumed if b else 0) -%}
+  {%- set p_adj = (p - b.assumed) if (p is not none and b and b.assumed) else p -%}
+  <div class="prow{% if p_adj is none or p_adj <= 0 %} dim{% endif %}">
     <div class="pk-rank">{{ loop.index }}</div>
-    <div>
-      {%- if p is not none -%}<div class="pk-gain{% if p < 0 %} neg{% endif %}">{{ won(p) }}</div>
-      <div class="pk-sub">{% if s.profit_low is not none %}보수 기준 · 근거 표본 {{ s.market_sample_basis if s.market_sample_basis is not none else s.matched_trades }}건{% else %}기준 시세 · 대비 {{ pct(s.gap_rate) }}{% endif %}</div>
-      {%- else -%}<div class="pk-gain na">—</div>{%- endif -%}
-      <div style="margin-top:5px">{{ statuschip(s, sm=True) }}</div>
-    </div>
     <div style="min-width:0">
       <a class="pk-name rowlink" href="{{ proplink(s) }}">{{ s.apt_name or s.property_type }}</a>
       <div class="pk-addr">{{ s.address }} · {{ s.property_type }} · {{ '%.0f'|format(s.area_m2) }}㎡</div>
@@ -171,11 +170,28 @@
         <form method="post" action="/watchlist/toggle/{{ s.case_no }}" style="display:inline;margin:0">
           <button type="submit" class="pk-star" title="{% if s.case_no in (watched or []) %}관심 해제{% else %}관심 등록{% endif %}">{% if s.case_no in (watched or []) %}★{% else %}☆{% endif %}</button>
         </form>
+        {{ burdenchip(b) }}{{ statuschip(s, sm=True, skip_pending=(b is not none)) }}
       </div>
     </div>
-    <div style="min-width:0">{{ gapmeter(s) }}</div>
-    <div class="pk-min">{{ won(s.min_bid_price) }}</div>
-    <div class="pk-trust"><span class="trustbox"><b>신뢰 {{ '%.2f'|format(s.confidence) }}</b>매칭 {{ s.matched_trades }}건</span></div>
+    <div class="r"><div class="pk-val">{{ won(s.min_bid_price) }}</div><div class="pk-vsub">유찰 {{ s.fail_count }}회</div></div>
+    <div class="r">
+      {%- if b and b.amount_unknown -%}
+      <div class="pk-val warn">{{ won(outlay) }}<b class="alpha">+α</b></div><div class="pk-vsub warn">보증금 인수 별도</div>
+      {%- elif b and b.assumed -%}
+      <div class="pk-val warn">{{ won(outlay) }}</div><div class="pk-vsub warn">인수금 포함</div>
+      {%- elif b -%}
+      <div class="pk-val">{{ won(outlay) }}</div><div class="pk-vsub ok2">이게 전부 (인수 없음)</div>
+      {%- else -%}
+      <div class="pk-val">{{ won(outlay) }}</div><div class="pk-vsub">인수 미확인</div>
+      {%- endif -%}
+    </div>
+    <div class="r">{{ pricecell(s) }}</div>
+    <div class="r">
+      {%- if p_adj is not none -%}<div class="pk-gain{% if p_adj < 0 %} neg{% endif %}">{{ won(p_adj) }}{% if b and b.amount_unknown %}<b class="alpha">−α</b>{% endif %}</div>
+      <div class="pk-vsub">{% if b and b.assumed %}인수금 반영{% elif b and b.amount_unknown %}인수 미반영 ⚠{% elif s.profit_low is not none %}근거 표본 {{ s.market_sample_basis if s.market_sample_basis is not none else s.matched_trades }}건{% else %}시세 대비 {{ pct(s.gap_rate) }}{% endif %}</div>
+      {%- else -%}<div class="pk-gain na">—</div>{%- endif -%}
+    </div>
+    <div class="r"><div class="pk-val sm">{{ s.sale_date }}</div></div>
   </div>
   {% endfor %}
 </div>
@@ -184,19 +200,22 @@
 <div class="mcards">
   {% for s in items if s != hero %}
   {%- set p = s.profit_low if s.profit_low is not none else s.expected_profit -%}
-  <div class="mcard{% if p is none or p <= 0 %} dim{% endif %}">
+  {%- set b = badges.get(s.court ~ '|' ~ s.case_no ~ '|' ~ s.item_no) if badges is defined else none -%}
+  {%- set outlay = s.real_acquisition_cost + (b.assumed if b else 0) -%}
+  {%- set p_adj = (p - b.assumed) if (p is not none and b and b.assumed) else p -%}
+  <div class="mcard{% if p_adj is none or p_adj <= 0 %} dim{% endif %}">
     <div class="top">
       <div style="min-width:0">
         <a class="nm rowlink" href="{{ proplink(s) }}">{{ loop.index }}. {{ s.apt_name or s.property_type }}</a>
         <div class="ad">{{ s.address }} · {{ s.property_type }} · {{ '%.0f'|format(s.area_m2) }}㎡</div>
       </div>
-      <span style="flex:none;position:relative;z-index:2">{{ statuschip(s, sm=True) }}</span>
+      <span style="flex:none;position:relative;z-index:2">{{ burdenchip(b) }}{{ statuschip(s, sm=True, skip_pending=(b is not none)) }}</span>
     </div>
-    <div class="grow">
-      {%- if p is not none -%}<div class="g{% if p < 0 %} neg{% endif %}">{{ won(p) }}</div>{%- else -%}<div class="g na">—</div>{%- endif -%}
-      <div class="mmin">최저가 <b style="color:var(--ink-800)">{{ won(s.min_bid_price) }}</b> · 신뢰 {{ '%.2f'|format(s.confidence) }}</div>
+    <div class="mstats">
+      <div class="ms"><span class="k">최저입찰가</span><b>{{ won(s.min_bid_price) }}</b></div>
+      <div class="ms"><span class="k">예상 투입{% if b and b.is_clean %} ✓{% endif %}</span><b{% if b and (b.assumed or b.amount_unknown) %} style="color:var(--risk)"{% endif %}>{{ won(outlay) }}{% if b and b.amount_unknown %}+α{% endif %}</b></div>
+      <div class="ms gain"><span class="k">예상 차익{% if b and b.amount_unknown %} ⚠{% endif %}</span>{% if p_adj is not none %}<b class="{% if p_adj < 0 %}neg{% else %}g{% endif %}">{{ won(p_adj) }}</b>{% else %}<b class="na">—</b>{% endif %}</div>
     </div>
-    {{ gapmeter(s) }}
   </div>
   {% endfor %}
 </div>
