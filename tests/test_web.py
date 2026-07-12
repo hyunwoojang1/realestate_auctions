@@ -97,7 +97,25 @@ def test_index_filter_form_and_selection():
 def test_index_has_filter_form():
     body = _client().get("/").get_data(as_text=True)
     assert 'name="region"' in body and 'name="budget"' in body and 'name="type"' in body
+    assert 'name="area"' in body and 'name="fails"' in body   # 신규: 면적·유찰
     assert "빠른 진입" in body  # 빠른진입 칩
+
+
+def test_index_area_filter():
+    # 면적 브래킷 '~20'(전용 66㎡ 미만) → 소형만.
+    body = _client().get("/?area=~20").get_data(as_text=True)
+    assert "강남역삼푸르지오시티" in body     # 30㎡
+    assert "광교호반베르디움" in body         # 59.8㎡
+    assert "상계주공" not in body            # 84.9㎡(20평대) → 제외
+    assert 'value="~20" selected' in body    # 선택값 유지
+
+
+def test_index_fails_filter():
+    # 유찰 2회+ → 가격 저감된 물건만.
+    body = _client().get("/?fails=2").get_data(as_text=True)
+    assert "상계주공" in body                 # 2회
+    assert "반석마을아이파크" not in body       # 1회 → 제외
+    assert "광교호반베르디움" not in body       # 0회 → 제외
 
 
 def test_index_all_mode_shows_full_table():

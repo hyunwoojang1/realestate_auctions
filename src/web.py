@@ -242,13 +242,25 @@ def create_app() -> Flask:
         region = request.args.get("region", "")
         ptype = request.args.get("type", "")
         budget = request.args.get("budget", "")
+        area = request.args.get("area", "")
+        fails = request.args.get("fails", "")
         sort = request.args.get("sort", query.DEFAULT_SORT)
         if sort not in query.SORT_KEYS:
             sort = query.DEFAULT_SORT
         chip_clean = request.args.get("clean") == "1"
         chip_soon = request.args.get("soon") == "1"
         chip_high = request.args.get("high") == "1"
-        has_filter = bool(region or ptype or budget or chip_clean or chip_soon or chip_high)
+        # 면적 브래킷(평대)·유찰 하한 파싱 — 알 수 없는 값은 무필터로 흘려보냄.
+        min_area, max_area = query.area_bounds(area)
+        if area and (min_area, max_area) == (None, None):
+            area = ""
+        try:
+            min_fails = int(fails) if fails else None
+        except ValueError:
+            fails = ""
+            min_fails = None
+        has_filter = bool(region or ptype or budget or area or fails
+                          or chip_clean or chip_soon or chip_high)
 
         # 예산(최저입찰가) — '8plus'=8억 이상, 그 외 숫자=상한(억).
         max_bid = min_bid = None
@@ -263,7 +275,8 @@ def create_app() -> Flask:
         burden = _burden_of(badges)
         base = all_scored if all_mode else evaluable
         items = query.apply_filters(base, property_type=ptype or None, region=region or None,
-                                    max_bid=max_bid, min_bid=min_bid)
+                                    max_bid=max_bid, min_bid=min_bid,
+                                    min_area=min_area, max_area=max_area, min_fails=min_fails)
         if chip_clean:
             items = [s for s in items if _clean(s)]
         if chip_soon:
@@ -322,6 +335,7 @@ def create_app() -> Flask:
              "href": _toggle("region", "서울")},
         ]
         filters = {"region": region, "type": ptype, "budget": budget, "sort": sort,
+                   "area": area, "fails": fails,
                    "clean": chip_clean, "soon": chip_soon, "high": chip_high}
         return render_template(
             "listings.html", items=items, count=len(items), filters=filters, chips=chips,

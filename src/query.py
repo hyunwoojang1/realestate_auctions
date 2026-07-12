@@ -20,6 +20,23 @@ HIGH_PROFIT_THRESHOLD = 200_000_000   # '고차익' 빠른진입 칩 기준(2억
 SOON_DAYS = 7                         # '매각기일 임박' 빠른진입 칩 기준(일)
 
 
+_PYEONG = 3.3058   # 1평 = 3.3058㎡
+
+# 홈 검색 면적 브래킷(전용면적 평대) → (min_㎡, max_㎡). max=None 은 상한 없음.
+AREA_BRACKETS = {
+    "~20": (None, 20 * _PYEONG),        # 20평 미만
+    "20": (20 * _PYEONG, 30 * _PYEONG),  # 20평대
+    "30": (30 * _PYEONG, 40 * _PYEONG),  # 30평대
+    "40": (40 * _PYEONG, 50 * _PYEONG),  # 40평대
+    "50plus": (50 * _PYEONG, None),      # 50평 이상
+}
+
+
+def area_bounds(bracket: str | None) -> tuple[float | None, float | None]:
+    """면적 브래킷 키 → (min_㎡, max_㎡). 알 수 없는 키·빈값은 (None, None)."""
+    return AREA_BRACKETS.get(bracket or "", (None, None))
+
+
 def is_evaluable(s: ScoredListing) -> bool:
     """이 도구가 시세를 추정한(=평가 가능한) 물건인가. 검색 우선 홈의 기본 노출 기준."""
     return s.est_market_price is not None
@@ -77,16 +94,25 @@ def apply_filters(items: list[ScoredListing], min_score: float | None = None,
                   property_type: str | None = None, region: str | None = None,
                   min_profit: int | None = None, burden_of=None,
                   max_bid: int | None = None, min_bid: int | None = None,
-                  evaluable_only: bool = False) -> list[ScoredListing]:
-    """물건종류·지역·최소차익(원, 보수 기준)·예산(최저입찰가 상/하한)·평가가능 필터.
+                  evaluable_only: bool = False,
+                  min_area: float | None = None, max_area: float | None = None,
+                  min_fails: int | None = None) -> list[ScoredListing]:
+    """물건종류·지역·최소차익(원, 보수 기준)·예산(최저입찰가 상/하한)·평가가능·면적·유찰 필터.
 
     burden_of: 물건 → 인수금액(원). 주어지면 최소차익 비교도 인수 차감 후 값으로
     (감사 2026-07-10: 필터·정렬은 저장 차익, 화면은 차감 차익 — 불일치 해소).
     max_bid/min_bid: 예산 필터(최저입찰가 상한/하한, 원). evaluable_only: 시세 추정된 물건만.
+    min_area/max_area: 전용면적(㎡) 하/상한. min_fails: 최소 유찰 횟수(가격 저감된 물건).
     """
     out = items
     if evaluable_only:
         out = [s for s in out if is_evaluable(s)]
+    if min_area is not None:
+        out = [s for s in out if s.area_m2 is not None and s.area_m2 >= min_area]
+    if max_area is not None:
+        out = [s for s in out if s.area_m2 is not None and s.area_m2 < max_area]
+    if min_fails is not None:
+        out = [s for s in out if (s.fail_count or 0) >= min_fails]
     if min_profit is not None:
         def _eff(s):
             p = decision_profit(s)

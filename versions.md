@@ -15,6 +15,21 @@
 
 ---
 
+## 2026-07-13 06:58 KST — 🔍 홈 검색 변수 추가: 면적(평대) + 유찰 횟수 (feat/home-area-fails)
+- 배경: 홈 검색이 지역·예산상한·종류·정렬 + 칩(인수없음/임박/고차익)뿐 → 부동산·경매 사용자가 먼저
+  찾는 '평형'과 '유찰(가격 저감)' 축이 없었음. 실측으로 데이터 커버리지 확인(평가가능 682건 기준
+  area_m2 682/682·fail_count 449건>0·최대 15회) 후 도입.
+- 무엇: query.apply_filters에 min_area/max_area(전용 ㎡)·min_fails 추가. query.area_bounds(평대
+  브래킷 '~20/20/30/40/50plus' → ㎡ 경계, 1평=3.3058㎡). web.index가 area·fails 파싱(헛값 무필터
+  흘림) → apply_filters 배선 + filters 딕트 노출. listings.html 폼에 '면적(전용)'·'유찰' 셀렉트 2개
+  추가(선택값 유지). 칩 토글은 request.args 기반이라 area/fails 자동 보존.
+- 증거: 신규 테스트 5건(area_bounds·area 필터·min_fails·홈 area·홈 fails) + 폼 필드 검증, 전체
+  **453 passed, 1 failed**(export read_text py3.12 환경 한정·무관). **Playwright 실 프로덕션 스크린샷**
+  (evidence/home_area_fails.png): '30평대+1회+' 필터 → 결과 전부 99~132㎡(30평대)로 정확히 걸러짐 확인.
+- 평가자: - (자체 TDD + 실데이터 Playwright)
+- 커밋: feat/home-area-fails → main
+- 다음: (보류한 후보) 차익률(gap_rate) 필터·예산 하한·신뢰도·인수금액 상한(크롤 후). 사용자가 ①②까지만 지시.
+
 ## 2026-07-13 00:09 KST — 🗺️ 지도 3단 스코프(차익 양수만 기본) + pmap 청소 (①②, feat/map-profit-tier)
 - 배경: 사용자 지시로 ①지도 기본을 '차익 양수만'으로 조이고 ②죽은 pmap 정리. **다른 세션이 권리분석
   대량 크롤 중**이라 인수금액이 채워지는 상황을 감안하라는 요구 → 정적 목록이 아니라 요청마다 배지에서
