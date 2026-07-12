@@ -441,8 +441,13 @@ def create_app() -> Flask:
         # 가격 지도 — 감정가·최저입찰가·취득원가·밴드·호가를 한 축에 그릴 좌표(UX 개편).
         from . import pricemap  # noqa: PLC0415
         pmap = pricemap.build(s, ask_points, assumed=(badge.assumed if badge else 0))
+        # 가격-시간 차트(세로/시간축 개편) — 개별 실거래(월별)·호가 시점·유찰 저감·롤링 밴드.
+        # 기일 이력(schedule)은 권리 요지에서, 개별 실거래는 s.market_comps에서.
+        from . import pricechart  # noqa: PLC0415
+        chart = pricechart.build_timechart(
+            s, s.market_comps, rights.schedule if rights else None, ask_points)
         return render_template(
-            "detail.html", s=s, listing=listing, pmap=pmap, rights=rights, badge=badge,
+            "detail.html", s=s, listing=listing, pmap=pmap, chart=chart, rights=rights, badge=badge,
             meter=report.gap_meter_html(s, askings=ask_points), won=report.won, pct=report.pct,
             gated=gated, gate_reason=", ".join(gate_reasons),
             tax_parts=tax_parts, tax_label=tax.PROFILE.label(),

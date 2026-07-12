@@ -58,6 +58,10 @@ class MarketEstimate:
     # (T5) 밴드 실기반 표본수 — 최근성 필터 + 이상치 트림 후 실제 밴드 계산에 쓰인 건수.
     # matched(트림 전 원 매칭수)와 다르다: 게이트는 이 값을 본다(부풀려진 표본수로 통과 방지).
     basis: int = 0
+    # 상세 시간축 차트용 개별 실거래 점 [(deal_ym, price)] — 최근성 필터 전 전체 매칭에서
+    # 날짜 있는 건만, 최신순 COMPS_CAP개. 밴드 산정과 무관(맥락 표시용) — 다년치까지 담아
+    # 차트가 "언제부터 어떻게" 형성됐는지 보이게 한다. 성공 추정 시에만 채운다.
+    comps: tuple[tuple[str, int], ...] = ()
 
 
 def _area_band() -> float:
@@ -242,6 +246,7 @@ def match_trades(listing: AuctionListing, trades: list[Trade]) -> list[Trade]:
 
 RECENCY_WINDOW_MONTHS = 12   # 최근 N개월 거래만 사용(오래된 거래는 시세 신선도↓)
 TRIM_MIN_SAMPLES = 4         # 표본 4건 이상이면 상·하단 이상치 1건씩 트림
+COMPS_CAP = 60               # 차트용 개별 실거래 점 최대 보관수(최신순) — 저장·렌더 비용 상한
 
 
 def _ym_to_int(ym: str) -> int | None:
@@ -261,6 +266,17 @@ def filter_recent(trades: list[Trade], window: int = RECENCY_WINDOW_MONTHS) -> l
         return trades
     cutoff = max(valid) - window
     return [t for m, t in months if m is None or m >= cutoff]
+
+
+def _pack_comps(matched: list[Trade]) -> tuple[tuple[str, int], ...]:
+    """차트용 개별 실거래 점 — 날짜(deal_ym) 있는 건만 최신순 COMPS_CAP개 [(ym, price)].
+
+    밴드 산정과 독립(최근성 필터 전 전체 매칭에서 뽑아 다년치 맥락까지 담는다).
+    """
+    dated = [(t.deal_ym, int(t.price)) for t in matched
+             if _ym_to_int(t.deal_ym) is not None and t.price]
+    dated.sort(key=lambda x: _ym_to_int(x[0]) or 0, reverse=True)
+    return tuple(dated[:COMPS_CAP])
 
 
 def trim_outliers(values: list[float]) -> list[float]:
@@ -328,7 +344,7 @@ def estimate_market(listing: AuctionListing, trades: list[Trade]) -> MarketEstim
     # (T4) 2선 밴드 — 하한가: 트림 후 최저 평단가(보수), 기준가: 트림 후 중앙값(=est, 호환 유지).
     band_low = int(round(min(ppm2_list) * listing.area_m2))
     return MarketEstimate(est, matched_count, scope, band_low=band_low, band_high=est,
-                          basis=basis)
+                          basis=basis, comps=_pack_comps(matched))
 
 
 def estimate_market_price(listing: AuctionListing, trades: list[Trade]) -> tuple[int | None, int]:

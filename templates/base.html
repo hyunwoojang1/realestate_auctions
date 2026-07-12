@@ -415,6 +415,37 @@ table.params{border-collapse:collapse;width:100%;font-size:var(--t-data);backgro
 .pxm-legend span{display:inline-flex;align-items:center;gap:6px}
 .pxm-na{margin-top:var(--sp-5);font-size:13px;color:var(--ink-500);line-height:1.65}
 @media(max-width:640px){.pxm-lab{font-size:10.5px}.pxm-lane{height:19px}}
+/* ============ 가격-시간 차트(ptc) — 세로/시간축 개편 ============ */
+:root{--grid:var(--surface-sunken);--band-fill:rgba(37,99,235,.09);--band-line:#9db8ef}
+.ptc{margin-top:var(--sp-4)}
+.ptc-top{display:flex;align-items:center;justify-content:space-between;gap:var(--sp-3);flex-wrap:wrap;margin-bottom:var(--sp-1)}
+.ptc-cap{font-size:12.5px;color:var(--ink-600)}
+.ptc-cap .cheap{color:var(--brand);font-weight:800}
+.ptc-cap .sep{color:var(--ink-300);margin:0 6px}
+.ptc-range{display:inline-flex;background:var(--surface-sunken);border-radius:var(--r-pill);padding:2px}
+.ptc-range button{border:0;background:transparent;color:var(--ink-500);font:inherit;font-size:12px;font-weight:600;padding:4px 11px;border-radius:var(--r-pill);cursor:pointer}
+.ptc-range button[aria-pressed="true"]{background:var(--surface);color:var(--ink-900);box-shadow:var(--e1)}
+.chartwrap{position:relative;overflow-x:auto}
+.ptc-svg{display:block;width:100%;min-width:560px;height:auto;cursor:crosshair}
+.ptc-svg text{font-family:var(--sans)}
+.ptc-tt{position:absolute;pointer-events:none;z-index:9;background:#0d1524;color:#fff;border:1px solid rgba(255,255,255,.14);border-radius:var(--r-md);padding:8px 11px;line-height:1.4;box-shadow:var(--e4);transform:translate(-50%,calc(-100% - 14px));white-space:nowrap}
+.ptc-tt[hidden]{display:none}
+.ptc-tt::after{content:"";position:absolute;left:50%;bottom:-6px;transform:translateX(-50%);border:6px solid transparent;border-top-color:#0d1524;border-bottom:0}
+.ptc-tt .tp{font-weight:800;font-size:16px;letter-spacing:-.01em}
+.ptc-tt .td{color:#eaf0f8;font-size:12px;font-weight:600;margin-top:2px}
+.ptc-tt .tg{display:inline-block;margin-top:5px;font-size:10.5px;font-weight:700;padding:1px 7px;border-radius:var(--r-pill);background:rgba(255,255,255,.14);color:#c9d2df}
+.ptc-tt.trade .tg{background:rgba(37,99,235,.30);color:#bcd0ff}
+.ptc-tt.ask .tg{background:rgba(164,92,10,.34);color:#f2ce97}
+.ptc-tt.min .tg{background:rgba(213,52,43,.30);color:#ffb3ad}
+.ptc-legend{display:flex;flex-wrap:wrap;gap:8px 16px;margin-top:var(--sp-3);padding-top:var(--sp-3);border-top:1px solid var(--hairline);font-size:11.5px;color:var(--ink-600)}
+.ptc-legend span{display:inline-flex;align-items:center;gap:6px}
+.ptc-legend .sw{width:13px;height:13px;flex:none;border-radius:2px}
+.ptc-legend .sw.trade{background:var(--brand);border-radius:50%;width:10px;height:10px}
+.ptc-legend .sw.hist{background:var(--ink-400);border-radius:50%;width:9px;height:9px}
+.ptc-legend .sw.ask{background:var(--surface);border:2px solid var(--caution);border-radius:50%;width:10px;height:10px}
+.ptc-legend .sw.band{background:var(--band-fill);border:1px solid var(--band-line)}
+.ptc-legend .sw.minbid{background:var(--ink-700);height:3px;border-radius:2px}
+.ptc-legend .sw.gainsw{background:var(--gain)}
 /* ranking header */
 .rank-head{display:flex;align-items:baseline;justify-content:space-between;gap:var(--sp-3);margin-bottom:var(--sp-4)}
 .rank-head h2{margin:0;font-size:20px;font-weight:700;color:var(--ink-900);letter-spacing:-.01em}

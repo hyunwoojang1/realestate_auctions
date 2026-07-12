@@ -96,7 +96,8 @@ def grade_of(arb: float | None) -> str:
 
 def score_listing(listing: AuctionListing, est_market_price: int | None, matched_trades: int,
                   market_scope: str = "", band_low: int | None = None,
-                  band_high: int | None = None, band_basis: int | None = None) -> ScoredListing:
+                  band_high: int | None = None, band_basis: int | None = None,
+                  comps: tuple[tuple[str, int], ...] = ()) -> ScoredListing:
     """한 물건을 채점해 ScoredListing 반환.
 
     market_scope(T3): 시세 비교군의 출처. ""=레거시 호출(스코프 게이트 미적용).
@@ -185,4 +186,5 @@ def score_listing(listing: AuctionListing, est_market_price: int | None, matched
         market_scope=market_scope, market_sample_basis=band_basis,
         market_band_low=band_low, market_band_high=band_high,
         profit_low=p_low, profit_high=p_high,
+        market_comps=[list(c) for c in comps],
     )
