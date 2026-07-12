@@ -1,5 +1,5 @@
 {% extends "base.html" %}
-{% block title %}경매 가이드 — 입찰 전 꼭 알아야 할 것{% endblock %}
+{% block title %}경매 가이드 — 입찰 전 핵심 점검 사항{% endblock %}
 
 {% block content %}
 <div class="doc">
@@ -8,7 +8,7 @@
   <div class="guide-head" style="padding-top:var(--sp-4)">
     <a href="/" class="crumb" style="margin-bottom:var(--sp-4);display:inline-flex">← 1차 필터 목록</a>
     <h1>경매 가이드</h1>
-    <p>이 사이트의 차익 수치는 <b style="color:var(--ink-800)">1차 필터</b>일 뿐입니다. 실제 입찰은 <b style="color:var(--ink-800)">권리분석</b>(떠안을 게 없는가)과 <b style="color:var(--ink-800)">세금</b>(진짜 남는 게 얼마인가)에서 갈립니다. 경매 사고 대부분은 몰라서가 아니라 <b style="color:var(--ink-800)">확인 안 해서</b> 납니다.</p>
+    <p>이 사이트의 차익 수치는 <b style="color:var(--ink-800)">1차 필터</b>일 뿐입니다. 실제 입찰은 <b style="color:var(--ink-800)">권리분석</b>(인수 부담 여부)과 <b style="color:var(--ink-800)">세금</b>(세후 실수익)에서 갈립니다. 경매 사고 대부분은 몰라서가 아니라 <b style="color:var(--ink-800)">확인 안 해서</b> 납니다.</p>
     <div class="jump">
       <a href="#checklist"><span class="n">01</span> 낙찰 전 5문 체크리스트</a>
       <a href="#rights"><span class="n">02</span> 권리분석 가이드</a>
@@ -19,12 +19,12 @@
   <!-- SECTION 1 · CHECKLIST -->
   <section class="gsec" id="checklist">
     <div class="sec-head"><span class="sec-head__n">01</span><h2>입찰표 넣기 전 — 5문 체크리스트</h2></div>
-    <p class="gsub">이 5개에 모두 답할 수 있어야 입찰합니다. 하나라도 "모르겠다"면 그 물건은 넘기세요. 패찰은 공짜지만, 잘못된 낙찰은 보증금·인수금·시간을 다 태웁니다.</p>
+    <p class="gsub">이 5개에 모두 답할 수 있어야 입찰합니다. 하나라도 불확실하면 해당 물건은 제외하십시오. 패찰에는 비용이 들지 않지만, 잘못된 낙찰은 보증금·인수금·시간을 모두 소모합니다.</p>
     <div style="display:flex;flex-direction:column;gap:var(--sp-3)">
       <div class="check"><span class="check__n">1</span><div class="check__q">말소기준권리가 무엇이고 언제인가?</div><span class="check__where">등기부 · §권리 1</span></div>
       <div class="check"><span class="check__n">2</span><div class="check__q">말소기준 앞에 인수할 권리가 있나? (선순위 가등기·가처분·지상권·전세권)</div><span class="check__where">등기부 · 명세서</span></div>
       <div class="check"><span class="check__n">3</span><div class="check__q">임차인의 대항력이 있나? 배당요구는 했나?</div><span class="check__where">명세서 · §권리 2</span></div>
-      <div class="check"><span class="check__n">4</span><div class="check__q">명세서 비고란에 지뢰가 있나? (유치권·인수·특약)</div><span class="check__where">비고란 · §권리 3</span></div>
+      <div class="check"><span class="check__n">4</span><div class="check__q">명세서 비고란에 인수 위험이 있나? (유치권·인수·특약)</div><span class="check__where">비고란 · §권리 3</span></div>
       <div class="check"><span class="check__n">5</span><div class="check__q">급매 실현가 − 총비용 − 세금 &gt; 0 인가? 대출은 실제로 나오나?</div><span class="check__where">세금 가이드 · 은행</span></div>
     </div>
   </section>
@@ -33,11 +33,11 @@
   <section class="gsec" id="rights">
     <div class="guide-tint">
       <div class="sec-head"><span class="sec-head__n">02</span><h2>권리분석 — 떠안을 것 vs 사라질 것</h2></div>
-      <p class="gsub">목적은 딱 하나: <b style="color:var(--ink-800)">낙찰가 말고 내가 추가로 떠안을 돈이 있는가</b>. 경매에서 돈을 잃는 사고의 심장부입니다.</p>
+      <p class="gsub">핵심은 하나입니다: <b style="color:var(--ink-800)">낙찰가 외에 추가로 인수할 금액이 있는가</b>. 경매 손실이 가장 많이 발생하는 지점입니다.</p>
 
       <h3 class="g3title">권리 1 · 말소기준권리 — 소멸의 기준선</h3>
       <div class="callout">등기부 권리를 <b>접수 순서</b>로 세우면, 그 중 하나가 <b>말소기준권리</b>.<br>말소기준 <b>뒤(후순위)</b> → 낙찰과 함께 <b class="ok">소멸</b> · 안 떠안음<br>말소기준 <b>앞(선순위)</b> → 낙찰자 <b class="bad">인수</b> · 떠안음</div>
-      <p class="gsub gsub--tight" style="margin-top:var(--sp-3)">말소기준이 되는 권리(가장 먼저 온 것): (근)저당권·압류·가압류·담보가등기·경매개시결정등기·(배당요구한) 전세권. 최악은 <b style="color:var(--risk)">선순위 가등기</b> — 소유권 통째로 빼앗길 수 있어 초보는 무조건 회피.</p>
+      <p class="gsub gsub--tight" style="margin-top:var(--sp-3)">말소기준이 되는 권리(가장 먼저 온 것): (근)저당권·압류·가압류·담보가등기·경매개시결정등기·(배당요구한) 전세권. 최악은 <b style="color:var(--risk)">선순위 가등기</b> — 소유권 전체를 상실할 수 있어 초보자는 회피 권장.</p>
 
       <h3 class="g3title">권리 2 · 임차인과 대항력 — 가장 사고 많은 구간</h3>
       <div class="callout" style="margin-bottom:var(--sp-4)">임차인 <b>전입일</b> vs 말소기준권리 <b>설정일</b> 비교:<br>전입이 <b>빠르면</b> → 대항력 <b class="bad">있음</b> → 못 받은 보증금 낙찰자 인수<br>전입이 <b>늦으면</b> → 대항력 <b class="ok">없음</b> → 낙찰자 부담 0원</div>
@@ -52,10 +52,10 @@
       <p class="gsub gsub--tight" style="margin-top:var(--sp-4)">확정일자는 <b style="color:var(--ink-700)">배당 순위</b>를 정하는 별개 장치(우선변제권)입니다. 대항력(방패)=전입+점유, 우선변제권(창)=확정일자, 배당요구(방아쇠) — 셋을 구분하세요.</p>
 
       <h3 class="g3title">권리 3 · 서류 3종 — 이론을 실전으로</h3>
-      <p class="gsub gsub--tight">매각물건명세서(법원 답안지) → 등기부등본 → 현황조사서 순으로 봅니다. 가장 먼저 볼 칸 두 개:</p>
+      <p class="gsub gsub--tight">매각물건명세서(법원 공식 판단자료) → 등기부등본 → 현황조사서 순으로 봅니다. 가장 먼저 볼 칸 두 개:</p>
       <div class="callout callout--light">① 명세서의 <b>"최선순위 설정"</b> 칸 (= 말소기준 날짜)<br>② 점유자 표의 <b>전입일</b><br>→ 이 둘을 비교하면 <b>권리 2의 대항력</b>이 바로 판정됩니다.</div>
       <div style="display:flex;flex-direction:column;gap:10px;margin-top:var(--sp-4)">
-        <div class="inline-warn"><span style="flex:none">⚠</span><p><b>명세서 비고란이 지뢰밭</b>입니다. 유치권·법정지상권·지분·대지권미등기·선순위 전세권 등 인수/특약이 여기 적힙니다. 비고란이 길면 특수물건 — 뜻을 정확히 이해하기 전엔 입찰 금지.</p></div>
+        <div class="inline-warn"><span style="flex:none">⚠</span><p><b>명세서 비고란에 인수·특약 위험이 몰려 있습니다</b>. 유치권·법정지상권·지분·대지권미등기·선순위 전세권 등 인수/특약이 여기 적힙니다. 비고란이 길면 특수물건 — 뜻을 정확히 이해하기 전엔 입찰 금지.</p></div>
         <div class="inline-warn"><span style="flex:none">⚠</span><p><b>유치권은 등기부에 안 나옵니다</b>(점유로 성립). 현황조사서·비고란에 "유치권 신고"가 있으면 명도 장기전이 될 수 있어 초보는 회피하세요.</p></div>
       </div>
     </div>
@@ -63,12 +63,12 @@
 
   <!-- SECTION 3 · TAX -->
   <section class="gsec" id="tax">
-    <div class="sec-head"><span class="sec-head__n">03</span><h2>세금 — 진짜 남는 게 얼마인가</h2></div>
-    <p class="gsub">"감정가 대비 싸게 샀다"는 매입 할인이지 수익이 아닙니다. 진짜 수익 = 매도가 − (낙찰가 + 숨은 비용) − <b style="color:var(--ink-800)">세금</b>. 그리고 세금의 끝판왕이 양도세입니다.</p>
+    <div class="sec-head"><span class="sec-head__n">03</span><h2>세금 — 세후 실수익</h2></div>
+    <p class="gsub">"감정가 대비 싸게 샀다"는 매입 할인이지 수익이 아닙니다. 진짜 수익 = 매도가 − (낙찰가 + 숨은 비용) − <b style="color:var(--ink-800)">세금</b>. 그중 세부담이 가장 큰 항목이 양도세입니다.</p>
 
-    <h3 class="g3title">세금 1 · 두 개의 세계</h3>
+    <h3 class="g3title">세금 1 · 개인 vs 매매사업자</h3>
     <div class="twobox">
-      <div class="kpi" style="box-shadow:var(--e1)"><div style="font-size:13px;color:var(--ink-500);font-weight:600;margin-bottom:6px">개인이 팔면</div><div style="font-size:20px;font-weight:800;color:var(--risk)">양도소득세</div><p style="margin:8px 0 0;font-size:13px;color:var(--ink-500);line-height:1.6">단기 보유면 세율 폭탄</p></div>
+      <div class="kpi" style="box-shadow:var(--e1)"><div style="font-size:13px;color:var(--ink-500);font-weight:600;margin-bottom:6px">개인이 팔면</div><div style="font-size:20px;font-weight:800;color:var(--risk)">양도소득세</div><p style="margin:8px 0 0;font-size:13px;color:var(--ink-500);line-height:1.6">단기 보유 시 고세율</p></div>
       <div class="kpi" style="box-shadow:var(--e1)"><div style="font-size:13px;color:var(--ink-500);font-weight:600;margin-bottom:6px">매매사업자가 팔면</div><div style="font-size:20px;font-weight:800;color:var(--ink-800)">종합소득세 <span class="num">6~45%</span></div><p style="margin:8px 0 0;font-size:13px;color:var(--ink-500);line-height:1.6">차익이 사업소득 · 단기 70% 개념 소멸</p></div>
     </div>
 
@@ -80,7 +80,7 @@
       <div class="gtable__row" style="grid-template-columns:1fr 1.2fr"><div>2년 이상</div><div class="val num" style="color:var(--ink-700)">기본 누진세율 6~45%</div></div>
       <div class="gtable__row" style="grid-template-columns:1fr 1.2fr"><div style="font-weight:700">1세대 1주택 비과세</div><div class="val val--gain num">0% (2년 보유·조정 2년 거주·12억↓)</div></div>
     </div>
-    <div class="inline-warn" style="margin-top:var(--sp-3)"><span style="flex:none">⚠</span><p>명도비·대출이자·관리비는 양도세 필요경비로 인정 안 됩니다(수리비도 자본적 지출만 인정). 실제 나가는 돈인데 세금은 안 깎아주는 이중고. 단기 매도의 최대 적은 이 <b>70% 세율</b>.</p></div>
+    <div class="inline-warn" style="margin-top:var(--sp-3)"><span style="flex:none">⚠</span><p>명도비·대출이자·관리비는 양도세 필요경비로 인정 안 됩니다(수리비도 자본적 지출만 인정). 실제 나가는 돈인데 세금은 안 깎아주는 이중고. 단기 매도에서 가장 큰 세부담은 이 <b>70% 세율</b>입니다.</p></div>
 
     <h3 class="g3title">세금 3 · 매매사업자 + 비교과세 (소득세법 64조)</h3>
     <p class="gsub gsub--tight">매매사업자는 종합소득세(6~45%)가 원칙이지만, 특정 자산은 <b style="color:var(--ink-800)">비교과세</b>(종소세 vs 양도세 중과세율 중 큰 금액)에 걸려 양도세를 못 피합니다.</p>
@@ -99,8 +99,8 @@
     </div>
 
     <h3 class="g3title">세금 5 · 실거주로 살 때 — 재고자산과 다르다</h3>
-    <p class="gsub gsub--tight">단타(재고자산)와 실거주는 세법상 상극입니다.</p>
-    <div class="callout callout--light" style="border-left-color:var(--caution)"><b>매매사업자 재고주택은 실거주 집의 1세대1주택 비과세를 깹니다.</b> 재고주택도 원칙적으로 주택 수에 포함되기 때문. 실거주 집을 비과세로 팔려면 그 시점에 <b>재고를 다 털어 1주택</b> 상태여야 하고 2년 보유·거주해야 합니다. "돈은 단타(종소세)로 벌고, 내 집은 재고 정리 후 깨끗한 1주택으로 사서 비과세" — <b>시점을 분리</b>하는 게 정답입니다.</div>
+    <p class="gsub gsub--tight">단기 매매(재고자산)와 실거주는 세법상 정반대로 취급됩니다.</p>
+    <div class="callout callout--light" style="border-left-color:var(--caution)"><b>매매사업자 재고주택은 실거주 집의 1세대1주택 비과세를 깹니다.</b> 재고주택도 원칙적으로 주택 수에 포함되기 때문. 실거주 집을 비과세로 팔려면 그 시점에 <b>재고를 다 털어 1주택</b> 상태여야 하고 2년 보유·거주해야 합니다. "돈은 단타(종소세)로 벌고, 내 집은 재고 정리 후 깨끗한 1주택으로 사서 비과세" — <b>시점을 분리</b>하는 것이 핵심입니다.</div>
   </section>
 
   <p class="footnote" style="margin:0;padding-top:var(--sp-6);border-top:1px solid var(--hairline);color:var(--ink-400)">이 가이드는 일반적인 개념 정리이며 개별 물건·연도별 세법·본인 상황에 따라 달라집니다. 권리분석은 법무사, 세금은 세무사 상담이 필수이며 이 페이지는 그 상담을 대체하지 않습니다. 세율·제도는 변경될 수 있으니 입찰 시점에 그해 기준을 재확인하세요.</p>

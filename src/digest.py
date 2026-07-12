@@ -76,7 +76,7 @@ def _basis_note(s: ScoredListing) -> str:
     return f"실거래 {n}건"
 
 
-def to_markdown(items: list[ScoredListing], title: str = "이번 주 차익 매물 TOP") -> str:
+def to_markdown(items: list[ScoredListing], title: str = "주간 차익 매물 TOP") -> str:
     """(T7) 보수 가격 기준 차익 중심 표기 + 표본 근거 병기 — 단정 표현 금지."""
     lines = [f"# {title} {len(items)}", ""]
     lines.append("| # | 보수 기준 차익 | 기준 차익 | 갭 | 단지 | 유형 | 최저가 | 근거 | 경고 |")

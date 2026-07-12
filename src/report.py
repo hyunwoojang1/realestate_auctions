@@ -158,7 +158,7 @@ def _band_gauge(s: ScoredListing, askings: list | None = None) -> str:
         verdict = f'<span class="gm-gv">보수 차익 {_won(low - cost)}</span>'
     elif cost <= high:
         parts.append(f'<div class="bg-inband" style="left:{x(low):.1f}%;width:{x(cost) - x(low):.1f}%"></div>')
-        verdict = '<span class="bg-flat">원가가 밴드 안 — 보수 차익 없음</span>'
+        verdict = '<span class="bg-flat">취득원가 밴드 내 · 보수 차익 없음</span>'
     else:
         parts.append(f'<div class="bg-overcost" style="left:{x(high):.1f}%;width:{x(cost) - x(high):.1f}%"></div>')
         verdict = f'<span class="gm-loss">기준가 초과 {_won(cost - high)}</span>'
@@ -247,7 +247,7 @@ tbody tr:hover{{background:var(--sunk)}}
 </style></head><body>
 <h1>차익 큐레이션 — 결과</h1>
 <p class="sub">예상 차익 = 추정 실거래시세 − (최저입찰가 + 취득세). 금액 큰 순.
-갭미터의 <b style="color:var(--g4)">초록 구간</b>이 최저가→시세 사이 예상 차익입니다(명도·수리·인수 등 변동비 제외).</p>
+<b style="color:var(--g4)">초록 구간</b> = 최저가→시세 구간의 예상 차익 (명도·수리·인수 등 변동비 제외).</p>
 <div class="scroll"><table>
 <thead><tr><th>#</th><th>예상차익</th><th>경고</th><th>단지 / 소재지</th>
 <th>갭미터 (최저가 → 시세)</th><th>최저가</th><th>신뢰</th></tr></thead>

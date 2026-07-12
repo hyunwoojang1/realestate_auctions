@@ -128,7 +128,7 @@
   <!-- STEP 1 -->
   <section id="t-gap" role="tabpanel" aria-label="차익 근거">
     <div class="dstep-head"><span class="dstep-num">1</span>
-      <h2>얼마가 남는가 <span class="sub">· 차익 근거(객관)</span></h2></div>
+      <h2>예상 차익 산출 <span class="sub">· 차익 근거(객관)</span></h2></div>
     <div class="dpanel">
       <div class="drow"><span class="k">감정가 <span class="hint">(1차 시작가·참고)</span></span><span class="v">{{ won(s.appraisal_price) }}</span></div>
       {# (#21) 유찰수와 공고가율이 어긋나면(재매각·가격 재설정) '저감 0%' 같은 모순 라벨 대신 명시 #}
@@ -165,14 +165,14 @@
       {% endif %}
       {% if sample_gate_low %}<div class="dbanner gate">⚠ <b>표본 낮은 신뢰</b>: 밴드 근거 표본이 {{ s.market_sample_basis }}건({{ band_confident }}건 미만)입니다. 시세·차익은 참고만 하세요.</div>{% endif %}
       {% if ask_overstated %}<div class="dbanner gate">⚠ <b>실거래 밴드 과대 가능성</b>: 현재 최저 호가가 검증 하한가보다 낮습니다. 차익이 과대평가될 위험이 있습니다.</div>{% endif %}
-      <div class="dnote">↳ 이 차익은 취득세까지만 반영한 <b>표면차익</b>입니다. 양도세·명도비·수리비를 넣은 진짜 순수익은 아래 <b>세금</b> 단계에서 계산하세요.</div>
+      <div class="dnote">↳ 이 차익은 취득세까지만 반영한 <b>표면차익</b>입니다. 양도세·명도비·수리비를 반영한 실제 순수익은 아래 <b>세금</b> 단계에서 확인하세요.</div>
     </div>
   </section>
 
   <!-- STEP 2 -->
   <section id="t-tax" role="tabpanel" aria-label="세금·비용">
     <div class="dstep-head"><span class="dstep-num">2</span>
-      <h2>세금·비용 빼면 진짜 얼마 <span class="sub">· 취득세({{ tax_label }})</span></h2></div>
+      <h2>세금·비용 반영 순차익 <span class="sub">· 취득세({{ tax_label }})</span></h2></div>
     <div class="dpanel">
       <div class="drow"><span class="k">취득세 본세</span><span class="v">{{ won(tax_parts['취득세']) }}</span></div>
       <div class="drow"><span class="k">지방교육세</span><span class="v">{{ won(tax_parts['지방교육세']) }}</span></div>
@@ -220,7 +220,7 @@
     {% if rights.schedule %}
     <!-- 기일 역사 — 유찰이 쌓인 과정 -->
     <div class="dstep-head" style="margin-top:var(--sp-6)"><span class="dstep-num">↻</span>
-      <h2>기일 내역 <span class="sub">· 유찰 {{ s.fail_count }}회의 역사</span></h2></div>
+      <h2>기일 내역 <span class="sub">· 유찰 {{ s.fail_count }}회 경과</span></h2></div>
     <div class="dpanel">
       {% for ev in rights.schedule %}
       <div class="drow"><span class="k" style="font-weight:500">{{ ev.ymd }} <span class="hint">{{ ev.kind }}</span></span>
@@ -232,7 +232,7 @@
 
     {% if not listing.rights_verified %}
     <div class="dstep-head"><span class="dstep-num gate">⛔</span>
-      <h2>사도 되는가 <span class="sub gate">· 권리 게이트 — 미확인</span></h2></div>
+      <h2>매수 적정성 <span class="sub gate">· 권리 게이트 — 미확인</span></h2></div>
     <div class="dpanel gate">
       <div class="dbanner gate"><b>물건상세 권리분석 전 상태입니다.</b> 매각물건명세서·현황조사서·등기부를 직접 확인하세요. 아래 값은 미수집 기본값이며 안전을 보증하지 않습니다.</div>
       {% for k in ['인수금액','대항력 임차인','점유'] %}
@@ -240,7 +240,7 @@
       {% endfor %}
     {% elif gated %}
     <div class="dstep-head"><span class="dstep-num risk">⛔</span>
-      <h2>사도 되는가 <span class="sub risk">· 인수 위험</span></h2></div>
+      <h2>매수 적정성 <span class="sub risk">· 인수 위험</span></h2></div>
     <div class="dpanel risk">
       <div class="dbanner risk">⚠ <b>인수 위험</b> — {{ gate_reason }}. 낙찰가 외 추가 부담이 발생합니다.</div>
       <div class="drow"><span class="k">인수금액</span><span class="v neg">{{ won(listing.assumed_amount) if listing.assumed_amount else '발견 안 됨' }}</span></div>
@@ -250,7 +250,7 @@
     {# 하드게이트(치명 특수권리·인수비율)는 아니지만 대항력 임차인/임차권등기 신호 —
        보증금 인수 위험이므로 초록 체크로 안심시키지 않는다(침묵실패 방지). #}
     <div class="dstep-head"><span class="dstep-num risk">⚠</span>
-      <h2>사도 되는가 <span class="sub risk">· 대항력 임차인 주의</span></h2></div>
+      <h2>매수 적정성 <span class="sub risk">· 대항력 임차인 주의</span></h2></div>
     <div class="dpanel risk">
       <div class="dbanner risk">⚠ <b>대항력 있는 임차인(또는 임차권등기) 신호</b> — 배당에서 보증금이 전액 변제되지 않으면 잔액을 매수인이 인수할 수 있습니다. 위 명세서 요지와 배당요구·확정일자를 반드시 확인하세요.</div>
       <div class="drow"><span class="k">인수금액{% if not listing.assumed_amount %} <span class="hint">(명세서에 금액 미기재 — 보증금 확인 필요)</span>{% endif %}</span><span class="v neg">{{ won(listing.assumed_amount) if listing.assumed_amount else '금액 미상' }}</span></div>
@@ -267,7 +267,7 @@
       <div class="drow"><span class="k">점유</span><span class="v" style="font-size:14px;color:var(--ink-700)">{{ listing.occupant_type }}</span></div>
     {% else %}
     <div class="dstep-head"><span class="dstep-num ok">✓</span>
-      <h2>사도 되는가 <span class="sub ok">· 치명적 인수권리 미발견</span></h2></div>
+      <h2>매수 적정성 <span class="sub ok">· 치명적 인수권리 미발견</span></h2></div>
     <div class="dpanel ok">
       <div class="dbanner ok">✓ 권리분석 반영됨 — 치명적 인수권리가 발견되지 않았습니다(최종 확인은 본인).</div>
       <div class="drow"><span class="k">인수금액</span><span class="v">{{ won(listing.assumed_amount) if listing.assumed_amount else '발견 안 됨' }}</span></div>

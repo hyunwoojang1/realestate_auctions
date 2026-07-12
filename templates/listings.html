@@ -183,7 +183,7 @@
       {%- elif b and b.assumed -%}
       <div class="pk-val warn">{{ won(outlay) }}</div><div class="pk-vsub warn">인수금 포함</div>
       {%- elif b -%}
-      <div class="pk-val">{{ won(outlay) }}</div><div class="pk-vsub ok2">이게 전부 (인수 없음)</div>
+      <div class="pk-val">{{ won(outlay) }}</div><div class="pk-vsub ok2">인수 부담 없음</div>
       {%- else -%}
       <div class="pk-val">{{ won(outlay) }}</div><div class="pk-vsub">인수 미확인</div>
       {%- endif -%}

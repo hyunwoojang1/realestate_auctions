@@ -26,7 +26,7 @@
 {% elif not snapshot_missing and not corrupted %}
 <p class="page-lead" style="margin-top:12px;color:var(--muted-2)">직전 새로고침 대비 변동 없음.</p>
 {% elif snapshot_missing %}
-<p class="page-lead" style="margin-top:12px;color:var(--muted-2)">아직 비교할 이전 스냅샷이 없습니다(첫 새로고침 이력 없음) — 변동 감지는 다음 새로고침부터.</p>
+<p class="page-lead" style="margin-top:12px;color:var(--muted-2)">비교할 이전 스냅샷이 없습니다 — 변동 감지는 다음 새로고침부터 제공됩니다.</p>
 {% endif %}
 {% if events %}
 <table class="params">
@@ -51,7 +51,7 @@
 {% if watched %}
 <table class="params">
 <thead><tr><th scope="col">단지 / 소재지</th><th scope="col">경고</th>
-<th class="num" scope="col">차익(보수 기준·구 데이터는 기준 시세)</th><th class="num" scope="col">최저가</th>
+<th class="num" scope="col">차익(보수 기준)</th><th class="num" scope="col">최저가</th>
 <th scope="col">매각기일</th><th scope="col"></th></tr></thead>
 <tbody>
 {% for s in watched %}
@@ -80,7 +80,7 @@
 {% endif %}
 
 {% if missing %}
-<h2>목록에서 사라진 물건 <span style="color:var(--muted);font-weight:400">{{ missing | length }}건</span></h2>
+<h2>목록에서 제외된 물건 <span style="color:var(--muted);font-weight:400">{{ missing | length }}건</span></h2>
 <p class="page-lead">최근 새로고침 결과에 없는 사건번호입니다(매각·취하·기일변경 가능) —
 대법원 법원경매정보에서 직접 확인하세요.</p>
 <div class="chips">

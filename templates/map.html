@@ -101,7 +101,7 @@
       const grp = L.featureGroup(markers);
       map.fitBounds(grp.getBounds().pad(0.1));
     } else {
-      side.innerHTML = '<div class="item">표시할 좌표 있는 물건이 없습니다.<br>' +
+      side.innerHTML = '<div class="item">지도에 표시할 물건이 없습니다.<br>' +
         '<small>다음 새로고침 후 좌표 캐시가 채워집니다.</small></div>';
     }
   }).catch(e => {
