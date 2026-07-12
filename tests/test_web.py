@@ -61,10 +61,11 @@ def test_index_page_renders():
     assert "scoreno" not in body     # 점수 UI 제거(사용자 결정 #7)
 
 
-def test_index_min_profit_filter():
-    body = _client().get("/?min_profit=1.5").get_data(as_text=True)   # 1.5억 이상
-    assert "상계주공" in body           # 차익 약 2억 → 통과
-    assert "반석마을아이파크" not in body  # 차익 소액 → 필터됨
+def test_index_budget_filter():
+    # 검색 우선 홈(2026-07): 최소차익 대신 예산(최저입찰가 상한)으로 필터.
+    body = _client().get("/?budget=5").get_data(as_text=True)   # 최저입찰가 5억 이하
+    assert "상계주공" in body                # 최저 3.97억 → 통과
+    assert "해운대마린시티자이" not in body    # 최저 5.76억 → 필터됨
 
 
 def test_property_detail_found():
@@ -95,7 +96,14 @@ def test_index_filter_form_and_selection():
 
 def test_index_has_filter_form():
     body = _client().get("/").get_data(as_text=True)
-    assert 'name="min_profit"' in body and 'name="type"' in body and 'name="sort"' in body
+    assert 'name="region"' in body and 'name="budget"' in body and 'name="type"' in body
+    assert "빠른 진입" in body  # 빠른진입 칩
+
+
+def test_index_all_mode_shows_full_table():
+    # 전체 탐색 = 미지원·시세추정불가 포함 + 기존 밀집 테이블(랭킹 헤더).
+    body = _client().get("/?all=1").get_data(as_text=True)
+    assert "전체 탐색" in body and "예상 투입" in body
 
 
 def test_methodology_page():

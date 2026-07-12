@@ -200,32 +200,83 @@ def create_app() -> Flask:
 
     @app.get("/")
     def index():
+        import datetime as _dt  # noqa: PLC0415
+
         from . import tax  # noqa: PLC0415
-        # 인수 부담 배지(법원 명세서 크롤분) — '낙찰가 외 추가 부담' 여부를 목록에서 구분.
         badges = _rights_badges()
-        items = _filtered(request.args, badges=badges)
-        filters = {
-            "min_profit": request.args.get("min_profit", ""),
-            "type": request.args.get("type", ""),
-            "region": request.args.get("region", ""),
-            "sort": request.args.get("sort", query.DEFAULT_SORT),
-            "clean": request.args.get("clean", ""),
+        all_scored = _scored()   # 전체 채점 결과(출처 표시는 _scored 내부에서)
+        today = _dt.date.today()
+
+        def _clean(s):
+            b = badges.get(f"{s.court}|{s.case_no}|{s.item_no}")
+            return bool(b and b.is_clean)
+
+        # 평가 가능(시세 추정된) 물건 = 검색 우선 홈의 기본 모수. 89% 노이즈(미지원·시세추정불가)는
+        # 여기서 빠지고 '전체 탐색'(all=1)에서만 보인다.
+        evaluable = [s for s in all_scored if query.is_evaluable(s)]
+        # 커버리지·칩 카운트(활성 필터와 무관하게 고정) — 정직한 밀도 노출.
+        coverage = {
+            "total": len(all_scored),
+            "eval": len(evaluable),
+            "noise": len(all_scored) - len(evaluable),
+            "pos": sum(1 for s in evaluable if (query.decision_profit(s) or 0) > 0),
+            "soon": sum(1 for s in evaluable if query.is_soon(s, today)),
+            "clean": sum(1 for s in evaluable if _clean(s)),
+            "high": sum(1 for s in evaluable if query.is_high_profit(s)),
         }
-        if filters["clean"]:
-            # '추가 인수 없음만' — 명세서로 clean 확인된 물건만(미확인은 보수적으로 제외).
-            # (재검증 감사 idx5) 시세추정불가·미지원유형 등 값이 전부 '—'인 물건도 제외 —
-            # 권리만 깨끗하고 판단 근거(시세·차익)가 없는 행이 섞이면 필터 취지가 흐려진다.
-            items = [s for s in items
-                     if (b := badges.get(f"{s.court}|{s.case_no}|{s.item_no}"))
-                     and b.is_clean
-                     and (s.profit_low is not None or s.expected_profit is not None)]
-        # (T7→T8 감사 수정) 히어로 스포트라이트는 최대 추천 표면 — digest와 동일 게이트를
-        # 레거시 통과 없이(strict) 적용한다: 보수차익 양수·같은단지같은평형·basis≥5·비위험.
-        # 게이트 정보가 없는 구 DB에서는 히어로를 띄우지 않는다(검증 안 된 헤드라인 금지).
+
+        all_mode = request.args.get("all") == "1"
+        region = request.args.get("region", "")
+        ptype = request.args.get("type", "")
+        budget = request.args.get("budget", "")
+        sort = request.args.get("sort", query.DEFAULT_SORT)
+        if sort not in query.SORT_KEYS:
+            sort = query.DEFAULT_SORT
+        chip_clean = request.args.get("clean") == "1"
+        chip_soon = request.args.get("soon") == "1"
+        chip_high = request.args.get("high") == "1"
+        has_filter = bool(region or ptype or budget or chip_clean or chip_soon or chip_high)
+
+        # 예산(최저입찰가) — '8plus'=8억 이상, 그 외 숫자=상한(억).
+        max_bid = min_bid = None
+        if budget == "8plus":
+            min_bid = 800_000_000
+        elif budget:
+            try:
+                max_bid = int(float(budget) * 1e8)
+            except ValueError:
+                budget = ""
+
+        burden = _burden_of(badges)
+        base = all_scored if all_mode else evaluable
+        items = query.apply_filters(base, property_type=ptype or None, region=region or None,
+                                    max_bid=max_bid, min_bid=min_bid)
+        if chip_clean:
+            items = [s for s in items if _clean(s)]
+        if chip_soon:
+            items = [s for s in items if query.is_soon(s, today)]
+        if chip_high:
+            items = [s for s in items if query.is_high_profit(s)]
+        items = query.sort_items(items, sort, burden_of=burden,
+                                 uncertain_of=_uncertain_of(badges))
+
+        # 모드: 전체 탐색 / 검색·칩 결과 / (필터 없음) 엄선 추천
+        if all_mode:
+            mode = "all"
+        elif has_filter:
+            mode = "results"
+        else:
+            mode = "recommend"
+            # 엄선 추천 = 평가가능·보수차익 양수·비위험·검증 비교군(같은 단지/레거시)만.
+            # 폴백(same_dong_fallback, scope_tier 2)은 '참고치 — 추천 금지'라 추천에서 제외한다.
+            picks = [s for s in evaluable
+                     if (query.decision_profit(s) or 0) > 0 and s.grade != "위험"
+                     and query.scope_tier(s) <= 1]
+            picks.sort(key=lambda s: (not _clean(s), -(query.decision_profit(s) or 0)))
+            items = picks[:9]
+
         from .digest import passes_recommend_gates  # noqa: PLC0415
-        # 히어로는 최대 추천 표면 — 채점 게이트에 더해 인수 부담 배지도 본다(감사 2026-07-10:
-        # '대항력+인수 3.3억, 실질 음수' 물건이 hero 로 뽑히던 사각). 명세서로 clean 확인된
-        # 물건만 허용하되, 배지 데이터가 아예 없는 환경(rights 미크롤 DB)은 기존 동작 유지.
+
         def _hero_ok(s):
             if not passes_recommend_gates(s, allow_legacy=False):
                 return False
@@ -233,14 +284,38 @@ def create_app() -> Flask:
                 return True
             b = badges.get(f"{s.court}|{s.case_no}|{s.item_no}")
             return b is not None and b.is_clean
-        hero = next((s for s in items if _hero_ok(s)), None)
-        # (T8 감사 HIGH) 표시 물건 전부가 레거시(보수차익 미계산·구 채점)면 라벨-값 불일치가
-        # 생기므로 배너로 고지하고 컬럼 라벨도 구 기준임을 표기한다.
-        legacy_only = bool(items) and all(s.profit_low is None for s in items)
+        hero = next((s for s in items if _hero_ok(s)), None) if all_mode else None
+        legacy_only = all_mode and bool(items) and all(s.profit_low is None for s in items)
+
+        # 빠른진입 칩 — 현재 쿼리에서 해당 파라미터만 토글하는 링크(다른 필터 보존).
+        from urllib.parse import urlencode  # noqa: PLC0415
+
+        from .region import matches_region  # noqa: PLC0415
+
+        def _toggle(param, on_value="1"):
+            args = {k: v for k, v in request.args.items() if k != "all"}
+            if args.get(param) == on_value:
+                args.pop(param, None)
+            else:
+                args[param] = on_value
+            qs = urlencode(args)
+            return "/?" + qs if qs else "/"
+        seoul_ct = sum(1 for s in evaluable if matches_region(s.address, "서울"))
+        chips = [
+            {"label": "인수 없음", "count": coverage["clean"], "active": chip_clean, "href": _toggle("clean")},
+            {"label": "매각기일 임박", "count": coverage["soon"], "active": chip_soon, "href": _toggle("soon")},
+            {"label": "고차익 2억+", "count": coverage["high"], "active": chip_high, "href": _toggle("high")},
+            {"label": "관심지역 서울", "count": seoul_ct, "active": region == "서울",
+             "href": _toggle("region", "서울")},
+        ]
+        filters = {"region": region, "type": ptype, "budget": budget, "sort": sort,
+                   "clean": chip_clean, "soon": chip_soon, "high": chip_high}
         return render_template(
-            "listings.html", items=items, count=len(items), filters=filters,
+            "listings.html", items=items, count=len(items), filters=filters, chips=chips,
+            mode=mode, coverage=coverage, all_mode=all_mode,
             hero=hero, legacy_only=legacy_only, badges=badges,
             won=report.won, pct=report.pct, meter=report.gap_meter_html,
+            days_until=query.days_until,
             tax_label=tax.PROFILE.label(),
             watched=watchlist.load_watchlist(watchlist.watchlist_path()),
             data_source=getattr(g, "data_source", "n/a"))
@@ -471,7 +546,7 @@ def create_app() -> Flask:
                    "sort": query.DEFAULT_SORT, "clean": ""}
         return render_template(
             "listings.html", items=items, count=len(items), filters=filters,
-            badges=digest_badges,
+            badges=digest_badges, days_until=query.days_until,
             won=report.won, pct=report.pct, meter=report.gap_meter_html,
             tax_label=tax.PROFILE.label(),
             data_source=getattr(g, "data_source", "n/a"))

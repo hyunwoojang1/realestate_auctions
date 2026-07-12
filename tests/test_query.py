@@ -1,11 +1,27 @@
 """CLI 필터·정렬·JSON 출력 테스트."""
+import datetime as dt
 import json
 
 from src import pipeline, query, report
+from src.models import ScoredListing
 
 
 def _scored():
     return pipeline.run()  # 샘플 6건
+
+
+def _sl(**kw) -> ScoredListing:
+    base = dict(
+        case_no="X", apt_name="테스트", address="서울 강남구", property_type="아파트",
+        area_m2=84.9, appraisal_price=6_000_000_000 // 10, min_bid_price=400_000_000,
+        fail_count=1, sale_date="2026-07-15", est_market_price=500_000_000,
+        matched_trades=5, confidence=0.9, real_acquisition_cost=420_000_000,
+        expected_profit=80_000_000, gap_rate=0.16, gap_score=70.0, rights_score=80.0,
+        liquidity_score=60.0, arb_score=72.0, grade="양호",
+        profit_low=80_000_000, market_band_low=500_000_000, market_band_high=520_000_000,
+    )
+    base.update(kw)
+    return ScoredListing(**base)
 
 
 def test_min_score_filter():
@@ -32,6 +48,44 @@ def test_combined_filter():
 def test_min_profit_filter():
     out = query.apply_filters(_scored(), min_profit=100_000_000)
     assert out and all(s.expected_profit is not None and s.expected_profit >= 100_000_000 for s in out)
+
+
+# ---- 검색 우선 홈 헬퍼 ----
+
+def test_is_evaluable():
+    assert query.is_evaluable(_sl(est_market_price=500_000_000)) is True
+    assert query.is_evaluable(_sl(est_market_price=None)) is False
+
+
+def test_evaluable_only_filter_hides_no_estimate():
+    items = [_sl(case_no="A", est_market_price=500_000_000),
+             _sl(case_no="B", est_market_price=None, grade="미지원유형")]
+    out = query.apply_filters(items, evaluable_only=True)
+    assert [s.case_no for s in out] == ["A"]
+
+
+def test_budget_max_and_min_bid():
+    items = [_sl(case_no="cheap", min_bid_price=80_000_000),
+             _sl(case_no="mid", min_bid_price=400_000_000),
+             _sl(case_no="pricey", min_bid_price=900_000_000)]
+    assert {s.case_no for s in query.apply_filters(items, max_bid=100_000_000)} == {"cheap"}
+    assert {s.case_no for s in query.apply_filters(items, max_bid=500_000_000)} == {"cheap", "mid"}
+    assert {s.case_no for s in query.apply_filters(items, min_bid=800_000_000)} == {"pricey"}
+
+
+def test_days_until_and_is_soon():
+    today = dt.date(2026, 7, 12)
+    assert query.days_until("2026-07-15", today) == 3
+    assert query.days_until("bad-date", today) is None
+    assert query.is_soon(_sl(sale_date="2026-07-15"), today) is True
+    assert query.is_soon(_sl(sale_date="2026-08-30"), today) is False   # 7일 초과
+    assert query.is_soon(_sl(sale_date="2026-07-01"), today) is False   # 지난 기일
+
+
+def test_is_high_profit():
+    assert query.is_high_profit(_sl(profit_low=250_000_000)) is True
+    assert query.is_high_profit(_sl(profit_low=100_000_000)) is False
+    assert query.is_high_profit(_sl(profit_low=None, expected_profit=None)) is False
 
 
 def test_default_sort_is_profit():

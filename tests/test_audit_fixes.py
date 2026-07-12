@@ -57,25 +57,25 @@ def test_gate_strict_rejects_low_basis_and_legacy():
     assert passes_recommend_gates(legacy, allow_legacy=False) is False  # 히어로는 거부
 
 
-def test_hero_absent_on_legacy_db_with_banner(monkeypatch):
-    """전량 레거시 DB → 히어로 없음 + '구버전 채점 데이터' 배너 + 구 기준 라벨."""
+def test_no_hero_on_search_home_legacy_banner_in_all_mode(monkeypatch):
+    """(검색 우선 홈) 홈엔 히어로 없음. 레거시 DB의 '구버전 채점' 배너는 전체 탐색(all=1)에서."""
     c = _client(monkeypatch, [_legacy("L1"), _legacy("L2", apt_name="딴단지")])
-    html = c.get("/").get_data(as_text=True)
-    assert 'class="hero2' not in html                  # 히어로 미표시
-    assert "구버전 채점 데이터" in html
-    assert "기준 시세 차익" in html                     # 헤더/랭킹 라벨 구 기준 전환
+    home = c.get("/").get_data(as_text=True)
+    assert 'class="hero2' not in home                  # 검색 우선 홈엔 히어로 없음
+    allm = c.get("/?all=1").get_data(as_text=True)
+    assert "구버전 채점 데이터" in allm                 # 전체 탐색에서 레거시 배너
+    assert "기준 시세 차익" in allm                     # 구 기준 라벨
 
 
-def test_hero_present_for_gated_item(monkeypatch):
-    """게이트 통과 물건이 있으면 히어로 표시 — 폴백/저표본 물건이 아니라 통과 물건이 오른다."""
+def test_recommend_excludes_fallback_and_includes_verified(monkeypatch):
+    """엄선 추천은 검증 비교군(같은 단지)만 — 폴백 참고치(same_dong_fallback)는 추천 금지."""
     fallback_big = _scored("F", scope=SCOPE_SAME_DONG_FALLBACK, min_bid=400_000_000)  # 차익 큼
     ok = _scored("OK")
-    c = _client(monkeypatch, [fallback_big, ok])       # 정렬상 fallback이 앞
-    html = c.get("/").get_data(as_text=True)
-    start, end = html.find('<div class="hero2'), html.find('<div class="rank-head')
-    hero_html = html[start:end]
-    assert "OK" in hero_html and 'href="/property/F' not in hero_html
-    assert "검증 게이트 통과" in hero_html             # 새 캡션
+    c = _client(monkeypatch, [fallback_big, ok])
+    import re
+    picks = re.search(r'class="scards">(.*)', c.get("/").get_data(as_text=True), re.S).group(1)
+    assert "/property/OK" in picks                     # 검증 비교군은 추천에 포함
+    assert "/property/F" not in picks                  # 폴백은 추천 금지(참고치)
 
 
 # ---- ② 복합키 소비계층 (감사 2·3) ----
@@ -185,9 +185,10 @@ def test_run_sample_never_writes_serving_db(tmp_path):
 # ---- ⑧ 라벨 분리: 매칭 vs 근거 표본 (감사 9) ----
 
 def test_labels_distinguish_matched_and_basis(monkeypatch):
+    # 매칭(matched_trades)과 근거 표본(basis) 라벨 구분은 상세 페이지에서 노출된다.
     s = _scored("D1", basis=5)                         # matched=7, basis=5
     c = _client(monkeypatch, [s])
-    html = c.get("/").get_data(as_text=True)
+    html = c.get("/property/D1").get_data(as_text=True)
     assert "매칭 7건" in html                           # 신뢰 칩
-    assert "근거 표본 5건" in html                      # 차익 부제/히어로
+    assert "근거 표본 5건" in html                      # 차익 부제
     assert "실거래 7건" not in html                     # 동일 라벨 중복 제거

@@ -5,11 +5,46 @@
 """
 from __future__ import annotations
 
+import datetime as _dt
+
 from .models import ScoredListing
 from .region import matches_region
 
 SORT_KEYS = ("profit", "gap", "score")
 DEFAULT_SORT = "profit"
+
+# 검색 우선 홈(2026-07): 기본 화면은 '평가 가능한' 물건만 — 시세 추정치가 있는 것.
+# 미지원유형(빌라·상가·토지 ~70%)·시세추정불가(~20%)는 값이 전부 '—'라 기본에서 숨기고
+# '전체 탐색'(all=1)에서만 노출한다(노이즈에 신호가 묻히지 않게).
+HIGH_PROFIT_THRESHOLD = 200_000_000   # '고차익' 빠른진입 칩 기준(2억)
+SOON_DAYS = 7                         # '매각기일 임박' 빠른진입 칩 기준(일)
+
+
+def is_evaluable(s: ScoredListing) -> bool:
+    """이 도구가 시세를 추정한(=평가 가능한) 물건인가. 검색 우선 홈의 기본 노출 기준."""
+    return s.est_market_price is not None
+
+
+def days_until(sale_date: str, today: _dt.date | None = None) -> int | None:
+    """매각기일까지 남은 일수. 파싱 실패 시 None(임박 필터에서 제외)."""
+    today = today or _dt.date.today()
+    try:
+        d = _dt.date.fromisoformat((sale_date or "")[:10])
+    except ValueError:
+        return None
+    return (d - today).days
+
+
+def is_soon(s: ScoredListing, today: _dt.date | None = None, within: int = SOON_DAYS) -> bool:
+    """매각기일이 오늘부터 within일 이내(지난 기일 제외)."""
+    d = days_until(s.sale_date, today)
+    return d is not None and 0 <= d <= within
+
+
+def is_high_profit(s: ScoredListing, threshold: int = HIGH_PROFIT_THRESHOLD) -> bool:
+    """보수 기준 차익이 threshold(기본 2억) 이상."""
+    p = decision_profit(s)
+    return p is not None and p >= threshold
 
 # 비교군 신뢰 티어(감사 2026-07-10 MEDIUM): T3 정책상 same_dong_fallback 은 '참고치 — 추천
 # 금지'인데 기본 정렬이 scope 를 안 봐 상위 50 의 84%를 fallback 허상 차익이 독식했다.
@@ -40,13 +75,18 @@ def decision_profit(s: ScoredListing) -> int | None:
 
 def apply_filters(items: list[ScoredListing], min_score: float | None = None,
                   property_type: str | None = None, region: str | None = None,
-                  min_profit: int | None = None, burden_of=None) -> list[ScoredListing]:
-    """물건종류·지역·최소차익(원, 보수 기준)·(내부용) 최소점수 필터.
+                  min_profit: int | None = None, burden_of=None,
+                  max_bid: int | None = None, min_bid: int | None = None,
+                  evaluable_only: bool = False) -> list[ScoredListing]:
+    """물건종류·지역·최소차익(원, 보수 기준)·예산(최저입찰가 상/하한)·평가가능 필터.
 
     burden_of: 물건 → 인수금액(원). 주어지면 최소차익 비교도 인수 차감 후 값으로
     (감사 2026-07-10: 필터·정렬은 저장 차익, 화면은 차감 차익 — 불일치 해소).
+    max_bid/min_bid: 예산 필터(최저입찰가 상한/하한, 원). evaluable_only: 시세 추정된 물건만.
     """
     out = items
+    if evaluable_only:
+        out = [s for s in out if is_evaluable(s)]
     if min_profit is not None:
         def _eff(s):
             p = decision_profit(s)
@@ -58,6 +98,10 @@ def apply_filters(items: list[ScoredListing], min_score: float | None = None,
         out = [s for s in out if s.property_type == property_type]
     if region:
         out = [s for s in out if matches_region(s.address, region)]
+    if max_bid is not None:
+        out = [s for s in out if s.min_bid_price and s.min_bid_price <= max_bid]
+    if min_bid is not None:
+        out = [s for s in out if s.min_bid_price and s.min_bid_price >= min_bid]
     return out
 
 

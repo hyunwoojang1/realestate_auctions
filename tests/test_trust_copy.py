@@ -88,24 +88,20 @@ def test_listing_page_conservative_copy():
     assert "확실한 차익" not in html
 
 
-def test_listing_hero_is_conservative_and_not_risky():
-    """(T7 재작업) 히어로 스포트라이트 — '위험' 물건 금지 + 보수 기준 라벨 + 근거 병기.
+def test_recommend_picks_exclude_risky():
+    """(검색 우선 홈 재작업) 엄선 추천 헤드라인에 '위험'(하드게이트) 물건 금지.
 
-    이전 결함: 히어로가 items[0](위험 물건)의 expected_profit을 '예상 차익'으로 헤드라인.
+    이전 결함: 히어로/추천이 위험 물건의 차익을 헤드라인. 위험은 '전체 탐색'에만 남긴다.
     """
+    import re
     html = _client().get("/").get_data(as_text=True)
-    # 히어로 블록 추출(첫 hero div ~ 다음 tablewrap 전)
-    start = html.find('<div class="hero2')
-    end = html.find('<div class="rank-head')
-    assert start != -1 and end > start
-    hero_html = html[start:end]
-    assert "보수 기준 차익" in hero_html          # 보수 라벨
-    assert "건 기준" in hero_html                 # 표본 근거 병기
-    assert "예상 차익 ·" not in hero_html         # 구 라벨 금지(밴드 있는 샘플 기준)
-    assert 'chip risk' not in hero_html           # 위험 칩이 히어로에 없음
-    # 위험 물건(해운대)은 목록 테이블에는 남는다(배제 아님)
-    table_html = html[end:]
-    assert "해운대마린시티자이" in table_html
+    m = re.search(r'class="scards">(.*)', html, re.S)  # 엄선 추천 카드 영역
+    assert m, "엄선 추천 카드 그리드가 있어야 함"
+    picks = m.group(1)
+    assert "해운대마린시티자이" not in picks   # 위험(하드게이트)은 추천 금지
+    assert "chip sm risk" not in picks         # 위험 칩이 추천 카드에 없음
+    # 위험 물건은 전체 탐색(all=1)에는 남는다(배제 아님)
+    assert "해운대마린시티자이" in _client().get("/?all=1").get_data(as_text=True)
 
 
 def test_listing_footer_formula_conservative():
