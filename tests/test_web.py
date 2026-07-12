@@ -106,6 +106,35 @@ def test_index_all_mode_shows_full_table():
     assert "전체 탐색" in body and "예상 투입" in body
 
 
+# ---- 지도(③): 차익후보 기본 + 지역별 카운트 ----
+
+def test_geojson_has_region_counts():
+    gj = _client().get("/api/listings.geojson").get_json()
+    assert gj["type"] == "FeatureCollection"
+    assert isinstance(gj["by_sido"], list)                      # 지역별 카운트 제공
+    assert all("sido" in e and "count" in e for e in gj["by_sido"])
+    counts = [e["count"] for e in gj["by_sido"]]
+    assert counts == sorted(counts, reverse=True)               # 최다 지역 먼저
+
+
+def test_geojson_evaluable_only_by_default():
+    # 기본 = 차익후보(평가 가능)만. all=1 은 미지원·시세추정불가까지 전부.
+    default_n = sum(e["count"] for e in _client().get("/api/listings.geojson").get_json()["by_sido"])
+    all_n = sum(e["count"] for e in _client().get("/api/listings.geojson?all=1").get_json()["by_sido"])
+    assert all_n >= default_n                                   # 전체가 후보보다 많거나 같음
+
+
+def test_geojson_features_carry_sido():
+    feats = _client().get("/api/listings.geojson?all=1").get_json()["features"]
+    # 좌표 캐시가 있는 핀은 클라이언트 지역 필터용 sido 속성을 가진다.
+    assert all("sido" in f["properties"] for f in feats)
+
+
+def test_map_page_renders_region_panel():
+    body = _client().get("/map").get_data(as_text=True)
+    assert "지역별" in body and "차익후보만" in body   # 지역 카운트 패널 + 기본 토글 라벨
+
+
 def test_methodology_page():
     r = _client().get("/methodology")
     assert r.status_code == 200
