@@ -396,8 +396,17 @@ def create_app() -> Flask:
         feats = []
         skipped = 0
         geo_badges = _rights_badges()
-        # 지도 기본 = 차익후보(평가 가능)만 — 홈과 동일 원칙. all=1 로 전체 탐색.
+        # 지도 3단 스코프:
+        #   기본(profit) = 효과 차익(인수 차감 후) > 0 인 '차익 양수만' — 진짜 살 만한 것.
+        #   scope=evaluable = 시세 추정된 것 전부(양수·음수 무관, 평가 가능).
+        #   all=1 = 미지원·시세추정불가까지 전부 탐색.
+        # 효과 차익·인수금액은 요청마다 권리 배지에서 계산 — 권리분석 크롤이 인수금액을
+        # 채우는 대로 양수만 집합이 자동 재계산된다(정적 목록 아님).
         items = _filtered(request.args, badges=geo_badges, evaluable_default=True)
+        scope = "all" if _truthy(request.args.get("all")) else request.args.get("scope", "profit")
+        if scope == "profit":
+            items = q.positive_only(items, burden_of=_burden_of(geo_badges),
+                                    uncertain_of=_uncertain_of(geo_badges))
         for s in items:
             pt = coords.lookup(cache, s.uid, s.case_no, court=s.court)
             if not pt:
@@ -416,6 +425,9 @@ def create_app() -> Flask:
                     "apt_name": s.apt_name, "property_type": s.property_type,
                     "grade": s.grade, "profit": p,
                     "sido": reg.sido_of(s.address) or "기타",   # 클라이언트 지역 필터/집계용
+                    # 인수 부담인데 금액 미상 → 효과 차익 마이너스일 수 있음(−α). 평가가능/전체
+                    # 뷰에서 표시하고 '차익 양수만' 기본에서는 제외(query.positive_only).
+                    "uncertain": bool(b and b.amount_unknown),
                     "burden": ("clean" if b and b.is_clean else "burden" if b else "unknown"),
                     "conservative": s.profit_low is not None,
                     "min_bid": s.min_bid_price,
@@ -532,16 +544,14 @@ def create_app() -> Flask:
         askings = asking_mod.load_asking_prices().get(case_no, [])
         ask_points = asking_mod.asking_points(askings, s.market_band_low, s.market_band_high)
         ask_overstated = asking_mod.band_overstated(askings, s.market_band_low)
-        # 가격 지도 — 감정가·최저입찰가·취득원가·밴드·호가를 한 축에 그릴 좌표(UX 개편).
-        from . import pricemap  # noqa: PLC0415
-        pmap = pricemap.build(s, ask_points, assumed=(badge.assumed if badge else 0))
         # 가격-시간 차트(세로/시간축 개편) — 개별 실거래(월별)·호가 시점·유찰 저감·롤링 밴드.
+        # (구 pricemap 가로 스냅샷은 이 차트로 교체·제거됨 — 2026-07-13 정리)
         # 기일 이력(schedule)은 권리 요지에서, 개별 실거래는 s.market_comps에서.
         from . import pricechart  # noqa: PLC0415
         chart = pricechart.build_timechart(
             s, s.market_comps, rights.schedule if rights else None, ask_points)
         return render_template(
-            "detail.html", s=s, listing=listing, pmap=pmap, chart=chart, rights=rights, badge=badge,
+            "detail.html", s=s, listing=listing, chart=chart, rights=rights, badge=badge,
             meter=report.gap_meter_html(s, askings=ask_points), won=report.won, pct=report.pct,
             gated=gated, gate_reason=", ".join(gate_reasons),
             tax_parts=tax_parts, tax_label=tax.PROFILE.label(),

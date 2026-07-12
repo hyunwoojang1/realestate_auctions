@@ -48,8 +48,9 @@
 <h1 class="page-h2" style="margin-bottom:4px">지도</h1>
 <div class="maplegend">
   <span class="maptoggle" role="group" aria-label="표시 범위">
-    <button type="button" id="mode-cand" class="on">차익후보만</button>
-    <button type="button" id="mode-all">전체 보기</button>
+    <button type="button" id="mode-profit" class="on" title="인수금액 차감 후 실제 차익이 남는 물건만">차익 양수만</button>
+    <button type="button" id="mode-eval" title="시세를 추정한 물건 전부(차익 0·음수 포함)">평가가능</button>
+    <button type="button" id="mode-all" title="빌라·상가·토지 등 미지원까지 전부">전체 보기</button>
   </span>
   <span><span class="dot" style="background:#2f6fdd"></span>차익 후보</span>
   <span><span class="dot" style="background:#e2a400"></span>경고(권리미확인·근거부족 등)</span>
@@ -68,7 +69,9 @@
   <div id="map"></div>
 </div>
 <p class="foot">핀 위치는 법원 공고 좌표(KATEC → WGS84 변환, 시도 검증 통과분만)입니다. 좌표가 없는
-물건은 지도에 표시되지 않으며 <a href="/">매물 목록</a>에서 확인하세요. 차익은 보수 기준(구 데이터는 기준 시세).</p>
+물건은 지도에 표시되지 않으며 <a href="/">매물 목록</a>에서 확인하세요. 차익은 보수 기준(구 데이터는 기준 시세)이며
+<b>인수금액을 차감한 효과 차익</b>입니다. 인수금액 미상(권리분석 진행 중)인 물건은 '차익 양수만'에서 제외되고
+'평가가능'에서 −α로 표시됩니다.</p>
 
 <script>
 (function(){
@@ -87,7 +90,7 @@
   function eok(v){ return v == null ? '—' : (v/1e8).toFixed(2) + '억'; }
 
   const layer = L.layerGroup().addTo(map);   // 재조회 시 핀 교체
-  let allMode = false;      // false=차익후보만, true=전체 보기
+  let mode = 'profit';      // 'profit'=차익 양수만 · 'eval'=평가가능 · 'all'=전체
   let sidoFilter = null;    // 선택한 시도(null=전체 지역)
   let lastGj = null;        // 마지막 응답(지역 필터는 클라이언트에서 즉시 적용)
   const side = document.getElementById('side');
@@ -111,8 +114,9 @@
         radius: 7, weight: 1.5, color: '#fff', fillColor: colorOf(p.grade), fillOpacity: 0.9
       }).addTo(layer);
       const label = p.conservative ? '보수 기준 차익' : '차익(기준 시세)';
+      const alpha = p.uncertain ? ' <small style="color:#c62828">−α(인수 미상)</small>' : '';
       m.bindPopup('<b>' + (p.apt_name || p.property_type) + '</b> <small>' + p.grade + '</small><br>'
-        + label + ' <b>' + eok(p.profit) + '</b> · 최저가 ' + eok(p.min_bid)
+        + label + ' <b>' + eok(p.profit) + '</b>' + alpha + ' · 최저가 ' + eok(p.min_bid)
         + '<br><a href="' + p.url + '">상세 보기 →</a>');
       markers.push(m);
 
@@ -122,7 +126,7 @@
       div.innerHTML = '<span class="nm">' + (p.apt_name || p.property_type) + '</span>'
         + ' <small style="color:' + colorOf(p.grade) + '">●</small> <small>' + p.grade + '</small>'
         + '<div class="meta"><span class="pf' + (p.profit != null && p.profit < 0 ? ' neg' : (p.profit != null && p.profit > 0 ? ' pos' : '')) + '">'
-        + label + ' ' + eok(p.profit) + '</span> · 최저 ' + eok(p.min_bid) + '</div>';
+        + label + ' ' + eok(p.profit) + '</span>' + alpha + ' · 최저 ' + eok(p.min_bid) + '</div>';
       div.onclick = () => {
         map.setView([lat, lon], 15);
         m.openPopup();
@@ -157,9 +161,10 @@
     });
   }
 
+  const QS = {profit: '', eval: '?scope=evaluable', all: '?all=1'};
   function load(){
     document.getElementById('mapcount').textContent = '불러오는 중…';
-    fetch('/api/listings.geojson' + (allMode ? '?all=1' : '')).then(r => r.json()).then(gj => {
+    fetch('/api/listings.geojson' + QS[mode]).then(r => r.json()).then(gj => {
       lastGj = gj;
       // 선택했던 시도가 새 결과에 없으면 전체로 리셋(빈 화면 방지).
       if (sidoFilter && !(gj.by_sido || []).some(e => e.sido === sidoFilter)) sidoFilter = null;
@@ -170,17 +175,16 @@
     });
   }
 
-  const btnCand = document.getElementById('mode-cand');
-  const btnAll = document.getElementById('mode-all');
-  function setMode(all){
-    allMode = all;
-    btnCand.classList.toggle('on', !all);
-    btnAll.classList.toggle('on', all);
-    document.getElementById('mute-legend').style.display = all ? '' : 'none';
+  const BTN = {profit: document.getElementById('mode-profit'),
+               eval: document.getElementById('mode-eval'),
+               all: document.getElementById('mode-all')};
+  function setMode(m){
+    mode = m;
+    for (const k in BTN) BTN[k].classList.toggle('on', k === m);
+    document.getElementById('mute-legend').style.display = (m === 'all') ? '' : 'none';
     load();
   }
-  btnCand.onclick = () => setMode(false);
-  btnAll.onclick = () => setMode(true);
+  for (const k in BTN) BTN[k].onclick = () => setMode(k);
 
   load();
 })();

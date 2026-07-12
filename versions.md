@@ -15,6 +15,26 @@
 
 ---
 
+## 2026-07-13 00:09 KST — 🗺️ 지도 3단 스코프(차익 양수만 기본) + pmap 청소 (①②, feat/map-profit-tier)
+- 배경: 사용자 지시로 ①지도 기본을 '차익 양수만'으로 조이고 ②죽은 pmap 정리. **다른 세션이 권리분석
+  대량 크롤 중**이라 인수금액이 채워지는 상황을 감안하라는 요구 → 정적 목록이 아니라 요청마다 배지에서
+  효과 차익을 재계산하는 설계로 크롤과 시너지.
+- 판단(실측): evaluable(시세 추정)=861, 표면 차익>0=425, **인수 차감 효과차익>0=365, 금액 확정만=267**.
+  즉 인수금액 무시하면 425지만 인수 반영 시 60건이 마이너스, 미상(크롤 미완) 98건 제외 시 267. 크롤이
+  미상→확정 채우는 대로 이 집합이 자동 재조정 → 지금 만들어두는 게 정확히 맞물림.
+- 무엇(①): query.positive_only(effective=보수차익−인수>0, 미상 부담 제외) 신규. geojson 3단 스코프
+  — 기본 profit(267)/ scope=evaluable(861)/ all=1(7,967). feature에 uncertain 플래그. map.html
+  3버튼 토글(차익 양수만·평가가능·전체 보기) + 미상물건 '−α(인수 미상)' 표시 + 효과차익 근거 footnote.
+- 무엇(②): 죽은 pricemap 제거 — detail.html이 이미 시간축 차트로 교체돼 pmap 미참조였음. web.py
+  pricemap import·build·render 인자 제거, src/pricemap.py·tests/test_pricemap.py 삭제.
+- 증거: 신규 테스트 3건(positive_only·scope 3단 nesting·feature uncertain) + 기존 갱신, 전체 **448
+  passed, 1 failed**(export read_text py3.12 환경 한정·무관). map.html JS node --check OK. **Playwright
+  실 프로덕션 스크린샷**(evidence/map_profit_only·map_evaluable): 차익양수만 267핀(부산 245→39로 인수
+  리스크 노출)·평가가능 861·전체 7,888핀 확인. 크롤러·재채점 무호출(read-only GET만).
+- 평가자: - (자체 TDD + node check + 실데이터 Playwright)
+- 커밋: feat/map-profit-tier → main
+- 다음: 크롤 완료 후 267 재확인(미상 해소분 편입/제외). Vercel 배포 로그 확보(사용자 CLI).
+
 ## 2026-07-12 23:33 KST — 🗺️ 지도 개편: 차익후보 기본 + 지역별 카운트 (③, feat/map-candidates-first)
 - 배경: 홈은 '검색 우선 + 평가가능 기본'으로 개편됐으나 지도만 옛 방식(파라미터 없는 geojson 통짜 호출로
   7,888핀 전부, 89%가 회색 노이즈). 결정된 방향(세션 22:56 versions·세션파일 L59)의 두 축이 미착수였음.
