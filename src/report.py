@@ -14,6 +14,10 @@ from .models import ScoredListing
 def _won(v) -> str:
     if v is None:
         return "-"
+    # (서빙감사 2026-07-12 #23) −50만~0원 구간이 '-0.00억'으로 렌더되던 음수 제로 방지 —
+    # 억 단위 반올림이 0이면 부호를 떼어 '0.00억'으로 정규화.
+    if round(v / 1e8, 2) == 0:
+        return "0.00억"
     return f"{v/1e8:.2f}억"
 
 

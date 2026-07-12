@@ -52,11 +52,20 @@ def _int(v) -> int | None:
 
 
 def is_substantive(text: str | None) -> bool:
-    """명세서 항목이 '실질 내용 있음'인지 — 해당없음/공백은 False."""
-    t = (text or "").strip()
+    """명세서 항목이 '실질 내용 있음'인지 — 해당없음/공백은 False.
+
+    (서빙감사 2026-07-12 #22) startswith 판정은 '해당사항없음. 다만 을구5번 임차권 인수'처럼
+    부정표기로 시작해도 뒤에 진짜 인수권리가 붙는 명세서를 통째로 무해(clean)로 삼키는 구조였다.
+    → '전체 텍스트가 부정표기와 같을 때만' 무해. 부정표기 뒤에 내용이 이어지면 실질 내용으로 본다.
+    """
+    t = (text or "").replace(" ", "").strip()
     if not t:
         return False
-    return not any(t.replace(" ", "").startswith(m.replace(" ", "")) for m in _NONE_MARKS)
+    for m in _NONE_MARKS:
+        mm = m.replace(" ", "")
+        if t == mm or t.rstrip(".·,") == mm:   # 전체가 '해당사항없음'(+마침표)뿐이면 무해
+            return False
+    return True
 
 
 @dataclass
@@ -80,6 +89,16 @@ class CaseRights:
     def has_risk_text(self) -> bool:
         """인수 권리 또는 유치권류에 실질 문구가 있으면 True(상세 배너 강조용)."""
         return is_substantive(self.surviving_rights) or is_substantive(self.lien_note)
+
+    @property
+    def surviving_is_real(self) -> bool:
+        """인수되는 권리란에 실질 문구가 있는지 — 템플릿 ⛔ 배너 분기와 배지 판정 통일(#22)."""
+        return is_substantive(self.surviving_rights)
+
+    @property
+    def senior_jeonse(self) -> bool:
+        """최선순위 설정이 전세권인지(서빙감사 #14) — 배당요구 여부에 따라 인수 갈리는 특수사례."""
+        return "전세권" in (self.senior_lien or "")
 
     @property
     def is_empty(self) -> bool:
@@ -137,16 +156,28 @@ def summarize(rights: CaseRights) -> RightsBadge:
     """CaseRights → 인수 부담 판정. 판정 규칙은 기존 명세서 파서(courtauction_rights)를 재사용.
 
     보수 원칙: 애매하면 burden 쪽(사용자가 함정 물건을 '깨끗'으로 오독하는 침묵실패 방지).
+    (서빙감사 2026-07-12) #14 최선순위 전세권도 burden, #9 금액미상이면 surviving_rights 의
+    보증금액을 파싱해 assumed 로 반영(랭킹 차감 가능하게).
     """
     from .courtauction_rights import (  # noqa: PLC0415 — 순환 import 회피(지연)
         detect_assumed_amount,
+        detect_deposit_amount,
         detect_special_rights,
         detect_tenant_opposable,
     )
     opposable = detect_tenant_opposable(rights.surviving_rights, rights.remark)
     assumed = detect_assumed_amount(rights.surviving_rights, rights.remark)
-    special = detect_special_rights(rights.surviving_rights, rights.lien_note, rights.remark)
-    burden = opposable or assumed > 0 or bool(special) or rights.has_risk_text
+    special = list(detect_special_rights(rights.surviving_rights, rights.lien_note, rights.remark))
+    jeonse = rights.senior_jeonse
+    if jeonse and "선순위전세권" not in special:
+        special.append("선순위전세권")
+    burden = (opposable or assumed > 0 or bool(special) or rights.has_risk_text or jeonse)
+    # (#9) 인수 부담인데 금액 미상(+α)이면 명세서 원문의 보증금액을 보수 추정으로 채택 —
+    # 임차권 미소멸(보증금 잔액 인수) 물건이 무차감으로 랭킹 상위를 점하지 않게 한다.
+    if burden and assumed <= 0:
+        dep = detect_deposit_amount(rights.surviving_rights, rights.remark)
+        if dep > 0:
+            assumed = dep
     return RightsBadge(status="burden" if burden else "clean",
                        opposable=opposable, assumed=assumed, special=special)
 

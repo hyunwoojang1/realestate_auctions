@@ -10,6 +10,7 @@
 from __future__ import annotations
 
 import logging
+import re
 import statistics
 from dataclasses import dataclass
 
@@ -34,6 +35,10 @@ SCOPE_APPRAISAL_MISMATCH = "appraisal_mismatch"          # 시세가 감정가�
 # 사실상 0이며, 실제 사고(같은 동 '다른 단지' 신축과 오매칭 4.5~11배·나대지 오분류 3.5배)는
 # 전부 이 선을 크게 넘었다. same_complex 도 안전망으로 동일 적용.
 EST_VS_APPRAISAL_MAX = 2.5
+# 폴백(같은 동 다른 단지) 전용 강화 가드(서빙감사 2026-07-12 #8·#10): 같은 단지 비교가 아니라
+# 왜곡 폭이 크므로 상·하한을 좁게. 감정가의 1.5배 초과(신축 부풀림)·0.6배 미만(구축 끌어내림) 무효.
+FALLBACK_EST_MAX = 1.5
+FALLBACK_EST_MIN = 0.6
 
 
 @dataclass(frozen=True)
@@ -157,6 +162,24 @@ def _kind_ok(trade: Trade, want: str | None) -> bool:
     return want is not None and trade.kind == want
 
 
+# 단지 식별자 — '3단지'·'8단지'·'2차'·'제3차' 등. 마을/지구명 부분일치가 여러 단지를
+# 같은 단지로 오인하는 것을 잡는다(서빙감사 2026-07-12 #2: 갑오마을 3단지 vs 8단지).
+_COMPLEX_ID_RE = re.compile(r"(\d+)\s*(?:단지|차)")
+
+
+def _complex_ids(name: str) -> frozenset[str]:
+    return frozenset(m.group(1) for m in _COMPLEX_ID_RE.finditer(name or ""))
+
+
+def _multi_complex(comps: list["Trade"]) -> bool:
+    """매칭 comps 가 서로 다른 단지 식별자(N단지/N차)를 2개 이상 포함하면 True — '같은 단지'
+    라벨을 붙이면 안 된다. 마을·지구명 부분일치가 이웃 단지를 끌어온 신호."""
+    ids = set()
+    for t in comps:
+        ids |= _complex_ids(t.apt_name)
+    return len(ids) >= 2
+
+
 def _area_ok(a: float, b: float, band: float | None = None) -> bool:
     if a <= 0 or b <= 0:
         return False
@@ -196,10 +219,10 @@ def match_trades_scoped(listing: AuctionListing, trades: list[Trade]) -> tuple[l
 
     # 운영자가 area_band를 3% 미만으로 좁혔다면 그 값을 '같은 평형' 기준으로 존중.
     same_area = _by_name(min(SAME_AREA_BAND, band))
-    if same_area:
+    if same_area and not _multi_complex(same_area):
         return same_area, SCOPE_SAME_COMPLEX_SAME_AREA
     near_area = _by_name(band)
-    if near_area:
+    if near_area and not _multi_complex(near_area):
         return near_area, SCOPE_SAME_COMPLEX_NEAR_AREA
     # 폴백: 같은 법정동 + 면적대 (유형 분리는 유지 — 다세대↔아파트 혼입 방지)
     by_dong = [
@@ -291,14 +314,17 @@ def estimate_market(listing: AuctionListing, trades: list[Trade]) -> MarketEstim
         return MarketEstimate(None, matched_count, scope, basis=basis)
     median_ppm2 = statistics.median(ppm2_list)
     est = int(round(median_ppm2 * listing.area_m2))
-    if listing.appraisal_price > 0 and est > listing.appraisal_price * EST_VS_APPRAISAL_MAX:
-        # 감정가 교차검증(실사고 2026-07-10: 낡은 소형 단지를 같은 동 신축 대단지 실거래와
-        # 오매칭해 4.5~11배 시세·수억 허상 차익). 감정평가사가 이 배수를 놓칠 확률은 사실상 0
-        # — 비교군이 잘못된 것이므로 시세를 무효화하고 사유를 scope 로 정직하게 남긴다.
-        logger.warning("감정가 괴리 물건(%s): est %s > 감정 %s ×%.1f — 시세 무효화(scope=%s→%s)",
-                       listing.case_no, est, listing.appraisal_price, EST_VS_APPRAISAL_MAX,
-                       scope, SCOPE_APPRAISAL_MISMATCH)
-        return MarketEstimate(None, matched_count, SCOPE_APPRAISAL_MISMATCH, basis=basis)
+    # 감정가 교차검증 — 상한(전 scope 공통 2.5배) + 폴백 전용 강화 상·하한(서빙감사 #8·#10).
+    # same_dong_fallback 은 '같은 동 다른 단지'라 상·하향 왜곡이 크다(신축이 est 부풀림 1.5~2.2배,
+    # 구축·소형이 est 끌어내림 ≤0.6배). 감정평가사가 이 정도를 놓칠 확률은 사실상 0 → 무효화.
+    if listing.appraisal_price > 0:
+        ratio = est / listing.appraisal_price
+        is_fallback = scope == SCOPE_SAME_DONG_FALLBACK
+        hi = FALLBACK_EST_MAX if is_fallback else EST_VS_APPRAISAL_MAX
+        if ratio > hi or (is_fallback and ratio < FALLBACK_EST_MIN):
+            logger.warning("감정가 괴리(%s): est %s vs 감정 %s (배율 %.2f, scope=%s) — 시세 무효화",
+                           listing.case_no, est, listing.appraisal_price, ratio, scope)
+            return MarketEstimate(None, matched_count, SCOPE_APPRAISAL_MISMATCH, basis=basis)
     # (T4) 2선 밴드 — 하한가: 트림 후 최저 평단가(보수), 기준가: 트림 후 중앙값(=est, 호환 유지).
     band_low = int(round(min(ppm2_list) * listing.area_m2))
     return MarketEstimate(est, matched_count, scope, band_low=band_low, band_high=est,

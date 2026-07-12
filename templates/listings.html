@@ -22,12 +22,13 @@
 {%- endif -%}
 {%- endmacro -%}
 
-{#- 예상 시세 셀 — 검증 하한(밴드) 우선, 없으면 추정 시세. 목록은 숫자+라벨만(게이지 없음) -#}
+{#- 예상 시세 셀 — 검증 하한(밴드) 우선, 없으면 추정 시세. 동 폴백은 '참고치' 명시(#8) -#}
 {%- macro pricecell(s) -%}
+{%- set fb = s.market_scope == 'same_dong_fallback' -%}
 {%- if s.market_band_low is not none -%}
-<div class="pk-val">{{ won(s.market_band_low) }}</div><div class="pk-vsub">실거래 검증 하한</div>
+<div class="pk-val{% if fb %} warn{% endif %}">{{ won(s.market_band_low) }}</div><div class="pk-vsub{% if fb %} warn{% endif %}">{% if fb %}동 폴백 참고치{% else %}실거래 검증 하한{% endif %}</div>
 {%- elif s.est_market_price -%}
-<div class="pk-val">{{ won(s.est_market_price) }}</div><div class="pk-vsub">추정 시세</div>
+<div class="pk-val{% if fb %} warn{% endif %}">{{ won(s.est_market_price) }}</div><div class="pk-vsub{% if fb %} warn{% endif %}">{% if fb %}동 폴백 참고치{% else %}추정 시세{% endif %}</div>
 {%- else -%}<div class="pk-val na">—</div><div class="pk-vsub">시세 추정 불가</div>{%- endif -%}
 {%- endmacro -%}
 

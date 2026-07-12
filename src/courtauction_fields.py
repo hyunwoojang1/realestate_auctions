@@ -446,6 +446,14 @@ def to_auction_listing(rec: CourtAuctionRecord) -> AuctionListing:
     from .courtauction_rights import detect_special_rights  # noqa: PLC0415 — 순환 import 회피
 
     special = detect_special_rights(rec.note) if rec.note else []
+    # (서빙감사 2026-07-12 #3) 신청채권자 매수신청 플로어 — 그 금액 이상 써야 낙찰되므로
+    # 유효 최저입찰가 = max(공고최저가, 매수신청액). 공고가만 쓰면 취득원가·차익이 과대평가된다.
+    min_bid = rec.min_bid_price
+    floor = _creditor_bid_floor(rec.note)
+    if floor > min_bid:
+        min_bid = floor
+        if "채권자매수신청" not in special:
+            special = [*special, "채권자매수신청"]
     return AuctionListing(
         case_no=rec.case_no,
         court=rec.court,
@@ -456,10 +464,24 @@ def to_auction_listing(rec: CourtAuctionRecord) -> AuctionListing:
         property_type=rec.property_type,
         area_m2=rec.area_m2,
         appraisal_price=rec.appraisal_price,
-        min_bid_price=rec.min_bid_price,
+        min_bid_price=min_bid,
         fail_count=rec.fail_count,
         sale_date=rec.sale_date,
         special_rights=special,   # 비고 힌트(Tier-0). rights_verified는 상세(D) 전까지 False 유지.
         item_no=rec.item_no,      # T1: 같은 사건 다른 물건 덮어쓰기 방지 — 복합 식별자 관통
         doc_id=rec.doc_id,
     )
+
+
+# 신청채권자 매수신청 금액 — '금 295,400,000원의 매수신청' (서빙감사 #3).
+_CREDITOR_BID_RE = re.compile(r"([\d,]{7,})\s*원의?\s*매수신청")
+
+
+def _creditor_bid_floor(note: str) -> int:
+    """비고에서 신청채권자 매수신청액(원) — 없으면 0."""
+    if not note or "매수신청" not in note:
+        return 0
+    best = 0
+    for m in _CREDITOR_BID_RE.finditer(note):
+        best = max(best, to_won(m.group(1)))
+    return best

@@ -5,7 +5,7 @@ fixture 는 2026-07-10 실측 응답(대구 2025타경669 — 유찰 10회·대�
 """
 from __future__ import annotations
 
-from src.courtauction_detail import CaseRights, is_substantive, normalize
+from src.courtauction_detail import CaseRights, is_substantive, normalize, summarize
 from src.courtauction_rights import detect_tenant_opposable
 
 # 실측 축약 fixture — 개인정보(채무자 성명)는 가명으로 치환
@@ -170,3 +170,57 @@ def test_empty_case_rights_is_empty():
     assert empty.is_empty is True
     filled = normalize(DMA)
     assert filled.is_empty is False
+
+
+# ---- 2026-07-12 서빙 결과물 감사 확정 회귀 ----
+
+def test_korean_hundred_thousand_unit_amounts():
+    """#0: 백/천 혼합 한글 단위 금액 파싱('1억9천5백만원')."""
+    from src.courtauction_rights import detect_assumed_amount, _korean_won
+    assert _korean_won("1억9천5백만") == 195_000_000
+    assert _korean_won("2억5천만") == 250_000_000
+    assert _korean_won("6,500만") == 65_000_000
+    assert detect_assumed_amount("임차보증금 1억9천5백만원, 잔액을 매수인이 인수함") == 195_000_000
+
+
+def test_direct_negation_zero_assumed():
+    """#15: '매수인이 인수하지 아니함'은 이중부정('변제되지 않')보다 우선해 인수 0원."""
+    from src.courtauction_rights import detect_assumed_amount
+    txt = "배당에서 전액 변제되지 않더라도 잔액을 매수인이 인수하지 아니함(특별매각조건). 보증금 200,000,000원"
+    assert detect_assumed_amount(txt) == 0
+
+
+def test_multiple_deposits_one_line_summed():
+    """#16: 한 줄 다건 임차권 보증금은 distinct 합산, '중 미반환 Y'는 Y 채택."""
+    from src.courtauction_rights import detect_assumed_amount
+    multi = "을구 임차권등기 보증금 75,000,000원, 임차권등기 보증금 120,000,000원 매수인이 인수함"
+    assert detect_assumed_amount(multi) == 195_000_000
+    residual = "임차보증금 금150,000,000원 중 미반환 금액 120,000,000원을 매수인이 인수함"
+    assert detect_assumed_amount(residual) == 120_000_000
+
+
+def test_senior_jeonse_is_burden():
+    """#14: 최선순위 설정=전세권이면 clean 아님(배당요구 미상 특수사례)."""
+    r = CaseRights(surviving_rights="", senior_lien="2021.07.16. 전세권", lien_note="해당사항없음")
+    b = summarize(r)
+    assert b.status == "burden" and "선순위전세권" in b.special
+
+
+def test_deposit_fallback_when_amount_unknown():
+    """#9: 인수 부담인데 인수금 미상이면 명세서 보증금액을 보수 추정으로 채택."""
+    r = CaseRights(surviving_rights="을구 5번 임차권등기(임차보증금 195,000,000원)는 매각으로 소멸하지 않음",
+                   senior_lien="2020.1.1.근저당")
+    assert summarize(r).assumed == 195_000_000
+
+
+def test_substantive_not_startswith_trap():
+    """#22: '해당사항없음' 뒤에 인수권리가 붙으면 실질 내용(startswith 함정 제거)."""
+    from src.courtauction_detail import is_substantive
+    assert is_substantive("해당사항없음. 다만 을구 5번 임차권 매수인 인수") is True
+    assert is_substantive("해당사항없음") is False
+    assert is_substantive("해당사항없음.") is False
+
+
+def test_empty_rights_no_badge():
+    """#13: 빈/부분 명세서(is_empty)는 배지 판정 대상 아님(미확인 폴백)."""
+    assert CaseRights(court="법", case_no="2025타경1", item_no="1").is_empty is True

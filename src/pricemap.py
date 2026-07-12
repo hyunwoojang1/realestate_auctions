@@ -33,19 +33,25 @@ def _edge(pct: float) -> str:
     return ""
 
 
-def build(s: ScoredListing, ask_points: list | None = None) -> dict | None:
+def build(s: ScoredListing, ask_points: list | None = None,
+          assumed: int = 0) -> dict | None:
     """가격 지도 렌더 데이터. None = 그릴 시세 정보가 없음(템플릿이 폴백 문구 표시).
 
     반환 dict:
       appraisal / minbid / cost : {pct, price} (+minbid 는 fail_count·cut_pct)
       band : {lo_pct, w_pct, lo, hi} | None   — 실거래 검증 밴드(하한~기준)
       est  : {pct, price} | None              — 밴드 없을 때 단일 추정 시세선
-      gain : {lo_pct, w_pct, amount} | None   — 취득원가→비교 시세, 양수일 때만(예상 차익 구간)
+      gain : {lo_pct, w_pct, amount} | None   — 유효취득원가→비교 시세, 양수일 때만(차익 구간)
       asks : [{pct, price}]                   — 현재 호가(체결가 아님)
+      assumed_neg : bool                       — 인수금 반영 시 유효차익 음수(초록 차익 미표시)
+
+    (서빙감사 2026-07-12 #19) assumed(인수금액)를 취득원가에 더한 '유효 취득원가' 기준으로
+    차익 구간을 계산 — 히어로가 음수인데 지도만 초록 양수로 그리던 모순 제거.
     """
     cost = s.real_acquisition_cost
     if not cost or cost <= 0:
         return None
+    eff_cost = cost + (assumed or 0)   # 인수금 포함 유효 취득원가(차익 구간 기준)
     band = None
     est = None
     if s.market_band_low and s.market_band_high and s.market_band_high > 0:
@@ -92,9 +98,12 @@ def build(s: ScoredListing, ask_points: list | None = None) -> dict | None:
         e_pct = _pct(est, axis_lo, axis_hi)
         out["est"] = {"pct": e_pct, "lab": _lab(e_pct), "edge": _edge(e_pct), "price": est}
         compare = est
-    if compare > cost:
-        c_p = out["cost"]["pct"]
-        out["gain"] = {"lo_pct": c_p,
-                       "w_pct": round(_pct(compare, axis_lo, axis_hi) - c_p, 1),
-                       "amount": compare - cost}
+    # 차익 구간 — 유효 취득원가(인수금 포함) → 비교 시세. 유효원가가 시세보다 크면(음수 차익)
+    # 초록 gain 을 그리지 않는다(#19: 인수 큰 물건에서 지도만 양수로 오도되던 문제).
+    if compare > eff_cost:
+        gp = _pct(eff_cost, axis_lo, axis_hi)
+        out["gain"] = {"lo_pct": gp,
+                       "w_pct": round(_pct(compare, axis_lo, axis_hi) - gp, 1),
+                       "amount": compare - eff_cost}
+    out["assumed_neg"] = bool(assumed) and compare <= eff_cost
     return out

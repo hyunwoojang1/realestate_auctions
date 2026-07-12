@@ -174,12 +174,6 @@ def detect_tenant_opposable(myeongsaeseo: str, *others: str) -> bool:
 # ---------------------------------------------------------------------------
 # 4. 인수금액(assumed_amount) — 매수인이 추가로 떠안는 금액(원)
 # ---------------------------------------------------------------------------
-# "매수인이 인수하는 금액 ... 금80,000,000원" / "인수 ... 150,000,000원" 등.
-_AMOUNT_RE = re.compile(r"(?:금)?\s*([\d,]{4,})\s*원")
-# 한글 단위 금액(재검증 감사 idx8 확정 — "4억5,000만원"·"금1억2천만원"·"6,500만원" 이 전혀
-# 안 읽혀 실보증금 5건이 0원): 억/천만/만 단위를 원으로 환산.
-_KOREAN_AMOUNT_RE = re.compile(
-    r"(?:금)?\s*(?:(\d[\d,]*)\s*억)?\s*(?:(\d[\d,]*)\s*천만)?\s*(?:(\d[\d,]*)\s*만)?\s*원")
 _ASSUME_CONTEXT = ("인수", "미배당", "떠안", "부담")
 # 부정/소멸 문맥 — 같은 줄(절)에 있으면 그 금액은 '인수액'이 아니다.
 # ⚠ 이중부정(재검증 감사 idx7 확정): "말소되지 않고 … 매수인이 인수함"은 '말소' 문자가
@@ -187,34 +181,93 @@ _ASSUME_CONTEXT = ("인수", "미배당", "떠안", "부담")
 _ASSUME_NEGATION = ("없", "말소", "소멸")
 _DOUBLE_NEGATION = ("말소되지 않", "말소되지 아니", "소멸되지 않", "소멸되지 아니",
                     "변제되지 아니", "변제되지 않")
+# 인수 '직접 부정'(서빙감사 2026-07-12 #15): "…매수인이 인수하지 아니함(특별매각조건)"은
+# 인수 0원 확정 신호다. 이중부정('변제되지 않')이 같은 줄에 있어 negation 을 건너뛰더라도
+# 이 표현이 있으면 그 줄은 인수액에서 제외한다(직접 부정이 최우선).
+_ASSUME_DIRECT_NEGATION = ("인수하지 아니", "인수하지 않", "인수되지 아니", "인수되지 않",
+                           "인수하지아니", "인수하지않")
+
+# 한글 혼합 수(만 단위 계수) — '9천5백'=9500, '천5백'=1500, '5000'=5000 (서빙감사 #0).
+_MIX_RE = {
+    "천": re.compile(r"(\d*)\s*천"),
+    "백": re.compile(r"(\d*)\s*백"),
+    "십": re.compile(r"(\d*)\s*십"),
+}
+# 금액 토큰 스캐너 — 순수 숫자('150,000,000원')와 한글 단위('1억9천5백만원') 모두 포착.
+_MONEY_RE = re.compile(r"(?:금\s*)?(\d[\d,]*(?:\s*억)?(?:[\d,천백십\s]*만)?)\s*원")
+
+
+def _mixed_man(s: str) -> int:
+    """만 단위 계수 혼합표기 → 정수. '9천5백'→9500, '5,000'→5000, '천5백'→1500."""
+    s = (s or "").replace(",", "").strip()
+    if not s:
+        return 0
+    total = 0
+    rest = s
+    for unit, mult in (("천", 1000), ("백", 100), ("십", 10)):
+        m = _MIX_RE[unit].search(rest)
+        if m and m.start() == 0:
+            total += (int(m.group(1)) if m.group(1) else 1) * mult
+            rest = rest[m.end():]
+    m = re.match(r"\s*(\d+)\s*$", rest)
+    if m:                       # 남은 순수 숫자(단위 없는 '5000') — 있으면 계수 자체가 그 값
+        return total + int(m.group(1)) if total else int(m.group(1))
+    return total
+
+
+def _korean_won(token: str) -> int:
+    """금액 토큰 → 원. 순수 숫자·억/천만/백만/만 혼합 모두 처리(서빙감사 #0)."""
+    s = (token or "").replace(" ", "").replace(",", "")
+    if not s:
+        return 0
+    won = 0
+    m = re.match(r"(\d+)억", s)
+    if m:
+        won += int(m.group(1)) * 100_000_000
+        s = s[m.end():]
+    m = re.match(r"([\d천백십]+)만", s)
+    if m:
+        won += _mixed_man(m.group(1)) * 10_000
+        s = s[m.end():]
+    m = re.match(r"(\d+)$", s)
+    if m:                       # 단위 없는 순수 원 단위 숫자(억/만 없는 '80000000')
+        won += int(m.group(1))
+    return won
 
 
 def _amounts_in(line: str) -> list[int]:
-    """한 줄에서 금액(원) 전부 — 숫자 표기 + 한글 단위 표기."""
-    out = [to_won(m.group(1)) for m in _AMOUNT_RE.finditer(line)]
-    for m in _KOREAN_AMOUNT_RE.finditer(line):
-        eok, cheonman, man = m.groups()
-        if not (eok or cheonman or man):
-            continue
-        won = 0
-        if eok:
-            won += to_won(eok) * 100_000_000
-        if cheonman:
-            won += to_won(cheonman) * 10_000_000
-        if man:
-            won += to_won(man) * 10_000
-        if won >= 1_000_000:   # 소액 잡음(수수료 등) 제외
-            out.append(won)
-    return [a for a in out if a > 0]
+    """한 줄에서 금액(원) 전부 — 순수 숫자 + 한글 단위 표기."""
+    return [w for w in (_korean_won(m.group(1)) for m in _MONEY_RE.finditer(line))
+            if w > 0]
+
+
+# '금 X원 중 (미반환|잔액) Y원' — 원계약 보증금 X 가 아니라 실제 인수액 Y 를 채택(서빙감사 #16).
+_RESIDUAL_RE = re.compile(
+    r"(?:금\s*)?[\d,억천백십\s만]+\s*원\s*중\s*(?:미반환|반환받지\s*못한|배당받지\s*못한|잔[액여])\S*?"
+    r"\s*(?:금액\s*)?(?:금\s*)?([\d,억천백십\s만]+)\s*원")
+
+
+def _line_assumed(line: str) -> int:
+    """한 줄의 인수 금액 — '중 미반환 Y' 우선, 임차권/보증금 다건이면 합산, 아니면 max."""
+    residuals = _RESIDUAL_RE.findall(line)
+    if residuals:
+        return sum(_korean_won(r) for r in residuals)
+    amts = _amounts_in(line)
+    if not amts:
+        return 0
+    # 임차권/전세권/보증금이 2건 이상 나열되면 개별 인수액 **distinct 합산**(서빙감사 #16 —
+    # 다건 과소표시 방지, 단 같은 금액 반복표기는 set 로 이중계산 차단), 1건이면 max.
+    n = line.count("임차권") + line.count("전세권") + line.count("보증금")
+    return sum(set(amts)) if n >= 2 else max(amts)
 
 
 def detect_assumed_amount(*texts: str) -> int:
     """인수 문맥 줄들의 금액으로 인수 총액 추정.
 
+    - 인수 직접부정("…인수하지 아니함") 줄은 이중부정보다 우선해 제외(서빙감사 #15).
     - 이중부정("말소되지 않고 … 인수") 줄은 negation 이 있어도 인수로 판정(idx7).
-    - 한글 단위 금액(억/천만/만원)도 읽는다(idx8).
-    - 서로 다른 금액이 여러 줄이면 **distinct 합산**(idx12 — 다건 임차권 과소추정 방지.
-      같은 보증금이 여러 절에 반복 인용되는 경우는 중복 제거로 이중계산 방지).
+    - 한글 단위(억/천만/백만/만원)·혼합표기 파싱(서빙감사 #0).
+    - 줄 내 다건 임차권 합산·'중 미반환 Y' 채택(서빙감사 #16), 줄 간에는 distinct 합산.
     """
     picked: set[int] = set()
     for text in texts:
@@ -223,13 +276,39 @@ def detect_assumed_amount(*texts: str) -> int:
         for line in text.splitlines():
             if not any(k in line for k in _ASSUME_CONTEXT):
                 continue
+            if any(dn in line for dn in _ASSUME_DIRECT_NEGATION):
+                continue    # '인수하지 아니함' = 인수 0 확정 (최우선)
             double_neg = any(dn in line for dn in _DOUBLE_NEGATION)
             if not double_neg and any(neg in line for neg in _ASSUME_NEGATION):
                 continue
-            amts = _amounts_in(line)
-            if amts:
-                # 한 줄 안에서는 최대 1건(같은 보증금의 표기 중복 방지), 줄 간에는 distinct 합산
-                picked.add(max(amts))
+            amt = _line_assumed(line)
+            if amt > 0:
+                picked.add(amt)
+    return sum(picked)
+
+
+# 보증금 표기 — '임대차보증금 금X원' / '보증금 X원' (서빙감사 #9: 인수 금액미상 물건의
+# 보수 추정용). 인수 문맥 없이도 명세서에 적힌 보증금을 잡는다.
+_DEPOSIT_RE = re.compile(r"(?:임대차|임차)?\s*보증금\s*(?:금\s*)?([\d,억천백십\s만]+)\s*원")
+
+
+def detect_deposit_amount(*texts: str) -> int:
+    """명세서 텍스트의 보증금액(원) 합산 — 인수 부담인데 인수금액이 미상일 때 보수 추정.
+
+    인수-해소 절('말소 동의'·'인수하지 아니')이 있는 절의 보증금은 제외(소멸 예정).
+    같은 금액 반복은 중복 제거. 못 찾으면 0.
+    """
+    picked: set[int] = set()
+    for text in texts:
+        if not text:
+            continue
+        cleaned = _strip_negated_clauses(text)
+        for m in _DEPOSIT_RE.finditer(cleaned):
+            if any(dn in m.group(0) for dn in _ASSUME_DIRECT_NEGATION):
+                continue
+            w = _korean_won(m.group(1))
+            if w > 0:
+                picked.add(w)
     return sum(picked)
 
 

@@ -41,10 +41,13 @@
       </div>
       <div class="big{% if hero_p is not none and hero_p < 0 %} neg{% endif %}">{% if hero_p is not none %}{{ won(hero_p) }}{% if badge and badge.amount_unknown %}<span style="font-size:.45em;color:var(--risk);font-weight:800"> −α</span>{% endif %}{% else %}—{% endif %}</div>
       {% if badge and badge.amount_unknown %}
-      <div style="font-size:12.5px;color:var(--risk);font-weight:600;margin-top:4px">⚠ 임차보증금 인수 별도(금액 미상) — 실제 차익은 이보다 작습니다</div>
+      {# (#20) 부담 사유별 문구 — 지분·구분지상권·전세권 등에 '임차보증금' 오표기 방지, 시세추정불가(—)면 '작습니다' 문장 숨김 #}
+      {%- set burden_reason = badge.special|join(', ') if badge.special else '임차보증금' -%}
+      <div style="font-size:12.5px;color:var(--risk);font-weight:600;margin-top:4px">⚠ {{ burden_reason }} 인수 별도(금액 미상){% if hero_p is not none %} — 실제 차익은 이보다 작습니다{% endif %}</div>
       {% endif %}
       <div class="chiprow">
-        {{ statuschip(s) }}
+        {# (#6/#17) 명세서 크롤 완료(rights)면 '권리미확인' 등급 칩을 '명세서 확인됨'으로 치환 — 상단 칩과 하단 '권리분석 반영됨' 모순 제거 #}
+        {% if rights and s.grade == '권리미확인' %}<span class="chip clean">명세서 확인됨</span>{% else %}{{ statuschip(s) }}{% endif %}
         <span class="chip muted">신뢰 {{ '%.2f'|format(s.confidence) }} · 매칭 {{ s.matched_trades }}건</span>
       </div>
     </div>
@@ -74,7 +77,7 @@
       {% elif pmap.est %}<span class="pxm-lab band{% if pmap.est.edge %} edge-{{ pmap.est.edge }}{% endif %}" style="left:{{ pmap.est.lab }}%"><i class="sw band"></i>추정 시세 <b>{{ won(pmap.est.price) }}</b></span>{% endif %}
     </div>
     <div class="pxm-lane">
-      {% if pmap.appraisal %}<span class="pxm-lab appr{% if pmap.appraisal.edge %} edge-{{ pmap.appraisal.edge }}{% endif %}" style="left:{{ pmap.appraisal.lab }}%">감정가 <b>{{ won(pmap.appraisal.price) }}</b>{% if pmap.minbid and pmap.minbid.cut %} <span class="cut">→ 유찰 {{ s.fail_count }}회 −{{ '%.0f'|format(pmap.minbid.cut * 100) }}%</span>{% endif %}</span>{% endif %}
+      {% if pmap.appraisal %}<span class="pxm-lab appr{% if pmap.appraisal.edge %} edge-{{ pmap.appraisal.edge }}{% endif %}" style="left:{{ pmap.appraisal.lab }}%">감정가 <b>{{ won(pmap.appraisal.price) }}</b>{% if pmap.minbid and pmap.minbid.cut and pmap.minbid.cut > 0.01 %} <span class="cut">→ {% if s.fail_count > 0 %}유찰 {{ s.fail_count }}회 {% else %}재매각 {% endif %}−{{ '%.0f'|format(pmap.minbid.cut * 100) }}%</span>{% endif %}</span>{% endif %}
     </div>
     <div class="pxm-track">
       {% if pmap.band %}<div class="pxm-band" style="left:{{ pmap.band.lo_pct }}%;width:{{ pmap.band.w_pct }}%"></div>{% endif %}
@@ -92,7 +95,8 @@
       <span class="pxm-lab cost{% if pmap.cost.edge %} edge-{{ pmap.cost.edge }}{% endif %}" style="left:{{ pmap.cost.lab }}%"><i class="sw cost"></i>총 취득원가 <b>{{ won(pmap.cost.price) }}</b> <span class="cut">= 최저입찰가 + 취득세</span></span>
     </div>
     <div class="pxm-legend">
-      {% if pmap.gain %}<span><i class="sw gain"></i>예상 차익 구간 (취득원가 → 검증 시세{% if pmap.band %} 하한{% endif %})</span>{% endif %}
+      {% if pmap.gain %}<span><i class="sw gain"></i>예상 차익 구간 ({% if badge and badge.assumed %}취득원가+인수금{% else %}취득원가{% endif %} → 검증 시세{% if pmap.band %} 하한{% endif %})</span>{% endif %}
+      {% if pmap.assumed_neg %}<span style="color:var(--risk);font-weight:600">⚠ 인수금 반영 시 유효 차익 음수 — 차익 구간 없음</span>{% endif %}
       {% if pmap.band %}<span><i class="sw band"></i>같은 단지·평형 실거래 밴드</span>{% endif %}
       {% if pmap.asks %}<span><i class="sw ask"></i>현재 호가 (체결가 아님)</span>{% endif %}
     </div>
@@ -127,7 +131,9 @@
       <h2>얼마가 남는가 <span class="sub">· 차익 근거(객관)</span></h2></div>
     <div class="dpanel">
       <div class="drow"><span class="k">감정가 <span class="hint">(1차 시작가·참고)</span></span><span class="v">{{ won(s.appraisal_price) }}</span></div>
-      <div class="drow"><span class="k">유찰</span><span class="v">{{ s.fail_count }}회{% if s.appraisal_price > 0 %} · 저감 {{ pct(1 - s.min_bid_price / s.appraisal_price) }}{% endif %}</span></div>
+      {# (#21) 유찰수와 공고가율이 어긋나면(재매각·가격 재설정) '저감 0%' 같은 모순 라벨 대신 명시 #}
+      {%- set cut_rate = (1 - s.min_bid_price / s.appraisal_price) if s.appraisal_price > 0 else none -%}
+      <div class="drow"><span class="k">유찰</span><span class="v">{{ s.fail_count }}회{% if cut_rate is not none %}{% if s.fail_count > 0 and cut_rate <= 0.01 %} · <span style="color:var(--caution)">가격 재설정(신건가 재진행)</span>{% elif s.fail_count == 0 and cut_rate > 0.01 %} · <span style="color:var(--caution)">재매각 저감 {{ pct(cut_rate) }}</span>{% else %} · 저감 {{ pct(cut_rate) }}{% endif %}{% endif %}</span></div>
       <div class="drow"><span class="k">최저입찰가 <span class="hint">(현재 회차 시작가)</span></span><span class="v">{{ won(s.min_bid_price) }}</span></div>
       <div class="drow"><span class="k">취득원가 <span class="hint">(최저가+취득세)</span></span><span class="v">{{ won(s.real_acquisition_cost) }}</span></div>
       {% if s.est_market_price is not none %}<div class="drow"><span class="k">추정 실거래 시세</span><span class="v">{{ won(s.est_market_price) }}</span></div>{% endif %}
@@ -136,8 +142,16 @@
       {% endif %}
       {% if s.profit_low is not none %}
       <div class="drow"><span class="k">보수 가격 기준 차익 <span class="hint">(하한 − 취득원가)</span></span><span class="v {% if s.profit_low < 0 %}neg{% else %}gain{% endif %}">{{ won(s.profit_low) }}</span></div>
-      {% elif hero_p is not none %}
-      <div class="drow"><span class="k">기준 시세 차익 <span class="hint">(추정시세 − 취득원가)</span></span><span class="v {% if hero_p < 0 %}neg{% else %}gain{% endif %}">{{ won(hero_p) }}</span></div>
+      {% elif hero_p0 is not none %}
+      <div class="drow"><span class="k">기준 시세 차익 <span class="hint">(추정시세 − 취득원가)</span></span><span class="v {% if hero_p0 < 0 %}neg{% else %}gain{% endif %}">{{ won(hero_p0) }}</span></div>
+      {% endif %}
+      {# (#19) 인수금액이 있으면 STEP1 표에도 차감 행을 넣어 히어로(인수 반영)와 같은 값으로 —
+         표만 보고 초록 양수로 오독하던 문제 해소. #}
+      {% if badge and (badge.assumed or badge.amount_unknown) %}
+      <div class="drow"><span class="k">인수금액 <span class="hint">(명세서 인수 권리)</span></span><span class="v neg">{% if badge.assumed %}− {{ won(badge.assumed) }}{% else %}− α (금액 미상){% endif %}</span></div>
+      {% if badge.assumed and hero_p is not none %}
+      <div class="drow"><span class="k">인수 차감 후 차익 <span class="hint">(실질)</span></span><span class="v {% if hero_p < 0 %}neg{% else %}gain{% endif %}"><b>{{ won(hero_p) }}</b></span></div>
+      {% endif %}
       {% endif %}
       <div class="drow"><span class="k">매칭 실거래 / 신뢰계수</span><span class="v">{{ s.matched_trades }}건 · {{ '%.2f'|format(s.confidence) }}</span></div>
       {% if s.market_sample_basis is not none and s.est_market_price is not none %}
@@ -175,7 +189,9 @@
     <div class="dstep-head"><span class="dstep-num{% if rights.has_risk_text %} risk{% else %} ok{% endif %}">§</span>
       <h2>법원 매각물건명세서 요지 <span class="sub">· 물건상세 수집 {{ rights.fetched_at[:10] }}</span></h2></div>
     <div class="dpanel{% if rights.has_risk_text %} risk{% endif %}">
-      {% if rights.surviving_rights and rights.surviving_rights not in ('해당사항없음','해당사항 없음') %}
+      {# (#22) 배지 clean 판정(is_substantive)과 동일 함수 사용 — '해당사항없음 다만 …인수'가
+         칩은 clean 인데 배너는 ⛔ 뜨던 판정 불일치 제거. #}
+      {% if rights.surviving_is_real %}
       <div class="dbanner risk">⛔ <b>매수인에게 인수되는 권리</b> — {{ rights.surviving_rights }}</div>
       {% else %}
       <div class="dbanner ok">✓ 소멸되지 않는(인수) 등기 권리: 해당사항없음</div>
@@ -239,6 +255,15 @@
       <div class="dbanner risk">⚠ <b>대항력 있는 임차인(또는 임차권등기) 신호</b> — 배당에서 보증금이 전액 변제되지 않으면 잔액을 매수인이 인수할 수 있습니다. 위 명세서 요지와 배당요구·확정일자를 반드시 확인하세요.</div>
       <div class="drow"><span class="k">인수금액{% if not listing.assumed_amount %} <span class="hint">(명세서에 금액 미기재 — 보증금 확인 필요)</span>{% endif %}</span><span class="v neg">{{ won(listing.assumed_amount) if listing.assumed_amount else '금액 미상' }}</span></div>
       <div class="drow"><span class="k">대항력 임차인</span><span class="v neg">있음(문구 검출)</span></div>
+      <div class="drow"><span class="k">점유</span><span class="v" style="font-size:14px;color:var(--ink-700)">{{ listing.occupant_type }}</span></div>
+    {% elif badge and not badge.is_clean %}
+    {# (서빙감사 2026-07-12 #18) 하드게이트·대항력 분기엔 안 걸렸지만 명세서 배지가 부담(전세권·
+       구분지상권·지분·특수권리 등)이면 초록 ✓ 대신 주의 — 같은 화면 명세서 ⛔·목록 ⚠와 정합. #}
+    <div class="dstep-head"><span class="dstep-num risk">⚠</span>
+      <h2>사도 되는가 <span class="sub risk">· 인수 부담 신호</span></h2></div>
+    <div class="dpanel risk">
+      <div class="dbanner risk">⚠ <b>인수 부담 신호가 있습니다</b> — {% if badge.special %}{{ badge.special|join(', ') }} · {% endif %}위 명세서 요지를 확인하세요. 치명적 하드게이트에는 해당하지 않으나 추가 부담 가능성이 있습니다.</div>
+      <div class="drow"><span class="k">인수금액</span><span class="v neg">{% if badge.assumed %}{{ won(badge.assumed) }}{% else %}금액 미상(+α){% endif %}</span></div>
       <div class="drow"><span class="k">점유</span><span class="v" style="font-size:14px;color:var(--ink-700)">{{ listing.occupant_type }}</span></div>
     {% else %}
     <div class="dstep-head"><span class="dstep-num ok">✓</span>

@@ -178,3 +178,46 @@ def test_unregistered_land_right_never_estimates():
     from src.matcher import SCOPE_SHARE_SALE, estimate_market
     m = estimate_market(_lst(special_rights=["대지권미등기"]), TRADES)
     assert m.est is None and m.scope == SCOPE_SHARE_SALE
+
+
+def test_fallback_appraisal_bounds():
+    """서빙감사 #8·#10: 폴백 시세가 감정가 1.5배 초과/0.6배 미만이면 무효화."""
+    from src.matcher import estimate_market, SCOPE_APPRAISAL_MISMATCH, SCOPE_SAME_DONG_FALLBACK
+    # 같은 동 다른 이름 comps만 있게 → fallback. 감정 1억에 comps 2억(2배) → 무효
+    dong_comps = [Trace for Trace in []]  # placeholder
+    lst = _lst(apt_name="A동네빌", area_m2=84.9, appraisal_price=100_000_000, dong="상계동", lawd_cd="11350")
+    trades = [
+        Trade(apt_name="딴이름아파트", area_m2=84.9, price=200_000_000, deal_ym="202605", dong="상계동", kind="apt", lawd_cd="11350"),
+        Trade(apt_name="또딴이름", area_m2=83.0, price=205_000_000, deal_ym="202605", dong="상계동", kind="apt", lawd_cd="11350"),
+        Trade(apt_name="세번째", area_m2=84.9, price=198_000_000, deal_ym="202604", dong="상계동", kind="apt", lawd_cd="11350"),
+    ]
+    m = estimate_market(lst, trades)
+    assert m.scope == SCOPE_APPRAISAL_MISMATCH and m.est is None
+
+
+def test_multi_complex_demotes_from_same_area():
+    """서빙감사 #2: 마을명 부분일치가 여러 단지를 끌어오면 same_complex 인정 안 함."""
+    from src.matcher import match_trades_scoped, SCOPE_SAME_COMPLEX_SAME_AREA
+    lst = _lst(apt_name="갑오마을", area_m2=126.48, dong="대청동", lawd_cd="48250")
+    trades = [
+        Trade(apt_name="갑오마을3단지대동", area_m2=126.48, price=230_000_000, deal_ym="202605", dong="대청동", kind="apt", lawd_cd="48250"),
+        Trade(apt_name="갑오마을8단지대우푸르지오2차", area_m2=126.48, price=317_000_000, deal_ym="202605", dong="대청동", kind="apt", lawd_cd="48250"),
+        Trade(apt_name="갑오마을8단지대우푸르지오2차", area_m2=125.0, price=320_000_000, deal_ym="202604", dong="대청동", kind="apt", lawd_cd="48250"),
+    ]
+    _, scope = match_trades_scoped(lst, trades)
+    assert scope != SCOPE_SAME_COMPLEX_SAME_AREA   # 다단지 → 강등
+
+
+def test_creditor_bid_floor_raises_min_bid():
+    """서빙감사 #3: 신청채권자 매수신청액이 공고최저가보다 크면 유효 최저입찰가로."""
+    from src.courtauction_fields import to_auction_listing, CourtAuctionRecord
+    rec = CourtAuctionRecord(
+        doc_id="D", case_no="2025타경570", court="창원지방법원", dept="", property_type="아파트",
+        usage_name="아파트", address="창원", sido="", sigu="", dong="중동", lawd_cd="48120",
+        jibun="", building_name="대동다숲", building_detail="101동", area_m2=84.0,
+        appraisal_price=400_000_000, min_bid_price=260_400_000, fail_count=1,
+        sale_date="2026-08-01", sale_place="", bid_open_date="", bid_close_date="",
+        view_count=0, interest_count=0, note="신청채권자로부터 금 295,400,000원의 매수신청 및 보증이 있음.",
+        tel="", x_proj="", y_proj="", item_no="1")
+    lst = to_auction_listing(rec)
+    assert lst.min_bid_price == 295_400_000 and "채권자매수신청" in lst.special_rights

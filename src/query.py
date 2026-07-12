@@ -62,13 +62,15 @@ def apply_filters(items: list[ScoredListing], min_score: float | None = None,
 
 
 def sort_items(items: list[ScoredListing], key: str = DEFAULT_SORT,
-               burden_of=None) -> list[ScoredListing]:
-    """정렬 — 기본(profit)은 비교군 신뢰 티어 → 유효 차익(인수금 차감) 내림차순.
+               burden_of=None, uncertain_of=None) -> list[ScoredListing]:
+    """정렬 — 기본(profit)은 [비교군 신뢰 티어 + 인수 불확실 티어] → 유효 차익 내림차순.
 
     검증 비교군(같은 단지) 물건이 폴백 참고치보다 항상 위 — '추천 금지 참고치'의 부풀린
     차익이 첫 화면 헤드라인을 차지하지 않게 한다(감사 2026-07-10).
-    burden_of 가 주어지면 정렬 차익에서 인수금을 차감 — 화면 표시(p_adj)와 순위가 일치한다
-    (인수 5억 물건이 표시상 −2.96억인데 상위 랭크에 남는 순위-표시 역전 해소).
+    burden_of 가 주어지면 정렬 차익에서 인수금을 차감 — 화면 표시(p_adj)와 순위 일치.
+    uncertain_of(서빙감사 2026-07-12 #1·#9): 인수 부담인데 금액 미상(+α)이라 차감 못 한
+    물건은 별도 하위 티어로 강등 — 유찰 다회·임차권 미소멸 물건이 검증 clean 물건 위에
+    무차감으로 랭크되던 문제 해소('−α' 표시와 정합).
     """
     if key == "gap":
         return sorted(items, key=lambda s: (s.gap_rate is None, -(s.gap_rate or 0)))
@@ -78,4 +80,7 @@ def sort_items(items: list[ScoredListing], key: str = DEFAULT_SORT,
     def _eff(s):
         p = decision_profit(s)
         return None if p is None else p - (burden_of(s) if burden_of else 0)
-    return sorted(items, key=lambda s: (scope_tier(s), -(_eff(s) or 0)))
+    return sorted(items, key=lambda s: (
+        scope_tier(s),
+        1 if (uncertain_of and uncertain_of(s)) else 0,
+        -(_eff(s) or 0)))

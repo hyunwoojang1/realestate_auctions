@@ -141,6 +141,10 @@ def _rights_badges() -> dict:
     out = {}
     for r in rows:
         cr = CaseRights.from_row(r)
+        # (서빙감사 2026-07-12 #13) 빈/부분 응답(작성일·최선순위·인수권리 전무)은 판정 근거가
+        # 0 이므로 배지를 만들지 않는다 — '✓ 인수 없음'으로 오판하지 않고 '미확인'으로 폴백.
+        if cr.is_empty:
+            continue
         out[f"{cr.court}|{cr.case_no}|{cr.item_no}"] = summarize(cr)
     return out
 
@@ -150,6 +154,14 @@ def _burden_of(badges: dict):
     def f(s):
         b = badges.get(f"{s.court}|{s.case_no}|{s.item_no}")
         return b.assumed if b else 0
+    return f
+
+
+def _uncertain_of(badges: dict):
+    """badges → (물건 → 인수 부담인데 금액 미상인가). 정렬 하위 티어 강등용(서빙감사 #1·#9)."""
+    def f(s):
+        b = badges.get(f"{s.court}|{s.case_no}|{s.item_no}")
+        return bool(b and b.amount_unknown)
     return f
 
 
@@ -167,11 +179,12 @@ def _filtered(args, badges: dict | None = None):
     sort = args.get("sort", query.DEFAULT_SORT)
     if sort not in query.SORT_KEYS:
         sort = query.DEFAULT_SORT
-    burden = _burden_of(badges if badges is not None else _rights_badges())
+    bd = badges if badges is not None else _rights_badges()
+    burden = _burden_of(bd)
     return query.sort_items(
         query.apply_filters(_scored(), min_score, ptype, region,
                             min_profit=min_profit, burden_of=burden),
-        sort, burden_of=burden)
+        sort, burden_of=burden, uncertain_of=_uncertain_of(bd))
 
 
 def create_app() -> Flask:
@@ -388,7 +401,13 @@ def create_app() -> Flask:
             import dataclasses  # noqa: PLC0415
 
             from .courtauction_detail import CaseRights, summarize  # noqa: PLC0415
-            rights = CaseRights.from_row(rights_row)
+            _cr = CaseRights.from_row(rights_row)
+            # (서빙감사 2026-07-12 #13) 빈/부분 명세서는 판정 근거 0 — 배지·rights 둘 다 미표시로
+            # 폴백해 '✓ 인수 없음/권리분석 반영됨'으로 오판하지 않는다(목록 가드와 정합).
+            if _cr.is_empty:
+                rights_row = None
+        if rights_row:
+            rights = _cr
             badge = summarize(rights)
             listing = dataclasses.replace(
                 listing,
@@ -421,7 +440,7 @@ def create_app() -> Flask:
         ask_overstated = asking_mod.band_overstated(askings, s.market_band_low)
         # 가격 지도 — 감정가·최저입찰가·취득원가·밴드·호가를 한 축에 그릴 좌표(UX 개편).
         from . import pricemap  # noqa: PLC0415
-        pmap = pricemap.build(s, ask_points)
+        pmap = pricemap.build(s, ask_points, assumed=(badge.assumed if badge else 0))
         return render_template(
             "detail.html", s=s, listing=listing, pmap=pmap, rights=rights, badge=badge,
             meter=report.gap_meter_html(s, askings=ask_points), won=report.won, pct=report.pct,
