@@ -40,6 +40,53 @@ def test_has_rows():
     assert store.has_rows(conn) is True
 
 
+def test_market_comps_roundtrip():
+    """시간축 차트용 개별 실거래 comps가 JSON으로 저장·복원된다(v6)."""
+    conn = store.connect(":memory:")
+    s = _scored("C", 80.0)
+    s.market_comps = [["202605", 510_000_000], ["202410", 560_000_000]]
+    store.upsert(conn, [s])
+    loaded = store.load_scored(conn)[0]
+    assert loaded.market_comps == [["202605", 510_000_000], ["202410", 560_000_000]]
+
+
+def test_market_comps_default_empty_when_absent():
+    """comps 미설정 물건은 빈 리스트로 복원(레거시·무점 안전)."""
+    conn = store.connect(":memory:")
+    store.upsert(conn, [_scored("D", 70.0)])
+    assert store.load_scored(conn)[0].market_comps == []
+
+
+def test_migration_v5_to_v6_adds_market_comps():
+    """구스키마(market_comps 없는 v5) DB를 열면 컬럼이 자동 추가되고 로드가 깨지지 않는다."""
+    import sqlite3
+    raw = sqlite3.connect(":memory:")
+    raw.row_factory = sqlite3.Row  # connect()와 동일 — _migrate가 r["name"]을 읽는다
+    # v5 상당 최소 테이블(market_comps 없음)로 위조
+    raw.execute(
+        "CREATE TABLE scored_listings (case_no TEXT NOT NULL, apt_name TEXT, address TEXT, "
+        "property_type TEXT, area_m2 REAL, appraisal_price INTEGER, min_bid_price INTEGER, "
+        "fail_count INTEGER, sale_date TEXT, est_market_price INTEGER, matched_trades INTEGER, "
+        "confidence REAL, real_acquisition_cost INTEGER, expected_profit INTEGER, gap_rate REAL, "
+        "gap_score REAL, rights_score REAL, liquidity_score REAL, arb_score REAL, grade TEXT, "
+        "court TEXT NOT NULL DEFAULT '', item_no TEXT NOT NULL DEFAULT '', "
+        "doc_id TEXT NOT NULL DEFAULT '', market_scope TEXT NOT NULL DEFAULT '', "
+        "market_band_low INTEGER, market_band_high INTEGER, profit_low INTEGER, "
+        "profit_high INTEGER, market_sample_basis INTEGER, "
+        "PRIMARY KEY (court, case_no, item_no))"
+    )
+    raw.execute(
+        "INSERT INTO scored_listings (case_no, apt_name, arb_score, grade) VALUES ('E','X',50.0,'양호')"
+    )
+    raw.commit()
+    cols = {r[1] for r in raw.execute("PRAGMA table_info(scored_listings)")}
+    assert "market_comps" not in cols  # 위조 v5엔 없음
+    store._migrate(raw)  # 마이그레이션 실행
+    cols2 = {r[1] for r in raw.execute("PRAGMA table_info(scored_listings)")}
+    assert "market_comps" in cols2  # v6 컬럼 추가됨
+    raw.close()
+
+
 def test_replace_all_purges_absent_rows():
     """전량 교체: 이전 크롤에만 있던 매물(팔림/취하)은 제거된다(만료 매물 추천 방지)."""
     conn = store.connect(":memory:")

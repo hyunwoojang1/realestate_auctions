@@ -14,7 +14,7 @@ from datetime import datetime, timedelta, timezone
 
 from .models import ScoredListing
 
-SCHEMA_VERSION = 5
+SCHEMA_VERSION = 6
 
 DDL = """
 CREATE TABLE IF NOT EXISTS scored_listings (
@@ -33,6 +33,7 @@ CREATE TABLE IF NOT EXISTS scored_listings (
     profit_low INTEGER,
     profit_high INTEGER,
     market_sample_basis INTEGER,
+    market_comps TEXT NOT NULL DEFAULT '[]',
     PRIMARY KEY (court, case_no, item_no)
 );
 """
@@ -150,13 +151,30 @@ def _migrate(conn: sqlite3.Connection) -> None:
         # v4 → v5(T5 표본 게이트): 밴드 실기반 표본수 — 레거시 행은 None(게이트 미적용)
         with conn:
             conn.execute("ALTER TABLE scored_listings ADD COLUMN market_sample_basis INTEGER")
+    if "market_comps" not in cols:
+        # v5 → v6(시간축 차트): 개별 실거래 점 JSON. 레거시 행은 '[]'(차트 점 없음 — 다음
+        # 전량 새로고침이 실제 comps로 채운다). NOT NULL + DEFAULT라 ALTER 한 번으로 충분.
+        with conn:
+            conn.execute(
+                "ALTER TABLE scored_listings ADD COLUMN market_comps TEXT NOT NULL DEFAULT '[]'"
+            )
+
+
+# 저장 컬럼 = 스칼라 _COLS + market_comps(JSON 텍스트). market_comps는 리스트라 스칼라
+# 경로(_COLS)에 넣지 않고 직렬화해 별도 취급한다(load_scored에서 역직렬화).
+_STORE_COLS = [*_COLS, "market_comps"]
 
 
 def _insert_rows(conn: sqlite3.Connection, items: Iterable[ScoredListing]) -> int:
-    rows = [tuple(s.to_row()[c] for c in _COLS) for s in items]
-    placeholders = ",".join("?" * len(_COLS))
+    rows = []
+    for s in items:
+        d = s.to_row()
+        base = [d[c] for c in _COLS]
+        base.append(json.dumps(d.get("market_comps") or [], ensure_ascii=False))
+        rows.append(tuple(base))
+    placeholders = ",".join("?" * len(_STORE_COLS))
     conn.executemany(
-        f"INSERT OR REPLACE INTO scored_listings ({','.join(_COLS)}) VALUES ({placeholders})",
+        f"INSERT OR REPLACE INTO scored_listings ({','.join(_STORE_COLS)}) VALUES ({placeholders})",
         rows,
     )
     return len(rows)
@@ -251,7 +269,23 @@ def load_scored(conn: sqlite3.Connection) -> list[ScoredListing]:
     웹 서버가 매 요청마다 라이브 API를 호출하지 않고, 새로고침 작업이
     적재해둔 결과를 그대로 서빙하기 위한 읽기 경로.
     """
-    return [ScoredListing(**{c: r[c] for c in _COLS}) for r in fetch_ranked(conn)]
+    out = []
+    for r in fetch_ranked(conn):
+        kw = {c: r[c] for c in _COLS}
+        kw["market_comps"] = _parse_comps(r["market_comps"] if "market_comps" in r.keys() else None)
+        out.append(ScoredListing(**kw))
+    return out
+
+
+def _parse_comps(raw: str | None) -> list[list]:
+    """저장된 comps JSON('[[ym, price], ...]') → 리스트. 손상/누락 시 빈 리스트(무점)."""
+    if not raw:
+        return []
+    try:
+        data = json.loads(raw)
+    except (json.JSONDecodeError, TypeError):
+        return []
+    return data if isinstance(data, list) else []
 
 
 def has_rows(conn: sqlite3.Connection) -> bool:

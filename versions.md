@@ -15,6 +15,28 @@
 
 ---
 
+## 2026-07-12 16:54 KST — 📉 상세 가격 시각화 세로/시간축 전면 개편 (가격-시간 차트, feat/price-time-chart)
+- 무엇: 가로 스냅샷 막대(pmap)를 **네이버부동산형 가격-시간 차트**로 교체. 사용자 UX 피드백(가로 초록봉 오독·
+  값의 시점 부재)에서 인터랙티브 목업 v1~v5 반복 확정 → 세로/시간축·롤링 밴드·유찰 저감 드롭마커·호버 툴팁·
+  2020~ 맥락 토글로 합의 후 이식.
+- 파일:
+  - `src/pricechart.py`(신규): 순수함수 `build_timechart(s, comps, schedule, asks, recency_months)` — 개별 실거래
+    (comps)·기일이력·호가 → JSON dict(trades/hist 최근창 분리·롤링 band_env·band_now·유찰 step·levels·gain·cheap_pct).
+    정책: 밴드·차익은 최근 12개월만 산정, 다년치는 맥락(hist)으로만(사이클 오염 방지).
+  - matcher `MarketEstimate.comps`(_pack_comps: 날짜 있는 매칭 최신순 60) / models `ScoredListing.market_comps` /
+    score `score_listing(comps=)` 캡처 / pipeline 배선.
+  - store **스키마 v6**: `market_comps TEXT DEFAULT '[]'` + v5→v6 ALTER 마이그레이션 + JSON 직렬화/역직렬화.
+  - web.py: 상세 라우트에서 build_timechart 호출→`chart` 전달. detail.html: pmap 블록→`ptc`(JSON 임베드+SVG 렌더러
+    JS: 점·롤링밴드·유찰드롭·기준선·차익괄호·호버·십자선·기간토글, 우측라벨 de-collision). base.html: ptc CSS·밴드 토큰.
+- 증거: pricechart 13건 + store comps/마이그레이션 3건 통과. 전체 **432 passed, 1 failed**(export read_text(newline=)
+  py3.13 API — 시스템 py3.12 환경 한정·무관). 렌더러 `node --check` OK. **Playwright 실 스크린샷 검증**(상계주공 실
+  pricechart 데이터): 초판서 우측 라벨 충돌 발견→de-collision 로직 추가 후 재검증 정상. 샘플 상세 3건 200.
+- 평가자: - (자체 TDD+스모크+스크린샷)
+- 커밋: (미커밋 — 사용자 커밋 대기)
+- 다음: **라이브 새로고침 필요** — 기존 DB 행은 market_comps='[]'(마이그레이션 기본)라 개별 실거래 점 비어 있음.
+  재채점해야 실 comps·다년치 채워짐. 호가 시점(observed_at)은 수동입력 스텁(Q2). 잔존 pmap.py는 후속 정리 대상.
+  ※ 작업 중 외부 동기화가 versions.md·이전 세션 미커밋 UI작업을 HEAD로 되돌림 — 구현 파일은 무영향.
+
 ## 2026-07-11 17:17 KST — 🔬 재검증 감사 확정 26건 수정 (62 에이전트 만장일치, docs/audit-reverify-20260711.json)
 - 재검증 결과: 미검증 31건 → **확정 26 / 기각·이미수정 5**. 확정 전건 수정(백로그 3건 제외).
 - **idx15 CRITICAL — 최저입찰가가 '직전 회차' 가격**: minmaePrice ≠ 공고가. 실측 **73.6%**
