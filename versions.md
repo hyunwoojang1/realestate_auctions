@@ -15,6 +15,25 @@
 
 ---
 
+## 2026-07-12 23:33 KST — 🗺️ 지도 개편: 차익후보 기본 + 지역별 카운트 (③, feat/map-candidates-first)
+- 배경: 홈은 '검색 우선 + 평가가능 기본'으로 개편됐으나 지도만 옛 방식(파라미터 없는 geojson 통짜 호출로
+  7,888핀 전부, 89%가 회색 노이즈). 결정된 방향(세션 22:56 versions·세션파일 L59)의 두 축이 미착수였음.
+- 무엇:
+  - query.py: `count_by_sido(items)` 순수함수 신규 — 시도별 건수(최다순, 시도미상은 '기타'로 계상해 총합
+    보존). region.sido_of 재사용.
+  - web.py: `_filtered`에 `evaluable_default` 파라미터 + `all=1`/`evaluable=` 오버라이드(_truthy) 추가 —
+    listings/export 등 기존 표면은 default=False라 동작 불변. `/api/listings.geojson`은 evaluable_default=True
+    (차익후보만 기본), 응답에 `by_sido` 집계 + 각 feature.properties에 `sido`(클라 지역필터용) 추가.
+  - templates/map.html: '차익후보만 ↔ 전체 보기' 토글(전체=all=1, 미지원 회색범례 노출), '지역별' 카운트 칩
+    바(클릭 시 해당 시도로 필터+줌, '전체'로 리셋), layerGroup 재조회 구조로 리팩터(모드/지역 전환 시 핀 교체).
+- 증거: 신규 테스트 5건(count_by_sido 1 + geojson by_sido/evaluable기본/feature.sido/맵패널 4) 통과, 전체
+  **453 passed, 1 failed**(export read_text(newline=) py3.12 환경 한정·무관). map.html JS `node --check` OK.
+  **Playwright 실 프로덕션(Supabase) 스크린샷 3장**(evidence/map_candidates·map_all·map_seoul.png): 차익후보
+  861핀·전체 7,967(세션 데이터 진단과 정확히 일치)·서울칩 클릭→834핀 서울 줌 확인.
+- 평가자: - (자체 TDD + node check + 실데이터 Playwright)
+- 커밋: feat/map-candidates-first → main
+- 다음: (선택) 차익후보를 '차익양수만'(425)으로 더 좁히는 2단 필터·잔존 pmap.py 정리. Vercel 배포 로그 확보.
+
 ## 2026-07-12 22:56 KST — 🔎 홈 검색 우선 재설계 (무지성 나열 → 큐레이션, feat/search-first-home)
 - 배경(데이터 진단): 홈이 7,967건을 통짜 나열 → 실은 **89%가 평가 불가**(미지원유형 69.5%·시세추정불가
   19.7%, 전부 '—'). 실제 신호는 시세밴드 861건·차익 양수 425건뿐. 지도 '빈 지역'도 크롤/좌표 문제 아님

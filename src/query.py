@@ -8,7 +8,7 @@ from __future__ import annotations
 import datetime as _dt
 
 from .models import ScoredListing
-from .region import matches_region
+from .region import matches_region, sido_of
 
 SORT_KEYS = ("profit", "gap", "score")
 DEFAULT_SORT = "profit"
@@ -103,6 +103,20 @@ def apply_filters(items: list[ScoredListing], min_score: float | None = None,
     if min_bid is not None:
         out = [s for s in out if s.min_bid_price and s.min_bid_price >= min_bid]
     return out
+
+
+def count_by_sido(items: list[ScoredListing]) -> list[dict]:
+    """지도 '어디에 몇 건' 집계 — 시도별 건수, 최다 지역 먼저.
+
+    시도 미상(주소 파싱 실패)은 '기타'로 계상해 총합이 입력 건수와 일치하게 한다
+    (침묵 누락 방지). 좌표 유무와 무관 — 후보 물건 전수 기준.
+    """
+    counts: dict[str, int] = {}
+    for s in items:
+        sd = sido_of(s.address) or "기타"
+        counts[sd] = counts.get(sd, 0) + 1
+    return [{"sido": k, "count": v}
+            for k, v in sorted(counts.items(), key=lambda kv: (-kv[1], kv[0]))]
 
 
 def sort_items(items: list[ScoredListing], key: str = DEFAULT_SORT,

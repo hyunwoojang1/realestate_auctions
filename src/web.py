@@ -165,11 +165,19 @@ def _uncertain_of(badges: dict):
     return f
 
 
-def _filtered(args, badges: dict | None = None):
+def _truthy(v) -> bool:
+    return str(v).lower() in ("1", "true", "yes", "on")
+
+
+def _filtered(args, badges: dict | None = None, evaluable_default: bool = False):
     """요청 쿼리(min_profit[억]/min_score/type/region/sort)로 필터·정렬된 목록.
 
     정렬·최소차익 필터는 인수금 차감 후 유효 차익 기준 — 화면 표시(p_adj)와 일치
     (감사 2026-07-10: 순위-표시 역전 해소).
+
+    evaluable_default: 지도(③)처럼 '차익후보(평가 가능)만'을 기본으로 하는 표면용.
+    `all=1`이면 미지원·시세추정불가까지 전부 노출, `evaluable=0/1`로 명시 오버라이드.
+    listings/export 등 기존 표면은 evaluable_default=False라 동작 불변.
     """
     min_score = args.get("min_score", type=float)          # API 하위호환용
     min_profit_eok = args.get("min_profit", type=float)    # UI: 억 단위 입력
@@ -179,11 +187,16 @@ def _filtered(args, badges: dict | None = None):
     sort = args.get("sort", query.DEFAULT_SORT)
     if sort not in query.SORT_KEYS:
         sort = query.DEFAULT_SORT
+    if args.get("evaluable") is not None:
+        evaluable_only = _truthy(args.get("evaluable"))
+    else:
+        evaluable_only = evaluable_default and not _truthy(args.get("all"))
     bd = badges if badges is not None else _rights_badges()
     burden = _burden_of(bd)
     return query.sort_items(
         query.apply_filters(_scored(), min_score, ptype, region,
-                            min_profit=min_profit, burden_of=burden),
+                            min_profit=min_profit, burden_of=burden,
+                            evaluable_only=evaluable_only),
         sort, burden_of=burden, uncertain_of=_uncertain_of(bd))
 
 
@@ -378,11 +391,14 @@ def create_app() -> Flask:
         """지도용 GeoJSON — 목록과 동일 필터. 좌표는 KATEC→WGS84 캐시(coords.py) 조인."""
         from . import coords  # noqa: PLC0415
         from . import query as q
+        from . import region as reg  # noqa: PLC0415
         cache = coords.load_coord_cache()
         feats = []
         skipped = 0
         geo_badges = _rights_badges()
-        for s in _filtered(request.args, badges=geo_badges):
+        # 지도 기본 = 차익후보(평가 가능)만 — 홈과 동일 원칙. all=1 로 전체 탐색.
+        items = _filtered(request.args, badges=geo_badges, evaluable_default=True)
+        for s in items:
             pt = coords.lookup(cache, s.uid, s.case_no, court=s.court)
             if not pt:
                 skipped += 1
@@ -399,14 +415,17 @@ def create_app() -> Flask:
                     "case_no": s.case_no, "item_no": s.item_no,
                     "apt_name": s.apt_name, "property_type": s.property_type,
                     "grade": s.grade, "profit": p,
+                    "sido": reg.sido_of(s.address) or "기타",   # 클라이언트 지역 필터/집계용
                     "burden": ("clean" if b and b.is_clean else "burden" if b else "unknown"),
                     "conservative": s.profit_low is not None,
                     "min_bid": s.min_bid_price,
                     "url": f"/property/{s.case_no}" + (f"?item={s.item_no}" if s.item_no else ""),
                 },
             })
+        # '어디에 몇 건' — 후보 전수 기준 시도별 카운트(좌표 유무 무관).
         return jsonify({"type": "FeatureCollection", "features": feats,
-                        "no_coord_count": skipped})
+                        "no_coord_count": skipped,
+                        "by_sido": q.count_by_sido(items)})
 
     @app.get("/map")
     def map_page():

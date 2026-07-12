@@ -101,6 +101,18 @@ def test_sort_by_profit_desc():
     assert profits == sorted(profits, reverse=True)
 
 
+def test_count_by_sido_groups_and_sorts_desc():
+    items = [_sl(case_no="a", address="서울 강남구"),
+             _sl(case_no="b", address="서울 노원구"),
+             _sl(case_no="c", address="경기 성남시"),
+             _sl(case_no="d", address="주소불명")]   # 시도 미상 → '기타'
+    out = query.count_by_sido(items)
+    assert out[0] == {"sido": "서울", "count": 2}     # 최다 먼저
+    by = {e["sido"]: e["count"] for e in out}
+    assert by["경기"] == 1 and by["기타"] == 1
+    assert sum(e["count"] for e in out) == 4           # 전건 계상(누락 없음)
+
+
 def test_to_json_is_valid_and_complete():
     items = _scored()
     data = json.loads(report.to_json(items))

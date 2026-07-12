@@ -23,6 +23,20 @@
     margin:8px 0}
   .maplegend span{white-space:nowrap}
   .dot{display:inline-block;width:10px;height:10px;border-radius:50%;margin-right:4px;vertical-align:-1px}
+  /* 차익후보만 ↔ 전체 보기 토글 */
+  .maptoggle{display:inline-flex;border:1px solid var(--hairline-strong);border-radius:999px;overflow:hidden}
+  .maptoggle button{border:0;background:var(--surface);color:var(--muted);font-size:var(--t-note);
+    padding:4px 12px;cursor:pointer;font-weight:700}
+  .maptoggle button.on{background:var(--ink-800);color:#fff}
+  /* 지역별 카운트 칩 */
+  .regionbar{display:flex;flex-wrap:wrap;gap:6px;align-items:center;margin:6px 0 10px}
+  .regionbar .rlabel{font-size:var(--t-note);color:var(--muted);font-weight:700;margin-right:2px}
+  .rchip{border:1px solid var(--hairline-strong);border-radius:999px;background:var(--surface);
+    font-size:var(--t-note);padding:3px 10px;cursor:pointer;white-space:nowrap}
+  .rchip .c{color:var(--muted);margin-left:4px}
+  .rchip:hover{border-color:var(--ink-800)}
+  .rchip.on{background:#2f6fdd;border-color:#2f6fdd;color:#fff}
+  .rchip.on .c{color:#dce8ff}
   @media (max-width: 860px){
     .maplayout{grid-template-columns:1fr;grid-template-rows:1fr 220px}
     .mapside{order:2;border-right:none;border-top:1px solid var(--hairline-strong)}
@@ -33,11 +47,20 @@
 {% block content %}
 <h1 class="page-h2" style="margin-bottom:4px">지도</h1>
 <div class="maplegend">
+  <span class="maptoggle" role="group" aria-label="표시 범위">
+    <button type="button" id="mode-cand" class="on">차익후보만</button>
+    <button type="button" id="mode-all">전체 보기</button>
+  </span>
   <span><span class="dot" style="background:#2f6fdd"></span>차익 후보</span>
   <span><span class="dot" style="background:#e2a400"></span>경고(권리미확인·근거부족 등)</span>
   <span><span class="dot" style="background:#c62828"></span>위험(하드게이트)</span>
-  <span><span class="dot" style="background:#9a938a"></span>차익없음·미지원</span>
+  <span id="mute-legend" style="display:none"><span class="dot" style="background:#9a938a"></span>차익없음·미지원</span>
   <span id="mapcount" style="margin-left:auto"></span>
+</div>
+
+<div class="regionbar" id="regionbar">
+  <span class="rlabel">지역별</span>
+  <span style="color:var(--muted);font-size:var(--t-note)">집계 불러오는 중…</span>
 </div>
 
 <div class="maplayout">
@@ -63,19 +86,30 @@
   }
   function eok(v){ return v == null ? '—' : (v/1e8).toFixed(2) + '억'; }
 
-  fetch('/api/listings.geojson').then(r => r.json()).then(gj => {
-    const side = document.getElementById('side');
-    const feats = gj.features || [];
+  const layer = L.layerGroup().addTo(map);   // 재조회 시 핀 교체
+  let allMode = false;      // false=차익후보만, true=전체 보기
+  let sidoFilter = null;    // 선택한 시도(null=전체 지역)
+  let lastGj = null;        // 마지막 응답(지역 필터는 클라이언트에서 즉시 적용)
+  const side = document.getElementById('side');
+  const SIDE_MAX = 200;     // 좌측 패널은 상위 N건만(전체는 핀으로) — DOM 폭주 방지
+
+  function draw(){
+    if (!lastGj) return;
+    layer.clearLayers();
+    side.innerHTML = '';
+    const feats = (lastGj.features || [])
+      .filter(f => !sidoFilter || (f.properties.sido || '기타') === sidoFilter);
     document.getElementById('mapcount').textContent =
-      '핀 ' + feats.length + '개' + (gj.no_coord_count ? ' · 좌표없음 ' + gj.no_coord_count + '건 제외' : '');
+      '핀 ' + feats.length + '개'
+      + (sidoFilter ? ' · ' + sidoFilter : '')
+      + (lastGj.no_coord_count ? ' · 좌표없음 ' + lastGj.no_coord_count + '건 제외' : '');
     const markers = [];
-    const SIDE_MAX = 200;  // 좌측 패널은 상위 N건만(전체는 핀으로) — DOM 폭주 방지
     feats.forEach((f, i) => {
       const [lon, lat] = f.geometry.coordinates;
       const p = f.properties;
       const m = L.circleMarker([lat, lon], {
         radius: 7, weight: 1.5, color: '#fff', fillColor: colorOf(p.grade), fillOpacity: 0.9
-      }).addTo(map);
+      }).addTo(layer);
       const label = p.conservative ? '보수 기준 차익' : '차익(기준 시세)';
       m.bindPopup('<b>' + (p.apt_name || p.property_type) + '</b> <small>' + p.grade + '</small><br>'
         + label + ' <b>' + eok(p.profit) + '</b> · 최저가 ' + eok(p.min_bid)
@@ -97,16 +131,58 @@
       };
       side.appendChild(div);
     });
-    if (feats.length) {
-      const grp = L.featureGroup(markers);
-      map.fitBounds(grp.getBounds().pad(0.1));
+    if (markers.length) {
+      map.fitBounds(L.featureGroup(markers).getBounds().pad(0.1));
     } else {
-      side.innerHTML = '<div class="item">지도에 표시할 물건이 없습니다.<br>' +
-        '<small>다음 새로고침 후 좌표 캐시가 채워집니다.</small></div>';
+      side.innerHTML = '<div class="item">' +
+        (sidoFilter ? sidoFilter + '에 표시할 물건이 없습니다.' : '지도에 표시할 물건이 없습니다.') +
+        '<br><small>좌표가 있는 물건만 핀으로 표시됩니다. 지역 카운트는 좌표 유무와 무관합니다.</small></div>';
     }
-  }).catch(e => {
-    document.getElementById('mapcount').textContent = '데이터 로드 실패: ' + e;
-  });
+  }
+
+  function renderRegionBar(){
+    const bar = document.getElementById('regionbar');
+    const rows = (lastGj && lastGj.by_sido) || [];
+    const total = rows.reduce((a, e) => a + e.count, 0);
+    let html = '<span class="rlabel">지역별</span>';
+    html += '<span class="rchip' + (sidoFilter ? '' : ' on') + '" data-sido="">전체'
+      + '<span class="c">' + total + '</span></span>';
+    rows.forEach(e => {
+      html += '<span class="rchip' + (sidoFilter === e.sido ? ' on' : '') + '" data-sido="'
+        + e.sido + '">' + e.sido + '<span class="c">' + e.count + '</span></span>';
+    });
+    bar.innerHTML = html;
+    bar.querySelectorAll('.rchip').forEach(chip => {
+      chip.onclick = () => { sidoFilter = chip.dataset.sido || null; renderRegionBar(); draw(); };
+    });
+  }
+
+  function load(){
+    document.getElementById('mapcount').textContent = '불러오는 중…';
+    fetch('/api/listings.geojson' + (allMode ? '?all=1' : '')).then(r => r.json()).then(gj => {
+      lastGj = gj;
+      // 선택했던 시도가 새 결과에 없으면 전체로 리셋(빈 화면 방지).
+      if (sidoFilter && !(gj.by_sido || []).some(e => e.sido === sidoFilter)) sidoFilter = null;
+      renderRegionBar();
+      draw();
+    }).catch(e => {
+      document.getElementById('mapcount').textContent = '데이터 로드 실패: ' + e;
+    });
+  }
+
+  const btnCand = document.getElementById('mode-cand');
+  const btnAll = document.getElementById('mode-all');
+  function setMode(all){
+    allMode = all;
+    btnCand.classList.toggle('on', !all);
+    btnAll.classList.toggle('on', all);
+    document.getElementById('mute-legend').style.display = all ? '' : 'none';
+    load();
+  }
+  btnCand.onclick = () => setMode(false);
+  btnAll.onclick = () => setMode(true);
+
+  load();
 })();
 </script>
 {% endblock %}
