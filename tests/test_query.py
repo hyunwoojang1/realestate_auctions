@@ -101,6 +101,18 @@ def test_sort_by_profit_desc():
     assert profits == sorted(profits, reverse=True)
 
 
+def test_positive_only_subtracts_burden_and_drops_uncertain():
+    a = _sl(case_no="clean_pos", profit_low=200_000_000)          # 인수 없음 +2억 → 통과
+    b = _sl(case_no="burden_neg", profit_low=100_000_000)         # +1억이나 인수 3억 → 제외
+    c = _sl(case_no="uncertain", profit_low=200_000_000)          # 금액 미상 부담 → 제외
+    d = _sl(case_no="no_estimate", profit_low=None, expected_profit=None)  # 차익 없음 → 제외
+    assumed = {"burden_neg": 300_000_000}
+    burden_of = lambda s: assumed.get(s.case_no, 0)               # noqa: E731
+    uncertain_of = lambda s: s.case_no == "uncertain"            # noqa: E731
+    out = query.positive_only([a, b, c, d], burden_of=burden_of, uncertain_of=uncertain_of)
+    assert [s.case_no for s in out] == ["clean_pos"]
+
+
 def test_count_by_sido_groups_and_sorts_desc():
     items = [_sl(case_no="a", address="서울 강남구"),
              _sl(case_no="b", address="서울 노원구"),

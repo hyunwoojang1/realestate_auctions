@@ -105,6 +105,26 @@ def apply_filters(items: list[ScoredListing], min_score: float | None = None,
     return out
 
 
+def positive_only(items: list[ScoredListing], burden_of=None, uncertain_of=None
+                  ) -> list[ScoredListing]:
+    """효과 차익(보수 차익 − 인수금액) > 0 인 물건만 — 지도 '차익 양수만' 기본.
+
+    인수금액 미상(uncertain_of=True)인 물건은 제외한다 — 인수 부담은 있는데 금액을
+    아직 몰라(권리분석 크롤 미완) 효과 차익이 마이너스일 수 있으므로 '진짜 차익'에 넣지
+    않는다. 크롤이 인수금액을 확정하면 다음 요청부터 자동으로 편입/제외된다(정적 목록 아님).
+    """
+    out = []
+    for s in items:
+        if uncertain_of is not None and uncertain_of(s):
+            continue
+        p = decision_profit(s)
+        if p is None:
+            continue
+        if p - (burden_of(s) if burden_of else 0) > 0:
+            out.append(s)
+    return out
+
+
 def count_by_sido(items: list[ScoredListing]) -> list[dict]:
     """지도 '어디에 몇 건' 집계 — 시도별 건수, 최다 지역 먼저.
 

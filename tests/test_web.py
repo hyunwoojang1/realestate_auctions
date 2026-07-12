@@ -117,22 +117,29 @@ def test_geojson_has_region_counts():
     assert counts == sorted(counts, reverse=True)               # 최다 지역 먼저
 
 
-def test_geojson_evaluable_only_by_default():
-    # 기본 = 차익후보(평가 가능)만. all=1 은 미지원·시세추정불가까지 전부.
-    default_n = sum(e["count"] for e in _client().get("/api/listings.geojson").get_json()["by_sido"])
-    all_n = sum(e["count"] for e in _client().get("/api/listings.geojson?all=1").get_json()["by_sido"])
-    assert all_n >= default_n                                   # 전체가 후보보다 많거나 같음
+def test_geojson_scope_tiers_are_nested():
+    # 3단 스코프: 차익양수만(기본) ⊆ 평가가능(scope=evaluable) ⊆ 전체(all=1).
+    def total(qs):
+        return sum(e["count"] for e in _client().get("/api/listings.geojson" + qs).get_json()["by_sido"])
+    profit_n = total("")                       # 기본 = 효과 차익 > 0
+    eval_n = total("?scope=evaluable")         # 시세 추정된 것 전부(양수·음수)
+    all_n = total("?all=1")                     # 미지원까지 전부
+    assert profit_n <= eval_n <= all_n
+    assert all_n > profit_n                      # 노이즈가 실제로 걸러짐(동률 아님)
 
 
-def test_geojson_features_carry_sido():
+def test_geojson_features_carry_sido_and_uncertain():
     feats = _client().get("/api/listings.geojson?all=1").get_json()["features"]
-    # 좌표 캐시가 있는 핀은 클라이언트 지역 필터용 sido 속성을 가진다.
-    assert all("sido" in f["properties"] for f in feats)
+    # 각 핀은 클라 지역필터용 sido + 인수금액 미상 표시용 uncertain 플래그를 가진다.
+    assert all("sido" in f["properties"] and "uncertain" in f["properties"] for f in feats)
 
 
 def test_map_page_renders_region_panel():
     body = _client().get("/map").get_data(as_text=True)
-    assert "지역별" in body and "차익후보만" in body   # 지역 카운트 패널 + 기본 토글 라벨
+    assert "지역별" in body                              # 지역 카운트 패널
+    # 3단 스코프 토글 라벨
+    assert "차익 양수만" in body and "평가가능" in body and "전체 보기" in body
+    assert "인수금액" in body                            # 효과 차익 근거 안내
 
 
 def test_methodology_page():
