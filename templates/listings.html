@@ -79,6 +79,18 @@
         <option value="">전체</option>
         {% for t in ['아파트','오피스텔'] %}<option value="{{ t }}" {% if filters.type == t %}selected{% endif %}>{{ t }}</option>{% endfor %}
       </select></div>
+    <div class="hs-f"><label>면적 (전용)</label>
+      <select name="area">
+        <option value="">전체</option>
+        {% for v, lab in [('~20','~20평'),('20','20평대'),('30','30평대'),('40','40평대'),('50plus','50평+')] %}
+        <option value="{{ v }}" {% if filters.area == v %}selected{% endif %}>{{ lab }}</option>{% endfor %}
+      </select></div>
+    <div class="hs-f"><label>유찰</label>
+      <select name="fails">
+        <option value="">전체</option>
+        {% for v, lab in [('1','1회+'),('2','2회+'),('3','3회+')] %}
+        <option value="{{ v }}" {% if filters.fails == v %}selected{% endif %}>{{ lab }}</option>{% endfor %}
+      </select></div>
     <button type="submit" class="hs-go">조건에 맞는 물건 찾기</button>
   </form>
   <div class="hs-quick">

@@ -73,6 +73,34 @@ def test_budget_max_and_min_bid():
     assert {s.case_no for s in query.apply_filters(items, min_bid=800_000_000)} == {"pricey"}
 
 
+def test_area_bounds_brackets():
+    lo, hi = query.area_bounds("20")        # 20평대 = 66.1~99.2㎡
+    assert round(lo, 1) == 66.1 and round(hi, 1) == 99.2
+    lo, hi = query.area_bounds("~20")       # 상한만(20평 미만)
+    assert lo is None and round(hi, 1) == 66.1
+    lo, hi = query.area_bounds("50plus")    # 하한만(50평+)
+    assert round(lo, 1) == 165.3 and hi is None
+    assert query.area_bounds("") == (None, None) and query.area_bounds("헛값") == (None, None)
+
+
+def test_area_filter_by_bracket():
+    items = [_sl(case_no="s", area_m2=59.9),    # 18평
+             _sl(case_no="m", area_m2=84.9),    # 25평 → 20평대
+             _sl(case_no="l", area_m2=115.0)]   # 34평 → 30평대
+    lo, hi = query.area_bounds("20")
+    assert {s.case_no for s in query.apply_filters(items, min_area=lo, max_area=hi)} == {"m"}
+    lo, hi = query.area_bounds("~20")
+    assert {s.case_no for s in query.apply_filters(items, min_area=lo, max_area=hi)} == {"s"}
+
+
+def test_min_fails_filter():
+    items = [_sl(case_no="new", fail_count=0),
+             _sl(case_no="once", fail_count=1),
+             _sl(case_no="thrice", fail_count=3)]
+    assert {s.case_no for s in query.apply_filters(items, min_fails=1)} == {"once", "thrice"}
+    assert {s.case_no for s in query.apply_filters(items, min_fails=3)} == {"thrice"}
+
+
 def test_days_until_and_is_soon():
     today = dt.date(2026, 7, 12)
     assert query.days_until("2026-07-15", today) == 3

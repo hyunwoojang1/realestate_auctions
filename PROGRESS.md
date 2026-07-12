@@ -36,6 +36,11 @@
 - (없음 — **데이터 신뢰도 개편 루프 T1~T8 전부 완료**, 2026-07-03 15:59 종료. 상세 GOAL_DATA_TRUST.md·versions.md)
 
 ## 최근 완료 (2026-07-13)
+- **홈 검색 변수 추가: 면적(평대)+유찰** (06:58 KST) — 홈 검색에 '면적(전용)' 평대 브래킷
+  (~20/20/30/40/50평+)과 '유찰'(1·2·3회+) 셀렉트 추가. query.apply_filters min_area/max_area/
+  min_fails + query.area_bounds(1평=3.3058㎡). 데이터 커버리지 실측 후 도입(area 682/682, fail_count
+  449건). 증거: 신규 5건 통과, 전체 453 passed(1 env-fail), Playwright 실데이터(30평대+1회+ → 99~132㎡
+  정확 필터). versions.md 06:58 참조. 보류: 차익률·예산하한·신뢰도(사용자가 면적·유찰까지만 지시).
 - **지도 3단 스코프(차익 양수만) + pmap 청소** (00:09 KST) — ① 지도 기본을 '차익 양수만'으로 조임:
   query.positive_only(효과차익=보수차익−인수금액>0, 금액 미상은 제외) 신규, geojson 3단(profit 267/
   evaluable 861/all 7,967) + feature uncertain 플래그, map.html 3버튼 토글 + '−α(인수 미상)' 표시.
