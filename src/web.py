@@ -204,6 +204,8 @@ def create_app() -> Flask:
     app = Flask(__name__, template_folder=str(ROOT / "templates"))
     app.json.ensure_ascii = False   # 한글 그대로 직렬화
     app.json.sort_keys = False
+    # 전용면적 평 환산은 모든 화면(홈·리스트·상세)에서 쓰므로 Jinja 전역으로 한 번만 등록.
+    app.jinja_env.globals["pyeong"] = report.pyeong
 
     @app.after_request
     def _tag_data_source(resp):

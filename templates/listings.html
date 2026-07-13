@@ -37,7 +37,7 @@
 {%- set d = days_until(s.sale_date) -%}
 <a class="scard" href="{{ proplink(s) }}">
   <div class="sc-nm">{{ s.apt_name or s.property_type }}</div>
-  <div class="sc-ad">{{ s.address }} · {{ s.property_type }} · {{ '%.0f'|format(s.area_m2) }}㎡</div>
+  <div class="sc-ad">{{ s.address }} · {{ s.property_type }} · {{ '%.0f'|format(s.area_m2) }}㎡{% if s.area_m2 %} ({{ pyeong(s.area_m2) }}){% endif %}</div>
   <div class="sc-tags">
     {% if d is not none and 0 <= d <= 7 %}<span class="chip sm soon">임박 D-{{ d }}</span>{% endif %}
     {{ burdenchip(b) }}{{ statuschip(s, sm=True, skip_pending=(b is not none)) }}
@@ -158,7 +158,7 @@
     <div class="pk-rank">{{ loop.index }}</div>
     <div style="min-width:0">
       <a class="pk-name rowlink" href="{{ proplink(s) }}">{{ s.apt_name or s.property_type }}</a>
-      <div class="pk-addr">{{ s.address }} · {{ s.property_type }} · {{ '%.0f'|format(s.area_m2) }}㎡</div>
+      <div class="pk-addr">{{ s.address }} · {{ s.property_type }} · {{ '%.0f'|format(s.area_m2) }}㎡{% if s.area_m2 %} ({{ pyeong(s.area_m2) }}){% endif %}</div>
       <div class="pk-case">{{ s.case_no }}
         {%- set on = (s.court ~ '|' ~ s.case_no ~ '|' ~ s.item_no) in (watched or []) or s.case_no in (watched or []) -%}
         <form method="post" action="/watchlist/toggle/{{ s.case_no }}" style="display:inline;margin:0">
@@ -195,7 +195,7 @@
     <div class="top">
       <div style="min-width:0">
         <a class="nm rowlink" href="{{ proplink(s) }}">{{ loop.index }}. {{ s.apt_name or s.property_type }}</a>
-        <div class="ad">{{ s.address }} · {{ s.property_type }} · {{ '%.0f'|format(s.area_m2) }}㎡</div>
+        <div class="ad">{{ s.address }} · {{ s.property_type }} · {{ '%.0f'|format(s.area_m2) }}㎡{% if s.area_m2 %} ({{ pyeong(s.area_m2) }}){% endif %}</div>
       </div>
       <span style="flex:none;position:relative;z-index:2">{{ burdenchip(b) }}{{ statuschip(s, sm=True, skip_pending=(b is not none)) }}</span>
     </div>

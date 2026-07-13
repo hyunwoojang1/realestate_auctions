@@ -20,7 +20,7 @@
       <h1>{{ s.apt_name or s.property_type }}</h1>
       <span class="case">{{ s.case_no }}</span>
     </div>
-    <p class="meta">{{ s.address }} · {{ s.property_type }} · {{ '%.1f'|format(s.area_m2) }}㎡ · 유찰 {{ s.fail_count }}회 · 매각기일 {{ s.sale_date }} · 준공연도 미확인<span style="color:var(--ink-300)">(건축물대장 API 대기)</span></p>
+    <p class="meta">{{ s.address }} · {{ s.property_type }} · {{ '%.1f'|format(s.area_m2) }}㎡{% if s.area_m2 %} ({{ pyeong(s.area_m2) }}){% endif %} · 유찰 {{ s.fail_count }}회 · 매각기일 {{ s.sale_date }} · 준공연도 미확인<span style="color:var(--ink-300)">(건축물대장 API 대기)</span></p>
   </div>
   <form method="post" action="/watchlist/toggle/{{ s.case_no }}" style="margin:0">
     <input type="hidden" name="court" value="{{ s.court }}"><input type="hidden" name="item" value="{{ s.item_no }}">
@@ -419,12 +419,20 @@
       d+='Z';
       g.appendChild(el('path',{d:d,fill:'var(--band-fill,rgba(37,99,235,.09))',stroke:'var(--band-line,#9db8ef)','stroke-width':1,'stroke-linejoin':'round'}));
     } else if(C.band_now){
-      var x0=X(Math.max(D0, D1-365.25*24*3600*1000));
-      g.appendChild(el('rect',{x:x0,y:Y(C.band_now.hi),width:R-x0,height:Y(C.band_now.lo)-Y(C.band_now.hi),
-        fill:'var(--band-fill,rgba(37,99,235,.09))',stroke:'var(--band-line,#9db8ef)','stroke-width':1,rx:3}));
+      // 실거래 점(시계열)이 없으면 밴드를 특정 시점에 고정할 수 없다 → 감정가/취득원가 기준선처럼
+      // 전폭(L→R) '현재 시세' 참고 밴드로 그린다. (기존엔 최근 1년 구간 막대라 유찰 계단을
+      //  가로질러 떠 있는 것처럼 보였다 — 2026-07-13 차트감사.)
+      var bh=Y(C.band_now.hi), bl=Y(C.band_now.lo);
+      g.appendChild(el('rect',{x:L,y:bh,width:R-L,height:Math.max(1.5,bl-bh),
+        fill:'var(--band-fill,rgba(37,99,235,.09))',stroke:'var(--band-line,#9db8ef)','stroke-width':1,rx:2}));
     }
-    if(C.band_now){ rlab(g,C.band_now.hi,'시세 상한',wonS(C.band_now.hi),'var(--ink-600)',false);
-      rlab(g,C.band_now.lo,'검증 하한',wonS(C.band_now.lo),'var(--ink-800)',true); }
+    if(C.band_now){
+      // 상·하한이 억 단위(wonS)로 같게 반올림되면 라벨 하나로 합쳐 '0.6억/0.6억' 중복을 없앤다.
+      if(wonS(C.band_now.hi)===wonS(C.band_now.lo))
+        rlab(g,(C.band_now.hi+C.band_now.lo)/2,'현재 시세',wonS(C.band_now.lo),'var(--ink-800)',true);
+      else { rlab(g,C.band_now.hi,'시세 상한',wonS(C.band_now.hi),'var(--ink-600)',false);
+        rlab(g,C.band_now.lo,'검증 하한',wonS(C.band_now.lo),'var(--ink-800)',true); }
+    }
 
     // 감정가 / 취득원가 기준선
     if(lv.appraisal){ g.appendChild(el('line',{x1:L,y1:Y(lv.appraisal),x2:R,y2:Y(lv.appraisal),stroke:'var(--ink-300)','stroke-width':1.5,'stroke-dasharray':'2 3'}));

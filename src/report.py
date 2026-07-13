@@ -25,6 +25,16 @@ def _pct(v) -> str:
     return "-" if v is None else f"{v*100:.0f}%"
 
 
+_PYEONG = 3.3058   # 1평 = 3.3058㎡ (query._PYEONG 와 동일 상수)
+
+
+def _pyeong(m2) -> str:
+    """전용면적 ㎡ → '12.5평' 문자열(1평=3.3058㎡). 값이 없으면 빈 문자열."""
+    if not m2 or m2 <= 0:
+        return ""
+    return f"{m2 / _PYEONG:.1f}평"
+
+
 # 경고 등급만 콘솔/HTML에 표기(사용자 결정 #6 — 긍정 판정 표기는 폐지, 점수는 내부용).
 _WARN_GRADES = ("권리미확인", "위험", "시세추정불가", "차익없음", "미지원유형")
 
@@ -185,6 +195,7 @@ def gap_meter_html(s: ScoredListing, askings: list | None = None) -> str:
 # 웹 템플릿(src/web.py)에서 재사용하는 공개 별칭 — 금액 포맷 로직 공유
 won = _won
 pct = _pct
+pyeong = _pyeong
 
 
 def to_html(items: list[ScoredListing], path: str | Path) -> Path:
