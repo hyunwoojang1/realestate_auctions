@@ -1,5 +1,17 @@
 # versions.md — auction-arbitrage 루프 작업 로그 (append-only, 최신순)
 
+## 2026-07-13 17:50 KST — 🎯 crawl_rights --estimable 플래그(사진 백필 최적화)
+- 문제: 사진 백필에 --all 쓰면 scored 8171건 전부 courtauction 순차크롤 → 수시간+IP밴 리스크인데
+  사진은 estimable 682건에만 저장(나머지 ~7500건 헛크롤). estimable이 정렬 앞에 다 모이지도 않음
+  (양수차익 339만 앞, 나머지 343은 꼬리에 섞임)이라 --limit로도 못 잡음.
+- 해결: `--estimable` 플래그 추가 — estimable_keys(682)만 타겟(limit 무시, refresh 함의). _targets에
+  estimable_only 파라미터 추가해 키 불일치 대상 제외. 드라이 확인: 정확히 682건.
+- 검증: 앞서 --limit 5 --refresh 테스트로 사진 31장+감정요항 5건 로컬·Supabase 미러·프로덕션 렌더
+  확인 완료(2024타경1733 사진12·감정요항, 2025타경500362 사진4). 이어서 --estimable 백그라운드 백필.
+
+## 2026-07-13 17:36 KST — 📘 CLAUDE.md에 "Supabase DDL 직접 실행" 규칙 추가 (사용자 지시)
+- 앞으로 이 프로젝트 Supabase(ref `trajmfklbyarbkiljogj`, "Finance AI") 스키마 변경·임의 SQL은 **에이전트가 Management API로 직접 실행**(클립보드로 사용자에게 넘기지 않음). 토큰=`.env`의 `SUPABASE_ACCESS_TOKEN`, 엔드포인트=`POST https://api.supabase.com/v1/projects/{ref}/database/query`. CLAUDE.md 하단에 절 추가. (증거: `select 1` → `[{"ok":1}]` 실행 확인)
+
 ## 2026-07-13 17:35 KST — 🧹 .gitignore 정리 + ARCHITECTURE.md 추적 (푸시/배포 전 정비)
 - 사진·감정요항 프로덕션 백필 재크롤 전에 깃 상태 정비. 작업트리에 뜨던 로컬 아티팩트를 무시:
   RIGHTS_STOP(크롤 제어파일, AGENT_STOP류) · *.db-shm/*.db-wal(SQLite WAL 임시) ·
