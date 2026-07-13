@@ -28,32 +28,44 @@
   </form>
 </div>
 
-<!-- 히어로 — 예상 차익 + 가격 지도 -->
-{%- set hero_p0 = s.profit_low if s.profit_low is not none else s.expected_profit -%}
-{%- set hero_p = (hero_p0 - badge.assumed) if (hero_p0 is not none and badge and badge.assumed) else hero_p0 -%}
-<div class="dhero{% if hero_p is not none and hero_p < 0 %} neg{% endif %}">
+<!-- 히어로 — 예상 차익 (인수 상한 반영, 최악~최선 범위) -->
+{# 정의(2026-07-13 사용자 결정): 실제 인수액 = 보증금 − 배당액. 배당액은 명세서에 없으므로
+   badge.assumed 는 '보증금 전액을 인수하는 최악 상한'이다. 차익을 단일값이 아니라 범위로 본다:
+     hero_best = 시세 − 취득원가            (임차인이 배당 전액 → 인수 0, 최선)
+     hero_worst = 시세 − 취득원가 − 최대인수  (임차인 배당 0 → 보증금 전액 인수, 최악)
+   대표 숫자는 보수적으로 최악을 크게 쓴다. #}
+{%- set hero_best = s.profit_low if s.profit_low is not none else s.expected_profit -%}
+{%- set hero_worst = (hero_best - badge.assumed) if (hero_best is not none and badge and badge.assumed) else hero_best -%}
+{%- set has_burden = badge and (badge.assumed or badge.amount_unknown) -%}
+{%- set hero_p = hero_worst -%}{# 하위 템플릿 호환(STEP1 등에서 참조) — 최악값 #}
+<div class="dhero{% if hero_worst is not none and hero_worst < 0 %} neg{% endif %}">
   <div class="dhero-head">
     <div>
       <div class="lead">
-        {%- if s.profit_low is not none -%}예상 차익 (보수 기준{% if badge and badge.assumed %} · 인수금 반영{% endif %}) · 근거 표본 {{ s.market_sample_basis if s.market_sample_basis is not none else s.matched_trades }}건
-        {%- elif hero_p is not none -%}예상 차익 (기준 시세{% if badge and badge.assumed %} · 인수금 반영{% endif %}) · 시세 대비 {{ pct(s.gap_rate) }}
+        {%- if s.profit_low is not none -%}예상 차익 (보수 기준{% if has_burden %} · 최대 인수 반영{% endif %}) · 근거 표본 {{ s.market_sample_basis if s.market_sample_basis is not none else s.matched_trades }}건
+        {%- elif hero_worst is not none -%}예상 차익 (기준 시세{% if has_burden %} · 최대 인수 반영{% endif %}) · 시세 대비 {{ pct(s.gap_rate) }}
         {%- else -%}시세 추정 불가{%- endif -%}
       </div>
-      <div class="big{% if hero_p is not none and hero_p < 0 %} neg{% endif %}">{% if hero_p is not none %}{{ won(hero_p) }}{% if badge and badge.amount_unknown %}<span style="font-size:.45em;color:var(--risk);font-weight:800"> −α</span>{% endif %}{% else %}—{% endif %}</div>
-      {% if badge and badge.amount_unknown %}
-      {# (#20) 부담 사유별 문구 — 지분·구분지상권·전세권 등에 '임차보증금' 오표기 방지, 시세추정불가(—)면 '작습니다' 문장 숨김 #}
-      {%- set burden_reason = badge.special|join(', ') if badge.special else '임차보증금' -%}
-      <div style="font-size:12.5px;color:var(--risk);font-weight:600;margin-top:4px">⚠ {{ burden_reason }} 인수 별도(금액 미상){% if hero_p is not none %} — 실제 차익은 이보다 작습니다{% endif %}</div>
+      <div class="big{% if hero_worst is not none and hero_worst < 0 %} neg{% endif %}">{% if hero_worst is not none %}{{ won(hero_worst) }}{% if badge and badge.amount_unknown %}<span style="font-size:.45em;color:var(--risk);font-weight:800"> −α</span>{% endif %}{% else %}—{% endif %}</div>
+      {% if has_burden and hero_best is not none %}
+      {%- set burden_reason = badge.special|join(', ') if (badge.amount_unknown and badge.special) else '보증금' -%}
+      <div style="font-size:13px;font-weight:600;margin-top:5px">
+        <span style="color:var(--ink-500)">범위</span>
+        <b style="color:var(--risk)">{% if badge.amount_unknown %}−α{% else %}{{ won(hero_worst) }}{% endif %}</b> <span style="color:var(--ink-400);font-weight:500">최악(보증금 전액 인수)</span>
+        <span style="color:var(--ink-300)"> ~ </span>
+        <b style="color:var(--gain-strong)">{{ won(hero_best) }}</b> <span style="color:var(--ink-400);font-weight:500">최선(임차인 전액 배당)</span>
+      </div>
+      <div style="font-size:11.5px;color:var(--ink-400);margin-top:3px;line-height:1.5">실제 인수액 = {{ burden_reason }} − 배당액(낙찰가·순위 확정 후 결정). 표시값은 <b>배당 0 가정 최악 상한</b>이라 실제 차익은 보통 이보다 큽니다.</div>
       {% endif %}
       <div class="chiprow">
-        {# (#6/#17) 명세서 크롤 완료(rights)면 '권리미확인' 등급 칩을 '명세서 확인됨'으로 치환 — 상단 칩과 하단 '권리분석 반영됨' 모순 제거 #}
+        {# (#6/#17) 명세서 크롤 완료(rights)면 '권리미확인' 등급 칩을 '명세서 확인됨'으로 치환 #}
         {% if rights and s.grade == '권리미확인' %}<span class="chip clean">명세서 확인됨</span>{% else %}{{ statuschip(s) }}{% endif %}
         <span class="chip muted">신뢰 {{ '%.2f'|format(s.confidence) }} · 매칭 {{ s.matched_trades }}건</span>
       </div>
     </div>
-    {% if hero_p is not none %}
+    {% if hero_worst is not none %}
     <div class="dhero-eq">
-      <span class="t">계산식</span>
+      <span class="t">계산식(최악)</span>
       {% if s.profit_low is not none and s.market_band_low is not none %}
       <b>{{ won(s.market_band_low) }}</b> <span class="d">검증 시세(하한)</span>
       {% else %}
@@ -61,9 +73,9 @@
       {% endif %}
       <span class="op">−</span> <b>{{ won(s.real_acquisition_cost) }}</b> <span class="d">취득원가</span>
       {% if badge and badge.assumed %}
-      <span class="op">−</span> <b style="color:var(--risk)">{{ won(badge.assumed) }}</b> <span class="d" style="color:var(--risk)">인수금액</span>
+      <span class="op">−</span> <b style="color:var(--risk)">{{ won(badge.assumed) }}</b> <span class="d" style="color:var(--risk)">최대 인수(보증금 상한)</span>
       {% elif badge and badge.amount_unknown %}
-      <span class="op" style="color:var(--risk)">−</span> <b style="color:var(--risk)">α</b> <span class="d" style="color:var(--risk)">인수 보증금(금액 미상)</span>
+      <span class="op" style="color:var(--risk)">−</span> <b style="color:var(--risk)">α</b> <span class="d" style="color:var(--risk)">인수 보증금(명세서 미기재)</span>
       {% endif %}
     </div>
     {% endif %}
@@ -137,16 +149,18 @@
       {% endif %}
       {% if s.profit_low is not none %}
       <div class="drow"><span class="k">보수 가격 기준 차익 <span class="hint">(하한 − 취득원가)</span></span><span class="v {% if s.profit_low < 0 %}neg{% else %}gain{% endif %}">{{ won(s.profit_low) }}</span></div>
-      {% elif hero_p0 is not none %}
-      <div class="drow"><span class="k">기준 시세 차익 <span class="hint">(추정시세 − 취득원가)</span></span><span class="v {% if hero_p0 < 0 %}neg{% else %}gain{% endif %}">{{ won(hero_p0) }}</span></div>
+      {% elif hero_best is not none %}
+      <div class="drow"><span class="k">기준 시세 차익 <span class="hint">(추정시세 − 취득원가)</span></span><span class="v {% if hero_best < 0 %}neg{% else %}gain{% endif %}">{{ won(hero_best) }}</span></div>
       {% endif %}
       {# (#19) 인수금액이 있으면 STEP1 표에도 차감 행을 넣어 히어로(인수 반영)와 같은 값으로 —
          표만 보고 초록 양수로 오독하던 문제 해소. #}
       {% if badge and (badge.assumed or badge.amount_unknown) %}
-      <div class="drow"><span class="k">인수금액 <span class="hint">(명세서 인수 권리)</span></span><span class="v neg">{% if badge.assumed %}− {{ won(badge.assumed) }}{% else %}− α (금액 미상){% endif %}</span></div>
-      {% if badge.assumed and hero_p is not none %}
-      <div class="drow"><span class="k">인수 차감 후 차익 <span class="hint">(실질)</span></span><span class="v {% if hero_p < 0 %}neg{% else %}gain{% endif %}"><b>{{ won(hero_p) }}</b></span></div>
+      <div class="drow"><span class="k">최대 인수 가능액 <span class="hint">(보증금 상한 · 배당 0 가정)</span></span><span class="v neg">{% if badge.assumed %}− {{ won(badge.assumed) }}{% else %}− α (명세서 미기재){% endif %}</span></div>
+      {% if badge.assumed and hero_worst is not none %}
+      <div class="drow"><span class="k">최악 차익 <span class="hint">(보증금 전액 인수 시)</span></span><span class="v {% if hero_worst < 0 %}neg{% else %}gain{% endif %}"><b>{{ won(hero_worst) }}</b></span></div>
+      <div class="drow"><span class="k">최선 차익 <span class="hint">(임차인 전액 배당 시)</span></span><span class="v gain">{{ won(hero_best) }}</span></div>
       {% endif %}
+      <div class="dnote" style="font-size:11.5px">실제 인수액 = 보증금 − 임차인 배당액. 배당액은 낙찰가·배당순위 확정 후 결정돼 명세서에 없으므로, 위 인수액은 <b>보증금 전액을 떠안는 최악 상한</b>입니다. 정확한 인수액은 등기부·배당순위로 확인하세요.</div>
       {% endif %}
       <div class="drow"><span class="k">매칭 실거래 / 신뢰계수</span><span class="v">{{ s.matched_trades }}건 · {{ '%.2f'|format(s.confidence) }}</span></div>
       {% if s.market_sample_basis is not none and s.est_market_price is not none %}
@@ -238,7 +252,7 @@
       <h2>매수 적정성 <span class="sub risk">· 인수 위험</span></h2></div>
     <div class="dpanel risk">
       <div class="dbanner risk">⚠ <b>인수 위험</b> — {{ gate_reason }}. 낙찰가 외 추가 부담이 발생합니다.</div>
-      <div class="drow"><span class="k">인수금액</span><span class="v neg">{{ won(listing.assumed_amount) if listing.assumed_amount else '발견 안 됨' }}</span></div>
+      <div class="drow"><span class="k">최대 인수 <span class="hint">(보증금 상한)</span></span><span class="v neg">{{ won(listing.assumed_amount) if listing.assumed_amount else '발견 안 됨' }}</span></div>
       <div class="drow"><span class="k">대항력 임차인</span><span class="v">{{ '있음' if listing.tenant_opposable else '발견 안 됨' }}</span></div>
       <div class="drow"><span class="k">점유</span><span class="v" style="font-size:14px;color:var(--ink-700)">{{ listing.occupant_type }}</span></div>
     {% elif listing.tenant_opposable %}
@@ -248,7 +262,7 @@
       <h2>매수 적정성 <span class="sub risk">· 대항력 임차인 주의</span></h2></div>
     <div class="dpanel risk">
       <div class="dbanner risk">⚠ <b>대항력 있는 임차인(또는 임차권등기) 신호</b> — 배당에서 보증금이 전액 변제되지 않으면 잔액을 매수인이 인수할 수 있습니다. 위 명세서 요지와 배당요구·확정일자를 반드시 확인하세요.</div>
-      <div class="drow"><span class="k">인수금액{% if not listing.assumed_amount %} <span class="hint">(명세서에 금액 미기재 — 보증금 확인 필요)</span>{% endif %}</span><span class="v neg">{{ won(listing.assumed_amount) if listing.assumed_amount else '금액 미상' }}</span></div>
+      <div class="drow"><span class="k">최대 인수{% if not listing.assumed_amount %} <span class="hint">(명세서에 보증금 미기재 — 등기부 확인)</span>{% else %} <span class="hint">(보증금 상한)</span>{% endif %}</span><span class="v neg">{{ won(listing.assumed_amount) if listing.assumed_amount else '금액 미상' }}</span></div>
       <div class="drow"><span class="k">대항력 임차인</span><span class="v neg">있음(문구 검출)</span></div>
       <div class="drow"><span class="k">점유</span><span class="v" style="font-size:14px;color:var(--ink-700)">{{ listing.occupant_type }}</span></div>
     {% elif badge and not badge.is_clean %}
@@ -258,14 +272,14 @@
       <h2>사도 되는가 <span class="sub risk">· 인수 부담 신호</span></h2></div>
     <div class="dpanel risk">
       <div class="dbanner risk">⚠ <b>인수 부담 신호가 있습니다</b> — {% if badge.special %}{{ badge.special|join(', ') }} · {% endif %}위 명세서 요지를 확인하세요. 치명적 하드게이트에는 해당하지 않으나 추가 부담 가능성이 있습니다.</div>
-      <div class="drow"><span class="k">인수금액</span><span class="v neg">{% if badge.assumed %}{{ won(badge.assumed) }}{% else %}금액 미상(+α){% endif %}</span></div>
+      <div class="drow"><span class="k">최대 인수 <span class="hint">(보증금 상한)</span></span><span class="v neg">{% if badge.assumed %}{{ won(badge.assumed) }}{% else %}금액 미상(+α){% endif %}</span></div>
       <div class="drow"><span class="k">점유</span><span class="v" style="font-size:14px;color:var(--ink-700)">{{ listing.occupant_type }}</span></div>
     {% else %}
     <div class="dstep-head"><span class="dstep-num ok">✓</span>
       <h2>매수 적정성 <span class="sub ok">· 치명적 인수권리 미발견</span></h2></div>
     <div class="dpanel ok">
       <div class="dbanner ok">✓ 권리분석 반영됨 — 치명적 인수권리가 발견되지 않았습니다(최종 확인은 본인).</div>
-      <div class="drow"><span class="k">인수금액</span><span class="v">{{ won(listing.assumed_amount) if listing.assumed_amount else '발견 안 됨' }}</span></div>
+      <div class="drow"><span class="k">최대 인수 <span class="hint">(보증금 상한)</span></span><span class="v">{{ won(listing.assumed_amount) if listing.assumed_amount else '발견 안 됨' }}</span></div>
       <div class="drow"><span class="k">대항력 임차인</span><span class="v">{{ '있음' if listing.tenant_opposable else '발견 안 됨' }}</span></div>
       <div class="drow"><span class="k">점유</span><span class="v" style="font-size:14px;color:var(--ink-700)">{{ listing.occupant_type }}</span></div>
     {% endif %}
