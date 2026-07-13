@@ -23,6 +23,9 @@ from src.courtauction_client import CourtAuctionBlocked, CourtAuctionClient, Cou
 from src.courtauction_detail import extract_photos, normalize
 
 _KST = timezone(timedelta(hours=9))
+# 물건당 저장 사진 수 상한 — 히어로 스와이프용. Supabase 공유티어(500MB) 용량 때문에 무제한은
+# 지양(전물건 전사진=1GB+). 대부분 물건이 이 이하이므로 사실상 '거의 전부'. 환경변수로 조정.
+PHOTO_CAP = int(os.environ.get("AUCTION_PHOTO_CAP", "12"))
 
 
 def _targets(conn, limit: int | None, refresh: bool) -> list[dict]:
@@ -105,7 +108,7 @@ def main(argv=None) -> int:
             # 사진 썸네일 — 같은 pgj15B 응답에서 추출(추가 요청 0), 시세추정 물건만 저장.
             key = (t["court"], t["case_no"], str(t["item_no"] or ""))
             if key in estimable:
-                thumbs = [th for r in extract_photos(dma, cap=3)
+                thumbs = [th for r in extract_photos(dma, cap=PHOTO_CAP)
                           if (th := photo.thumbnail_b64(r))]
                 if thumbs:
                     store.save_photos(conn, *key, thumbs, fetched_at=now)

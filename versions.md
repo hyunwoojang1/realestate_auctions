@@ -1,5 +1,12 @@
 # versions.md — auction-arbitrage 루프 작업 로그 (append-only, 최신순)
 
+## 2026-07-13 17:15 KST — 🖼 사진 물건당 저장 수 확대(3→12) + 전체사진 로컬 export
+- 사용자 "사진 다 가져와". 기존 cap=3(대표만) → PHOTO_CAP=12(환경변수, 대부분 물건 전부 커버).
+  무제한은 Supabase 공유티어(500MB) 초과 위험(전물건 전사진 1GB+)이라 상한 유지 — 진짜 전부는
+  Supabase Storage 이전이 정답(후속 옵션).
+- 로컬 확인용: 물건사진/ 폴더에 3개 테스트물건 전체 사진 저장(목동15·두산6·롯데4=25장,
+  {아파트명}_{사건번호}_{NN}.jpg). base64→JPEG 디코드.
+
 ## 2026-07-13 17:00 KST — 🎨 [개편 Phase 1·2] richgo 스타일 상세페이지 전면 재구성
 - 배경: richgo.ai 레퍼런스 개편 plan 승인. 모바일 우선 사진히어로+요약카드+3탭 IA.
 - Phase 1(base.html CSS): .ddetail(680px 읽기컬럼) · .dphoto(스와이프 사진히어로+도트) ·
