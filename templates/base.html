@@ -569,6 +569,16 @@ table.params{border-collapse:collapse;width:100%;font-size:var(--t-data);backgro
 .dpanel.gate{border-color:var(--caution-line);border-left:4px solid var(--caution)}
 .dpanel.risk{border-color:var(--risk-line);border-left:4px solid var(--risk)}
 .dpanel.ok{border-left:4px solid var(--gain)}
+/* 대항력 판정 근거 카드 (전입일 vs 말소기준일) */
+.dpri{margin:10px var(--sp-5);padding:12px 14px;border-radius:var(--r-md);border:1px solid var(--hairline);background:var(--surface-sunken)}
+.dpri.ok{border-color:var(--gain-line);background:var(--gain-weak)}
+.dpri.warn{border-color:var(--risk-line);background:var(--risk-weak)}
+.dpri.info{border-color:var(--pending-line);background:var(--pending-weak)}
+.dpri-h{font-size:13.5px;color:var(--ink-800);margin-bottom:7px}
+.dpri-cmp{display:flex;align-items:center;gap:10px;flex-wrap:wrap;font-size:13px;color:var(--ink-600);font-variant-numeric:tabular-nums}
+.dpri-cmp b{color:var(--ink-800)}
+.dpri-cmp .vs{color:var(--ink-400);font-weight:700}
+.dpri-note{margin-top:7px;font-size:11.5px;color:var(--ink-500);line-height:1.6}
 .drow{display:flex;justify-content:space-between;align-items:baseline;gap:var(--sp-4);padding:12px var(--sp-5);border-bottom:1px solid var(--hairline)}
 .drow:last-child{border-bottom:none}
 .drow .k{font-size:14px;color:var(--ink-600)}

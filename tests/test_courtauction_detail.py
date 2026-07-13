@@ -224,3 +224,41 @@ def test_substantive_not_startswith_trap():
 def test_empty_rights_no_badge():
     """#13: 빈/부분 명세서(is_empty)는 배지 판정 대상 아님(미확인 폴백)."""
     assert CaseRights(court="법", case_no="2025타경1", item_no="1").is_empty is True
+
+
+# ---- 2026-07-13 대항력 판정 근거 (전입일 vs 말소기준일) ----
+
+def test_priority_confirmed_opposable():
+    """전입 < 말소기준 → 대항력 있음(인수 근거 확인)."""
+    from src.courtauction_detail import analyze_priority
+    r = CaseRights(surviving_rights="을구 3번 주택임차권등기(임대차보증금 330,000,000원, 전입일자 2022.3.28., 확정일자 2022.2.28.) 매수인이 인수함",
+                   senior_lien="2023.8.18. 압류")
+    a = analyze_priority(r)
+    assert a.verdict == "confirmed_opposable"
+    assert a.movein_date == "2022-03-28" and a.senior_date == "2023-08-18"
+    assert a.senior_type == "압류"
+
+
+def test_priority_contradiction():
+    """전입 > 말소기준인데 명세서 인수 → 확인 필요 플래그."""
+    from src.courtauction_detail import analyze_priority
+    r = CaseRights(surviving_rights="임차권등기(전입일자 2020.9.25.) 매수인이 인수함",
+                   senior_lien="2020.9.7. 근저당권")
+    a = analyze_priority(r)
+    assert a.verdict == "contradiction"
+
+
+def test_priority_dates_incomplete():
+    """말소기준은 있으나 전입일 미기재 → 법원 판정만 + 확인 권고."""
+    from src.courtauction_detail import analyze_priority
+    r = CaseRights(surviving_rights="을구 5번 임차권등기 있음. 배당 부족 시 매수인 인수",
+                   senior_lien="2024.2.2. 압류")
+    a = analyze_priority(r)
+    assert a.verdict == "dates_incomplete" and a.movein_date == ""
+
+
+def test_priority_no_basis():
+    """날짜가 전혀 없으면 no_basis."""
+    from src.courtauction_detail import analyze_priority
+    a = analyze_priority(CaseRights(surviving_rights="임차권등기 있음", senior_lien=""))
+    assert a.verdict == "no_basis"

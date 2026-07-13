@@ -208,6 +208,23 @@
       {% if rights.senior_lien %}
       <div class="drow"><span class="k">최선순위 설정 <span class="hint">(말소기준 — 이보다 늦은 권리는 소멸)</span></span><span class="v" style="font-size:13px;font-weight:600;color:var(--ink-700);white-space:pre-line;text-align:right">{{ rights.senior_lien }}</span></div>
       {% endif %}
+      {# 대항력 판정 근거(2026-07-13) — 임차인 전입일 vs 말소기준일. '왜 인수인가'를 날짜로 명시. #}
+      {% if priority and priority.verdict != 'no_basis' %}
+      <div class="dpri {{ 'ok' if priority.verdict=='confirmed_opposable' else ('warn' if priority.verdict=='contradiction' else 'info') }}">
+        <div class="dpri-h">
+          {% if priority.verdict=='confirmed_opposable' %}🔎 대항력 판정: <b>있음</b> (매수인 인수 근거 확인)
+          {% elif priority.verdict=='contradiction' %}⚠ 대항력 판정: <b>확인 필요</b> (날짜와 명세서 불일치)
+          {% else %}🔎 대항력 판정: <b>말소기준만 확인</b> (전입일 미기재)
+          {% endif %}
+        </div>
+        <div class="dpri-cmp">
+          <span>말소기준 <b>{{ priority.senior_type or '최선순위' }} {{ priority.senior_date or '—' }}</b></span>
+          <span class="vs">vs</span>
+          <span>임차인 전입 <b{% if priority.movein_date %}{% if priority.verdict=='confirmed_opposable' %} style="color:var(--risk)"{% endif %}{% endif %}>{{ priority.movein_date or '명세서 미기재' }}</b></span>
+        </div>
+        <div class="dpri-note">{{ priority.note }}</div>
+      </div>
+      {% endif %}
       {% if rights.lien_note %}
       <div class="drow"><span class="k">유치권·법정지상권 등</span><span class="v" style="font-size:13px;font-weight:600;{% if rights.lien_note not in ('해당사항없음','해당사항 없음') %}color:var(--risk){% else %}color:var(--ink-600){% endif %};white-space:pre-line;text-align:right">{{ rights.lien_note }}</span></div>
       {% endif %}

@@ -517,10 +517,15 @@ def create_app() -> Flask:
         except Exception as e:  # noqa: BLE001 — 권리 요지 실패는 상세 페이지를 막지 않음
             logger.warning("권리 요지 로드 실패(%s %s): %s", s.court, s.case_no, e)
         badge = None
+        priority = None
         if rights_row:
             import dataclasses  # noqa: PLC0415
 
-            from .courtauction_detail import CaseRights, summarize  # noqa: PLC0415
+            from .courtauction_detail import (  # noqa: PLC0415
+                CaseRights,
+                analyze_priority,
+                summarize,
+            )
             _cr = CaseRights.from_row(rights_row)
             # (서빙감사 2026-07-12 #13) 빈/부분 명세서는 판정 근거 0 — 배지·rights 둘 다 미표시로
             # 폴백해 '✓ 인수 없음/권리분석 반영됨'으로 오판하지 않는다(목록 가드와 정합).
@@ -529,6 +534,9 @@ def create_app() -> Flask:
         if rights_row:
             rights = _cr
             badge = summarize(rights)
+            # 대항력 판정 근거(2026-07-13) — 전입일 vs 말소기준일. 인수 부담 물건에만.
+            if not badge.is_clean:
+                priority = analyze_priority(rights)
             listing = dataclasses.replace(
                 listing,
                 special_rights=badge.special,
@@ -567,6 +575,7 @@ def create_app() -> Flask:
             assumed=(badge.assumed if badge else 0))
         return render_template(
             "detail.html", s=s, listing=listing, chart=chart, rights=rights, badge=badge,
+            priority=priority,
             meter=report.gap_meter_html(s, askings=ask_points), won=report.won, pct=report.pct,
             gated=gated, gate_reason=", ".join(gate_reasons),
             tax_parts=tax_parts, tax_label=tax.PROFILE.label(),

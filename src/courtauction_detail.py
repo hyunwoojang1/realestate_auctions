@@ -14,6 +14,7 @@
 from __future__ import annotations
 
 import json
+import re
 from dataclasses import asdict, dataclass, field
 
 # 공식 코드표 (실측: /pgj/scframe/lib/sccd/list.on — LJH-AUCTN_DXDY_RSLT_CD / PGJ-AUCTN_DXDY_KND_CD)
@@ -126,6 +127,99 @@ class CaseRights:
             except json.JSONDecodeError:
                 d["schedule"] = []
         return cls(**{k: d.get(k) for k in cls.__dataclass_fields__})  # type: ignore[arg-type]
+
+
+# ---------------------------------------------------------------------------
+# 대항력 분석 (2026-07-13) — 임차인 전입일 vs 말소기준일 비교로 '왜 인수인가' 근거 명시.
+#   전입일 ≤ 말소기준일 → 대항력 있음(매수인 인수) · 전입일 > 말소기준일 → 대항력 없음(소멸).
+#   법원의 '인수되는 권리(surviving_rights)' 필드가 이미 대항력 판정 결과이므로, 여기서는
+#   그 판정의 근거(날짜 비교)를 투명하게 보여주고, 날짜가 판정과 어긋나는 모순건을 검출한다.
+# ---------------------------------------------------------------------------
+_DATE_RE = re.compile(r"(\d{4})\s*[.\-년]\s*(\d{1,2})\s*[.\-월]\s*(\d{1,2})")
+_MOVEIN_RE = re.compile(r"전입\s*일?\s*자?\s*[:\-]?\s*"
+                        r"(\d{4}\s*[.\-년]\s*\d{1,2}\s*[.\-월]\s*\d{1,2})")
+# 말소기준권리 유형 — 앞선 것이 말소기준(담보물권·압류류·경매개시).
+_SENIOR_TYPES = ("근저당권", "근저당", "저당권", "전세권", "담보가등기",
+                 "가압류", "압류", "경매개시결정", "경매개시", "임차권등기")
+
+
+def _to_ymd(m) -> tuple[int, int, int] | None:
+    try:
+        return (int(m.group(1)), int(m.group(2)), int(m.group(3)))
+    except (TypeError, ValueError, IndexError):
+        return None
+
+
+def _first_date(text: str) -> tuple[tuple[int, int, int], str] | None:
+    """텍스트의 첫 날짜(YYYY,M,D) 튜플 + 'YYYY-MM-DD' 표기. 없으면 None."""
+    m = _DATE_RE.search(text or "")
+    if not m:
+        return None
+    ymd = _to_ymd(m)
+    return (ymd, f"{ymd[0]}-{ymd[1]:02d}-{ymd[2]:02d}") if ymd else None
+
+
+@dataclass
+class PriorityAnalysis:
+    """대항력 판정 근거 — 상세 페이지에 '왜 인수/소멸인가'를 날짜로 보여준다.
+
+    verdict:
+      confirmed_opposable   — 전입 ≤ 말소기준 → 대항력 있음(법원 인수 판정과 일치, 근거 명확)
+      contradiction         — 전입 > 말소기준인데 명세서는 인수(임차권등기명령 등 특수·파싱오류 검증대상)
+      dates_incomplete      — 말소기준은 있으나 전입일 미기재(법원 판정만 신뢰 + 등기부 확인 권고)
+      no_basis              — 판정할 날짜가 없음
+    """
+    senior_type: str = ""       # 말소기준 유형(근저당/전세권/압류 …)
+    senior_date: str = ""       # 말소기준일 YYYY-MM-DD
+    movein_date: str = ""       # 임차인 전입일 YYYY-MM-DD
+    verdict: str = "no_basis"
+    note: str = ""
+
+
+def analyze_priority(r: "CaseRights") -> PriorityAnalysis:
+    """CaseRights → 대항력 판정 근거. surviving_rights(+remark)에서 전입일, senior_lien에서 말소기준."""
+    text = f"{r.surviving_rights}\n{r.remark}"
+    # 말소기준: senior_lien 의 첫 날짜 + 그 근처 유형 키워드
+    senior = _first_date(r.senior_lien or "")
+    senior_type = ""
+    if senior:
+        for t in _SENIOR_TYPES:
+            if t in (r.senior_lien or ""):
+                senior_type = t
+                break
+    # 임차인 전입일: 명시적 '전입' 라벨이 붙은 날짜(여러 명이면 가장 이른 = 대항력 최강)
+    moveins = []
+    for m in _MOVEIN_RE.finditer(text):
+        d = _first_date(m.group(1))
+        if d:
+            moveins.append(d)
+    movein = min(moveins, key=lambda x: x[0]) if moveins else None
+
+    a = PriorityAnalysis(
+        senior_type=senior_type,
+        senior_date=senior[1] if senior else "",
+        movein_date=movein[1] if movein else "",
+    )
+    has_burden_text = is_substantive(r.surviving_rights)
+    if movein and senior:
+        if movein[0] <= senior[0]:
+            a.verdict = "confirmed_opposable"
+            a.note = (f"임차인 전입({a.movein_date})이 말소기준"
+                      f"({a.senior_type or '최선순위'} {a.senior_date})보다 앞서 대항력 있음 → "
+                      f"배당 부족분은 매수인 인수. 법원 명세서 판정과 일치합니다.")
+        else:
+            a.verdict = "contradiction"
+            a.note = (f"임차인 전입({a.movein_date})이 말소기준({a.senior_date})보다 늦어 "
+                      f"통상 대항력이 없으나, 명세서는 인수로 기재됨 — 임차권등기명령 등 특수사유 또는 "
+                      f"표기 차이 가능. 등기부·명세서 전문으로 반드시 확인하세요.")
+    elif senior and has_burden_text:
+        a.verdict = "dates_incomplete"
+        a.note = (f"말소기준은 {a.senior_type or '최선순위'} {a.senior_date}이나 명세서 요지에 "
+                  f"임차인 전입일이 없습니다. 법원은 '인수'로 판정 — 전입일·확정일은 등기부·"
+                  f"현황조사서로 확인하세요.")
+    else:
+        a.verdict = "no_basis"
+    return a
 
 
 @dataclass
