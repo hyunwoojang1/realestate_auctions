@@ -124,8 +124,8 @@ def test_upsert_chunks(monkeypatch):
 
     def fake_post(url, headers=None, json=None, timeout=None):
         posted.append(len(json))
-        # 페이로드는 스키마 컬럼만 담아야 한다(rights_verified 등 비컬럼 금지).
-        assert set(json[0].keys()) == set(_COLS)
+        # 페이로드 = 스칼라 컬럼(_COLS) + market_comps(차트 실거래 점 jsonb). 비컬럼(rights_verified 등) 금지.
+        assert set(json[0].keys()) == set(_COLS) | {"market_comps"}
         return FakeResp()
 
     monkeypatch.setattr(store_rest.requests, "post", fake_post)

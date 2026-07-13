@@ -34,6 +34,8 @@ create table if not exists public.auction_scored_listings (
     profit_low             bigint,
     profit_high            bigint,
     market_sample_basis    integer,
+    -- 상세 시간축 차트용 개별 실거래 점 [[deal_ym, price], …]. store_rest 가 jsonb 로 미러.
+    market_comps           jsonb   not null default '[]'::jsonb,
     -- 이 행이 마지막으로 갱신된 새로고침 시각. replace_all(전량교체)이 이번 run 시각으로
     -- 전부 upsert 후 그보다 오래된 행을 지워 만료(팔림/취하) 매물을 제거하는 데 쓴다.
     refreshed_at           timestamptz not null default now(),
@@ -46,6 +48,11 @@ create index if not exists auction_scored_arb_idx
 
 -- 서버 전용 접근: RLS 켜고 정책은 두지 않음 → service key만 통과(anon/authenticated 차단).
 alter table public.auction_scored_listings enable row level security;
+
+-- [기존 테이블 마이그레이션 2026-07-13] 상세 차트 실거래 점 컬럼. 이미 있으면 무시(idempotent).
+-- 이 한 줄을 Supabase SQL Editor 에서 실행해야 재크롤 후 프로덕션 차트에 파란 실거래 점이 찍힘.
+alter table public.auction_scored_listings
+    add column if not exists market_comps jsonb not null default '[]'::jsonb;
 
 -- 확인: 아래가 rows=0(테이블 준비됨)으로 나오면 성공. 이관 스크립트가 3,751건을 채웁니다.
 select count(*) as rows from public.auction_scored_listings;

@@ -1,5 +1,26 @@
 # versions.md — auction-arbitrage 루프 작업 로그 (append-only, 최신순)
 
+## 2026-07-13 15:10 KST — 🏷 감정 요항 표시(A) + ☁ market_comps 클라우드 미러 배선 수정
+- 배경: 사용자 "A(사진·감정요항)부터, 병렬로 빠르게, IP밴 안 나게?". 답 = courtauction는
+  anti-bot라 병렬 금지·순차 유지, A 데이터는 이미 받는 pgj15B 응답 안에 있어 추가 요청 0.
+- 조사 결과(실측 pgj15B dma_result): 사진은 picFile에 **base64 인라인**(URL 404, 20장×8천건=
+  수GB라 저장전략 필요 → 사진은 보류). 감정평가 요항점(aeeWevlMnpntLst)은 텍스트라 즉시 채택.
+  임차인 현황표·등기 근저당순서는 JSON에 없음 = 매각물건명세서 전자문서(ecdocId) PDF 파싱 필요(B, 후속).
+- 구현(A 감정요항): courtauction_detail에 AEE_ITEM_LABELS(코드→라벨, 미상 폴백) + CaseRights.
+  appraisal_notes 필드 + normalize 파싱(빈값 제외) + to_row/from_row JSON 왕복. store: listing_rights
+  에 appraisal_notes 컬럼 + 마이그레이션. detail.html '評 감정 요항' 섹션(데이터 없으면 자동 숨김).
+  supabase_rights.sql 컬럼+ALTER. crawl_rights는 normalize→to_row 흐름이라 자동 반영.
+  실측(대구 1604): 5건 파싱(건물구조·이용상태·설비·제시외물건·**위반건축물 경고**), 렌더 확인.
+- ☁ market_comps 미러 버그 수정: store_rest._payload/read 가 _COLS만 써 market_comps를
+  **읽기·쓰기 모두 누락** → 재크롤해도 프로덕션 차트에 실거래 점 안 찍히던 근본원인. 양쪽에
+  market_comps 반영(jsonb). supabase_setup.sql 컬럼+ALTER 추가. test_upsert_chunks 갱신.
+- 검증: 461 passed. 부산 라이브 재스코어 실측 = comps 100% 채워짐(동삼그린힐 실거래 3점 확인).
+- ⚠️ 사용자 액션 필요(Supabase SQL Editor): ①auction_scored_listings.market_comps jsonb
+  ②auction_listing_rights.appraisal_notes text — ALTER 2줄(파일에 idempotent로 준비됨). 실행 후
+  재크롤/새로고침해야 프로덕션에 실거래 점·감정요항 반영.
+- 다음: (1)Supabase 컬럼 추가 후 comps 새로고침(--from-cache --live) → 프로덕션 점. (2)권리 재크롤로
+  감정요항 소급. (3)B단계=명세서 PDF(ecdocId) 파싱=임차인 현황·등기순서(별도).
+
 ## 2026-07-13 13:22 KST — 🔍 홈 단지명·주소 이름 검색 추가('내가 본 그 아파트' 찾기)
 - 배경(사용자): 홈에 지역·예산·종류·면적·유찰 '범위 필터'만 있고 아파트 이름으로 찾는 검색이
   없었음. "이 아파트를 내가 봤어" 하고 특정 단지를 바로 찾을 수단 부재.

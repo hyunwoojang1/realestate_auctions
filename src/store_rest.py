@@ -114,7 +114,9 @@ def load_scored(use_cache: bool = True) -> list[ScoredListing]:
         if len(batch) < _PAGE:
             break
         offset += _PAGE
-    result = [ScoredListing(**{c: row.get(c) for c in _COLS}) for row in rows]
+    result = [ScoredListing(**{c: row.get(c) for c in _COLS},
+                            market_comps=row.get("market_comps") or [])
+              for row in rows]
     _cache["rows"] = result
     _cache["at"] = time.time()
     return result
@@ -122,7 +124,12 @@ def load_scored(use_cache: bool = True) -> list[ScoredListing]:
 
 def _payload(s: ScoredListing) -> dict:
     row = s.to_row()
-    return {c: row[c] for c in _COLS}
+    d = {c: row[c] for c in _COLS}
+    # market_comps(상세 차트 실거래 점)는 _COLS 밖 별도 컬럼 — Supabase jsonb 로 그대로 미러.
+    # 이게 빠져 프로덕션 차트에 실거래 점이 안 찍히던 문제 수정(2026-07-13). 컬럼 없으면 mirror가
+    # 400 → run.py 가 로컬 보존하고 넘어감(supabase_setup.sql 의 ALTER 선행 필요).
+    d["market_comps"] = row.get("market_comps") or []
+    return d
 
 
 def _chunks(seq: list, n: int):

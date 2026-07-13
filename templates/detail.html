@@ -254,6 +254,19 @@
       {% endfor %}
     </div>
     {% endif %}
+
+    {% if rights.appraisal_notes %}
+    <!-- 감정 요항 — 감정사가 기재한 이용상태·구조·설비·제시외물건·위반건축물 경고 등 원문 발췌 -->
+    <div class="dstep-head" style="margin-top:var(--sp-6)"><span class="dstep-num">評</span>
+      <h2>감정 요항 <span class="sub">· 감정평가서 발췌</span></h2></div>
+    <div class="dpanel">
+      {% for n in rights.appraisal_notes %}
+      <div class="drow" style="align-items:flex-start">
+        <span class="k" style="font-weight:600;min-width:84px;flex:0 0 auto">{{ n.label }}</span>
+        <span class="v" style="font-size:14px;color:var(--ink-700);white-space:pre-line;text-align:left">{{ n.text }}</span></div>
+      {% endfor %}
+    </div>
+    {% endif %}
     {% endif %}
 
     {% if not listing.rights_verified %}

@@ -15,11 +15,16 @@ create table if not exists public.auction_listing_rights (
     spec_write_ymd   text not null default '',   -- 명세서 작성일
     court_dept       text not null default '',   -- 담당 경매계
     schedule         text not null default '[]', -- 기일 역사 JSON [{ymd,kind,result,price}]
+    appraisal_notes  text not null default '[]', -- 감정평가 요항점 JSON [{label,text}]
     fetched_at       text not null default '',
     primary key (court, case_no, item_no)
 );
 
 alter table public.auction_listing_rights enable row level security;
+
+-- [기존 테이블 마이그레이션 2026-07-13] 감정평가 요항점 컬럼(이미 있으면 무시).
+alter table public.auction_listing_rights
+    add column if not exists appraisal_notes text not null default '[]';
 
 -- 확인: rows=0 이면 준비 완료(크롤 미러가 채웁니다).
 select count(*) as rows from public.auction_listing_rights;

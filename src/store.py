@@ -54,6 +54,7 @@ CREATE TABLE IF NOT EXISTS listing_rights (
     spec_write_ymd TEXT NOT NULL DEFAULT '',
     court_dept TEXT NOT NULL DEFAULT '',
     schedule TEXT NOT NULL DEFAULT '[]',
+    appraisal_notes TEXT NOT NULL DEFAULT '[]',
     fetched_at TEXT NOT NULL DEFAULT '',
     PRIMARY KEY (court, case_no, item_no)
 );
@@ -62,7 +63,7 @@ CREATE TABLE IF NOT EXISTS listing_rights (
 _RIGHTS_COLS = [
     "court", "case_no", "item_no", "surviving_rights", "senior_lien", "lien_note",
     "remark", "claim_amt", "demand_end", "spec_write_ymd", "court_dept",
-    "schedule", "fetched_at",
+    "schedule", "appraisal_notes", "fetched_at",
 ]
 
 # 원본 보존: 파싱/채점과 무관하게 수집 시점의 raw row(개인정보 제거본)를 남긴다.
@@ -158,6 +159,18 @@ def _migrate(conn: sqlite3.Connection) -> None:
             conn.execute(
                 "ALTER TABLE scored_listings ADD COLUMN market_comps TEXT NOT NULL DEFAULT '[]'"
             )
+
+    # listing_rights: 감정평가 요항점 컬럼 추가(v6 → v7). 테이블이 이미 있고 컬럼만 없을 때 ALTER.
+    rt = conn.execute(
+        "SELECT 1 FROM sqlite_master WHERE type='table' AND name='listing_rights'"
+    ).fetchone()
+    if rt is not None:
+        rcols = {r["name"] for r in conn.execute("PRAGMA table_info(listing_rights)")}
+        if "appraisal_notes" not in rcols:
+            with conn:
+                conn.execute(
+                    "ALTER TABLE listing_rights ADD COLUMN appraisal_notes TEXT NOT NULL DEFAULT '[]'"
+                )
 
 
 # 저장 컬럼 = 스칼라 _COLS + market_comps(JSON 텍스트). market_comps는 리스트라 스칼라

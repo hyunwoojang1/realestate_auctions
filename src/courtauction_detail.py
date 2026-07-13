@@ -35,6 +35,17 @@ DXDY_KIND: dict[str, str] = {
 # 명세서 '해당 없음' 계열 표기 — 위험 아님으로 표시 정리용(원문은 그대로 보존).
 _NONE_MARKS = ("해당사항없음", "해당사항 없음", "해당없음", "없음")
 
+# 감정평가 요항점 항목코드(aeeWevlMnpntItmCd) → 라벨. 실측 pgj15B 응답에서 확인한 코드만
+# 단정하고, 미상 코드는 '감정 요항'으로 폴백(원문 텍스트 자체가 자기설명적이라 라벨은 보조).
+# courtauction 코드표 엔드포인트가 비공개(HTTP 500)라 하드코딩 — 필요 시 확장.
+AEE_ITEM_LABELS: dict[str, str] = {
+    "00083006": "이용상태",
+    "00083015": "건물 구조",
+    "00083017": "설비 내역",
+    "00083018": "제시외 물건",
+    "00083026": "기타 참고사항",
+}
+
 
 def _ymd(v: str | None) -> str:
     """'20260715' → '2026-07-15' (비정형은 원문 유지)."""
@@ -84,6 +95,7 @@ class CaseRights:
     spec_write_ymd: str = ""             # 명세서 작성일
     court_dept: str = ""                 # 담당 경매계
     schedule: list[dict] = field(default_factory=list)  # [{ymd,kind,result,price}] 최신순
+    appraisal_notes: list[dict] = field(default_factory=list)  # 감정 요항 [{label,text}]
     fetched_at: str = ""
 
     @property
@@ -115,17 +127,19 @@ class CaseRights:
     def to_row(self) -> dict:
         d = asdict(self)
         d["schedule"] = json.dumps(self.schedule, ensure_ascii=False)
+        d["appraisal_notes"] = json.dumps(self.appraisal_notes, ensure_ascii=False)
         return d
 
     @classmethod
     def from_row(cls, row: dict) -> "CaseRights":
         d = dict(row)
-        sched = d.get("schedule")
-        if isinstance(sched, str):
-            try:
-                d["schedule"] = json.loads(sched) if sched else []
-            except json.JSONDecodeError:
-                d["schedule"] = []
+        for jkey in ("schedule", "appraisal_notes"):
+            v = d.get(jkey)
+            if isinstance(v, str):
+                try:
+                    d[jkey] = json.loads(v) if v else []
+                except json.JSONDecodeError:
+                    d[jkey] = []
         return cls(**{k: d.get(k) for k in cls.__dataclass_fields__})  # type: ignore[arg-type]
 
 
@@ -295,6 +309,16 @@ def normalize(dma_result: dict, court: str = "", case_no: str = "",
     # 최신이 위로 오게(내림차순) — 상세 테이블 렌더 순서
     schedule.sort(key=lambda x: x["ymd"], reverse=True)
 
+    # 감정평가 요항점 — 감정사가 기재한 이용상태·구조·설비·제시외물건·위반건축물 등 원문.
+    # 빈 값('-'/공백)은 버리고, 항목코드로 라벨을 붙인다(미상 코드는 '감정 요항' 폴백).
+    appraisal_notes = []
+    for a in (dma_result.get("aeeWevlMnpntLst") or []):
+        text = (a.get("aeeWevlMnpntCtt") or "").strip()
+        if not text or text in ("-", "–"):
+            continue
+        code = str(a.get("aeeWevlMnpntItmCd") or "")
+        appraisal_notes.append({"label": AEE_ITEM_LABELS.get(code, "감정 요항"), "text": text})
+
     return CaseRights(
         court=court, case_no=case_no or (base.get("userCsNo") or ""), item_no=str(item_no or ""),
         surviving_rights=(gds.get("ndstrcRghCtt") or "").strip(),
@@ -306,5 +330,6 @@ def normalize(dma_result: dict, court: str = "", case_no: str = "",
         spec_write_ymd=_ymd(gds.get("gdsSpcfcWrtYmd")),
         court_dept=(base.get("cortAuctnJdbnNm") or "").strip(),
         schedule=schedule,
+        appraisal_notes=appraisal_notes,
         fetched_at=fetched_at,
     )
