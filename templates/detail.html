@@ -347,7 +347,7 @@
       cwrap=host.querySelector('.chartwrap');
   if(!svg) return;
   var NS='http://www.w3.org/2000/svg';
-  var VB=760, VH=400, L=16, R=628, Tp=16, Bp=352;
+  var VB=760, VH=400, L=48, R=628, Tp=16, Bp=352;   // L: 좌측 y축 가격 라벨 공간
   var rangeMode='2y', PTS=[], RLABS=[], D0, D1, PLO, PHI;
 
   function toMs(s){ if(!s) return null; s=String(s);
@@ -405,9 +405,14 @@
     var g=el('g'); svg.appendChild(g);
     var vis=function(ms){ return ms!=null && ms>=D0-1 && ms<=D1+1; };
 
-    // y 그리드(감정가·취득원가·최저가)
-    [lv.minbid,lv.cost,lv.appraisal].forEach(function(p){ if(p&&p>=PLO&&p<=PHI)
-      g.appendChild(el('line',{x1:L,y1:Y(p),x2:R,y2:Y(p),stroke:'var(--grid,#eef1f4)','stroke-width':1})); });
+    // Y축 — 가격 눈금(좌측). PLO~PHI 를 5구간으로 나눠 옅은 그리드 + 억 단위 라벨.
+    // (기존엔 y축 자체가 없어 '감정가·유찰가가 얼마인지' 높이로 읽을 수 없었다 — 2026-07-13.)
+    (function(){ var N=5, span=PHI-PLO; if(span<=0) return;
+      g.appendChild(el('line',{x1:L,y1:Tp,x2:L,y2:Bp,stroke:'var(--hairline-strong)','stroke-width':1}));
+      for(var i=0;i<=N;i++){ var pv=PLO+span*i/N, yy=Y(pv);
+        g.appendChild(el('line',{x1:L,y1:yy,x2:R,y2:yy,stroke:'var(--grid,#eef1f4)','stroke-width':1}));
+        txt(g,L-6,yy+3,wonS(pv),'var(--ink-400)',9.5,600,'end'); }
+    })();
 
     // 시세밴드(롤링)
     var env=(C.band_env||[]).filter(function(e){ return vis(toMs(e.ym)); });
@@ -422,9 +427,10 @@
       // 실거래 점(시계열)이 없으면 밴드를 특정 시점에 고정할 수 없다 → 감정가/취득원가 기준선처럼
       // 전폭(L→R) '현재 시세' 참고 밴드로 그린다. (기존엔 최근 1년 구간 막대라 유찰 계단을
       //  가로질러 떠 있는 것처럼 보였다 — 2026-07-13 차트감사.)
-      var bh=Y(C.band_now.hi), bl=Y(C.band_now.lo);
-      g.appendChild(el('rect',{x:L,y:bh,width:R-L,height:Math.max(1.5,bl-bh),
-        fill:'var(--band-fill,rgba(37,99,235,.09))',stroke:'var(--band-line,#9db8ef)','stroke-width':1,rx:2}));
+      // 밴드가 razor-thin(표본 적어 하한≈상한)이면 눈에 안 보이므로 최소 4px 로 그려 '띠'로 인지되게.
+      var bh=Y(C.band_now.hi), bl=Y(C.band_now.lo), th=Math.max(4,bl-bh), by=(bh+bl)/2-th/2;
+      g.appendChild(el('rect',{x:L,y:by,width:R-L,height:th,
+        fill:'var(--band-fill,rgba(37,99,235,.12))',stroke:'var(--band-line,#9db8ef)','stroke-width':1,rx:2}));
     }
     if(C.band_now){
       // 상·하한이 억 단위(wonS)로 같게 반올림되면 라벨 하나로 합쳐 '0.6억/0.6억' 중복을 없앤다.
@@ -459,7 +465,11 @@
         step.forEach(function(s,idx){ var xx=X(toMs(s.date)), last=idx===step.length-1;
           g.appendChild(el('line',{x1:xx-11,y1:Y(s.price),x2:xx+11,y2:Y(s.price),stroke:'var(--ink-700)','stroke-width':3,'stroke-linecap':'round'}));
           g.appendChild(el('circle',{cx:xx,cy:Y(s.price),r:2.5,fill:'var(--ink-700)'}));
-          if(!last && s.label) txt(g,xx,Y(s.price)-8,s.label,'var(--ink-600)',9.5,700,'middle'); });
+          // 회차·가격을 한 줄로 마커 위에 표기(아래 −30% 라벨과의 겹침 방지). 계단이 촘촘하면
+          // (막대 간 x간격 < 34px) 가격은 생략해 하단 뭉침을 줄인다.
+          if(!last && s.label){ var prevX=idx>0?X(toMs(step[idx-1].date)):xx-999,
+              tight=Math.abs(xx-prevX)<34;
+            txt(g,xx,Y(s.price)-8, tight? s.label : s.label+' '+wonS(s.price),'var(--ink-600)',9.5,700,'middle'); } });
       }
       g.appendChild(el('circle',{cx:curX,cy:Y(cur.price),r:5.5,fill:'var(--risk)',stroke:'var(--surface)','stroke-width':2.5}));
       PTS.push({cx:curX,cy:Y(cur.price),t:'현재 유찰가',cls:'min',hl:'var(--risk)',ms:toMs(cur.date),p:cur.price,verb:'현재 최저입찰가',sub:'유찰 '+({{ s.fail_count }})+'회'});
