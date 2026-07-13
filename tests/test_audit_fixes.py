@@ -190,5 +190,6 @@ def test_labels_distinguish_matched_and_basis(monkeypatch):
     c = _client(monkeypatch, [s])
     html = c.get("/property/D1").get_data(as_text=True)
     assert "매칭 7건" in html                           # 신뢰 칩
-    assert "근거 표본 5건" in html                      # 차익 부제
+    # (2026-07-13 개편) 근거 표본은 '밴드 근거 표본' 행에서 값(5건)으로 매칭(7)과 구분 노출.
+    assert "근거 표본" in html and "5건" in html        # basis(5) 별도 표기
     assert "실거래 7건" not in html                     # 동일 라벨 중복 제거

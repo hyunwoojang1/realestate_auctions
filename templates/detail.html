@@ -11,195 +11,80 @@
 {%- endmacro -%}
 
 {% block content %}
-<a class="back" href="/">← 1차 필터 목록</a>
-
-<!-- 제목 -->
-<div class="dtitle" style="margin-top:var(--sp-3)">
-  <div>
-    <div class="hd">
-      <h1>{{ s.apt_name or s.property_type }}</h1>
-      <span class="case">{{ s.case_no }}</span>
-    </div>
-    <p class="meta">{{ s.address }} · {{ s.property_type }} · {{ '%.1f'|format(s.area_m2) }}㎡{% if s.area_m2 %} ({{ pyeong(s.area_m2) }}){% endif %} · 유찰 {{ s.fail_count }}회 · 매각기일 {{ s.sale_date }} · 준공연도 미확인<span style="color:var(--ink-300)">(건축물대장 API 대기)</span></p>
-  </div>
-  <form method="post" action="/watchlist/toggle/{{ s.case_no }}" style="margin:0">
-    <input type="hidden" name="court" value="{{ s.court }}"><input type="hidden" name="item" value="{{ s.item_no }}">
-    <button type="submit" class="watchbtn">{% if watching %}★ 관심 해제{% else %}☆ 관심 등록{% endif %}</button>
-  </form>
-</div>
-
-<!-- 히어로 — 예상 차익 (인수 상한 반영, 최악~최선 범위) -->
-{# 정의(2026-07-13 사용자 결정): 실제 인수액 = 보증금 − 배당액. 배당액은 명세서에 없으므로
-   badge.assumed 는 '보증금 전액을 인수하는 최악 상한'이다. 차익을 단일값이 아니라 범위로 본다:
-     hero_best = 시세 − 취득원가            (임차인이 배당 전액 → 인수 0, 최선)
-     hero_worst = 시세 − 취득원가 − 최대인수  (임차인 배당 0 → 보증금 전액 인수, 최악)
-   대표 숫자는 보수적으로 최악을 크게 쓴다. #}
+{# 차익 범위 계산(2026-07-13 사용자 결정): 실제 인수액 = 보증금 − 배당액. 배당액은 명세서에
+   없으므로 badge.assumed 는 '보증금 전액 인수 최악 상한'. 차익은 범위(최악~최선)로 본다. #}
 {%- set hero_best = s.profit_low if s.profit_low is not none else s.expected_profit -%}
 {%- set hero_worst = (hero_best - badge.assumed) if (hero_best is not none and badge and badge.assumed) else hero_best -%}
 {%- set has_burden = badge and (badge.assumed or badge.amount_unknown) -%}
-{%- set hero_p = hero_worst -%}{# 하위 템플릿 호환(STEP1 등에서 참조) — 최악값 #}
-<div class="dhero{% if hero_worst is not none and hero_worst < 0 %} neg{% endif %}">
-  <div class="dhero-head">
+{%- set hero_p = hero_worst -%}{# 하위 블록 호환 — 최악값 #}
+{%- set cut_rate = (1 - s.min_bid_price / s.appraisal_price) if s.appraisal_price > 0 else none -%}
+
+<a class="back" href="/">← 1차 필터 목록</a>
+
+<div class="ddetail">
+
+  <!-- 물건 사진 히어로 (스와이프) -->
+  {% if photos %}
+  <div class="dphoto">
+    {% if photos|length > 1 %}<span class="cnt">📷 {{ photos|length }}</span>{% endif %}
+    <div class="dphoto-track">
+      {% for p in photos %}<img src="data:image/jpeg;base64,{{ p }}" alt="물건 사진 {{ loop.index }}" loading="{{ 'eager' if loop.first else 'lazy' }}">{% endfor %}
+    </div>
+    {% if photos|length > 1 %}<div class="dphoto-dots">{% for p in photos %}<i class="{{ 'on' if loop.first }}"></i>{% endfor %}</div>{% endif %}
+  </div>
+  {% endif %}
+
+  <!-- 제목 -->
+  <div class="dtitle" style="margin-top:var(--sp-3)">
     <div>
-      <div class="lead">
-        {%- if s.profit_low is not none -%}예상 차익 (보수 기준{% if has_burden %} · 최대 인수 반영{% endif %}) · 근거 표본 {{ s.market_sample_basis if s.market_sample_basis is not none else s.matched_trades }}건
-        {%- elif hero_worst is not none -%}예상 차익 (기준 시세{% if has_burden %} · 최대 인수 반영{% endif %}) · 시세 대비 {{ pct(s.gap_rate) }}
-        {%- else -%}시세 추정 불가{%- endif -%}
+      <div class="hd">
+        <h1>{{ s.apt_name or s.property_type }}</h1>
+        <span class="case">{{ s.case_no }}</span>
       </div>
-      <div class="big{% if hero_worst is not none and hero_worst < 0 %} neg{% endif %}">{% if hero_worst is not none %}{{ won(hero_worst) }}{% if badge and badge.amount_unknown %}<span style="font-size:.45em;color:var(--risk);font-weight:800"> −α</span>{% endif %}{% else %}—{% endif %}</div>
-      {% if has_burden and hero_best is not none %}
-      {%- set burden_reason = badge.special|join(', ') if (badge.amount_unknown and badge.special) else '보증금' -%}
-      <div style="font-size:13px;font-weight:600;margin-top:5px">
-        <span style="color:var(--ink-500)">범위</span>
-        <b style="color:var(--risk)">{% if badge.amount_unknown %}−α{% else %}{{ won(hero_worst) }}{% endif %}</b> <span style="color:var(--ink-400);font-weight:500">최악(보증금 전액 인수)</span>
-        <span style="color:var(--ink-300)"> ~ </span>
-        <b style="color:var(--gain-strong)">{{ won(hero_best) }}</b> <span style="color:var(--ink-400);font-weight:500">최선(임차인 전액 배당)</span>
-      </div>
-      <div style="font-size:11.5px;color:var(--ink-400);margin-top:3px;line-height:1.5">실제 인수액 = {{ burden_reason }} − 배당액(낙찰가·순위 확정 후 결정). 표시값은 <b>배당 0 가정 최악 상한</b>이라 실제 차익은 보통 이보다 큽니다.</div>
-      {% endif %}
-      <div class="chiprow">
-        {# (#6/#17) 명세서 크롤 완료(rights)면 '권리미확인' 등급 칩을 '명세서 확인됨'으로 치환 #}
+      <p class="meta">{{ s.address }} · {{ s.property_type }} · {{ '%.1f'|format(s.area_m2) }}㎡{% if s.area_m2 %} ({{ pyeong(s.area_m2) }}){% endif %} · 유찰 {{ s.fail_count }}회 · 매각기일 {{ s.sale_date }}</p>
+      <div class="chiprow" style="display:flex;gap:8px;margin-top:8px;flex-wrap:wrap">
         {% if rights and s.grade == '권리미확인' %}<span class="chip clean">명세서 확인됨</span>{% else %}{{ statuschip(s) }}{% endif %}
         <span class="chip muted">신뢰 {{ '%.2f'|format(s.confidence) }} · 매칭 {{ s.matched_trades }}건</span>
       </div>
     </div>
-    {% if hero_worst is not none %}
-    <div class="dhero-eq">
-      <span class="t">계산식(최악)</span>
-      {% if s.profit_low is not none and s.market_band_low is not none %}
-      <b>{{ won(s.market_band_low) }}</b> <span class="d">검증 시세(하한)</span>
-      {% else %}
-      <b>{{ won(s.est_market_price) }}</b> <span class="d">추정 시세</span>
-      {% endif %}
-      <span class="op">−</span> <b>{{ won(s.real_acquisition_cost) }}</b> <span class="d">취득원가</span>
-      {% if badge and badge.assumed %}
-      <span class="op">−</span> <b style="color:var(--risk)">{{ won(badge.assumed) }}</b> <span class="d" style="color:var(--risk)">최대 인수(보증금 상한)</span>
-      {% elif badge and badge.amount_unknown %}
-      <span class="op" style="color:var(--risk)">−</span> <b style="color:var(--risk)">α</b> <span class="d" style="color:var(--risk)">인수 보증금(명세서 미기재)</span>
-      {% endif %}
-    </div>
-    {% endif %}
   </div>
 
-  {% if chart.band_now or chart.trades or chart.hist %}
-  <!-- 가격-시간 차트: 실거래(월별)·호가 시점·유찰 저감·롤링 밴드 (세로 스냅샷→시간축 개편) -->
-  <div class="ptc" id="ptc">
-    <script type="application/json" id="ptc-data">{{ chart|tojson }}</script>
-    <div class="ptc-top">
-      <div class="ptc-cap">
-        {% if chart.cheap_pct is not none %}시세 대비 <b class="cheap">{{ '−' if chart.cheap_pct >= 0 else '+' }}{{ chart.cheap_pct|abs }}%</b> {{ '저가' if chart.cheap_pct >= 0 else '고가' }}{% endif %}
-        {% if chart.trades %}<span class="sep">·</span>실거래 {{ chart.trades|length }}건{% endif %}
-      </div>
-      <div class="ptc-range" role="tablist" aria-label="차트 기간">
-        <button data-r="2y" aria-pressed="true">최근 2년</button>
-        <button data-r="all" aria-pressed="false">전체(맥락)</button>
-      </div>
+  <!-- 핵심 요약 카드 -->
+  <div class="dsum">
+    <div class="dsum-card">
+      <div class="dsum-row"><span class="l">감정가</span><span class="val">{{ won(s.appraisal_price) }}</span></div>
+      <div class="dsum-row"><span class="l">최저입찰가{% if cut_rate is not none and cut_rate > 0.01 %} <span class="dsum-badge">감정 대비 −{{ (cut_rate*100)|round|int }}%</span>{% endif %}</span><span class="val">{{ won(s.min_bid_price) }}</span></div>
+      <div class="dsum-row"><span class="l">입찰보증금 <span style="color:var(--ink-400)">(10%)</span></span><span class="val">{{ won((s.min_bid_price * 0.1)|round|int) }}</span></div>
     </div>
-    <div class="chartwrap"><svg class="ptc-svg" viewBox="0 0 760 400" role="img"
-      aria-label="가격-시간 차트: 실거래 체결·호가·시세밴드·유찰 저감·감정가/취득원가 기준선"></svg>
-      <div class="ptc-tt" hidden></div></div>
-    <div class="ptc-legend">
-      <span><i class="sw trade"></i>실거래 체결</span>
-      {% if chart.hist %}<span><i class="sw hist"></i>과거 실거래(맥락)</span>{% endif %}
-      {% if chart.asks %}<span><i class="sw ask"></i>호가 · 체결가 아님</span>{% endif %}
-      <span><i class="sw band"></i>실거래 시세밴드</span>
-      <span><i class="sw minbid"></i>유찰 저감</span>
-      {% if chart.gain %}<span><i class="sw gainsw"></i>차익{% if badge and badge.assumed %} (인수금 반영){% endif %}</span>{% endif %}
-      {% if chart.assumed_neg %}<span style="color:var(--risk);font-weight:600">⚠ 인수금 {{ won(badge.assumed) }} 반영 시 차익 없음(음수)</span>{% endif %}
+    <div class="dsum-card accent{% if hero_worst is not none and hero_worst < 0 %} neg{% endif %}">
+      <div class="dsum-row"><span class="l">{% if s.market_band_low is not none %}실거래 시세 <span style="color:var(--ink-400)">(검증 하한)</span>{% elif s.est_market_price %}추정 시세{% else %}시세{% endif %}</span><span class="val">{% if s.market_band_low is not none %}{{ won(s.market_band_low) }}{% elif s.est_market_price %}{{ won(s.est_market_price) }}{% else %}—{% endif %}</span></div>
+      <div class="dsum-row"><span class="l">예상 차익{% if has_burden %} <span style="color:var(--ink-400)">(최대 인수 반영)</span>{% endif %}</span><span class="val {% if hero_worst is not none %}{{ 'neg' if hero_worst < 0 else 'gain' }}{% endif %}">{% if hero_worst is not none %}{{ won(hero_worst) }}{% if badge and badge.amount_unknown %}<span class="sm" style="color:var(--risk)"> −α</span>{% endif %}{% else %}—{% endif %}</span></div>
+      {% if has_burden and hero_best is not none %}
+      <div class="dsum-range">범위 <b style="color:var(--risk)">{% if badge.amount_unknown %}−α{% else %}{{ won(hero_worst) }}{% endif %}</b> 최악 ~ <b style="color:var(--gain-strong)">{{ won(hero_best) }}</b> 최선 · 배당 0 가정 상한이라 실제는 보통 이보다 큼</div>
+      {% endif %}
     </div>
   </div>
-  {% elif s.grade == '미지원유형' %}
-  <div class="pxm-na">이 유형(<b>{{ s.property_type }}</b>)은 개별성이 커서 <b>시세를 추정하지 않습니다</b>(v1 정책 — 아파트·오피스텔만 지원). 데이터 부족이 아닙니다.</div>
-  {% else %}
-  <div class="pxm-na">매칭 실거래 {{ s.matched_trades }}건 — 표본이 부족해 시세·차익을 계산하지 않습니다.</div>
-  {% endif %}
-</div>
 
-<!-- 통합 게이트 배너 -->
-<div class="gatebar">
-  <span class="ic">⚠</span>
-  <p><b>권리 확인 완료 전까지 최종 판단 금지.</b> 매각물건명세서·현황조사서·등기부등본으로 인수 권리(임차인 대항력·유치권·지분 등)를 직접 확인하기 전에는 위 차익 수치가 입찰 근거가 될 수 없습니다. 이 페이지는 1차 필터용 검토 보조 자료입니다.</p>
-</div>
+  <!-- 통합 게이트 배너 -->
+  <div class="gatebar">
+    <span class="ic">⚠</span>
+    <p><b>권리 확인 완료 전까지 최종 판단 금지.</b> 매각물건명세서·현황조사서·등기부등본으로 인수 권리를 직접 확인하기 전에는 위 수치가 입찰 근거가 될 수 없습니다. 1차 필터용 검토 보조 자료입니다.</p>
+  </div>
 
-<!-- 탭 -->
-<div class="tabbar" id="dtabs" role="tablist" aria-label="물건 상세 섹션">
-  <button class="on" role="tab" aria-selected="true" data-tab="all">전체</button>
-  <button role="tab" aria-selected="false" data-tab="t-gap">차익 근거</button>
-  <button role="tab" aria-selected="false" data-tab="t-tax">세금</button>
-  <button role="tab" aria-selected="false" data-tab="t-rights">권리 · 게이트</button>
-  <button role="tab" aria-selected="false" data-tab="t-site">현장</button>
-</div>
+  <!-- 3탭 -->
+  <div class="tabbar d3" id="dtabs" role="tablist" aria-label="물건 상세 섹션">
+    <button class="on" role="tab" aria-selected="true" data-tab="pane-auction">경매정보</button>
+    <button role="tab" aria-selected="false" data-tab="pane-value">시세·수익</button>
+    <button role="tab" aria-selected="false" data-tab="pane-site">현장·기타</button>
+  </div>
 
-<div class="dflow">
-
-  <!-- STEP 1 -->
-  <section id="t-gap" role="tabpanel" aria-label="차익 근거">
-    <div class="dstep-head"><span class="dstep-num">1</span>
-      <h2>예상 차익 산출 <span class="sub">· 차익 근거(객관)</span></h2></div>
-    <div class="dpanel">
-      <div class="drow"><span class="k">감정가 <span class="hint">(1차 시작가·참고)</span></span><span class="v">{{ won(s.appraisal_price) }}</span></div>
-      {# (#21) 유찰수와 공고가율이 어긋나면(재매각·가격 재설정) '저감 0%' 같은 모순 라벨 대신 명시 #}
-      {%- set cut_rate = (1 - s.min_bid_price / s.appraisal_price) if s.appraisal_price > 0 else none -%}
-      <div class="drow"><span class="k">유찰</span><span class="v">{{ s.fail_count }}회{% if cut_rate is not none %}{% if s.fail_count > 0 and cut_rate <= 0.01 %} · <span style="color:var(--caution)">가격 재설정(신건가 재진행)</span>{% elif s.fail_count == 0 and cut_rate > 0.01 %} · <span style="color:var(--caution)">재매각 저감 {{ pct(cut_rate) }}</span>{% else %} · 저감 {{ pct(cut_rate) }}{% endif %}{% endif %}</span></div>
-      <div class="drow"><span class="k">최저입찰가 <span class="hint">(현재 회차 시작가)</span></span><span class="v">{{ won(s.min_bid_price) }}</span></div>
-      <div class="drow"><span class="k">취득원가 <span class="hint">(최저가+취득세)</span></span><span class="v">{{ won(s.real_acquisition_cost) }}</span></div>
-      {% if s.est_market_price is not none %}<div class="drow"><span class="k">추정 실거래 시세</span><span class="v">{{ won(s.est_market_price) }}</span></div>{% endif %}
-      {% if s.market_band_low is not none and s.market_band_high is not none %}
-      <div class="drow"><span class="k">시장 가격 밴드 <span class="hint">(검증 하한 ~ 기준)</span></span><span class="v">{{ won(s.market_band_low) }} ~ {{ won(s.market_band_high) }}</span></div>
-      {% endif %}
-      {% if s.profit_low is not none %}
-      <div class="drow"><span class="k">보수 가격 기준 차익 <span class="hint">(하한 − 취득원가)</span></span><span class="v {% if s.profit_low < 0 %}neg{% else %}gain{% endif %}">{{ won(s.profit_low) }}</span></div>
-      {% elif hero_best is not none %}
-      <div class="drow"><span class="k">기준 시세 차익 <span class="hint">(추정시세 − 취득원가)</span></span><span class="v {% if hero_best < 0 %}neg{% else %}gain{% endif %}">{{ won(hero_best) }}</span></div>
-      {% endif %}
-      {# (#19) 인수금액이 있으면 STEP1 표에도 차감 행을 넣어 히어로(인수 반영)와 같은 값으로 —
-         표만 보고 초록 양수로 오독하던 문제 해소. #}
-      {% if badge and (badge.assumed or badge.amount_unknown) %}
-      <div class="drow"><span class="k">최대 인수 가능액 <span class="hint">(보증금 상한 · 배당 0 가정)</span></span><span class="v neg">{% if badge.assumed %}− {{ won(badge.assumed) }}{% else %}− α (명세서 미기재){% endif %}</span></div>
-      {% if badge.assumed and hero_worst is not none %}
-      <div class="drow"><span class="k">최악 차익 <span class="hint">(보증금 전액 인수 시)</span></span><span class="v {% if hero_worst < 0 %}neg{% else %}gain{% endif %}"><b>{{ won(hero_worst) }}</b></span></div>
-      <div class="drow"><span class="k">최선 차익 <span class="hint">(임차인 전액 배당 시)</span></span><span class="v gain">{{ won(hero_best) }}</span></div>
-      {% endif %}
-      <div class="dnote" style="font-size:11.5px">실제 인수액 = 보증금 − 임차인 배당액. 배당액은 낙찰가·배당순위 확정 후 결정돼 명세서에 없으므로, 위 인수액은 <b>보증금 전액을 떠안는 최악 상한</b>입니다. 정확한 인수액은 등기부·배당순위로 확인하세요.</div>
-      {% endif %}
-      <div class="drow"><span class="k">매칭 실거래 / 신뢰계수</span><span class="v">{{ s.matched_trades }}건 · {{ '%.2f'|format(s.confidence) }}</span></div>
-      {% if s.market_sample_basis is not none and s.est_market_price is not none %}
-      <div class="drow"><span class="k">밴드 근거 표본 <span class="hint">(12개월·이상치 제외)</span></span><span class="v">{{ s.market_sample_basis }}건</span></div>
-      {% endif %}
-      {%- set scope_names = {'same_complex_same_area':'같은 단지·같은 평형 (추천 인정)','same_complex_near_area':'같은 단지·인접 평형 (참고)','same_dong_fallback':'같은 법정동 폴백 (참고·추천 제외)','unsupported':'미지원 유형','no_comps':'표본 없음','share_sale':'지분·대지권 문제 — 온전가 비교 무의미(추정 안 함)','appraisal_mismatch':'감정가 괴리 — 비교군 불신(추정 무효)'} -%}
-      {% if s.market_scope %}<div class="drow"><span class="k">시세 비교군</span><span class="v" style="font-weight:600;color:var(--ink-600);font-size:13px">{{ scope_names.get(s.market_scope, s.market_scope) }}</span></div>{% endif %}
-      {% if ask_points %}
-      {%- set pos_names = {'below':'밴드 아래','inside':'밴드 안','above':'밴드 위'} -%}
-      <div class="drow"><span class="k">현재 호가 <span class="hint">(체결가 아님)</span></span><span class="v" style="font-size:13px">{% for p in ask_points %}{{ won(p.price) }}{% if p.position %} <span style="color:var(--ink-400)">({{ pos_names.get(p.position, p.position) }})</span>{% endif %}{{ " · " if not loop.last }}{% endfor %}</span></div>
-      {% endif %}
-      {% if sample_gate_low %}<div class="dbanner gate">⚠ <b>표본 낮은 신뢰</b>: 밴드 근거 표본이 {{ s.market_sample_basis }}건({{ band_confident }}건 미만)입니다. 시세·차익은 참고만 하세요.</div>{% endif %}
-      {% if ask_overstated %}<div class="dbanner gate">⚠ <b>실거래 밴드 과대 가능성</b>: 현재 최저 호가가 검증 하한가보다 낮습니다. 차익이 과대평가될 위험이 있습니다.</div>{% endif %}
-      <div class="dnote">↳ 이 차익은 취득세까지만 반영한 <b>표면차익</b>입니다. 양도세·명도비·수리비를 반영한 실제 순수익은 아래 <b>세금</b> 단계에서 확인하세요.</div>
-    </div>
-  </section>
-
-  <!-- STEP 2 -->
-  <section id="t-tax" role="tabpanel" aria-label="세금·비용">
-    <div class="dstep-head"><span class="dstep-num">2</span>
-      <h2>세금·비용 반영 순차익 <span class="sub">· 취득세({{ tax_label }})</span></h2></div>
-    <div class="dpanel">
-      <div class="drow"><span class="k">취득세 본세</span><span class="v">{{ won(tax_parts['취득세']) }}</span></div>
-      <div class="drow"><span class="k">지방교육세</span><span class="v">{{ won(tax_parts['지방교육세']) }}</span></div>
-      <div class="drow"><span class="k">농어촌특별세 <span class="hint">(85㎡ 초과 시)</span></span><span class="v">{{ won(tax_parts['농어촌특별세']) }}</span></div>
-      <div class="drow"><span class="k">합계 <span class="hint">({{ '%.2f'|format(tax_parts['세율합계']*100) }}%)</span></span><span class="v">{{ won(tax_parts['합계']) }}</span></div>
-      <div class="dnote">과세표준=최저입찰가(실제 낙찰가 오르면 세금도 증가). <b style="color:var(--caution)">양도세·보유세는 미반영</b> — 단기 매도(1년↓ 70%·2년↓ 60%) 시 차익이 크게 줄 수 있음. 미납관리비(공용 승계)·명도·수리비 별도.<br><a href="/guide#tax">↳ 세금 가이드 — 개인 양도세 vs 매매사업자·비교과세·실거주 비과세</a></div>
-    </div>
-  </section>
-
-  <!-- STEP 3 — 게이트 -->
-  <section id="t-rights" role="tabpanel" aria-label="권리 게이트">
+  <!-- ══════ 탭 1: 경매정보 (권리·기일·감정요항) ══════ -->
+  <div class="dpane" id="pane-auction">
     {% if rights %}
-    <!-- 법원 매각물건명세서 요지 — 물건상세 크롤분("왜 이 가격인가"의 권리 내역) -->
+    <!-- 법원 매각물건명세서 요지 -->
     <div class="dstep-head"><span class="dstep-num{% if rights.has_risk_text %} risk{% else %} ok{% endif %}">§</span>
       <h2>법원 매각물건명세서 요지 <span class="sub">· 물건상세 수집 {{ rights.fetched_at[:10] }}</span></h2></div>
     <div class="dpanel{% if rights.has_risk_text %} risk{% endif %}">
-      {# (#22) 배지 clean 판정(is_substantive)과 동일 함수 사용 — '해당사항없음 다만 …인수'가
-         칩은 clean 인데 배너는 ⛔ 뜨던 판정 불일치 제거. #}
       {% if rights.surviving_is_real %}
       <div class="dbanner risk">⛔ <b>매수인에게 인수되는 권리</b> — {{ rights.surviving_rights }}</div>
       {% else %}
@@ -208,7 +93,6 @@
       {% if rights.senior_lien %}
       <div class="drow"><span class="k">최선순위 설정 <span class="hint">(말소기준 — 이보다 늦은 권리는 소멸)</span></span><span class="v" style="font-size:13px;font-weight:600;color:var(--ink-700);white-space:pre-line;text-align:right">{{ rights.senior_lien }}</span></div>
       {% endif %}
-      {# 대항력 판정 근거(2026-07-13) — 임차인 전입일 vs 말소기준일. '왜 인수인가'를 날짜로 명시. #}
       {% if priority and priority.verdict != 'no_basis' %}
       <div class="dpri {{ 'ok' if priority.verdict=='confirmed_opposable' else ('warn' if priority.verdict=='contradiction' else 'info') }}">
         <div class="dpri-h">
@@ -242,33 +126,9 @@
       {% endif %}
       <div class="dnote">출처: 법원경매정보 물건상세(매각물건명세서 작성 {{ rights.spec_write_ymd or '—' }}). 요지이며 전문은 법원 원문(명세서·현황조사서·등기부)으로 최종 확인하세요.</div>
     </div>
-
-    {% if rights.schedule %}
-    <!-- 기일 역사 — 유찰이 쌓인 과정 -->
-    <div class="dstep-head" style="margin-top:var(--sp-6)"><span class="dstep-num">↻</span>
-      <h2>기일 내역 <span class="sub">· 유찰 {{ s.fail_count }}회 경과</span></h2></div>
-    <div class="dpanel">
-      {% for ev in rights.schedule %}
-      <div class="drow"><span class="k" style="font-weight:500">{{ ev.ymd }} <span class="hint">{{ ev.kind }}</span></span>
-        <span class="v" style="font-size:14px">{% if ev.price %}{{ won(ev.price) }} · {% endif %}<b style="{% if ev.result == '유찰' %}color:var(--risk){% elif ev.result in ('매각','납부','배당종결') %}color:var(--gain){% else %}color:var(--ink-600){% endif %}">{{ ev.result }}</b></span></div>
-      {% endfor %}
-    </div>
     {% endif %}
 
-    {% if rights.appraisal_notes %}
-    <!-- 감정 요항 — 감정사가 기재한 이용상태·구조·설비·제시외물건·위반건축물 경고 등 원문 발췌 -->
-    <div class="dstep-head" style="margin-top:var(--sp-6)"><span class="dstep-num">評</span>
-      <h2>감정 요항 <span class="sub">· 감정평가서 발췌</span></h2></div>
-    <div class="dpanel">
-      {% for n in rights.appraisal_notes %}
-      <div class="drow" style="align-items:flex-start">
-        <span class="k" style="font-weight:600;min-width:84px;flex:0 0 auto">{{ n.label }}</span>
-        <span class="v" style="font-size:14px;color:var(--ink-700);white-space:pre-line;text-align:left">{{ n.text }}</span></div>
-      {% endfor %}
-    </div>
-    {% endif %}
-    {% endif %}
-
+    <!-- 매수 적정성 (5-way) -->
     {% if not listing.rights_verified %}
     <div class="dstep-head"><span class="dstep-num gate">⛔</span>
       <h2>매수 적정성 <span class="sub gate">· 권리 게이트 — 미확인</span></h2></div>
@@ -286,8 +146,6 @@
       <div class="drow"><span class="k">대항력 임차인</span><span class="v">{{ '있음' if listing.tenant_opposable else '발견 안 됨' }}</span></div>
       <div class="drow"><span class="k">점유</span><span class="v" style="font-size:14px;color:var(--ink-700)">{{ listing.occupant_type }}</span></div>
     {% elif listing.tenant_opposable %}
-    {# 하드게이트(치명 특수권리·인수비율)는 아니지만 대항력 임차인/임차권등기 신호 —
-       보증금 인수 위험이므로 초록 체크로 안심시키지 않는다(침묵실패 방지). #}
     <div class="dstep-head"><span class="dstep-num risk">⚠</span>
       <h2>매수 적정성 <span class="sub risk">· 대항력 임차인 주의</span></h2></div>
     <div class="dpanel risk">
@@ -296,8 +154,6 @@
       <div class="drow"><span class="k">대항력 임차인</span><span class="v neg">있음(문구 검출)</span></div>
       <div class="drow"><span class="k">점유</span><span class="v" style="font-size:14px;color:var(--ink-700)">{{ listing.occupant_type }}</span></div>
     {% elif badge and not badge.is_clean %}
-    {# (서빙감사 2026-07-12 #18) 하드게이트·대항력 분기엔 안 걸렸지만 명세서 배지가 부담(전세권·
-       구분지상권·지분·특수권리 등)이면 초록 ✓ 대신 주의 — 같은 화면 명세서 ⛔·목록 ⚠와 정합. #}
     <div class="dstep-head"><span class="dstep-num risk">⚠</span>
       <h2>사도 되는가 <span class="sub risk">· 인수 부담 신호</span></h2></div>
     <div class="dpanel risk">
@@ -316,42 +172,173 @@
       {% if listing.special_rights %}<div class="dtags">{% for r in listing.special_rights %}<span class="chip risk">{{ r }}</span>{% endfor %}</div>{% endif %}
       <div class="dnote"><a href="/guide#rights">↳ 권리분석 가이드 — 말소기준권리·대항력(전입일 vs 최선순위 설정일)·배당요구</a>. 명세서 두 칸(최선순위 설정일 vs 전입일) 비교가 핵심입니다.</div>
     </div>
-  </section>
 
-  <!-- STEP 4 -->
-  <section id="t-site" role="tabpanel" aria-label="현장 확인">
-    <div class="dstep-head"><span class="dstep-num">4</span>
-      <h2>실물 확인 <span class="sub">· 현장</span></h2></div>
+    {% if rights and rights.schedule %}
+    <!-- 기일 역사 -->
+    <div class="dstep-head"><span class="dstep-num">↻</span>
+      <h2>기일 내역 <span class="sub">· 유찰 {{ s.fail_count }}회 경과</span></h2></div>
+    <div class="dpanel">
+      {% for ev in rights.schedule %}
+      <div class="drow"><span class="k" style="font-weight:500">{{ ev.ymd }} <span class="hint">{{ ev.kind }}</span></span>
+        <span class="v" style="font-size:14px">{% if ev.price %}{{ won(ev.price) }} · {% endif %}<b style="{% if ev.result == '유찰' %}color:var(--risk){% elif ev.result in ('매각','납부','배당종결') %}color:var(--gain){% else %}color:var(--ink-600){% endif %}">{{ ev.result }}</b></span></div>
+      {% endfor %}
+    </div>
+    {% endif %}
+
+    {% if rights and rights.appraisal_notes %}
+    <!-- 감정 요항 -->
+    <div class="dstep-head"><span class="dstep-num">評</span>
+      <h2>감정 요항 <span class="sub">· 감정평가서 발췌</span></h2></div>
+    <div class="dpanel">
+      {% for n in rights.appraisal_notes %}
+      <div class="drow" style="align-items:flex-start">
+        <span class="k" style="font-weight:600;min-width:84px;flex:0 0 auto">{{ n.label }}</span>
+        <span class="v" style="font-size:14px;color:var(--ink-700);white-space:pre-line;text-align:left">{{ n.text }}</span></div>
+      {% endfor %}
+    </div>
+    {% endif %}
+  </div>
+
+  <!-- ══════ 탭 2: 시세·수익 (차트·차익·세금) ══════ -->
+  <div class="dpane" id="pane-value" hidden>
+    {% if chart.band_now or chart.trades or chart.hist %}
+    <!-- 가격-시간 차트 -->
+    <div class="dstep-head"><span class="dstep-num">📈</span>
+      <h2>실거래 시세 추이 <span class="sub">· 같은 단지·평형 체결가</span></h2></div>
+    <div class="ptc" id="ptc">
+      <script type="application/json" id="ptc-data">{{ chart|tojson }}</script>
+      <div class="ptc-top">
+        <div class="ptc-cap">
+          {% if chart.cheap_pct is not none %}시세 대비 <b class="cheap">{{ '−' if chart.cheap_pct >= 0 else '+' }}{{ chart.cheap_pct|abs }}%</b> {{ '저가' if chart.cheap_pct >= 0 else '고가' }}{% endif %}
+          {% if chart.trades %}<span class="sep">·</span>실거래 {{ chart.trades|length }}건{% endif %}
+        </div>
+        <div class="ptc-range" role="tablist" aria-label="차트 기간">
+          <button data-r="2y" aria-pressed="true">최근 2년</button>
+          <button data-r="all" aria-pressed="false">전체(맥락)</button>
+        </div>
+      </div>
+      <div class="chartwrap"><svg class="ptc-svg" viewBox="0 0 760 400" role="img"
+        aria-label="가격-시간 차트: 실거래 체결·호가·시세밴드·유찰 저감·감정가/취득원가 기준선"></svg>
+        <div class="ptc-tt" hidden></div></div>
+      <div class="ptc-legend">
+        <span><i class="sw trade"></i>실거래 체결</span>
+        {% if chart.hist %}<span><i class="sw hist"></i>과거 실거래(맥락)</span>{% endif %}
+        {% if chart.asks %}<span><i class="sw ask"></i>호가 · 체결가 아님</span>{% endif %}
+        <span><i class="sw band"></i>실거래 시세밴드</span>
+        <span><i class="sw minbid"></i>유찰 저감</span>
+        {% if chart.gain %}<span><i class="sw gainsw"></i>차익{% if badge and badge.assumed %} (인수금 반영){% endif %}</span>{% endif %}
+        {% if chart.assumed_neg %}<span style="color:var(--risk);font-weight:600">⚠ 인수금 {{ won(badge.assumed) }} 반영 시 차익 없음(음수)</span>{% endif %}
+      </div>
+    </div>
+    {% elif s.grade == '미지원유형' %}
+    <div class="pxm-na">이 유형(<b>{{ s.property_type }}</b>)은 개별성이 커서 <b>시세를 추정하지 않습니다</b>(v1 정책 — 아파트·오피스텔만 지원). 데이터 부족이 아닙니다.</div>
+    {% else %}
+    <div class="pxm-na">매칭 실거래 {{ s.matched_trades }}건 — 표본이 부족해 시세·차익을 계산하지 않습니다.</div>
+    {% endif %}
+
+    <!-- 차익 계산 근거 -->
+    <div class="dstep-head"><span class="dstep-num">1</span>
+      <h2>예상 차익 산출 <span class="sub">· 차익 근거(객관)</span></h2></div>
+    <div class="dpanel">
+      <div class="drow"><span class="k">감정가 <span class="hint">(1차 시작가·참고)</span></span><span class="v">{{ won(s.appraisal_price) }}</span></div>
+      <div class="drow"><span class="k">유찰</span><span class="v">{{ s.fail_count }}회{% if cut_rate is not none %}{% if s.fail_count > 0 and cut_rate <= 0.01 %} · <span style="color:var(--caution)">가격 재설정(신건가 재진행)</span>{% elif s.fail_count == 0 and cut_rate > 0.01 %} · <span style="color:var(--caution)">재매각 저감 {{ pct(cut_rate) }}</span>{% else %} · 저감 {{ pct(cut_rate) }}{% endif %}{% endif %}</span></div>
+      <div class="drow"><span class="k">최저입찰가 <span class="hint">(현재 회차 시작가)</span></span><span class="v">{{ won(s.min_bid_price) }}</span></div>
+      <div class="drow"><span class="k">취득원가 <span class="hint">(최저가+취득세)</span></span><span class="v">{{ won(s.real_acquisition_cost) }}</span></div>
+      {% if s.est_market_price is not none %}<div class="drow"><span class="k">추정 실거래 시세</span><span class="v">{{ won(s.est_market_price) }}</span></div>{% endif %}
+      {% if s.market_band_low is not none and s.market_band_high is not none %}
+      <div class="drow"><span class="k">시장 가격 밴드 <span class="hint">(검증 하한 ~ 기준)</span></span><span class="v">{{ won(s.market_band_low) }} ~ {{ won(s.market_band_high) }}</span></div>
+      {% endif %}
+      {% if s.profit_low is not none %}
+      <div class="drow"><span class="k">보수 가격 기준 차익 <span class="hint">(하한 − 취득원가)</span></span><span class="v {% if s.profit_low < 0 %}neg{% else %}gain{% endif %}">{{ won(s.profit_low) }}</span></div>
+      {% elif hero_best is not none %}
+      <div class="drow"><span class="k">기준 시세 차익 <span class="hint">(추정시세 − 취득원가)</span></span><span class="v {% if hero_best < 0 %}neg{% else %}gain{% endif %}">{{ won(hero_best) }}</span></div>
+      {% endif %}
+      {% if badge and (badge.assumed or badge.amount_unknown) %}
+      <div class="drow"><span class="k">최대 인수 가능액 <span class="hint">(보증금 상한 · 배당 0 가정)</span></span><span class="v neg">{% if badge.assumed %}− {{ won(badge.assumed) }}{% else %}− α (명세서 미기재){% endif %}</span></div>
+      {% if badge.assumed and hero_worst is not none %}
+      <div class="drow"><span class="k">최악 차익 <span class="hint">(보증금 전액 인수 시)</span></span><span class="v {% if hero_worst < 0 %}neg{% else %}gain{% endif %}"><b>{{ won(hero_worst) }}</b></span></div>
+      <div class="drow"><span class="k">최선 차익 <span class="hint">(임차인 전액 배당 시)</span></span><span class="v gain">{{ won(hero_best) }}</span></div>
+      {% endif %}
+      <div class="dnote" style="font-size:11.5px">실제 인수액 = 보증금 − 임차인 배당액. 배당액은 낙찰가·배당순위 확정 후 결정돼 명세서에 없으므로, 위 인수액은 <b>보증금 전액을 떠안는 최악 상한</b>입니다. 정확한 인수액은 등기부·배당순위로 확인하세요.</div>
+      {% endif %}
+      <div class="drow"><span class="k">매칭 실거래 / 신뢰계수</span><span class="v">{{ s.matched_trades }}건 · {{ '%.2f'|format(s.confidence) }}</span></div>
+      {% if s.market_sample_basis is not none and s.est_market_price is not none %}
+      <div class="drow"><span class="k">밴드 근거 표본 <span class="hint">(12개월·이상치 제외)</span></span><span class="v">{{ s.market_sample_basis }}건</span></div>
+      {% endif %}
+      {%- set scope_names = {'same_complex_same_area':'같은 단지·같은 평형 (추천 인정)','same_complex_near_area':'같은 단지·인접 평형 (참고)','same_dong_fallback':'같은 법정동 폴백 (참고·추천 제외)','unsupported':'미지원 유형','no_comps':'표본 없음','share_sale':'지분·대지권 문제 — 온전가 비교 무의미(추정 안 함)','appraisal_mismatch':'감정가 괴리 — 비교군 불신(추정 무효)'} -%}
+      {% if s.market_scope %}<div class="drow"><span class="k">시세 비교군</span><span class="v" style="font-weight:600;color:var(--ink-600);font-size:13px">{{ scope_names.get(s.market_scope, s.market_scope) }}</span></div>{% endif %}
+      {% if ask_points %}
+      {%- set pos_names = {'below':'밴드 아래','inside':'밴드 안','above':'밴드 위'} -%}
+      <div class="drow"><span class="k">현재 호가 <span class="hint">(체결가 아님)</span></span><span class="v" style="font-size:13px">{% for p in ask_points %}{{ won(p.price) }}{% if p.position %} <span style="color:var(--ink-400)">({{ pos_names.get(p.position, p.position) }})</span>{% endif %}{{ " · " if not loop.last }}{% endfor %}</span></div>
+      {% endif %}
+      {% if sample_gate_low %}<div class="dbanner gate">⚠ <b>표본 낮은 신뢰</b>: 밴드 근거 표본이 {{ s.market_sample_basis }}건({{ band_confident }}건 미만)입니다. 시세·차익은 참고만 하세요.</div>{% endif %}
+      {% if ask_overstated %}<div class="dbanner gate">⚠ <b>실거래 밴드 과대 가능성</b>: 현재 최저 호가가 검증 하한가보다 낮습니다. 차익이 과대평가될 위험이 있습니다.</div>{% endif %}
+      <div class="dnote">↳ 이 차익은 취득세까지만 반영한 <b>표면차익</b>입니다. 양도세·명도비·수리비를 반영한 실제 순수익은 아래 <b>세금</b>에서 확인하세요.</div>
+    </div>
+
+    <!-- 세금·비용 -->
+    <div class="dstep-head"><span class="dstep-num">2</span>
+      <h2>세금·비용 반영 순차익 <span class="sub">· 취득세({{ tax_label }})</span></h2></div>
+    <div class="dpanel">
+      <div class="drow"><span class="k">취득세 본세</span><span class="v">{{ won(tax_parts['취득세']) }}</span></div>
+      <div class="drow"><span class="k">지방교육세</span><span class="v">{{ won(tax_parts['지방교육세']) }}</span></div>
+      <div class="drow"><span class="k">농어촌특별세 <span class="hint">(85㎡ 초과 시)</span></span><span class="v">{{ won(tax_parts['농어촌특별세']) }}</span></div>
+      <div class="drow"><span class="k">합계 <span class="hint">({{ '%.2f'|format(tax_parts['세율합계']*100) }}%)</span></span><span class="v">{{ won(tax_parts['합계']) }}</span></div>
+      <div class="dnote">과세표준=최저입찰가(실제 낙찰가 오르면 세금도 증가). <b style="color:var(--caution)">양도세·보유세는 미반영</b> — 단기 매도(1년↓ 70%·2년↓ 60%) 시 차익이 크게 줄 수 있음. 미납관리비(공용 승계)·명도·수리비 별도.<br><a href="/guide#tax">↳ 세금 가이드</a></div>
+    </div>
+  </div>
+
+  <!-- ══════ 탭 3: 현장·기타 ══════ -->
+  <div class="dpane" id="pane-site" hidden>
+    <div class="dstep-head"><span class="dstep-num">📍</span>
+      <h2>실물 확인 <span class="sub">· 현장·지도</span></h2></div>
     <div class="dpanel" style="padding:var(--sp-5)">
       <a href="https://map.kakao.com/link/search/{{ s.address }}" target="_blank" rel="noopener" style="font-size:15px;font-weight:600">카카오맵에서 위치·로드뷰 보기 →</a>
-      <p style="margin:10px 0 0;font-size:13px;color:var(--ink-500);line-height:1.7">외관·노후도는 로드뷰와 현장 방문으로 확인하세요. 페이지 내 로드뷰 임베드는 카카오 JS 키 등록 시, 준공연도·위반건축물은 건축물대장 API 활성화 시 자동 표시됩니다.</p>
+      <p style="margin:10px 0 0;font-size:13px;color:var(--ink-500);line-height:1.7">외관·노후도는 로드뷰와 현장 방문으로 확인하세요. 준공연도·위반건축물은 건축물대장 API 활성화 시 자동 표시됩니다.</p>
     </div>
-  </section>
+    <div class="dstep-head"><span class="dstep-num">📄</span>
+      <h2>공시자료 <span class="sub">· 법원 원문</span></h2></div>
+    <div class="dpanel" style="padding:var(--sp-5)">
+      <p style="margin:0;font-size:13px;color:var(--ink-600);line-height:1.9">매각물건명세서·현황조사서·감정평가서·등기부등본은 <a href="https://www.courtauction.go.kr" target="_blank" rel="noopener">법원경매정보(courtauction.go.kr)</a>에서 사건번호 <b>{{ s.case_no }}</b>({{ s.court }})로 원문을 확인하세요. 입찰 전 등기부등본은 반드시 최신본으로 재확인.</p>
+    </div>
+  </div>
+
+  <p class="foot" style="color:var(--ink-400)"><b>보수 가격 기준 차익 = 검증 하한가 − (최저입찰가 + 취득세)</b>. 검증 하한가는 같은 단지·같은 평형 실거래 밴드(이상치 제외)의 하한이며, 밴드가 없는 물건은 기준 시세 차익으로 폴백합니다. 취득 시점 표면차익이며 명도비·수리비·권리 인수금액·미납관리비 등 변동비용과 양도세·보유세는 <b>제외</b>돼 있습니다. 검토 보조 도구이며 전문가(법무사 등) 상담을 대체하지 않습니다.</p>
+
+  <!-- 스티키 하단바 -->
+  <div class="dbottom">
+    <form method="post" action="/watchlist/toggle/{{ s.case_no }}">
+      <input type="hidden" name="court" value="{{ s.court }}"><input type="hidden" name="item" value="{{ s.item_no }}">
+      <button type="submit">{% if watching %}★ 관심 해제{% else %}☆ 관심 등록{% endif %}</button>
+    </form>
+    <a class="primary" href="https://www.courtauction.go.kr" target="_blank" rel="noopener">법원경매 원문 →</a>
+  </div>
 
 </div>
 
-<p class="foot" style="color:var(--ink-400)"><b>보수 가격 기준 차익 = 검증 하한가 − (최저입찰가 + 취득세)</b>. 검증 하한가는 같은 단지·같은 평형 실거래 밴드(이상치 제외)의 하한이며, 밴드가 없는 물건은 기준 시세 차익으로 폴백합니다. 취득 시점 표면차익이며 명도비·수리비·권리 인수금액·미납관리비 등 변동비용과 양도세·보유세는 <b>제외</b>돼 있습니다. 검토 보조 도구이며 전문가(법무사 등) 상담을 대체하지 않습니다.</p>
-
 <script>
+/* 탭(3패널 전환) + 사진 도트 */
 (function(){
-  var bar = document.getElementById('dtabs');
-  if (!bar) return;
-  var ids = ['t-gap','t-tax','t-rights','t-site'];
-  var secs = ids.map(function(id){ return document.getElementById(id); });
-  bar.addEventListener('click', function(e){
-    var btn = e.target.closest('button'); if (!btn) return;
-    bar.querySelectorAll('button').forEach(function(b){ b.classList.remove('on'); b.setAttribute('aria-selected','false'); });
-    btn.classList.add('on'); btn.setAttribute('aria-selected','true');
-    var t = btn.dataset.tab;
-    secs.forEach(function(c){ if (c) c.style.display = (t === 'all' || c.id === t) ? '' : 'none'; });
-  });
+  var tabs=document.getElementById('dtabs');
+  if(tabs){ var panes={};
+    document.querySelectorAll('.dpane').forEach(function(p){ panes[p.id]=p; });
+    tabs.addEventListener('click',function(e){ var b=e.target.closest('button'); if(!b)return;
+      var id=b.dataset.tab;
+      tabs.querySelectorAll('button').forEach(function(x){ var on=x===b;
+        x.classList.toggle('on',on); x.setAttribute('aria-selected',on?'true':'false'); });
+      for(var k in panes) panes[k].hidden=(k!==id);
+    });
+  }
+  var track=document.querySelector('.dphoto-track'), dots=document.querySelectorAll('.dphoto-dots i');
+  if(track&&dots.length){ track.addEventListener('scroll',function(){
+    var i=Math.round(track.scrollLeft/track.clientWidth);
+    dots.forEach(function(d,j){ d.classList.toggle('on',j===i); });
+  },{passive:true}); }
 })();
 </script>
 
 <script>
-/* 가격-시간 차트 렌더러 — 서버 pricechart 데이터(#ptc-data)를 SVG로 그린다.
-   실거래(월별)·과거실거래(맥락)·호가(체결X)·롤링 시세밴드·유찰 저감(드롭)·감정가/취득원가 기준선
-   + 차익 괄호 + 호버(십자선 날짜/점 툴팁). 기간 토글(최근2년/전체). */
+/* 가격-시간 차트 렌더러 — 서버 pricechart 데이터(#ptc-data)를 SVG로 그린다. */
 (function(){
   var host=document.getElementById('ptc'); if(!host) return;
   var dataEl=document.getElementById('ptc-data'); if(!dataEl) return;
@@ -386,7 +373,6 @@
     var ad=allDates(); var t1=Math.max.apply(null, ad.length?ad:[Date.now()]);
     if(rangeMode==='2y'){ D1=t1; D0=t1 - 2*365.25*24*3600*1000; }
     else { D0=Math.min.apply(null, ad.length?ad:[t1]); D1=t1; }
-    // 가격 축: 보이는 점 + 감정가/최저가/취득원가/밴드 포함, 6% 여백
     var pr=[]; if(lv.appraisal)pr.push(lv.appraisal); if(lv.minbid)pr.push(lv.minbid); if(lv.cost)pr.push(lv.cost);
     if(C.band_now){ pr.push(C.band_now.lo); pr.push(C.band_now.hi); }
     function within(ms){ return ms!=null && ms>=D0-1; }
@@ -398,7 +384,6 @@
   }
   function X(ms){ return L+(ms-D0)/(D1-D0)*(R-L); }
   function Y(p){ return Tp+(PHI-p)/(PHI-PLO)*(Bp-Tp); }
-  // 우측 라벨은 즉시 그리지 않고 모았다가 de-collision 후 그린다(값이 촘촘하면 겹침 방지).
   function rlab(g,p,name,price,color,bold){ RLABS.push({ty:Y(p),n:name,pr:price,c:color,b:bold}); }
   function drawLabels(g){
     if(!RLABS.length) return;
@@ -419,7 +404,6 @@
     var vis=function(ms){ return ms!=null && ms>=D0-1 && ms<=D1+1; };
 
     // Y축 — 가격 눈금(좌측). PLO~PHI 를 5구간으로 나눠 옅은 그리드 + 억 단위 라벨.
-    // (기존엔 y축 자체가 없어 '감정가·유찰가가 얼마인지' 높이로 읽을 수 없었다 — 2026-07-13.)
     (function(){ var N=5, span=PHI-PLO; if(span<=0) return;
       g.appendChild(el('line',{x1:L,y1:Tp,x2:L,y2:Bp,stroke:'var(--hairline-strong)','stroke-width':1}));
       for(var i=0;i<=N;i++){ var pv=PLO+span*i/N, yy=Y(pv);
@@ -437,16 +421,11 @@
       d+='Z';
       g.appendChild(el('path',{d:d,fill:'var(--band-fill,rgba(37,99,235,.09))',stroke:'var(--band-line,#9db8ef)','stroke-width':1,'stroke-linejoin':'round'}));
     } else if(C.band_now){
-      // 실거래 점(시계열)이 없으면 밴드를 특정 시점에 고정할 수 없다 → 감정가/취득원가 기준선처럼
-      // 전폭(L→R) '현재 시세' 참고 밴드로 그린다. (기존엔 최근 1년 구간 막대라 유찰 계단을
-      //  가로질러 떠 있는 것처럼 보였다 — 2026-07-13 차트감사.)
-      // 밴드가 razor-thin(표본 적어 하한≈상한)이면 눈에 안 보이므로 최소 4px 로 그려 '띠'로 인지되게.
       var bh=Y(C.band_now.hi), bl=Y(C.band_now.lo), th=Math.max(4,bl-bh), by=(bh+bl)/2-th/2;
       g.appendChild(el('rect',{x:L,y:by,width:R-L,height:th,
         fill:'var(--band-fill,rgba(37,99,235,.12))',stroke:'var(--band-line,#9db8ef)','stroke-width':1,rx:2}));
     }
     if(C.band_now){
-      // 상·하한이 억 단위(wonS)로 같게 반올림되면 라벨 하나로 합쳐 '0.6억/0.6억' 중복을 없앤다.
       if(wonS(C.band_now.hi)===wonS(C.band_now.lo))
         rlab(g,(C.band_now.hi+C.band_now.lo)/2,'현재 시세',wonS(C.band_now.lo),'var(--ink-800)',true);
       else { rlab(g,C.band_now.hi,'시세 상한',wonS(C.band_now.hi),'var(--ink-600)',false);
@@ -459,13 +438,12 @@
     if(lv.cost){ g.appendChild(el('line',{x1:L,y1:Y(lv.cost),x2:R,y2:Y(lv.cost),stroke:'var(--gain)','stroke-width':1.2,'stroke-dasharray':'2 3',opacity:.7}));
       rlab(g,lv.cost,'취득원가',wonS(lv.cost),'var(--gain-strong)',true); }
 
-    // 차익 괄호 — 라벨은 RLABS로 넘겨 de-collision(레벨 라벨과 겹침 방지)
+    // 차익 괄호
     if(C.gain){ var bx=R+1, y1=Y(C.gain.cost), y2=Y(C.gain.band_lo);
       g.appendChild(el('path',{d:'M'+(bx+5)+','+y1+' L'+bx+','+y1+' L'+bx+','+y2+' L'+(bx+5)+','+y2,fill:'none',stroke:'var(--gain)','stroke-width':1.5}));
       RLABS.push({ty:(y1+y2)/2,n:'차익',pr:'+'+wonS(C.gain.amount),c:'var(--gain-strong)',b:true}); }
 
-    // 유찰 저감(드롭 마커) — 기간 안 점만. 기일 이력이 없어 날짜가 모두 같으면(퇴화) 계단은
-    // 시간 정보가 없으므로 그리지 않고 현재 유찰가 점만 찍는다(감정가·최저가 기준선이 −%를 대신 전달).
+    // 유찰 저감(드롭 마커)
     var step=(C.step||[]).filter(function(s){ return vis(toMs(s.date)); });
     var realSteps=false; if(step.length>1){ var ds={}; step.forEach(function(s){ds[s.date]=1;}); realSteps=Object.keys(ds).length>1; }
     if(step.length){
@@ -478,8 +456,6 @@
         step.forEach(function(s,idx){ var xx=X(toMs(s.date)), last=idx===step.length-1;
           g.appendChild(el('line',{x1:xx-11,y1:Y(s.price),x2:xx+11,y2:Y(s.price),stroke:'var(--ink-700)','stroke-width':3,'stroke-linecap':'round'}));
           g.appendChild(el('circle',{cx:xx,cy:Y(s.price),r:2.5,fill:'var(--ink-700)'}));
-          // 회차·가격을 한 줄로 마커 위에 표기(아래 −30% 라벨과의 겹침 방지). 계단이 촘촘하면
-          // (막대 간 x간격 < 34px) 가격은 생략해 하단 뭉침을 줄인다.
           if(!last && s.label){ var prevX=idx>0?X(toMs(step[idx-1].date)):xx-999,
               tight=Math.abs(xx-prevX)<34;
             txt(g,xx,Y(s.price)-8, tight? s.label : s.label+' '+wonS(s.price),'var(--ink-600)',9.5,700,'middle'); } });
@@ -514,9 +490,8 @@
       g.appendChild(el('path',{d:'M'+(sx-4)+','+(Bp+23)+' L'+(sx+4)+','+(Bp+23)+' L'+sx+','+(Bp+28)+' Z',fill:'var(--risk)'}));
       txt(g,sx,Bp+39,'매각기일','var(--risk-strong)',9.5,700,'middle'); }
 
-    drawLabels(g);  // 우측 라벨 de-collision 후 일괄 렌더
+    drawLabels(g);
 
-    // 호버 오버레이(맨 위)
     var cross=el('line',{id:'ptc-cross',y1:Tp,y2:Bp,stroke:'var(--ink-400)','stroke-width':1,'stroke-dasharray':'3 3',opacity:0});
     var hi=el('circle',{id:'ptc-hi',r:0,fill:'none','stroke-width':2,opacity:0});
     g.appendChild(cross); g.appendChild(hi);

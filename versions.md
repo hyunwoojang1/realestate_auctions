@@ -1,5 +1,19 @@
 # versions.md — auction-arbitrage 루프 작업 로그 (append-only, 최신순)
 
+## 2026-07-13 17:00 KST — 🎨 [개편 Phase 1·2] richgo 스타일 상세페이지 전면 재구성
+- 배경: richgo.ai 레퍼런스 개편 plan 승인. 모바일 우선 사진히어로+요약카드+3탭 IA.
+- Phase 1(base.html CSS): .ddetail(680px 읽기컬럼) · .dphoto(스와이프 사진히어로+도트) ·
+  .dsum(핵심 요약카드 감정/최저−N%/보증금·시세/차익범위) · .tabbar.d3(3탭 풀폭) · .dpane(탭패널)
+  · .dtable(임대·배당 표) · .dbottom(스티키 하단바). 기존 토큰 100% 재사용.
+- Phase 2(detail.html 전면 재작성): 사진히어로→제목→요약카드→게이트→3탭[경매정보(명세서요지·
+  대항력·매수적정성·기일·감정요항) / 시세·수익(실거래차트·차익산출·세금) / 현장·기타(지도·공시자료)]
+  →스티키바(관심·법원경매원문). **모든 데이터 바인딩·5-way 매수적정성·차트 렌더러 JS 그대로 보존.**
+  탭 JS를 3패널 전환으로 교체, 사진 도트 스크롤 동기화 추가.
+- 검증: 실물건 모바일/데스크톱 스크린샷(images/redesign_*.png) — 사진히어로·요약카드·차트(탭전환
+  후 정상)·감정요항·스티키바 확인. 사진無 물건 graceful(히어로 생략). 464 passed(라벨테스트 갱신).
+- 잔여: 사진은 auction_listing_photos 테이블 SQL + rights 재크롤 백필 필요. 임대수익률·배당표는
+  Phase 0-B·3(후속). comps 새로고침 백그라운드 진행중(국토부 429 rate limit).
+
 ## 2026-07-13 16:20 KST — 🖼 [개편 Phase 0-A] 물건 사진 파이프라인
 - 배경: richgo식 상세페이지 대개편(plan 승인). 사진 히어로용 데이터원 구축. 사진은 pgj15B
   csPicLst.picFile 에 base64 JPEG 인라인 → crawl_rights가 이미 받는 응답에서 추출(추가 요청 0).

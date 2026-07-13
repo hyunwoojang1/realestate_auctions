@@ -610,6 +610,60 @@ table.params{border-collapse:collapse;width:100%;font-size:var(--t-data);backgro
 @media(max-width:560px){.dpanel{margin-left:0}.dstep-head{gap:8px}}
 
 /* ============================================================
+   Detail Redesign (2026-07-13 · richgo 스타일 모바일 우선)
+   좁은 읽기 컬럼 + 사진 히어로 + 요약 카드 + 3탭 + 스티키 하단바
+   ============================================================ */
+.ddetail{max-width:680px;margin:0 auto}
+.ddetail .dpanel{margin-left:0}                 /* 스텝 인덴트 제거 — 카드 전폭 */
+.ddetail .dpri{margin-left:var(--sp-4);margin-right:var(--sp-4)}
+/* 물건 사진 히어로 (스와이프) */
+.dphoto{position:relative;margin:var(--sp-4) 0;border-radius:var(--r-xl);overflow:hidden;background:var(--surface-sunken);box-shadow:var(--e2)}
+.dphoto-track{display:flex;overflow-x:auto;scroll-snap-type:x mandatory;aspect-ratio:4/3;scrollbar-width:none;-webkit-overflow-scrolling:touch}
+.dphoto-track::-webkit-scrollbar{display:none}
+.dphoto-track img{width:100%;height:100%;object-fit:cover;flex:0 0 100%;scroll-snap-align:center;display:block}
+.dphoto .cnt{position:absolute;top:10px;right:12px;background:rgba(13,21,36,.62);color:#fff;font-size:11px;font-weight:600;padding:3px 9px;border-radius:var(--r-pill);letter-spacing:.02em}
+.dphoto-dots{position:absolute;bottom:9px;left:0;right:0;display:flex;justify-content:center;gap:6px;pointer-events:none}
+.dphoto-dots i{width:6px;height:6px;border-radius:50%;background:rgba(255,255,255,.5);box-shadow:0 0 3px rgba(0,0,0,.45);transition:background .2s}
+.dphoto-dots i.on{background:#fff}
+/* 핵심 요약 카드 (감정/최저/보증금 · 시세/차익) */
+.dsum{display:grid;grid-template-columns:1fr 1fr;gap:var(--sp-3);margin:var(--sp-4) 0}
+.dsum-card{background:var(--surface);border:1px solid var(--hairline);border-radius:var(--r-lg);box-shadow:var(--e1);padding:6px var(--sp-5)}
+.dsum-card.accent{border-left:4px solid var(--gain)}
+.dsum-card.accent.neg{border-left-color:var(--risk)}
+.dsum-row{display:flex;justify-content:space-between;align-items:center;gap:12px;padding:11px 0;border-bottom:1px solid var(--hairline)}
+.dsum-row:last-child{border-bottom:none}
+.dsum-row .l{font-size:13px;color:var(--ink-500);font-weight:500;display:flex;align-items:center;gap:7px;flex-wrap:wrap}
+.dsum-row .val{font-size:17px;font-weight:800;color:var(--ink-900);font-variant-numeric:tabular-nums;text-align:right;white-space:nowrap}
+.dsum-row .val.gain{color:var(--gain)}.dsum-row .val.neg{color:var(--risk)}
+.dsum-row .val .sm{font-size:12px;font-weight:600;color:var(--ink-400)}
+.dsum-badge{font-size:11px;font-weight:700;color:var(--caution);background:var(--caution-weak);border-radius:var(--r-pill);padding:1px 8px}
+.dsum-range{font-size:11.5px;color:var(--ink-400);margin-top:4px;line-height:1.55}
+@media(max-width:560px){.dsum{grid-template-columns:1fr}}
+/* 3탭 — 풀폭 균등, 큰 터치타깃 */
+.tabbar.d3{margin-top:var(--sp-4)}
+.tabbar.d3 button{flex:1;padding:13px 6px;font-size:14.5px;border-bottom-width:2.5px}
+/* 탭 패널 스택 */
+.dpane{display:flex;flex-direction:column;gap:var(--sp-5);margin-top:var(--sp-5)}
+.dpane[hidden]{display:none}
+/* 임대수익률 · 배당표 카드 헬퍼(신규 섹션) */
+.dtable{width:100%;border-collapse:collapse;font-size:13px;font-variant-numeric:tabular-nums}
+.dtable th,.dtable td{padding:9px var(--sp-4);border-bottom:1px solid var(--hairline);text-align:right}
+.dtable th{font-size:11.5px;font-weight:700;color:var(--ink-500);background:var(--surface-sunken)}
+.dtable td:first-child,.dtable th:first-child{text-align:left}
+.dtable tr:last-child td{border-bottom:none}
+.dtable .assume{color:var(--risk);font-weight:700}.dtable .clear{color:var(--gain);font-weight:700}
+/* 스티키 하단바 */
+.dbottom{position:sticky;bottom:0;z-index:20;display:flex;gap:10px;background:var(--surface);
+  border-top:1px solid var(--hairline-strong);box-shadow:0 -4px 20px rgba(13,21,36,.07);
+  padding:11px var(--sp-4);padding-bottom:max(11px,env(safe-area-inset-bottom));margin-top:var(--sp-6)}
+.dbottom form{flex:1;margin:0;display:flex}
+.dbottom a,.dbottom button{flex:1;height:46px;border-radius:var(--r-md);font-size:14.5px;font-weight:700;
+  display:flex;align-items:center;justify-content:center;gap:6px;cursor:pointer;text-decoration:none;
+  border:1px solid var(--hairline-strong);background:var(--surface);color:var(--ink-700)}
+.dbottom .primary{background:var(--brand);color:#fff;border-color:var(--brand)}
+.dbottom .primary:hover{background:var(--brand-strong)}
+
+/* ============================================================
    Stats Page (Claude Design · stats)
    ============================================================ */
 .grid-2{display:grid;grid-template-columns:1fr 1fr;gap:var(--sp-4)}
