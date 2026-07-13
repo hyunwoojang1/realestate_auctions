@@ -47,6 +47,8 @@ def _cfg() -> tuple[str | None, str | None, str]:
 
 # 권리·기일 요지 미러 테이블(물건상세 크롤분) — 상세 페이지 클라우드 서빙용.
 RIGHTS_TABLE = os.environ.get("SUPABASE_RIGHTS_TABLE", "auction_listing_rights")
+# 물건 사진 썸네일 미러 테이블 — 상세 히어로 클라우드 서빙용.
+PHOTOS_TABLE = os.environ.get("SUPABASE_PHOTOS_TABLE", "auction_listing_photos")
 
 
 def enabled() -> bool:
@@ -195,6 +197,26 @@ def upsert_rights(rows: list[dict]) -> int:
     n = _post_upsert(url, key, RIGHTS_TABLE, rows)
     _rights_cache["rows"] = None
     return n
+
+
+def upsert_photos(rows: list[dict]) -> int:
+    """물건 사진 썸네일(listing_photos 행 dict) 병합 미러."""
+    url, key, _ = _cfg()
+    return _post_upsert(url, key, PHOTOS_TABLE, rows)
+
+
+def fetch_photos(court: str, case_no: str, item_no: str = "") -> list[str]:
+    """단건 물건 사진 썸네일(base64) seq 순 — 클라우드 상세 서빙. 실패/미배포 시 빈 리스트."""
+    url, key, _ = _cfg()
+    try:
+        r = requests.get(_endpoint(url, PHOTOS_TABLE), headers=_headers(key),
+                         params={"select": "thumb_b64,seq", "court": f"eq.{court}",
+                                 "case_no": f"eq.{case_no}", "item_no": f"eq.{item_no or ''}",
+                                 "order": "seq"}, timeout=20)
+        r.raise_for_status()
+        return [row["thumb_b64"] for row in r.json()]
+    except Exception:  # noqa: BLE001 — 사진 없음/테이블 미배포는 히어로 생략으로 강등
+        return []
 
 
 def prune_rights() -> int:

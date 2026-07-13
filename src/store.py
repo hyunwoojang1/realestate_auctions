@@ -80,6 +80,20 @@ CREATE TABLE IF NOT EXISTS raw_listings (
 );
 """
 
+# 물건 사진 썸네일(base64 JPEG) — 상세 히어로용. 물건당 소수(seq 0..)만. 용량 억제 위해
+# 수집부(crawl_rights)가 '시세추정 가능' 물건에만 저장한다(전물건 저장 시 수 GB).
+DDL_PHOTOS = """
+CREATE TABLE IF NOT EXISTS listing_photos (
+    court TEXT NOT NULL DEFAULT '',
+    case_no TEXT NOT NULL,
+    item_no TEXT NOT NULL DEFAULT '',
+    seq INTEGER NOT NULL DEFAULT 0,
+    thumb_b64 TEXT NOT NULL,
+    fetched_at TEXT NOT NULL DEFAULT '',
+    PRIMARY KEY (court, case_no, item_no, seq)
+);
+"""
+
 _COLS = [
     "case_no", "apt_name", "address", "property_type", "area_m2",
     "appraisal_price", "min_bid_price", "fail_count", "sale_date",
@@ -109,6 +123,7 @@ def connect(db_path: str = "auction.db") -> sqlite3.Connection:
     conn.execute(DDL)
     conn.execute(DDL_RAW)
     conn.execute(DDL_RIGHTS)
+    conn.execute(DDL_PHOTOS)
     conn.execute(f"PRAGMA user_version={SCHEMA_VERSION}")
     return conn
 
@@ -283,6 +298,41 @@ def fetch_all_rights(conn: sqlite3.Connection) -> list[dict]:
     """권리 요지 전량(목록 배지 조인용 — 수백 행 수준의 작은 테이블)."""
     cur = conn.execute("SELECT * FROM listing_rights")
     return [dict(r) for r in cur.fetchall()]
+
+
+def estimable_keys(conn: sqlite3.Connection) -> set[tuple[str, str, str]]:
+    """시세추정 가능(est_market_price 존재) 물건의 (court,case_no,item_no) 집합.
+
+    사진은 용량 때문에 이 집합에만 저장한다(사용자가 실제로 여는 물건 ≈ 평가 가능한 것).
+    """
+    cur = conn.execute(
+        "SELECT court, case_no, item_no FROM scored_listings WHERE est_market_price IS NOT NULL"
+    )
+    return {(r["court"], r["case_no"], str(r["item_no"] or "")) for r in cur.fetchall()}
+
+
+def save_photos(conn: sqlite3.Connection, court: str, case_no: str, item_no: str,
+                thumbs: list[str], fetched_at: str = "") -> int:
+    """물건 사진 썸네일 저장 — 해당 물건 기존 사진 전량 교체(stale 방지). 반환=저장 장수."""
+    key = (court, case_no, str(item_no or ""))
+    with conn:
+        conn.execute(
+            "DELETE FROM listing_photos WHERE court=? AND case_no=? AND item_no=?", key)
+        conn.executemany(
+            "INSERT INTO listing_photos (court,case_no,item_no,seq,thumb_b64,fetched_at) "
+            "VALUES (?,?,?,?,?,?)",
+            [(*key, i, t, fetched_at) for i, t in enumerate(thumbs) if t],
+        )
+    return len([t for t in thumbs if t])
+
+
+def load_photos(conn: sqlite3.Connection, court: str, case_no: str,
+                item_no: str = "") -> list[str]:
+    """단건 물건 사진 썸네일(base64) seq 순 — 상세 히어로용."""
+    cur = conn.execute(
+        "SELECT thumb_b64 FROM listing_photos WHERE court=? AND case_no=? AND item_no=? "
+        "ORDER BY seq", (court, case_no, str(item_no or "")))
+    return [r["thumb_b64"] for r in cur.fetchall()]
 
 
 def fetch_ranked(conn: sqlite3.Connection) -> list[dict]:

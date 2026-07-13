@@ -57,6 +57,26 @@ def test_prune_orphan_rights_removes_only_unmatched():
     assert store.load_rights(conn, "", "ORPHAN") is None  # 고아 제거
 
 
+def test_photos_roundtrip_and_replace():
+    conn = store.connect(":memory:")
+    store.save_photos(conn, "", "A", "", ["aaa", "bbb", "ccc"])
+    assert store.load_photos(conn, "", "A") == ["aaa", "bbb", "ccc"]  # seq 순 보존
+    store.save_photos(conn, "", "A", "", ["xxx"])         # 재저장 = 전량 교체(stale 방지)
+    assert store.load_photos(conn, "", "A") == ["xxx"]
+    assert store.load_photos(conn, "", "MISSING") == []
+
+
+def test_estimable_keys_only_priced():
+    conn = store.connect(":memory:")
+    store.upsert(conn, [_scored("PRICED", 90.0), _scored("NOPRICE", None)])
+    # _scored: arb None → est_market_price 설정됨(818M)이라 둘 다 est 있음 → est 없는 케이스 구성
+    conn.execute("UPDATE scored_listings SET est_market_price=NULL WHERE case_no='NOPRICE'")
+    conn.commit()
+    keys = store.estimable_keys(conn)
+    assert ("", "PRICED", "") in keys
+    assert ("", "NOPRICE", "") not in keys
+
+
 def test_market_comps_roundtrip():
     """시간축 차트용 개별 실거래 comps가 JSON으로 저장·복원된다(v6)."""
     conn = store.connect(":memory:")

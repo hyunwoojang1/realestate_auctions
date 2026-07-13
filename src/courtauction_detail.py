@@ -290,6 +290,22 @@ def summarize(rights: CaseRights) -> RightsBadge:
                        opposable=opposable, assumed=assumed, special=special)
 
 
+def extract_photos(dma_result: dict, cap: int = 3) -> list[str]:
+    """pgj15B csPicLst 에서 현장 물건사진 base64(picFile) 상위 cap장 추출(리사이즈 전 원본).
+
+    picFile 이 있는 항목만(구분코드 무관 — 실측상 물건사진), cortAuctnPicSeq 순서 유지.
+    저장부(crawl)가 photo.thumbnail_b64 로 축소한다. 서빙엔 쓰지 않는다(용량).
+    """
+    out: list[str] = []
+    for p in (dma_result.get("csPicLst") or []):
+        b64 = p.get("picFile")
+        if b64:
+            out.append(b64)
+        if len(out) >= cap:
+            break
+    return out
+
+
 def normalize(dma_result: dict, court: str = "", case_no: str = "",
               item_no: str = "", fetched_at: str = "") -> CaseRights:
     """pgj15B dma_result → CaseRights. 누락 섹션은 빈 값(부분 응답도 수용)."""

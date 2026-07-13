@@ -18,9 +18,9 @@ import sys
 from datetime import datetime, timedelta, timezone
 
 from deploy.migrate_to_supabase import _load_env
-from src import store, store_rest
+from src import photo, store, store_rest
 from src.courtauction_client import CourtAuctionBlocked, CourtAuctionClient, CourtAuctionError
-from src.courtauction_detail import normalize
+from src.courtauction_detail import extract_photos, normalize
 
 _KST = timezone(timedelta(hours=9))
 
@@ -77,9 +77,11 @@ def main(argv=None) -> int:
         return 0
 
     client = CourtAuctionClient()
-    ok, fail, skipped_empty = 0, 0, 0
+    ok, fail, skipped_empty, photo_n = 0, 0, 0, 0
     batch: list[dict] = []
     now = datetime.now(_KST).strftime("%Y-%m-%d %H:%M:%S")
+    # 사진은 용량 때문에 '시세추정 가능' 물건에만 저장(사용자가 여는 물건 ≈ 평가 가능한 것).
+    estimable = store.estimable_keys(conn)
     try:
         for i, t in enumerate(targets, 1):
             try:
@@ -100,6 +102,14 @@ def main(argv=None) -> int:
                 continue
             batch.append(cr.to_row())
             ok += 1
+            # 사진 썸네일 — 같은 pgj15B 응답에서 추출(추가 요청 0), 시세추정 물건만 저장.
+            key = (t["court"], t["case_no"], str(t["item_no"] or ""))
+            if key in estimable:
+                thumbs = [th for r in extract_photos(dma, cap=3)
+                          if (th := photo.thumbnail_b64(r))]
+                if thumbs:
+                    store.save_photos(conn, *key, thumbs, fetched_at=now)
+                    photo_n += len(thumbs)
             if i % 10 == 0:
                 store.save_rights(conn, batch)
                 print(f"  [{i}/{len(targets)}] 적재 누적 {ok}건 (실패 {fail}·빈응답 {skipped_empty})")
@@ -114,7 +124,8 @@ def main(argv=None) -> int:
             print(f"  잔여 배치 저장 {len(batch)}건 (적재 총 {ok}·실패 {fail}·빈응답 {skipped_empty})")
 
     total = conn.execute("SELECT COUNT(*) FROM listing_rights").fetchone()[0]
-    print(f"[+] listing_rights 총 {total}건")
+    photos_total = conn.execute("SELECT COUNT(*) FROM listing_photos").fetchone()[0]
+    print(f"[+] listing_rights 총 {total}건 · 사진 이번 {photo_n}장(누적 {photos_total}장)")
 
     if not args.no_cloud and store_rest.enabled():
         # 품질 게이트: 전 배치 PASS 여야 서빙 반영(틀린 권리 요지가 조용히 상세 페이지에
@@ -130,9 +141,15 @@ def main(argv=None) -> int:
         try:
             rows = [dict(r) for r in conn.execute("SELECT * FROM listing_rights")]
             n = store_rest.upsert_rights(rows)
-            print(f"[+] Supabase 미러링 {n}건")
+            print(f"[+] Supabase 권리 미러링 {n}건")
         except Exception as e:  # noqa: BLE001 — 클라우드 실패는 로컬 결과를 깨지 않음
-            print(f"[!] Supabase 미러링 실패(로컬은 저장됨): {e}", file=sys.stderr)
+            print(f"[!] Supabase 권리 미러링 실패(로컬은 저장됨): {e}", file=sys.stderr)
+        try:
+            prows = [dict(r) for r in conn.execute("SELECT * FROM listing_photos")]
+            pn = store_rest.upsert_photos(prows)
+            print(f"[+] Supabase 사진 미러링 {pn}장")
+        except Exception as e:  # noqa: BLE001 — 사진 테이블 미배포/실패는 조용히 skip
+            print(f"[!] Supabase 사진 미러링 skip(테이블 미배포?): {e}", file=sys.stderr)
     conn.close()
     return 0
 

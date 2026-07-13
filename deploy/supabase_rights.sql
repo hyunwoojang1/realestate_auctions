@@ -26,6 +26,19 @@ alter table public.auction_listing_rights enable row level security;
 alter table public.auction_listing_rights
     add column if not exists appraisal_notes text not null default '[]';
 
+-- [2026-07-13 개편] 물건 사진 썸네일(base64 JPEG) — 상세 히어로 클라우드 서빙용.
+-- 용량 억제 위해 시세추정 가능 물건에만 소수 저장(crawl_rights). RLS on + 정책 없음.
+create table if not exists public.auction_listing_photos (
+    court      text not null default '',
+    case_no    text not null,
+    item_no    text not null default '',
+    seq        integer not null default 0,
+    thumb_b64  text not null,
+    fetched_at text not null default '',
+    primary key (court, case_no, item_no, seq)
+);
+alter table public.auction_listing_photos enable row level security;
+
 -- 고아 권리 자동정리 RPC — scored 에 대응 물건이 없는 rights 를 서버측 단일 쿼리로 삭제.
 -- run.py 가 풀스냅샷 새로고침 후 store_rest.prune_rights()로 호출(rights 무한누적 방지).
 create or replace function public.prune_auction_orphan_rights()

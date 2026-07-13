@@ -572,6 +572,19 @@ def create_app() -> Flask:
                 rights_row = store_rest.fetch_rights(s.court, s.case_no, s.item_no)
         except Exception as e:  # noqa: BLE001 — 권리 요지 실패는 상세 페이지를 막지 않음
             logger.warning("권리 요지 로드 실패(%s %s): %s", s.court, s.case_no, e)
+        # 물건 사진 썸네일(히어로) — 권리와 동일 경로(로컬 SQLite / 클라우드 REST).
+        photos: list[str] = []
+        try:
+            if db_path:
+                pconn = store.connect(db_path)
+                try:
+                    photos = store.load_photos(pconn, s.court, s.case_no, s.item_no)
+                finally:
+                    pconn.close()
+            elif store_rest.enabled():
+                photos = store_rest.fetch_photos(s.court, s.case_no, s.item_no)
+        except Exception as e:  # noqa: BLE001 — 사진 실패는 히어로 생략, 페이지는 정상
+            logger.warning("사진 로드 실패(%s %s): %s", s.court, s.case_no, e)
         badge = None
         priority = None
         if rights_row:
@@ -639,7 +652,7 @@ def create_app() -> Flask:
                 watchlist.load_watchlist(watchlist.watchlist_path()), s),
             data_source=getattr(g, "data_source", "n/a"),
             sample_gate_low=sample_gate_low, band_confident=band_confident_basis(),
-            ask_points=ask_points, ask_overstated=ask_overstated,
+            ask_points=ask_points, ask_overstated=ask_overstated, photos=photos,
         )
 
     @app.get("/digest")

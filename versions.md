@@ -1,5 +1,17 @@
 # versions.md — auction-arbitrage 루프 작업 로그 (append-only, 최신순)
 
+## 2026-07-13 16:20 KST — 🖼 [개편 Phase 0-A] 물건 사진 파이프라인
+- 배경: richgo식 상세페이지 대개편(plan 승인). 사진 히어로용 데이터원 구축. 사진은 pgj15B
+  csPicLst.picFile 에 base64 JPEG 인라인 → crawl_rights가 이미 받는 응답에서 추출(추가 요청 0).
+- 구현: src/photo.py(Pillow 리사이즈 max_w640·q75, 지연임포트) · courtauction_detail.extract_photos
+  · store.listing_photos 테이블+save/load_photos+estimable_keys(시세추정 물건만 저장, 용량억제)
+  · store_rest.upsert/fetch_photos + PHOTOS_TABLE · crawl_rights 루프에 사진 수집 연결(estimable만)
+  · web.property_detail 사진 로드(로컬/클라우드)→ detail.html photos 전달 · supabase_rights.sql
+  auction_listing_photos 테이블.
+- 검증: 실 crawl_rights --limit3 → 9장 저장·JPEG유효·load 왕복 OK. 사진 유닛테스트 3종. 462→막 통과.
+- 주의: 사진 실제 노출은 Phase 2(detail.html 히어로) + rights 재크롤(백필) 필요. Supabase
+  auction_listing_photos 테이블 SQL 사용자 실행 대기(용량 ~700건×3장≈150MB, 공유티어 모니터).
+
 ## 2026-07-13 15:40 KST — 🧹 스키마 감사 + 고아 권리 auto-prune(최적화)
 - 배경(사용자): "auction 테이블 뭐 있는지 알아? 중복 없고 최적화하면서 해."
 - 감사(실측): 로컬 3테이블(scored 8,171·rights 8,923·raw 15,407=로컬전용). Supabase는 auction_
