@@ -1,5 +1,11 @@
 # versions.md — auction-arbitrage 루프 작업 로그 (append-only, 최신순)
 
+## 2026-07-13 17:35 KST — 🧹 .gitignore 정리 + ARCHITECTURE.md 추적 (푸시/배포 전 정비)
+- 사진·감정요항 프로덕션 백필 재크롤 전에 깃 상태 정비. 작업트리에 뜨던 로컬 아티팩트를 무시:
+  RIGHTS_STOP(크롤 제어파일, AGENT_STOP류) · *.db-shm/*.db-wal(SQLite WAL 임시) ·
+  images/(4.8M 스크린샷) · design-refs/(1.5M richgo 레퍼런스). info.md(경매 스터디 로그)는 계속 untracked.
+- ARCHITECTURE.md 신규 추적(시크릿 스캔 통과, env 변수명만 언급). 미푸시 커밋 9e829d4(PHOTO_CAP) 포함 push 예정.
+
 ## 2026-07-13 17:15 KST — 🖼 사진 물건당 저장 수 확대(3→12) + 전체사진 로컬 export
 - 사용자 "사진 다 가져와". 기존 cap=3(대표만) → PHOTO_CAP=12(환경변수, 대부분 물건 전부 커버).
   무제한은 Supabase 공유티어(500MB) 초과 위험(전물건 전사진 1GB+)이라 상한 유지 — 진짜 전부는

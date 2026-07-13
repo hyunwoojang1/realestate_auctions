@@ -20,7 +20,16 @@ data/courtauction_full_cache.json
 # 루프/크롤 제어 파일
 COURTAUCTION_STOP
 AGENT_STOP
+RIGHTS_STOP
 STEER.md
+
+# SQLite WAL/SHM 임시파일
+*.db-shm
+*.db-wal
 
 .vercel
 물건사진/
+
+# 로컬 미디어 아티팩트(스크린샷·레퍼런스)
+images/
+design-refs/
