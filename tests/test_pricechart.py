@@ -145,3 +145,25 @@ def test_no_schedule_falls_back_to_current_only():
     step = out["step"]
     assert step[-1]["price"] == 397_000_000
     assert step[0]["price"] == 620_000_000
+
+
+def test_timechart_gain_reflects_assumed():
+    """서빙감사 #19(재발): 인수금액이 밴드-원가 차를 넘으면 차트 차익 구간 없음(히어로 음수와 정합)."""
+    from src.pricechart import build_timechart
+    from src.models import ScoredListing
+    from src.store import _COLS
+    base = {c: None for c in _COLS}
+    base.update(dict(case_no="T", apt_name="테스트", address="서울", property_type="아파트",
+        area_m2=84.0, appraisal_price=330_000_000, min_bid_price=27_000_000, fail_count=7,
+        sale_date="2026-08-01", est_market_price=280_000_000, matched_trades=12, confidence=1.0,
+        real_acquisition_cost=27_500_000, expected_profit=252_000_000, gap_rate=0.9,
+        gap_score=50.0, rights_score=30.0, liquidity_score=20.0, arb_score=88.0, grade="관심",
+        court="청주지방법원", item_no="1", doc_id="", market_scope="same_complex_same_area",
+        market_band_low=265_000_000, market_band_high=280_000_000,
+        profit_low=237_500_000, profit_high=252_500_000, market_sample_basis=10))
+    s = ScoredListing(**{c: base[c] for c in _COLS})
+    # 인수금 0 → 차익 구간 있음
+    assert build_timechart(s, [], assumed=0)["gain"] is not None
+    # 인수금 3.3억(밴드하한 2.65억 − 원가 0.275억 = 2.375억 초과) → 차익 없음
+    ch = build_timechart(s, [], assumed=330_000_000)
+    assert ch["gain"] is None and ch["assumed_neg"] is True

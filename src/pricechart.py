@@ -114,6 +114,7 @@ def build_timechart(
     schedule: list[dict] | None = None,
     asks: list[dict] | None = None,
     recency_months: int = ROLLING_WINDOW_MONTHS,
+    assumed: int = 0,
 ) -> dict:
     """상세 시간축 차트 렌더 데이터(JSON-직렬화 dict).
 
@@ -149,9 +150,14 @@ def build_timechart(
         band_now = {"lo": int(s.market_band_low), "hi": int(s.market_band_high)}
 
     cost = int(s.real_acquisition_cost or 0)
+    # (서빙감사 2026-07-12 #19) 인수금액(명세서 인수 권리)을 취득원가에 더한 '유효 취득원가'
+    # 기준으로 차익을 계산 — 히어로가 인수 반영 음수인데 차트만 초록 '차익 +N억'으로 모순되던
+    # 것을 막는다. 유효원가가 밴드하한 이상이면 차익 구간을 그리지 않는다(assumed_neg 로 고지).
+    eff_cost = cost + max(0, int(assumed or 0))
     gain = None
-    if band_now and band_now["lo"] > cost > 0:
-        gain = {"cost": cost, "band_lo": band_now["lo"], "amount": band_now["lo"] - cost}
+    if band_now and eff_cost > 0 and band_now["lo"] > eff_cost:
+        gain = {"cost": eff_cost, "band_lo": band_now["lo"], "amount": band_now["lo"] - eff_cost}
+    assumed_neg = bool(assumed) and bool(band_now) and band_now["lo"] <= eff_cost
 
     cheap_pct = None
     if band_now and s.min_bid_price and s.min_bid_price > 0:
@@ -178,6 +184,8 @@ def build_timechart(
             "minbid": int(s.min_bid_price or 0),
         },
         "gain": gain,
+        "assumed": max(0, int(assumed or 0)),
+        "assumed_neg": assumed_neg,
         "cheap_pct": cheap_pct,
         "sale_date": s.sale_date or "",
         "recency_months": recency_months,

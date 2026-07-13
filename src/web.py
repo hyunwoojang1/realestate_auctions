@@ -563,7 +563,8 @@ def create_app() -> Flask:
         # 기일 이력(schedule)은 권리 요지에서, 개별 실거래는 s.market_comps에서.
         from . import pricechart  # noqa: PLC0415
         chart = pricechart.build_timechart(
-            s, s.market_comps, rights.schedule if rights else None, ask_points)
+            s, s.market_comps, rights.schedule if rights else None, ask_points,
+            assumed=(badge.assumed if badge else 0))
         return render_template(
             "detail.html", s=s, listing=listing, chart=chart, rights=rights, badge=badge,
             meter=report.gap_meter_html(s, askings=ask_points), won=report.won, pct=report.pct,

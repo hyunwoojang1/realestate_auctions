@@ -92,7 +92,8 @@
       {% if chart.asks %}<span><i class="sw ask"></i>호가 · 체결가 아님</span>{% endif %}
       <span><i class="sw band"></i>실거래 시세밴드</span>
       <span><i class="sw minbid"></i>유찰 저감</span>
-      {% if chart.gain %}<span><i class="sw gainsw"></i>차익</span>{% endif %}
+      {% if chart.gain %}<span><i class="sw gainsw"></i>차익{% if badge and badge.assumed %} (인수금 반영){% endif %}</span>{% endif %}
+      {% if chart.assumed_neg %}<span style="color:var(--risk);font-weight:600">⚠ 인수금 {{ won(badge.assumed) }} 반영 시 차익 없음(음수)</span>{% endif %}
     </div>
   </div>
   {% elif s.grade == '미지원유형' %}
