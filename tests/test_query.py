@@ -101,6 +101,27 @@ def test_min_fails_filter():
     assert {s.case_no for s in query.apply_filters(items, min_fails=3)} == {"thrice"}
 
 
+def test_matches_query_by_name_and_address():
+    s = _sl(apt_name="롯데캐슬 골드", address="서울 송파구 신천동")
+    assert query.matches_query(s, "롯데캐슬") is True
+    assert query.matches_query(s, "롯데 캐슬") is True       # 공백 무시
+    assert query.matches_query(s, "신천동") is True          # 주소도 대상
+    assert query.matches_query(s, "래미안") is False
+    assert query.matches_query(s, "") is True                # 빈 검색어는 전체 통과
+
+
+def test_name_search_filter():
+    items = [_sl(case_no="A", apt_name="래미안 대치팰리스", address="경기 성남시"),
+             _sl(case_no="B", apt_name="롯데캐슬", address="부산 해운대구"),
+             _sl(case_no="C", apt_name="힐스테이트", address="서울 래미안로 12")]
+    # 단지명 일치
+    assert {s.case_no for s in query.apply_filters(items, q="래미안")} == {"A", "C"}
+    # 주소 일치(단지명은 힐스테이트지만 주소에 '래미안로')
+    assert {s.case_no for s in query.apply_filters(items, q="롯데")} == {"B"}
+    # 다른 필터와 결합 — 이름 + 지역
+    assert {s.case_no for s in query.apply_filters(items, q="래미안", region="서울")} == {"C"}
+
+
 def test_days_until_and_is_soon():
     today = dt.date(2026, 7, 12)
     assert query.days_until("2026-07-15", today) == 3

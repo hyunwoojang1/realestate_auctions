@@ -291,6 +291,7 @@ def create_app() -> Flask:
         }
 
         all_mode = request.args.get("all") == "1"
+        q = request.args.get("q", "").strip()   # 단지명·주소 이름 검색('내가 본 그 아파트')
         region = request.args.get("region", "")
         ptype = request.args.get("type", "")
         budget = request.args.get("budget", "")
@@ -311,7 +312,7 @@ def create_app() -> Flask:
         except ValueError:
             fails = ""
             min_fails = None
-        has_filter = bool(region or ptype or budget or area or fails
+        has_filter = bool(q or region or ptype or budget or area or fails
                           or chip_clean or chip_soon or chip_high)
 
         # 예산(최저입찰가) — '8plus'=8억 이상, 그 외 숫자=상한(억).
@@ -325,10 +326,13 @@ def create_app() -> Flask:
                 budget = ""
 
         burden = _burden_of(badges)
-        base = all_scored if all_mode else evaluable
+        # 이름 검색 시엔 전체 모수에서 찾는다 — 사용자가 본 단지가 시세추정 안 된 유형이어도
+        # '없다'가 아니라 '찾았다'가 되도록(평가가능 모수로 좁히면 빌라·상가는 통째로 숨음).
+        base = all_scored if (all_mode or q) else evaluable
         items = query.apply_filters(base, property_type=ptype or None, region=region or None,
                                     max_bid=max_bid, min_bid=min_bid,
-                                    min_area=min_area, max_area=max_area, min_fails=min_fails)
+                                    min_area=min_area, max_area=max_area, min_fails=min_fails,
+                                    q=q or None)
         if chip_clean:
             items = [s for s in items if _clean(s)]
         if chip_soon:
@@ -386,7 +390,7 @@ def create_app() -> Flask:
             {"label": "관심지역 서울", "count": seoul_ct, "active": region == "서울",
              "href": _toggle("region", "서울")},
         ]
-        filters = {"region": region, "type": ptype, "budget": budget, "sort": sort,
+        filters = {"q": q, "region": region, "type": ptype, "budget": budget, "sort": sort,
                    "area": area, "fails": fails,
                    "clean": chip_clean, "soon": chip_soon, "high": chip_high}
         return render_template(

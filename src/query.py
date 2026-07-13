@@ -90,21 +90,38 @@ def decision_profit(s: ScoredListing) -> int | None:
     return s.profit_low if s.profit_low is not None else s.expected_profit
 
 
+def matches_query(s: ScoredListing, q: str) -> bool:
+    """단지명·주소에 검색어(공백 무시, 대소문자 무시)가 부분일치하는가.
+
+    '내가 본 그 아파트' 이름 검색용. 사용자가 '○○아파트' 또는 '○○동' 어느 쪽으로 쳐도
+    잡히게 단지명과 주소 양쪽을 대상으로 한다. 검색어의 공백은 제거해 '롯데 캐슬'↔'롯데캐슬'
+    표기차를 흡수한다.
+    """
+    needle = "".join(q.split()).lower()
+    if not needle:
+        return True
+    hay = f"{s.apt_name or ''} {s.address or ''}"
+    return needle in "".join(hay.split()).lower()
+
+
 def apply_filters(items: list[ScoredListing], min_score: float | None = None,
                   property_type: str | None = None, region: str | None = None,
                   min_profit: int | None = None, burden_of=None,
                   max_bid: int | None = None, min_bid: int | None = None,
                   evaluable_only: bool = False,
                   min_area: float | None = None, max_area: float | None = None,
-                  min_fails: int | None = None) -> list[ScoredListing]:
-    """물건종류·지역·최소차익(원, 보수 기준)·예산(최저입찰가 상/하한)·평가가능·면적·유찰 필터.
+                  min_fails: int | None = None, q: str | None = None) -> list[ScoredListing]:
+    """물건종류·지역·최소차익(원, 보수 기준)·예산(최저입찰가 상/하한)·평가가능·면적·유찰·이름 필터.
 
     burden_of: 물건 → 인수금액(원). 주어지면 최소차익 비교도 인수 차감 후 값으로
     (감사 2026-07-10: 필터·정렬은 저장 차익, 화면은 차감 차익 — 불일치 해소).
     max_bid/min_bid: 예산 필터(최저입찰가 상한/하한, 원). evaluable_only: 시세 추정된 물건만.
     min_area/max_area: 전용면적(㎡) 하/상한. min_fails: 최소 유찰 횟수(가격 저감된 물건).
+    q: 단지명·주소 텍스트 검색어('내가 본 그 아파트' 찾기).
     """
     out = items
+    if q:
+        out = [s for s in out if matches_query(s, q)]
     if evaluable_only:
         out = [s for s in out if is_evaluable(s)]
     if min_area is not None:
