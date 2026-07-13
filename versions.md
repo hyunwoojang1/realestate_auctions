@@ -1,5 +1,18 @@
 # versions.md — auction-arbitrage 루프 작업 로그 (append-only, 최신순)
 
+## 2026-07-13 15:40 KST — 🧹 스키마 감사 + 고아 권리 auto-prune(최적화)
+- 배경(사용자): "auction 테이블 뭐 있는지 알아? 중복 없고 최적화하면서 해."
+- 감사(실측): 로컬 3테이블(scored 8,171·rights 8,923·raw 15,407=로컬전용). Supabase는 auction_
+  prefix 2개(scored·rights)로 econ 11테이블과 완전분리. **PK 중복 0**(scored·rights 둘 다). 중복 없음.
+- 발견: **listing_rights 고아 1,006건**(scored엔 없는데 rights엔 남은 행). 원인=scored는 매 새로고침
+  전량교체(만료제거)인데 rights는 INSERT OR REPLACE라 안 지워져 무한누적. 로컬·클라우드 동일.
+- 구현(auto-prune): store.prune_orphan_rights(로컬 NOT EXISTS DELETE) + store_rest.prune_rights
+  (RPC 호출) + run.py 풀스냅샷 새로고침 후 로컬·클라우드 양쪽 정리. supabase_rights.sql에
+  prune_auction_orphan_rights() RPC 함수 추가(security definer). 함수 미배포면 조용히 skip.
+- 검증: 복사본 실측 rights 8,923→7,917(삭제 1,006, 남은 고아 0). prune 유닛테스트 추가. 462 passed.
+- ⚠️ 사용자 SQL(누적): ①scored.market_comps jsonb ②rights.appraisal_notes text ③prune RPC 함수.
+  세 개 다 supabase_rights.sql/supabase_setup.sql에 idempotent로 준비, 클립보드 복사.
+
 ## 2026-07-13 15:10 KST — 🏷 감정 요항 표시(A) + ☁ market_comps 클라우드 미러 배선 수정
 - 배경: 사용자 "A(사진·감정요항)부터, 병렬로 빠르게, IP밴 안 나게?". 답 = courtauction는
   anti-bot라 병렬 금지·순차 유지, A 데이터는 이미 받는 pgj15B 응답 안에 있어 추가 요청 0.

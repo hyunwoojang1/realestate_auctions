@@ -152,6 +152,10 @@ def main(argv=None) -> int:
     full_snapshot = args.nationwide or args.from_cache
     if args.source == "courtauction" and use_live and full_snapshot:
         n = store.replace_all(conn, scored)
+        # scored 전량교체 후 대응 물건이 사라진 고아 권리 정리(rights 무한누적 방지·중복 제거).
+        pruned = store.prune_orphan_rights(conn)
+        if pruned and not args.json:
+            print(f"  🧹 로컬 고아 권리 {pruned}건 정리(scored 동기화)")
     else:
         n = store.upsert(conn, scored)   # 전체 저장
 
@@ -180,6 +184,16 @@ def main(argv=None) -> int:
                 if not args.json:
                     print(f"  ☁ Supabase 미러링: {cn}건 "
                           f"({'전량교체' if full_snapshot else '병합'})")
+                # 클라우드 고아 권리 정리(scored 전량교체 후 rights 동기화). RPC 함수
+                # (supabase_rights.sql prune_auction_orphan_rights) 미배포면 조용히 skip.
+                if full_snapshot:
+                    try:
+                        pr = store_rest.prune_rights()
+                        if pr and not args.json:
+                            print(f"  🧹 클라우드 고아 권리 {pr}건 정리")
+                    except Exception as e:  # noqa: BLE001
+                        if not args.json:
+                            print(f"  ⚠ 클라우드 고아 정리 skip(RPC 미배포?): {e}")
             except Exception as e:  # noqa: BLE001 — 클라우드 실패는 로컬 새로고침을 깨지 않음
                 if not args.json:
                     print(f"  ⚠ Supabase 미러링 실패(로컬은 정상 적재됨): {e}")

@@ -245,6 +245,23 @@ def save_rights(conn: sqlite3.Connection, rights_rows: Iterable[dict]) -> int:
     return len(rows)
 
 
+def prune_orphan_rights(conn: sqlite3.Connection) -> int:
+    """현재 scored_listings 에 대응 물건이 없는 listing_rights(고아) 삭제.
+
+    scored 는 새로고침마다 전량교체(replace_all)로 만료매물을 지우지만, listing_rights 는
+    INSERT OR REPLACE 라 한 번 쌓이면 안 지워져 죽은 권리가 무한 누적된다. 풀스냅샷 새로고침
+    직후 호출해 rights 를 scored 와 동기화(중복/부풀림 방지). 반환=삭제 건수.
+    """
+    with conn:
+        cur = conn.execute(
+            "DELETE FROM listing_rights WHERE NOT EXISTS ("
+            "  SELECT 1 FROM scored_listings s"
+            "  WHERE s.court=listing_rights.court AND s.case_no=listing_rights.case_no"
+            "    AND s.item_no=listing_rights.item_no)"
+        )
+    return cur.rowcount
+
+
 def load_rights(conn: sqlite3.Connection, court: str, case_no: str,
                 item_no: str = "") -> dict | None:
     """단건 권리 요지 조회 — (court, case_no, item_no) **정확 매칭만**.

@@ -40,6 +40,23 @@ def test_has_rows():
     assert store.has_rows(conn) is True
 
 
+def _rights_row(case_no: str) -> dict:
+    return {"court": "", "case_no": case_no, "item_no": "", "surviving_rights": "",
+            "senior_lien": "", "lien_note": "", "remark": "", "claim_amt": None,
+            "demand_end": "", "spec_write_ymd": "2026-06-01", "court_dept": "",
+            "schedule": "[]", "appraisal_notes": "[]", "fetched_at": ""}
+
+
+def test_prune_orphan_rights_removes_only_unmatched():
+    conn = store.connect(":memory:")
+    store.upsert(conn, [_scored("A", 90.0)])              # scored: case_no 'A'
+    store.save_rights(conn, [_rights_row("A"), _rights_row("ORPHAN")])
+    deleted = store.prune_orphan_rights(conn)
+    assert deleted == 1                                   # ORPHAN 만 삭제
+    assert store.load_rights(conn, "", "A") is not None   # 매칭 권리 보존
+    assert store.load_rights(conn, "", "ORPHAN") is None  # 고아 제거
+
+
 def test_market_comps_roundtrip():
     """시간축 차트용 개별 실거래 comps가 JSON으로 저장·복원된다(v6)."""
     conn = store.connect(":memory:")

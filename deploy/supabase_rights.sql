@@ -26,5 +26,20 @@ alter table public.auction_listing_rights enable row level security;
 alter table public.auction_listing_rights
     add column if not exists appraisal_notes text not null default '[]';
 
+-- 고아 권리 자동정리 RPC — scored 에 대응 물건이 없는 rights 를 서버측 단일 쿼리로 삭제.
+-- run.py 가 풀스냅샷 새로고침 후 store_rest.prune_rights()로 호출(rights 무한누적 방지).
+create or replace function public.prune_auction_orphan_rights()
+returns integer language plpgsql security definer set search_path = public as $$
+declare deleted integer;
+begin
+    delete from public.auction_listing_rights r
+    where not exists (
+        select 1 from public.auction_scored_listings s
+        where s.court = r.court and s.case_no = r.case_no and s.item_no = r.item_no
+    );
+    get diagnostics deleted = row_count;
+    return deleted;
+end $$;
+
 -- 확인: rows=0 이면 준비 완료(크롤 미러가 채웁니다).
 select count(*) as rows from public.auction_listing_rights;

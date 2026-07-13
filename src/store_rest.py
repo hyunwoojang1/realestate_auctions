@@ -197,6 +197,21 @@ def upsert_rights(rows: list[dict]) -> int:
     return n
 
 
+def prune_rights() -> int:
+    """클라우드 고아 권리 정리 — supabase_rights.sql 의 prune_auction_orphan_rights() RPC 호출.
+    scored 에 대응 물건이 없는 rights 를 서버측 단일 쿼리로 삭제(반환=삭제 건수). 함수 미배포 시
+    404 → 예외를 올려 호출부가 로컬 정리만 하고 넘어가게 한다.
+    """
+    url, key, _ = _cfg()
+    r = requests.post(f"{url.rstrip('/')}/rest/v1/rpc/prune_auction_orphan_rights",
+                      headers=_headers(key, {"Content-Type": "application/json"}),
+                      json={}, timeout=60)
+    r.raise_for_status()
+    _rights_cache["rows"] = None
+    body = r.json()
+    return int(body) if isinstance(body, int) else int(body or 0)
+
+
 def fetch_rights(court: str, case_no: str, item_no: str = "") -> dict | None:
     """단건 권리 요지 조회(클라우드 서빙) — (court, case_no, item_no) 정확 매칭만.
 
