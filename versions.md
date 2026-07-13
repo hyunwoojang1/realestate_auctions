@@ -1,5 +1,17 @@
 # versions.md — auction-arbitrage 루프 작업 로그 (append-only, 최신순)
 
+## 2026-07-13 10:57 KST — 📱 PWA — iOS 홈화면 앱(standalone) 지원 + 앱 아이콘
+- 배경(사용자): econ은 홈화면 추가 시 앱처럼(도메인 바 없음)인데 아파트 경매는 사이트처럼 도메인
+  노출. 원인 = PWA 메타/manifest/apple-touch-icon 부재(Flask라 자동 없음).
+- 구현: static/ 에 앱 아이콘 PNG 3종(180 apple-touch·192·512, 파란 그라데이션+흰'A', Playwright
+  렌더 — PIL 없음). Vercel rewrite 가 모든 경로를 Flask 로 보내 정적 폴더 무효 → web.py 명시
+  라우트로 서빙(/manifest.webmanifest·/apple-touch-icon.png[변형 포함]·/icon-192·512, 1주 캐시).
+  base.html head 에 apple-mobile-web-app-capable=yes(핵심)·status-bar·title'아파트 경매'·
+  theme-color·manifest·apple-touch-icon 링크. vercel.json includeFiles 에 static 추가.
+- 검증: 로컬 엔드포인트 4종 200(manifest display=standalone·icons 3), head 메타 확인. 459 passed.
+- 크롤 루프 완전 종료(RIGHTS_STOP, iter24). 다음: 커밋·푸시·배포 → 폰에서 홈화면 재추가 시 앱 모드.
+
+
 ## 2026-07-13 10:42 KST — 🔎 대항력 판정 근거 표시 (전입일 vs 말소기준일) — 권리 신뢰도 강화
 - 배경(사용자): "권리를 잘 읽고 확실한 건 확실하게 — 근저당 이후 전입한 대항력 없는 임차인 등".
   실측 확인: 배당요구여부·전 임차인 현황표는 명세서 '요지'라 없음(전문 PDF 필요). 하지만 말소기준일

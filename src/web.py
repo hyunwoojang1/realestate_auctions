@@ -211,6 +211,56 @@ def create_app() -> Flask:
         resp.headers["X-Data-Source"] = getattr(g, "data_source", "n/a")
         return resp
 
+    # ── PWA(홈 화면 앱) — iOS Safari '홈 화면에 추가' 시 standalone 앱으로 열리게. ──
+    # Vercel rewrite 가 모든 경로를 Flask 로 보내므로 정적 폴더 대신 명시 라우트로 서빙한다.
+    _STATIC = ROOT / "static"
+
+    @app.get("/manifest.webmanifest")
+    def manifest():
+        return jsonify({
+            "name": "아파트 경매 1차 필터",
+            "short_name": "아파트 경매",
+            "description": "시세>최저가 차익 매물 큐레이션 — 실거래 검증·권리분석",
+            "start_url": "/",
+            "scope": "/",
+            "display": "standalone",
+            "background_color": "#ffffff",
+            "theme_color": "#2563eb",
+            "lang": "ko",
+            "icons": [
+                {"src": "/icon-192.png", "sizes": "192x192", "type": "image/png"},
+                {"src": "/icon-512.png", "sizes": "512x512", "type": "image/png"},
+                {"src": "/icon-512.png", "sizes": "512x512", "type": "image/png",
+                 "purpose": "maskable"},
+            ],
+        })
+
+    def _png(name: str):
+        from flask import send_file  # noqa: PLC0415
+        resp = send_file(str(_STATIC / name), mimetype="image/png")
+        resp.headers["Cache-Control"] = "public, max-age=604800"   # 1주 캐시
+        return resp
+
+    @app.get("/apple-touch-icon.png")
+    def apple_icon():
+        return _png("apple-touch-icon.png")
+
+    # iOS 가 접미사 변형(-precomposed·-120 등)으로도 요청 — 같은 아이콘으로 응답.
+    @app.get("/apple-touch-icon-precomposed.png")
+    @app.get("/apple-touch-icon-120x120.png")
+    @app.get("/apple-touch-icon-152x152.png")
+    @app.get("/apple-touch-icon-180x180.png")
+    def apple_icon_variants():
+        return _png("apple-touch-icon.png")
+
+    @app.get("/icon-192.png")
+    def icon192():
+        return _png("icon-192.png")
+
+    @app.get("/icon-512.png")
+    def icon512():
+        return _png("icon-512.png")
+
     @app.get("/")
     def index():
         import datetime as _dt  # noqa: PLC0415
