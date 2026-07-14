@@ -1,5 +1,14 @@
 # versions.md — auction-arbitrage 루프 작업 로그 (append-only, 최신순)
 
+## 2026-07-15 08:20 KST — ⚡ load_live_trades 병렬화(재채점 속도개선) + 스케줄러 충돌 정리
+- 문제: 재채점의 열린달 fetch가 순차(약 780콜)라 ~10분+. 또, 05:30 Windows 스케줄러가 수정 커밋
+  전 코드로 --nationwide --live 실행 중이라 토지·상가 전국 긁으며 429 폭탄·쿼터경합 유발(kill).
+- 수정: load_live_trades를 ThreadPoolExecutor(워커=AUCTION_MOLIT_WORKERS 기본8)로 병렬화 —
+  캐시 우선 읽기(메인) → 나머지 병렬 받기 → 닫힌달만 메인스레드 캐시쓰기(WAL+단일writer). apt 쿼터
+  정상 확인(land/nrg만 스케줄러가 소진, 수정코드는 미수집). 테스트 468 통과.
+- 운영주의: 밤샘 루프는 단일 인스턴스 + 05:30 스케줄러와 시간 겹치면 경합 — 루프 재기동 시 잔여
+  run.py/bash 전부 종료 확인.
+
 ## 2026-07-15 07:40 KST — ⚡ 국토부 캐시 병렬 워밍 + WAL(속도개선)
 - 문제: 순차 워밍이 네트워크 왕복 대기로 느림(콜드 1.5h). 국토부는 courtauction과 달리 anti-bot
   IP밴이 없어(정부 공개 API) 병렬 안전.

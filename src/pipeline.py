@@ -205,44 +205,59 @@ def load_live_trades(listings: list[AuctionListing], api_key: str,
     now = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
     cache = molit_cache.connect()
 
+    # 작업목록 (kind, lawd, ymd, is_extra) — 아파트·오피스텔 있는 법정동만.
+    districts = [d for d in dict.fromkeys(lst.lawd_cd for lst in listings) if d in supported_lawd]
+    tasks = [(k, d, y, False) for d in districts
+             for k in ("apt", "rh", "officetel") for y in ymds]
+    if fetch_extra:
+        for d, kinds in extra_by_lawd.items():
+            if d in supported_lawd:
+                tasks += [(k, d, y, True) for k in sorted(kinds) for y in ymds]
+
+    def _do_fetch(kind, lawd, ymd, is_extra):
+        if is_extra:
+            return [_extra_to_trade(t, lawd_cd=lawd)
+                    for t in fetch_extra_trades(kind, lawd, ymd, api_key)]
+        return fetch_trades(kind, lawd, ymd, api_key)
+
     trades: list[Trade] = []
-    seen: set[str] = set()
-    calls = hits = fails = 0
+    calls = len(tasks)
+    hits = fails = 0
     try:
-        for lst in listings:
-            if lst.lawd_cd in seen or lst.lawd_cd not in supported_lawd:
-                continue
-            seen.add(lst.lawd_cd)
-            for kind in ("apt", "rh", "officetel"):
-                for ymd in ymds:
-                    calls += 1
-                    try:
-                        got, from_cache = molit_cache.get_or_fetch(
-                            cache, kind, lst.lawd_cd, ymd,
-                            lambda k=kind, l=lst.lawd_cd, y=ymd: fetch_trades(k, l, y, api_key),
-                            cacheable=ymd not in open_months, now=now)
-                        trades.extend(got)
-                        hits += int(from_cache)
-                    except Exception as e:  # noqa: BLE001 — 한 지역/유형/달 실패가 전체를 막지 않게
+        # 1) 캐시 우선(닫힌 달) — 메인스레드에서 읽기
+        to_fetch = []
+        for (kind, lawd, ymd, is_extra) in tasks:
+            if ymd not in open_months:
+                cached = molit_cache._load(cache, kind, lawd, ymd)
+                if cached is not None:
+                    trades.extend(cached)
+                    hits += 1
+                    continue
+            to_fetch.append((kind, lawd, ymd, is_extra))
+        # 2) 나머지 병렬 fetch — 워커는 받기만, 쓰기는 메인스레드(SQLite 락 회피).
+        #    국토부는 anti-bot 없어 병렬 안전(courtauction과 다름). 동시성=AUCTION_MOLIT_WORKERS.
+        if to_fetch:
+            from concurrent.futures import ThreadPoolExecutor, as_completed  # noqa: PLC0415
+            workers = max(1, int(os.environ.get("AUCTION_MOLIT_WORKERS", "8")))
+
+            def _fetch_one(t):
+                k, l, y, ex_ = t
+                try:
+                    return t, _do_fetch(k, l, y, ex_)
+                except Exception as e:  # noqa: BLE001
+                    return t, e
+
+            with ThreadPoolExecutor(max_workers=workers) as pool:
+                for fut in as_completed([pool.submit(_fetch_one, t) for t in to_fetch]):
+                    (kind, lawd, ymd, is_extra), res = fut.result()
+                    if isinstance(res, Exception):
                         fails += 1
                         logger.warning("라이브 호출 실패 kind=%s lawd=%s ymd=%s: %s",
-                                       kind, lst.lawd_cd, ymd, e)
-            for kind in sorted(extra_by_lawd.get(lst.lawd_cd, ())):
-                for ymd in ymds:
-                    calls += 1
-                    try:
-                        got, from_cache = molit_cache.get_or_fetch(
-                            cache, kind, lst.lawd_cd, ymd,
-                            lambda k=kind, l=lst.lawd_cd, y=ymd: [
-                                _extra_to_trade(t, lawd_cd=l)
-                                for t in fetch_extra_trades(k, l, y, api_key)],
-                            cacheable=ymd not in open_months, now=now)
-                        trades.extend(got)
-                        hits += int(from_cache)
-                    except Exception as e:  # noqa: BLE001
-                        fails += 1
-                        logger.warning("확장 라이브 호출 실패 kind=%s lawd=%s ymd=%s: %s",
-                                       kind, lst.lawd_cd, ymd, e)
+                                       kind, lawd, ymd, res)
+                        continue
+                    trades.extend(res)
+                    if ymd not in open_months:   # 닫힌 달만 캐시(메인스레드 쓰기)
+                        molit_cache._save(cache, kind, lawd, ymd, res, now)
     finally:
         cache.close()
     logger.info("라이브 시세 수집: %d콜(캐시적중 %d·실패 %d), %d개월창, 실거래 %d건",
