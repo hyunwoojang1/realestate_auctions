@@ -39,8 +39,12 @@ def connect(path: str | Path | None = None) -> sqlite3.Connection:
     """캐시 DB 연결(+ 스키마 보장). path 미지정 시 기본 경로."""
     p = Path(path) if path is not None else cache_path()
     p.parent.mkdir(parents=True, exist_ok=True)
-    conn = sqlite3.connect(str(p))
+    conn = sqlite3.connect(str(p), timeout=30.0)
     conn.row_factory = sqlite3.Row
+    # 병렬 워머 대비: WAL(동시 읽기+단일 쓰기 허용)·busy_timeout(락 대기)·NORMAL(성능).
+    conn.execute("PRAGMA journal_mode=WAL")
+    conn.execute("PRAGMA busy_timeout=30000")
+    conn.execute("PRAGMA synchronous=NORMAL")
     conn.execute(
         """
         CREATE TABLE IF NOT EXISTS molit_trades (

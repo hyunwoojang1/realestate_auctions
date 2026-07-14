@@ -1,5 +1,14 @@
 # versions.md — auction-arbitrage 루프 작업 로그 (append-only, 최신순)
 
+## 2026-07-15 07:40 KST — ⚡ 국토부 캐시 병렬 워밍 + WAL(속도개선)
+- 문제: 순차 워밍이 네트워크 왕복 대기로 느림(콜드 1.5h). 국토부는 courtauction과 달리 anti-bot
+  IP밴이 없어(정부 공개 API) 병렬 안전.
+- molit_cache.connect에 WAL+busy_timeout(30s)+synchronous=NORMAL → 동시접근 안전.
+- 병렬 워머(scratchpad/warm_parallel.py): ThreadPoolExecutor(워커 8) 받기=병렬, 쓰기=메인스레드
+  (SQLite 락 회피). 앵커=_prev_month 통일. 검증: 12mo 잔여450건 429=0·DB락=0·실패0.
+- night_loop.sh WARM 단계를 병렬 워머로 교체(WARM_WORKERS=8). 운영주의: 밤샘 루프는 반드시
+  단일 인스턴스(중복 실행 시 캐시 경합) — bash 오케스트레이터까지 종료 후 재기동.
+
 ## 2026-07-15 07:00 KST — 🐛 429 폭탄 원인 2건 수정(앵커 불일치 + 무용 유형 fetch)
 - 증상: 밤샘 SCORE 단계가 RTMSDataSvcLandTrade/NrgTrade에서 429 지속(4.5h 정체, est 666 정체).
 - 원인①: 워밍 스크립트가 앵커월 202506(하드코딩, 측정스크립트 복붙 잔재) 사용 → 재채점(run.py
