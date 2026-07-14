@@ -1,5 +1,17 @@
 # versions.md — auction-arbitrage 루프 작업 로그 (append-only, 최신순)
 
+## 2026-07-14 23:30 KST — 📈 국토부 실거래 영구 캐시 + 수집창 3→12개월(시세추정 커버리지 확대)
+- 문제: 시세추정 성공이 682/8171건뿐인 최대 원인이 "실거래를 3개월치만 수집"(단지당 거래 희소→
+  no_comps). 12개월로 늘리면 429(무료키 일일쿼터)라 불안정.
+- 해결: src/molit_cache.py 신규 — (kind,lawd_cd,ymd) 단위 SQLite 캐시(data/molit_trades.db, *.db
+  gitignore). 닫힌 달은 1회만 호출·영구재사용, 열린 달(이번+직전)만 재수집. 쿼터 소진돼도 받은 만큼
+  캐시→다음 실행 이어받기. load_live_trades를 캐시 기반으로 재작성 + 스로틀(AUCTION_MOLIT_THROTTLE).
+- 실증(서울 상위6개 법정동 178개 아파트·오피스텔): est성공 33→52(+58%), 진짜 같은단지 고신뢰
+  28→40(+43%), no_comps 79→61. pool 9136→29022건. 캐시 11개월·22386건 저장 확인.
+- 배선: refresh-daily.ps1에 -LiveMonths(기본12) 추가→ --live-months 12 전달. 코드 기본값(config
+  live_months=3)은 무회귀 유지(테스트 test_confidence_samples 보존). 테스트: molit_cache 4종 + 전체 468 통과.
+- 후속: 전국 --from-cache --live --live-months 12 프로덕션 백필(캐시가 쿼터 걸쳐 채움) → 재채점·Supabase 미러.
+
 ## 2026-07-14 08:20 KST — ♻️ crawl_rights --estimable 이어받기(resume) + 백필 중단 복구
 - 지난 밤 --estimable 백필이 682건 중 329건까지 하고 332번째에서 네트워크(DNS) 단절로 중단
   (getaddrinfo failed, 노트북 오프라인 추정). 코드/크롤러 문제 아님. 사진 329물건/3289장 확보.

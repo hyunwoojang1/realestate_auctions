@@ -35,6 +35,7 @@ param(
     [switch]$Live,
     [switch]$FromCache,
     [long]$Cash = 500000000,   # 사용자 결정 #8: 전국 · 현금 5억 상한
+    [int]$LiveMonths = 12,     # 국토부 실거래 수집창(개월). 캐시(molit_trades.db)로 닫힌 달은 1회만 호출.
     [string]$Ym = "",
     [string]$DbPath = ""
 )
@@ -62,7 +63,7 @@ $runArgs = @("run.py", "--source", "courtauction", "--db", $DbPath, "--cash", "$
 
 # 물건 소스: 캐시(재크롤X) vs 전국 실크롤. --live/--ym는 국토부 시세라 둘 다에 적용(독립).
 if ($FromCache) { $runArgs += "--from-cache" } else { $runArgs += "--nationwide" }
-if ($Live) { $runArgs += "--live" }
+if ($Live) { $runArgs += @("--live", "--live-months", "$LiveMonths") }
 if ($Ym)   { $runArgs += @("--ym", $Ym) }
 
 $mode = if ($FromCache) { "OFFLINE(from-cache)" } elseif ($Live) { "LIVE(nationwide)" } else { "SAMPLE-PRICE(nationwide)" }

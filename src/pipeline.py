@@ -12,7 +12,7 @@ from pathlib import Path
 from .matcher import estimate_market
 from .models import AuctionListing, ScoredListing, Trade
 from .molit_client import (
-    fetch_trades_months,
+    fetch_trades,
     parse_apt_trades_xml,
     parse_offi_trades_xml,
     parse_rh_trades_xml,
@@ -182,38 +182,63 @@ def load_live_trades(listings: list[AuctionListing], api_key: str,
     from .matcher import expected_kind  # noqa: PLC0415
     from .molit_extra_client import fetch_extra_trades  # noqa: PLC0415
 
+    from datetime import datetime  # noqa: PLC0415
+    from . import molit_cache  # noqa: PLC0415
+
     extra_by_lawd: dict[str, set[str]] = {}
     for lst in listings:
         k = expected_kind(lst.property_type)
         if k in ("sh", "nrg", "land"):
             extra_by_lawd.setdefault(lst.lawd_cd, set()).add(k)
 
+    ymds = recent_ymds(deal_ymd, _live_months())
+    # 열린 달(이번 달+직전 달)은 지연등록 반영 위해 매번 재수집, 그 이전은 캐시 영구재사용.
+    open_months = set(ymds[:2])
+    now = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+    cache = molit_cache.connect()
+
     trades: list[Trade] = []
     seen: set[str] = set()
-    calls = 0
-    fails = 0
-    for lst in listings:
-        if lst.lawd_cd in seen:
-            continue
-        seen.add(lst.lawd_cd)
-        ymds = recent_ymds(deal_ymd, _live_months())
-        for kind in ("apt", "rh", "officetel"):
-            calls += 1
-            try:
-                trades.extend(fetch_trades_months(kind, lst.lawd_cd, ymds, api_key))
-            except Exception as e:  # noqa: BLE001 — 한 지역/유형 실패가 전체를 막지 않게
-                fails += 1
-                logger.warning("라이브 호출 실패 kind=%s lawd=%s: %s", kind, lst.lawd_cd, e)
-        for kind in sorted(extra_by_lawd.get(lst.lawd_cd, ())):
-            for ymd in ymds:
-                calls += 1
-                try:
-                    trades.extend(_extra_to_trade(t, lawd_cd=lst.lawd_cd)
-                                  for t in fetch_extra_trades(kind, lst.lawd_cd, ymd, api_key))
-                except Exception as e:  # noqa: BLE001
-                    fails += 1
-                    logger.warning("확장 라이브 호출 실패 kind=%s lawd=%s ymd=%s: %s",
-                                   kind, lst.lawd_cd, ymd, e)
+    calls = hits = fails = 0
+    try:
+        for lst in listings:
+            if lst.lawd_cd in seen:
+                continue
+            seen.add(lst.lawd_cd)
+            for kind in ("apt", "rh", "officetel"):
+                for ymd in ymds:
+                    calls += 1
+                    try:
+                        got, from_cache = molit_cache.get_or_fetch(
+                            cache, kind, lst.lawd_cd, ymd,
+                            lambda k=kind, l=lst.lawd_cd, y=ymd: fetch_trades(k, l, y, api_key),
+                            cacheable=ymd not in open_months, now=now)
+                        trades.extend(got)
+                        hits += int(from_cache)
+                    except Exception as e:  # noqa: BLE001 — 한 지역/유형/달 실패가 전체를 막지 않게
+                        fails += 1
+                        logger.warning("라이브 호출 실패 kind=%s lawd=%s ymd=%s: %s",
+                                       kind, lst.lawd_cd, ymd, e)
+            for kind in sorted(extra_by_lawd.get(lst.lawd_cd, ())):
+                for ymd in ymds:
+                    calls += 1
+                    try:
+                        got, from_cache = molit_cache.get_or_fetch(
+                            cache, kind, lst.lawd_cd, ymd,
+                            lambda k=kind, l=lst.lawd_cd, y=ymd: [
+                                _extra_to_trade(t, lawd_cd=l)
+                                for t in fetch_extra_trades(k, l, y, api_key)],
+                            cacheable=ymd not in open_months, now=now)
+                        trades.extend(got)
+                        hits += int(from_cache)
+                    except Exception as e:  # noqa: BLE001
+                        fails += 1
+                        logger.warning("확장 라이브 호출 실패 kind=%s lawd=%s ymd=%s: %s",
+                                       kind, lst.lawd_cd, ymd, e)
+    finally:
+        cache.close()
+    logger.info("라이브 시세 수집: %d콜(캐시적중 %d·실패 %d), %d개월창, 실거래 %d건",
+                calls, hits, fails, len(ymds), len(trades))
     if fails:
         # 집계 경고 — '시세추정불가'가 진짜 comps 부재인지 API 실패 때문인지 구분하게 한다.
         logger.warning("라이브 시세 수집: %d/%d 호출 실패. 일부 물건은 comps 부족이 아니라 "
