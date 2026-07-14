@@ -35,7 +35,7 @@ param(
     [switch]$Live,
     [switch]$FromCache,
     [long]$Cash = 500000000,   # 사용자 결정 #8: 전국 · 현금 5억 상한
-    [int]$LiveMonths = 12,     # 국토부 실거래 수집창(개월). 캐시(molit_trades.db)로 닫힌 달은 1회만 호출.
+    [int]$LiveMonths = 24,     # 국토부 실거래 수집창(개월). 캐시(molit_trades.db)로 닫힌 달은 1회만 호출(깊이↑=비용동일, 열린 2개월만 매번).
     [string]$Ym = "",
     [string]$DbPath = ""
 )

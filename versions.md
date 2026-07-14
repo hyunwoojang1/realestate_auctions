@@ -1,6 +1,12 @@
 # versions.md — auction-arbitrage 루프 작업 로그 (append-only, 최신순)
 
-## 2026-07-14 23:30 KST — 📈 국토부 실거래 영구 캐시 + 수집창 3→12개월(시세추정 커버리지 확대)
+## 2026-07-15 09:10 KST — 🌙 밤샘 오케스트레이터 + refresh-daily 기본 24개월
+- 지난밤 캐시워밍이 네트워크 재연결로 38/129 법정동에서 정체(+워밍 프로세스 2중실행 SQLite 락경합 발견,
+  정리). 두밤 연속 네트워크 불안정 → 밤샘 자동재개 루프로 전환(사용자 요청, 휴식 3분).
+- night_loop.sh(scratchpad): WARM12→SCORE12→WARM24→SCORE24→PHOTOS→MAINT 단계, 각 멱등·자동재개.
+  캐시 성장으로 완성판정, run.py --from-cache --live --live-months N 재채점→auction.db+Supabase 반영,
+  crawl_rights --estimable 사진 백필. 정지=COURTAUCTION_STOP, 리포트=scratchpad/night_report.log.
+- refresh-daily.ps1 기본 LiveMonths 12→24(캐시가 닫힌달 서빙→깊이↑ 비용은 열린 2개월만). 정기 새로고침도 24개월 깊이.
 - 문제: 시세추정 성공이 682/8171건뿐인 최대 원인이 "실거래를 3개월치만 수집"(단지당 거래 희소→
   no_comps). 12개월로 늘리면 429(무료키 일일쿼터)라 불안정.
 - 해결: src/molit_cache.py 신규 — (kind,lawd_cd,ymd) 단위 SQLite 캐시(data/molit_trades.db, *.db
