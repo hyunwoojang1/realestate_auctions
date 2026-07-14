@@ -29,10 +29,12 @@ PHOTO_CAP = int(os.environ.get("AUCTION_PHOTO_CAP", "12"))
 
 
 def _targets(conn, limit: int | None, refresh: bool,
-             estimable_only: set | None = None) -> list[dict]:
+             estimable_only: set | None = None, skip: set | None = None) -> list[dict]:
     """크롤 대상 (boCd, case_no, item_no, 우선순위 정렬). raw_listings에서 법원코드 조인.
 
     estimable_only 지정 시 사진 저장 대상(시세추정 가능)만 남긴다 — 사진 백필용.
+    skip 지정 시 (court,case_no,str(item_no)) 정규화 키가 일치하는 물건을 제외한다 —
+    이어받기(resume)용. 예: 이미 사진을 확보한 물건을 건너뛰어 네트워크 단절 후 재개.
     """
     # ⚠ court 를 조인에 반드시 포함(감사 2026-07-10 CRITICAL): 사건번호는 법원별 독립 채번이라
     # court 없이 조인하면 타법원 동명 사건의 boCd 로 크롤해 '엉뚱한 사건의 권리'가 적재된다.
@@ -52,10 +54,12 @@ def _targets(conn, limit: int | None, refresh: bool,
         done = {(x["court"], x["case_no"], x["item_no"])
                 for x in conn.execute("SELECT court, case_no, item_no FROM listing_rights")}
     for r in rows:
+        key_norm = (r["court"], r["case_no"], str(r["item_no"] or ""))
         if (r["court"], r["case_no"], r["item_no"]) in done:
             continue
-        if estimable_only is not None and \
-                (r["court"], r["case_no"], str(r["item_no"] or "")) not in estimable_only:
+        if estimable_only is not None and key_norm not in estimable_only:
+            continue
+        if skip is not None and key_norm in skip:
             continue
         try:
             bo = json.loads(r["raw_json"]).get("boCd") or ""
@@ -76,7 +80,10 @@ def main(argv=None) -> int:
     ap.add_argument("--limit", type=int, default=200, help="크롤 물건 수 상한(기본 200)")
     ap.add_argument("--all", action="store_true", help="전 물건(limit 무시)")
     ap.add_argument("--estimable", action="store_true",
-                    help="사진 저장 대상(시세추정 가능)만 크롤 — 사진 백필용(limit 무시, refresh 함의)")
+                    help="사진 저장 대상(시세추정 가능)만 크롤 — 사진 백필용(limit 무시, refresh 함의). "
+                         "기본은 이어받기: 이미 사진 있는 물건 건너뜀(--force로 전량 재크롤)")
+    ap.add_argument("--force", action="store_true",
+                    help="--estimable 이어받기 무시하고 사진 있는 물건도 전량 재크롤")
     ap.add_argument("--refresh", action="store_true", help="이미 있는 물건도 재크롤")
     ap.add_argument("--no-cloud", action="store_true", help="Supabase 미러링 생략")
     args = ap.parse_args(argv)
@@ -84,10 +91,15 @@ def main(argv=None) -> int:
 
     conn = store.connect(args.db)
     # --estimable: 사진 대상만 재크롤(기존 rights 있어도 사진 백필 위해 refresh 함의).
+    # 기본은 이어받기 — 이미 사진 확보한 물건은 skip(네트워크 단절 후 재개에 안전). --force 시 전량.
     est_only = store.estimable_keys(conn) if args.estimable else None
+    skip = None
+    if args.estimable and not args.force:
+        skip = {(x["court"], x["case_no"], str(x["item_no"] or ""))
+                for x in conn.execute("SELECT court, case_no, item_no FROM listing_photos")}
     refresh = args.refresh or args.estimable
     limit = None if (args.all or args.estimable) else args.limit
-    targets = _targets(conn, limit, refresh, estimable_only=est_only)
+    targets = _targets(conn, limit, refresh, estimable_only=est_only, skip=skip)
     print(f"[*] 대상 {len(targets)}건 (DB={args.db}, 기존 크롤분 제외={not args.refresh})")
     if not targets:
         return 0

@@ -1,5 +1,13 @@
 # versions.md — auction-arbitrage 루프 작업 로그 (append-only, 최신순)
 
+## 2026-07-14 08:20 KST — ♻️ crawl_rights --estimable 이어받기(resume) + 백필 중단 복구
+- 지난 밤 --estimable 백필이 682건 중 329건까지 하고 332번째에서 네트워크(DNS) 단절로 중단
+  (getaddrinfo failed, 노트북 오프라인 추정). 코드/크롤러 문제 아님. 사진 329물건/3289장 확보.
+- 개선: --estimable을 이어받기 기본으로 — 이미 사진 확보한 물건은 skip(정규화 키). _targets에 skip
+  파라미터 추가, main에서 listing_photos 키셋으로 skip 구성. --force로 전량 재크롤 옵션 유지.
+  드라이 확인: 이어받기 대상 353건(=남은 것), --force 682건, skip 329건. 테스트 25건 통과.
+- 후속: 네트워크 복구 확인(courtauction 200) 후 나머지 353건 이어서 백필.
+
 ## 2026-07-13 17:50 KST — 🎯 crawl_rights --estimable 플래그(사진 백필 최적화)
 - 문제: 사진 백필에 --all 쓰면 scored 8171건 전부 courtauction 순차크롤 → 수시간+IP밴 리스크인데
   사진은 estimable 682건에만 저장(나머지 ~7500건 헛크롤). estimable이 정렬 앞에 다 모이지도 않음
