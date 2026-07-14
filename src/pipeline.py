@@ -185,11 +185,19 @@ def load_live_trades(listings: list[AuctionListing], api_key: str,
     from datetime import datetime  # noqa: PLC0415
     from . import molit_cache  # noqa: PLC0415
 
+    # 시세추정은 아파트·오피스텔만 지원(matcher.SUPPORTED_ESTIMATION_KINDS). 그 유형이 실제로 있는
+    # 법정동만 국토부를 호출한다 — 토지·상가만 있는 지역까지 긁으면 est엔 안 쓰이면서 쿼터만 태워 429.
+    supported_lawd = {lst.lawd_cd for lst in listings
+                      if expected_kind(lst.property_type) in ("apt", "officetel")}
+    # 확장 유형(sh/nrg/land)은 현재 시세추정 미지원 → 기본 비수집(쿼터 낭비·429 방지).
+    # 향후 유형 확장 시 AUCTION_FETCH_EXTRA=1 로 활성.
+    fetch_extra = os.environ.get("AUCTION_FETCH_EXTRA") == "1"
     extra_by_lawd: dict[str, set[str]] = {}
-    for lst in listings:
-        k = expected_kind(lst.property_type)
-        if k in ("sh", "nrg", "land"):
-            extra_by_lawd.setdefault(lst.lawd_cd, set()).add(k)
+    if fetch_extra:
+        for lst in listings:
+            k = expected_kind(lst.property_type)
+            if k in ("sh", "nrg", "land"):
+                extra_by_lawd.setdefault(lst.lawd_cd, set()).add(k)
 
     ymds = recent_ymds(deal_ymd, _live_months())
     # 열린 달(이번 달+직전 달)은 지연등록 반영 위해 매번 재수집, 그 이전은 캐시 영구재사용.
@@ -202,7 +210,7 @@ def load_live_trades(listings: list[AuctionListing], api_key: str,
     calls = hits = fails = 0
     try:
         for lst in listings:
-            if lst.lawd_cd in seen:
+            if lst.lawd_cd in seen or lst.lawd_cd not in supported_lawd:
                 continue
             seen.add(lst.lawd_cd)
             for kind in ("apt", "rh", "officetel"):
