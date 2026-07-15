@@ -63,6 +63,22 @@ def _int(v) -> int | None:
         return None
 
 
+# 크롤 아티팩트 정제(2026-07-16) — 명세서/감정 요항 자유텍스트에 섞여 들어오는 제어문자·제로폭·
+# BOM·NBSP/전각공백·연속 공백을 정리한다(개행은 보존). 마스킹 전에 적용해 마스커 정규식이
+# 깨끗한 텍스트를 보게 한다. 상세 페이지에 '이상한 특수문자'로 노출되던 것을 없앤다.
+_JUNK_RE = re.compile(r"[\x00-\x08\x0b\x0c\x0e-\x1f\x7f​-‏‪-‮⁠﻿]")
+
+
+def _sanitize(text: str) -> str:
+    """자유텍스트 정제: 제어문자·제로폭 제거, NBSP/전각공백→일반, 연속 수평공백 축약. 개행 보존."""
+    if not text:
+        return ""
+    t = _JUNK_RE.sub("", text).replace(" ", " ").replace("　", " ")
+    t = re.sub(r"[ \t]{2,}", " ", t)
+    t = re.sub(r"\n{3,}", "\n\n", t)
+    return t.strip()
+
+
 def is_substantive(text: str | None) -> bool:
     """명세서 항목이 '실질 내용 있음'인지 — 해당없음/공백은 False.
 
@@ -340,7 +356,7 @@ def normalize(dma_result: dict, court: str = "", case_no: str = "",
     # 빈 값('-'/공백)은 버리고, 항목코드로 라벨을 붙인다(미상 코드는 '감정 요항' 폴백).
     appraisal_notes = []
     for a in (dma_result.get("aeeWevlMnpntLst") or []):
-        text = (a.get("aeeWevlMnpntCtt") or "").strip()
+        text = _sanitize(a.get("aeeWevlMnpntCtt") or "")
         if not text or text in ("-", "–"):
             continue
         code = str(a.get("aeeWevlMnpntItmCd") or "")
@@ -354,10 +370,10 @@ def normalize(dma_result: dict, court: str = "", case_no: str = "",
 
     return CaseRights(
         court=court, case_no=case_no or (base.get("userCsNo") or ""), item_no=str(item_no or ""),
-        surviving_rights=mask_personal_names((gds.get("ndstrcRghCtt") or "").strip()),
-        senior_lien=(gds.get("tprtyRnkHypthcStngDts") or "").strip(),
-        lien_note=mask_personal_names((gds.get("sprfcExstcDts") or "").strip()),
-        remark=mask_personal_names("\n".join(remark_parts).strip()),
+        surviving_rights=mask_personal_names(_sanitize(gds.get("ndstrcRghCtt") or "")),
+        senior_lien=_sanitize(gds.get("tprtyRnkHypthcStngDts") or ""),
+        lien_note=mask_personal_names(_sanitize(gds.get("sprfcExstcDts") or "")),
+        remark=mask_personal_names(_sanitize("\n".join(remark_parts))),
         claim_amt=_int(base.get("clmAmt")),
         demand_end=_ymd((demn[0] or {}).get("dstrtDemnLstprdYmd") if demn else ""),
         spec_write_ymd=_ymd(gds.get("gdsSpcfcWrtYmd")),

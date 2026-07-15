@@ -181,6 +181,33 @@ def test_plain_share_mention_not_share_sale():
     assert "지분매각" not in badge.special
 
 
+def test_normalize_sanitizes_free_text():
+    """상세 자유텍스트의 크롤 아티팩트(제어문자·제로폭·BOM·NBSP·연속공백)를 정제한다(2026-07-16).
+
+    정제는 마스킹 전에 적용되므로 제로폭이 이름 앞에 끼어도 마스킹이 정상 동작해야 한다.
+    """
+    from src.courtauction_detail import normalize
+    dma = {
+        "csBaseInfo": {"userCsNo": "2024타경1", "clmAmt": "1000", "cortAuctnJdbnNm": "경매1계"},
+        "dspslGdsDxdyInfo": {
+            "ndstrcRghCtt": "유치권신고인​ 김철수\x07 로부터 공사대금",
+            "tprtyRnkHypthcStngDts": "근저당　　2020.01.01",
+            "sprfcExstcDts": "해당﻿사항없음",
+            "gdsSpcfcRmk": "비고   문구\x1f 끝",
+            "gdsSpcfcWrtYmd": "20240101",
+        },
+        "aeeWevlMnpntLst": [{"aeeWevlMnpntItmCd": "00083006", "aeeWevlMnpntCtt": "이용​상태  양호\x0c"}],
+    }
+    cr = normalize(dma, court="c", case_no="2024타경1", item_no="1")
+    junk = (0x200b, 0x200c, 0x200d, 0x07, 0xfeff, 0x1f, 0x0c, 0x3000, 0x00a0)  # 제로폭·제어·BOM·전각·NBSP
+    for field in (cr.surviving_rights, cr.senior_lien, cr.lien_note, cr.remark):
+        assert not any(ord(ch) in junk for ch in field)
+        assert "  " not in field
+    assert cr.appraisal_notes and not any(ord(ch) in junk for ch in cr.appraisal_notes[0]["text"])
+    assert "김철수" not in cr.surviving_rights          # 정제 후에도 실명 마스킹 정상 동작
+    assert "[성명]" in cr.surviving_rights
+
+
 def test_multiple_deposits_summed_distinct():
     """idx12 MEDIUM: 서로 다른 보증금 여러 건은 합산, 같은 금액 반복은 1회."""
     from src.courtauction_rights import detect_assumed_amount

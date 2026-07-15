@@ -1,5 +1,16 @@
 # versions.md — auction-arbitrage 루프 작업 로그 (append-only, 최신순)
 
+## 2026-07-16 (주간) — 🧹 B4 상세 자유텍스트 정제(사용자 확인 후 착수) + 전체 push
+- 무엇: 사용자 확인(Q3)대로 '사진 특수문자' = 상세페이지 크롤 자유텍스트 아티팩트. courtauction_detail에
+  `_sanitize` 추가 — 제어문자(\x00-\x1f)·제로폭(U+200B~200D)·방향마크·BOM 제거, NBSP/전각공백→일반,
+  연속 수평공백 축약(개행 보존). normalize()의 자유텍스트 5곳(surviving_rights·senior_lien·lien_note·
+  remark·appraisal_notes)에 **마스킹 전** 적용 → 마스커 정규식이 깨끗한 텍스트를 보게 됨(제로폭이 이름 앞에
+  끼어 마스킹 미스나던 것도 함께 해소).
+- 증거: _sanitize 단위검증(제로폭/제어/BOM/NBSP/연속공백 제거·한글/개행 보존 전수) + 신규 회귀테스트
+  test_normalize_sanitizes_free_text(정제+마스킹 유지). **pytest 520 pass/1 skip, ruff clean.**
+- push: 밤샘 UX 6커밋 + 이번 B4를 origin/main 반영(사용자 지시). Vercel 자동배포.
+- 남음(사용자 요청): 홈쿼리 서버측 limit 재구조화(Q4) — 사용자 참석 하에 진행 예정.
+
 ## 2026-07-16 01:50 KST — 🔍 밤샘UX 사이클5: 코드리뷰+Ponytail 재감사(적대검증) → 자기결함 3건 수정
 - 무엇: 사용자 핵심 요청. 밤샘 diff(9ff0593..HEAD)를 code-reviewer 2 + Ponytail 1 관점으로 감사 후
   **각 발견 적대검증**(워크플로 wf_d8561f00). 발견 3건 전부 CONFIRMED이나 검증관이 **code-reviewer의
