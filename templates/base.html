@@ -625,6 +625,19 @@ table.params{border-collapse:collapse;width:100%;font-size:var(--t-data);backgro
 .dphoto-dots{position:absolute;bottom:9px;left:0;right:0;display:flex;justify-content:center;gap:6px;pointer-events:none}
 .dphoto-dots i{width:6px;height:6px;border-radius:50%;background:rgba(255,255,255,.5);box-shadow:0 0 3px rgba(0,0,0,.45);transition:background .2s}
 .dphoto-dots i.on{background:#fff}
+.dphoto-track img{cursor:zoom-in}
+.dphoto-empty{margin:var(--sp-4) 0;padding:22px var(--sp-4);border-radius:var(--r-xl);background:var(--surface-sunken);border:1px dashed var(--hairline);color:var(--ink-500);font-size:13px;text-align:center}
+.dphoto-empty span{color:var(--ink-500);font-size:12px}
+/* 사진 확대 라이트박스 (의존성 0, 접근성) */
+.lb{position:fixed;inset:0;z-index:120;display:none;align-items:center;justify-content:center;background:rgba(8,12,20,.9);padding:24px}
+.lb.on{display:flex}
+.lb img{max-width:96vw;max-height:88vh;object-fit:contain;border-radius:var(--r-md);box-shadow:0 12px 48px rgba(0,0,0,.6)}
+.lb .lb-x{position:absolute;top:14px;right:16px;width:40px;height:40px;border:none;border-radius:50%;background:rgba(255,255,255,.14);color:#fff;font-size:22px;cursor:pointer;line-height:1}
+.lb .lb-nav{position:absolute;top:50%;transform:translateY(-50%);width:44px;height:44px;border:none;border-radius:50%;background:rgba(255,255,255,.14);color:#fff;font-size:24px;cursor:pointer}
+.lb .lb-prev{left:14px}.lb .lb-next{right:14px}
+.lb .lb-cnt{position:absolute;bottom:16px;left:0;right:0;text-align:center;color:rgba(255,255,255,.85);font-size:12px;font-variant-numeric:tabular-nums}
+@media (prefers-reduced-motion:no-preference){.lb.on img{animation:lbin .18s ease-out}}
+@keyframes lbin{from{opacity:0;transform:scale(.97)}to{opacity:1;transform:none}}
 /* 핵심 요약 카드 (감정/최저/보증금 · 시세/차익) */
 .dsum{display:grid;grid-template-columns:1fr 1fr;gap:var(--sp-3);margin:var(--sp-4) 0}
 .dsum-card{background:var(--surface);border:1px solid var(--hairline);border-radius:var(--r-lg);box-shadow:var(--e1);padding:6px var(--sp-5)}

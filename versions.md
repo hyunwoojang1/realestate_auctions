@@ -1,5 +1,19 @@
 # versions.md — auction-arbitrage 루프 작업 로그 (append-only, 최신순)
 
+## 2026-07-16 00:40 KST — 🖼 밤샘UX 사이클1: 사진 확대·빈상태·CLS + sale_date 가드 (+ 오버플래그 1건 기각)
+- 무엇: 사용자 UX 보고 대응. **먼저 적대검증으로 오탐 적발** — 진단(wf_a6fa366d)이 "confirmed high"로
+  올린 '사진 미표시=클라우드 photo_url 컬럼 부재→400'을 **라이브 반증**(컬럼 존재·URL 200·배포 사이트
+  사진 정상 렌더). DB ALTER 미실행. harness/REJECTED.md 기록. 재진단: 전체 93%가 사진 미수집인데 빈 상태
+  안내 없이 블록만 사라져 '깨진 듯' 보였던 것이 진짜 원인.
+- 변경(detail.html/base.html): ①사진 없는 물건 명시적 빈 상태('사진 미제공/미수집') ②`<img>` width/height/
+  decoding 힌트로 CLS·로딩 개선 ③**의존성0 접근성 라이트박스**(클릭·Enter/Space 확대, Esc/←→/백드롭 닫기,
+  포커스 복귀, aria-modal, 카운터) ④매각기일 `sale_date or '미상'` 빈값 가드(U4).
+- 증거: evidence/ux_detail_photo.html·ux_detail_nophoto.html(Flask 실렌더 — 사진有=블록+치수, 사진無=빈상태,
+  둘 다 라이트박스 JS·status 200). **pytest 519 pass/1 skip, ruff clean.**
+- 평가자: 라이브 스키마+이미지 200+배포 fetch로 오탐 반증(오버플래그 가드 실증). 
+- 다음(밤샘 대기): U3 대비·U6 이중폼·U1 지도a11y·U2 차트터치·U5 재매각보증금 → B4 텍스트정제(자유텍스트)
+  → B3 홈 로딩(3테이블 전량→서버측 limit, 무거움) → A1/A2 코드리뷰·Ponytail 재감사(적대검증). push 금지·로컬만.
+
 ## 2026-07-15 23:52 KST — 🎯 지분매각 하드게이트 (통물건 과대평가 424건 차익추천 제외) + 라이브 캡처 정찰
 - 무엇: 커버리지 착수 위해 실제 courtauction 응답을 **라이브 1건 캡처**(kill-switch 임시해제→작업후 원위치).
   **핵심 발견**: pgj15B(selectAuctnCsSrchRslt) 응답에 **점유자/이해관계인 표가 아예 없음**(임차/전입/보증금/

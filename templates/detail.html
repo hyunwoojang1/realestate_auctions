@@ -29,15 +29,17 @@
 
 <div class="ddetail">
 
-  <!-- 물건 사진 히어로 (스와이프) -->
+  <!-- 물건 사진 히어로 (스와이프 + 클릭 확대) -->
   {% if photos %}
   <div class="dphoto">
     {% if photos|length > 1 %}<span class="cnt">📷 {{ photos|length }}</span>{% endif %}
     <div class="dphoto-track">
-      {% for p in photos %}<img src="{{ p }}" alt="물건 사진 {{ loop.index }}" loading="{{ 'eager' if loop.first else 'lazy' }}">{% endfor %}
+      {% for p in photos %}<img src="{{ p }}" alt="물건 사진 {{ loop.index }}" width="800" height="600" decoding="async" loading="{{ 'eager' if loop.first else 'lazy' }}">{% endfor %}
     </div>
     {% if photos|length > 1 %}<div class="dphoto-dots">{% for p in photos %}<i class="{{ 'on' if loop.first }}"></i>{% endfor %}</div>{% endif %}
   </div>
+  {% else %}
+  <div class="dphoto-empty" role="note">📷 등록된 물건 사진이 없습니다 <span>(법원 미제공이거나 아직 수집 전)</span></div>
   {% endif %}
 
   <!-- 제목 -->
@@ -47,7 +49,7 @@
         <h1>{{ s.apt_name or s.property_type }}</h1>
         <span class="case">{{ s.case_no }}</span>
       </div>
-      <p class="meta">{{ s.address }} · {{ s.property_type }} · {{ '%.1f'|format(s.area_m2) }}㎡{% if s.area_m2 %} ({{ pyeong(s.area_m2) }}){% endif %} · 유찰 {{ s.fail_count }}회 · 매각기일 {{ s.sale_date }}</p>
+      <p class="meta">{{ s.address }} · {{ s.property_type }} · {{ '%.1f'|format(s.area_m2) }}㎡{% if s.area_m2 %} ({{ pyeong(s.area_m2) }}){% endif %} · 유찰 {{ s.fail_count }}회 · 매각기일 {{ s.sale_date or '미상' }}</p>
       <div class="chiprow" style="display:flex;gap:8px;margin-top:8px;flex-wrap:wrap">
         {% if rights and s.grade == '권리미확인' %}<span class="chip clean">명세서 확인됨</span>{% else %}{{ statuschip(s) }}{% endif %}
         <span class="chip muted">신뢰 {{ '%.2f'|format(s.confidence) }} · 매칭 {{ s.matched_trades }}건</span>
@@ -362,6 +364,34 @@
     var i=Math.round(track.scrollLeft/track.clientWidth);
     dots.forEach(function(d,j){ d.classList.toggle('on',j===i); });
   },{passive:true}); }
+  // 사진 클릭 확대 라이트박스 (접근성: Esc/←→/백드롭 닫기, 포커스 복귀)
+  var imgs=track?Array.prototype.slice.call(track.querySelectorAll('img')):[];
+  if(imgs.length){
+    var lb=document.createElement('div'); lb.className='lb'; lb.hidden=true;
+    lb.setAttribute('role','dialog'); lb.setAttribute('aria-modal','true'); lb.setAttribute('aria-label','물건 사진 확대');
+    lb.innerHTML='<button class="lb-x" type="button" aria-label="닫기">×</button>'+
+      (imgs.length>1?'<button class="lb-nav lb-prev" type="button" aria-label="이전 사진">‹</button><button class="lb-nav lb-next" type="button" aria-label="다음 사진">›</button><div class="lb-cnt" aria-live="polite"></div>':'')+
+      '<img alt="">';
+    document.body.appendChild(lb);
+    var lbImg=lb.querySelector('img'), lbCnt=lb.querySelector('.lb-cnt'), cur=0, opener=null;
+    function show(i){ cur=(i+imgs.length)%imgs.length; lbImg.src=imgs[cur].src; lbImg.alt=imgs[cur].alt||'';
+      if(lbCnt) lbCnt.textContent=(cur+1)+' / '+imgs.length; }
+    function open(i){ opener=document.activeElement; show(i); lb.hidden=false; lb.classList.add('on');
+      document.body.style.overflow='hidden'; lb.querySelector('.lb-x').focus(); }
+    function close(){ lb.classList.remove('on'); lb.hidden=true; document.body.style.overflow='';
+      if(opener&&opener.focus) opener.focus(); }
+    imgs.forEach(function(im,i){ im.setAttribute('role','button'); im.setAttribute('tabindex','0');
+      im.addEventListener('click',function(){ open(i); });
+      im.addEventListener('keydown',function(e){ if(e.key==='Enter'||e.key===' '){ e.preventDefault(); open(i); } }); });
+    lb.addEventListener('click',function(e){
+      if(e.target===lb||e.target.classList.contains('lb-x')) close();
+      else if(e.target.classList.contains('lb-next')) show(cur+1);
+      else if(e.target.classList.contains('lb-prev')) show(cur-1); });
+    document.addEventListener('keydown',function(e){ if(lb.hidden) return;
+      if(e.key==='Escape') close();
+      else if(e.key==='ArrowRight'&&imgs.length>1) show(cur+1);
+      else if(e.key==='ArrowLeft'&&imgs.length>1) show(cur-1); });
+  }
 })();
 </script>
 
