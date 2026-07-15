@@ -330,6 +330,10 @@ def replace_all(items: Iterable[ScoredListing]) -> int:
     url, key, table = _cfg()
     stamp = _now_iso()
     rows = [{**_payload(s), "refreshed_at": stamp} for s in items]
+    if not rows:
+        # 방어선: 수집 0건이면 아래 만료삭제(DELETE lt.stamp)가 클라우드 서빙 테이블을 통째로
+        # 비운다. 빈 스냅샷은 보존하고 no-op(로컬 store.replace_all 과 동일 정책).
+        return 0
     n = _post_upsert(url, key, table, rows)
     # 만료 삭제: 이번 run 보다 오래된 행(= 이번 크롤에 없던 매물).
     r = requests.delete(

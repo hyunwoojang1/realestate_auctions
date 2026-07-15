@@ -233,9 +233,12 @@ def fetch_extra_trades(kind: str, lawd_cd: str, deal_ymd: str, api_key: str,
         text = _get_with_retry(session, endpoint, params, timeout, retries)
         root = check_api_error(text)
         page_trades = _parse_root(root, kind)
+        raw_count = sum(1 for _ in root.iter("item"))   # 필터 전 원본 행 수(종료판정 전용)
         all_trades.extend(page_trades)
         total = _total_count(root)
-        if len(page_trades) < num_rows or (total is not None and len(all_trades) >= total):
+        # ⚠ page_trades(필터 후)가 아니라 raw_count(원본)로 마지막 페이지 판정 — 필터된 행 때문에
+        # 다음 페이지를 조기에 못 받는 버그 방지(molit_client 와 동일).
+        if raw_count < num_rows or (total is not None and page * num_rows >= total):
             break
         page += 1
     logger.info("국토부 확장 실거래 %d건 수집 (kind=%s lawd=%s ymd=%s)",

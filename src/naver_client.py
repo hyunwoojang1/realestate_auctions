@@ -87,7 +87,9 @@ class NaverClient:
                 try:
                     return json.loads(res["body"])
                 except (json.JSONDecodeError, TypeError):
-                    return None
+                    # 200인데 JSON이 아님 = 안티봇 챌린지 HTML. '데이터 없음'이 아니라 차단이므로
+                    # 조용히 None으로 삼키지 않고 즉시 중단(차단 감지 안전장치 우회 방지).
+                    raise NaverBlocked(f"200 non-JSON 응답(안티봇 챌린지 의심): {path}")
             if res["status"] == 429:
                 wait = 30 * (attempt + 1) + random.uniform(0, 15)
                 self._log(f"  [naver 429] {wait:.0f}s 대기({attempt+1}/3)")
@@ -95,7 +97,10 @@ class NaverClient:
                 if attempt == 1:
                     self._refresh()
                 continue
-            return None
+            if res["status"] == 404:
+                return None   # 리소스 미존재(단지 없음 등) — 정상적 '데이터 없음'
+            # 403 등 그 외 상태 = 차단 신호. 조용히 None으로 삼키면 '데이터 없음'과 구분 불가.
+            raise NaverBlocked(f"HTTP {res['status']} 응답 — 차단 의심: {path}")
         raise NaverBlocked("429 연속 3회 — 차단 확실, 중단(장기 대기 필요)")
 
     # --- 도메인 메서드 ---

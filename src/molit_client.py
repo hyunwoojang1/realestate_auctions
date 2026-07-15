@@ -200,14 +200,17 @@ def fetch_trades(kind: str, lawd_cd: str, deal_ymd: str, api_key: str,
         text = _get_with_retry(session, endpoint, params, timeout, retries)
         root = check_api_error(text)          # 오류면 MolitApiError
         page_trades = _parse_root(root, kind)
+        raw_count = sum(1 for _ in root.iter("item"))   # 필터 전 서버 반환 행 수(종료판정 전용)
         # 지역 태깅(감사 2026-07-10 CRITICAL): 전국 풀에서 타지역 동명(洞名) 혼입 방지 —
         # 이 호출의 LAWD_CD 를 각 거래에 박아 matcher 가 같은 시군구만 comps 로 쓰게 한다.
         for t in page_trades:
             t.lawd_cd = lawd_cd
         all_trades.extend(page_trades)
         total = _total_count(root)
-        # 마지막 페이지 판정: 이번 페이지가 꽉 안 찼거나, 누적이 totalCount 도달
-        if len(page_trades) < num_rows or (total is not None and len(all_trades) >= total):
+        # 마지막 페이지 판정: ⚠ 필터된 page_trades 가 아니라 raw_count(원본 행 수)로 판정한다 —
+        # amount<=0/area<=0 로 걸러진 행이 있으면 len(page_trades)<num_rows 가 조기에 참이 돼
+        # 다음 페이지를 못 받고 comps 가 누락된다(시세 편향). totalCount 는 페이지 도달분으로 비교.
+        if raw_count < num_rows or (total is not None and page * num_rows >= total):
             break
         page += 1
     logger.info("국토부 실거래 %d건 수집 (kind=%s lawd=%s ymd=%s, %d page)",
