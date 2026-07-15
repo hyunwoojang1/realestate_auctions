@@ -4,6 +4,7 @@ PoC 기본은 샘플 fixture. --live + 키가 있으면 국토부 라이브 호�
 """
 from __future__ import annotations
 
+import dataclasses
 import json
 import logging
 import os
@@ -296,6 +297,55 @@ def enrich_listings_with_rights(listings: list[AuctionListing], fetch_detail_fn)
         ok += 1
     logger.info("권리 enrich: %d/%d 물건 권리분석 반영(rights_verified).", ok, len(listings))
     return out
+
+
+def apply_rights_from_rows(listings: list[AuctionListing],
+                           rights_rows: list[dict]) -> tuple[list[AuctionListing], dict]:
+    """이미 크롤된 `listing_rights`(구조화 요지) → 채점 전 AuctionListing 권리필드 반영.
+
+    (감사 2026-07-15) 이 배선이 없어서 batch 채점이 권리를 한 번도 보지 않았다 — 적재된
+    8,245건 중 79.7%가 rights_score=85.0(=100−15 소유자점유 기본값) 상수였고, 인수비율
+    하드게이트·대항력 페널티가 batch 경로에서 죽어 있었다.
+
+    `enrich_listings_with_rights`(문서 텍스트 페처 기반)와 달리 **네트워크 0** — 이미 DB에
+    있는 요지를 쓴다. 서빙(web.py)이 상세 렌더 시 쓰는 어댑터(CaseRights → summarize → badge)와
+    **동일 로직**이라 목록 랭킹과 상세 페이지가 같은 사실 위에 서게 된다(종전엔 갈라져 있었다).
+
+    매칭 실패·빈 요지는 **건드리지 않는다** — rights_verified=False("모름")로 남아 '권리미확인'
+    등급을 유지한다. 없는 걸 '인수 없음'으로 단정하지 않는다.
+    """
+    from .courtauction_detail import CaseRights, summarize  # noqa: PLC0415 — 순환 import 회피
+    from .score import is_hard_gated  # noqa: PLC0415
+
+    by_key = {(r.get("court", ""), r.get("case_no", ""), str(r.get("item_no", "") or "")): r
+              for r in rights_rows}
+    out: list[AuctionListing] = []
+    stats = {"total": len(listings), "matched": 0, "empty": 0, "gated": 0}
+    for lst in listings:
+        row = by_key.get((lst.court, lst.case_no, str(lst.item_no or "")))
+        if row is None:
+            out.append(lst)          # 미크롤 → 권리미확인 유지
+            continue
+        cr = CaseRights.from_row(row)
+        if cr.is_empty:
+            stats["empty"] += 1
+            out.append(lst)          # 빈 요지 = 판정근거 0 → '없음'이 아니라 '모름'
+            continue
+        badge = summarize(cr)
+        enriched = dataclasses.replace(
+            lst,
+            special_rights=badge.special,
+            tenant_opposable=badge.opposable,
+            assumed_amount=badge.assumed,
+            rights_verified=True,
+        )
+        stats["matched"] += 1
+        if is_hard_gated(enriched):
+            stats["gated"] += 1
+        out.append(enriched)
+    logger.info("권리 배선: %d/%d 반영(빈요지 %d·하드게이트 %d)",
+                stats["matched"], stats["total"], stats["empty"], stats["gated"])
+    return out, stats
 
 
 def run(use_live: bool = False, deal_ymd: str | None = None,

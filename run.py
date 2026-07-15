@@ -125,6 +125,27 @@ def main(argv=None) -> int:
         listings = [x for x in listings if not x.sale_date or x.sale_date >= _today]
         if len(listings) < n_before and not args.json:
             print(f"  만료(기일 경과) 제외: {n_before - len(listings)}건")
+
+        # (감사 2026-07-15) 권리 배선 — 이미 크롤된 listing_rights 요지를 **채점 전에** 반영한다.
+        # 이 단계가 없어서 batch가 권리를 한 번도 안 보고 점수를 매겼다(79.7%가 rights_score=85.0
+        # 상수 → 권리 가중치 30%의 변별력 0, 인수비율 하드게이트 영구 사망). 네트워크 0 —
+        # 크롤 결과를 재사용할 뿐이다. 미크롤·빈요지는 손대지 않음(= '권리미확인' 유지).
+        try:
+            _rconn = store.connect(args.db)
+            try:
+                _rights_rows = store.load_all_rights(_rconn)
+            finally:
+                _rconn.close()
+        except Exception as e:  # noqa: BLE001 — 권리 배선 실패가 채점 자체를 막지 않게
+            print(f"  ⚠ 권리 배선 건너뜀(권리 요지 로드 실패: {e})")
+            _rights_rows = []
+        if _rights_rows:
+            listings, _rstats = pipeline.apply_rights_from_rows(listings, _rights_rows)
+            if not args.json:
+                print(f"  권리 배선: {_rstats['matched']}/{_rstats['total']}건 반영 "
+                      f"(하드게이트 {_rstats['gated']}건 · 빈요지 {_rstats['empty']}건 "
+                      f"· 미크롤 {_rstats['total'] - _rstats['matched'] - _rstats['empty']}건=권리미확인)")
+
         scored = pipeline.run(use_live=use_live, deal_ymd=args.ym, auctions=listings)
     else:
         scored = pipeline.run(use_live=use_live, deal_ymd=args.ym)
@@ -150,7 +171,15 @@ def main(argv=None) -> int:
                   f"(좌표없음 {cstats['no_coord']}·검증탈락 {cstats['bbox_reject']})")
     # 풀스냅샷(전국 실크롤 또는 캐시 전량, 라이브 시세)은 전량 교체로 만료매물 제거. 그 외는 병합.
     full_snapshot = args.nationwide or args.from_cache
-    if args.source == "courtauction" and use_live and full_snapshot:
+    if args.source == "courtauction" and use_live and full_snapshot and not scored:
+        # 수집 0건(전 샤드 차단·전량 파싱 실패 등)에 전량 교체를 돌리면 서빙 DB가 통째로 비워지고,
+        # 빈 테이블은 data_gates 를 위반 0건으로 통과해 클라우드까지 전파된다. 빈 스냅샷은 '만료'가
+        # 아니라 '수집 실패'이므로 기존 서빙 DB를 보존하고 교체·클라우드 미러를 건너뛴다.
+        print("  ⛔ 수집 0건 — 전량 교체·클라우드 미러 스킵(기존 서빙 DB 보존). 크롤 차단/실패 의심.",
+              file=sys.stderr)
+        n = 0
+        args.no_cloud = True
+    elif args.source == "courtauction" and use_live and full_snapshot:
         n = store.replace_all(conn, scored)
         # scored 전량교체 후 대응 물건이 사라진 고아 권리 정리(rights 무한누적 방지·중복 제거).
         pruned = store.prune_orphan_rights(conn)

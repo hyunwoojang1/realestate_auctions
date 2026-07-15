@@ -335,12 +335,18 @@ def normalize(dma_result: dict, court: str = "", case_no: str = "",
         code = str(a.get("aeeWevlMnpntItmCd") or "")
         appraisal_notes.append({"label": AEE_ITEM_LABELS.get(code, "감정 요항"), "text": text})
 
+    # (감사 2026-07-15) 개인정보 마스킹 — 명세서 자유텍스트에는 유치권신고인·임차인 **실명**이
+    # 그대로 들어온다("유치권신고인 홍길동로부터 공사대금채권…"). listing_rights 는 Supabase 로
+    # 미러돼 상세 페이지로 서빙되므로 리스트(mulBigo)와 동일 기준으로 저장 전에 마스킹한다.
+    # senior_lien(최선순위)·날짜·금액 등 공시정보는 마스커가 건드리지 않는다.
+    from .courtauction_fields import mask_personal_names  # noqa: PLC0415 — 순환 import 회피
+
     return CaseRights(
         court=court, case_no=case_no or (base.get("userCsNo") or ""), item_no=str(item_no or ""),
-        surviving_rights=(gds.get("ndstrcRghCtt") or "").strip(),
+        surviving_rights=mask_personal_names((gds.get("ndstrcRghCtt") or "").strip()),
         senior_lien=(gds.get("tprtyRnkHypthcStngDts") or "").strip(),
-        lien_note=(gds.get("sprfcExstcDts") or "").strip(),
-        remark="\n".join(remark_parts).strip(),
+        lien_note=mask_personal_names((gds.get("sprfcExstcDts") or "").strip()),
+        remark=mask_personal_names("\n".join(remark_parts).strip()),
         claim_amt=_int(base.get("clmAmt")),
         demand_end=_ymd((demn[0] or {}).get("dstrtDemnLstprdYmd") if demn else ""),
         spec_write_ymd=_ymd(gds.get("gdsSpcfcWrtYmd")),

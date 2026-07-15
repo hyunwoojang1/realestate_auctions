@@ -39,11 +39,69 @@ _PII_NAME_TOKENS = (
     "creditor", "applicant",                         # 채권자/신청인 (상세 API 출현 가능)
 )
 
-# 자유텍스트 필드: 한국어 성명이 문맥과 함께 들어올 수 있어 역할라벨 뒤 이름만 마스킹.
-_FREE_TEXT_FIELDS = frozenset({"mulBigo", "alias"})
+# 자유텍스트 필드: 한국어 성명이 문맥과 함께 들어올 수 있어 마스킹 대상.
+# (감사 2026-07-15) maejibun(매각지분) 누락 → 채무자·공유자 실명 1,870행이 무방비 저장돼 있었다.
+_FREE_TEXT_FIELDS = frozenset({"mulBigo", "alias", "maejibun"})
+
+# 패턴 1 — 역할라벨이 앞: "채무자 홍길동", "유치권신고인 홍길동".
+# ⚠ 정규식 교대(|)는 왼쪽 우선이라 **긴 역할어를 먼저** 둬야 한다 — '임차권자'가 앞서면
+#   '주택임차권자 홍길동'에서 '주택'만 남고 매칭이 어긋난다.
+#   group3 = 뒤따르는 쉼표 나열("…, 박화란, 김철수") — 같은 역할의 추가 성명.
 _PII_CONTEXT_RE = re.compile(
-    r"(채무자|소유자|임차인|점유자|신청인|배우자|상속인)\s*[:：]?\s*([가-힣]{2,4})"
+    r"(주택임차권자|유치권신고인|유치권자|임차권자|채무자|소유자|공유자|임차인|임대인"
+    r"|점유자|신청인|배우자|상속인|연고자)\s*[:：]?\s*([가-힣]{2,4})"
+    r"((?:\s*[,·]\s*[가-힣]{2,4})*)"
 )
+# 나열 꼬리 안의 개별 항목 — (구분자, 이름, 빈문자) 로 쪼개 이름만 치환.
+_PII_NAME_LIST_RE = re.compile(r"(\s*[,·]\s*)([가-힣]{2,4})()")
+# 패턴 2 — 이름이 앞: "홍길동 지분", "홍길동 소유" (maejibun의 지배적 표기. 패턴1로는 미탐)
+_PII_NAME_FIRST_RE = re.compile(r"([가-힣]{2,4})\s*(지분|소유)")
+
+# 이름 자리에 오지만 자연인이 아닌 어휘. **정확일치(+조사)로만** 제외한다 —
+# ⚠ 접두일치로 하면 "전원"이 실명 **전원철**을, "소유"가 **소유진**을 삼켜 마스킹을 빠져나간다
+#   (실측 2026-07-15: 천안 2025타경11313 "임차인 전원철, 박화란" 무마스킹 누출).
+_NOT_A_NAME = frozenset({
+    "공유자", "채무자", "소유자", "소유권", "임차인", "점유자", "신청인", "배우자", "상속인",
+    "전원", "갑구", "을구", "지분", "대지권", "전부", "일부", "비율", "토지", "건물",
+    "청구", "매각", "소유", "부분", "구분", "등기", "명의", "증여", "매매", "공유", "성명",
+    "상속", "임대인", "임차권자", "연고자", "유치권자",
+    # 역할어 뒤에 오는 서술어·부사 — 이름 자리를 차지하지만 자연인이 아니다
+    # (실측: "임차인 있으며", "임차인 전원", "소유자 미상의", "채무자 명의의").
+    "있으며", "있음", "없으며", "없음", "미상", "불명", "다수", "수인", "본인", "모두",
+    "각각", "해당", "동일", "상기", "전술", "아래", "기타", "및", "또는", "외의", "위의",
+})
+# 성명/명사 뒤에 붙는 조사 — 제외어 판정 시 떼어내고 본다("전원의"→'전원'=제외, "전원철"→실명).
+_JOSA = ("으로", "에게", "로부터", "의", "은", "는", "이", "가", "도", "만", "에", "와", "과",
+         "로", "을", "를", "께", "님", "부터")
+
+
+def _strip_josa(token: str) -> str:
+    """토큰 끝의 조사 1개를 떼어낸 형태(2자 이상 남을 때만). '전원의'→'전원', '전원철'→'전원철'."""
+    for j in sorted(_JOSA, key=len, reverse=True):
+        if len(token) - len(j) >= 2 and token.endswith(j):
+            return token[: -len(j)]
+    return token
+
+
+def _looks_like_name(token: str) -> bool:
+    """이름 자리 토큰이 자연인 성명으로 보이면 True(법률용어·역할어·서술어는 False).
+
+    정확일치 + 조사분리로만 제외 — 접두일치는 실명을 삼킨다(위 주석 참조).
+    """
+    return token not in _NOT_A_NAME and _strip_josa(token) not in _NOT_A_NAME
+
+
+# 성명 뒤에 바로 붙는 조사 — `[가-힣]{2,4}`가 탐욕적이라 "윤용섭로부터"를 4자로 집어삼킨다.
+# 이름(2~3자)과 조사를 갈라 조사는 원문에 되돌려준다("[성명]부터" 같은 훼손 방지).
+_JOSA_TAIL = ("으로", "로", "은", "는", "이", "가", "의", "에", "와", "과", "도", "만", "께", "님")
+
+
+def _split_name_josa(token: str) -> tuple[str, str]:
+    """'윤용섭로' → ('윤용섭','로'). 조사가 없으면 (token, '')."""
+    for j in sorted(_JOSA_TAIL, key=len, reverse=True):
+        if len(token) - len(j) >= 2 and token.endswith(j):
+            return token[: -len(j)], j
+    return token, ""
 
 
 def is_personal_field(key: str) -> bool:
@@ -55,10 +113,35 @@ def is_personal_field(key: str) -> bool:
 
 
 def mask_personal_names(text: str) -> str:
-    """자유텍스트 내 '채무자 홍길동' 류의 성명을 '[성명]'으로 마스킹(역할라벨은 보존)."""
+    """자유텍스트 내 성명을 '[성명]'으로 마스킹. 역할라벨·지분비율 등 공시정보는 보존한다.
+
+    두 어순을 모두 처리한다 — "채무자 홍길동"(비고체) / "홍길동 지분"(매각지분체).
+    법률용어(소유권·전원의·대지권 …)는 이름 자리에 와도 마스킹하지 않는다.
+    """
     if not text:
         return text
-    return _PII_CONTEXT_RE.sub(lambda m: f"{m.group(1)} [성명]", text)
+
+    def _role_first(m: re.Match) -> str:
+        if not _looks_like_name(m.group(2)):
+            return m.group(0)
+        _, josa = _split_name_josa(m.group(2))
+        # 나열 처리 — "임차인 전원철, 박화란" 의 둘째 이후 이름은 역할라벨이 앞에 없어
+        # 패턴에 안 걸린다(실측 누출). 라벨 뒤 쉼표 나열은 같은 역할의 사람들이므로 함께 마스킹.
+        tail = m.group(3) or ""
+        if tail:
+            def _item(x: re.Match) -> str:
+                if not _looks_like_name(x.group(2)):
+                    return x.group(0)
+                _, j = _split_name_josa(x.group(2))
+                return f"{x.group(1)}[성명]{j}"
+            tail = _PII_NAME_LIST_RE.sub(_item, tail)
+        return f"{m.group(1)} [성명]{josa}{tail}"
+
+    def _name_first(m: re.Match) -> str:
+        return f"[성명] {m.group(2)}" if _looks_like_name(m.group(1)) else m.group(0)
+
+    text = _PII_CONTEXT_RE.sub(_role_first, text)
+    return _PII_NAME_FIRST_RE.sub(_name_first, text)
 
 
 def sanitize_row(raw: dict) -> dict:
@@ -438,14 +521,27 @@ def parse_row(raw: dict) -> CourtAuctionRecord:
 def to_auction_listing(rec: CourtAuctionRecord) -> AuctionListing:
     """차익 스코어 파이프라인(matcher/score)이 쓰는 기존 모델로 변환.
 
-    대항력·인수금액·점유 등 완전한 권리분석은 물건상세(D)에서만 가능하므로 rights_verified=False로
-    두어 '권리미확인' 게이트를 유지한다. 다만 리스트 '비고(mulBigo)'에 유치권·지분 등 특수권리
-    플래그가 박혀 있으면 Tier-0 힌트로 뽑아 하드게이트('위험')는 미리 발동시킨다(무료·네트워크 0).
+    완전한 권리분석은 물건상세(D)에서만 가능하므로 rights_verified=False로 두어 '권리미확인'
+    게이트를 유지한다. 다만 리스트 '비고(mulBigo)'에 특수권리·대항력·인수금액이 박혀 있으면
+    Tier-0 힌트로 뽑아 하드게이트('위험')는 미리 발동시킨다(무료·네트워크 0).
     비고는 짧은 메모라 보수적(키워드 출현=위험)으로만 쓰고, 완전검증은 상세 보강 시 대체된다.
+
+    (감사 2026-07-15) 여기서 detect_special_rights 만 부르고 detect_tenant_opposable·
+    detect_assumed_amount 는 부르지 않아, batch 전 물건이 assumed_amount=0·tenant_opposable=False
+    로 적재됐다. 그 결과 인수비율 하드게이트와 대항력 30점 페널티가 batch 경로에서 영구히 죽어
+    있었다(실측: 점수 매겨진 1,023건 중 대항력 68건·인수금액 9건이 전부 무시됨). 세 검출기를
+    함께 부른다 — 같은 원천(비고), 같은 보수성 규범.
     """
-    from .courtauction_rights import detect_special_rights  # noqa: PLC0415 — 순환 import 회피
+    from .courtauction_rights import (  # noqa: PLC0415 — 순환 import 회피
+        detect_assumed_amount,
+        detect_special_rights,
+        detect_tenant_opposable,
+    )
 
     special = detect_special_rights(rec.note) if rec.note else []
+    # 비고 기반 Tier-0 권리 힌트. 상세(D) 보강 시 apply_rights 가 덮어쓴다.
+    opposable = detect_tenant_opposable(rec.note) if rec.note else False
+    assumed = detect_assumed_amount(rec.note) if rec.note else 0
     # (서빙감사 2026-07-12 #3) 신청채권자 매수신청 플로어 — 그 금액 이상 써야 낙찰되므로
     # 유효 최저입찰가 = max(공고최저가, 매수신청액). 공고가만 쓰면 취득원가·차익이 과대평가된다.
     min_bid = rec.min_bid_price
@@ -468,6 +564,8 @@ def to_auction_listing(rec: CourtAuctionRecord) -> AuctionListing:
         fail_count=rec.fail_count,
         sale_date=rec.sale_date,
         special_rights=special,   # 비고 힌트(Tier-0). rights_verified는 상세(D) 전까지 False 유지.
+        tenant_opposable=opposable,   # 〃 — 대항력 30점 페널티 발동
+        assumed_amount=assumed,       # 〃 — 인수비율 하드게이트 발동(is_hard_gated는 verified 불요)
         item_no=rec.item_no,      # T1: 같은 사건 다른 물건 덮어쓰기 방지 — 복합 식별자 관통
         doc_id=rec.doc_id,
     )

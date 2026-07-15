@@ -14,7 +14,7 @@ from datetime import datetime, timedelta, timezone
 
 from .models import ScoredListing
 
-SCHEMA_VERSION = 6
+SCHEMA_VERSION = 7
 
 DDL = """
 CREATE TABLE IF NOT EXISTS scored_listings (
@@ -34,6 +34,7 @@ CREATE TABLE IF NOT EXISTS scored_listings (
     profit_high INTEGER,
     market_sample_basis INTEGER,
     market_comps TEXT NOT NULL DEFAULT '[]',
+    rights_verified INTEGER NOT NULL DEFAULT 0,
     PRIMARY KEY (court, case_no, item_no)
 );
 """
@@ -132,6 +133,10 @@ _COLS = [
     "court", "item_no", "doc_id", "market_scope",
     "market_band_low", "market_band_high", "profit_low", "profit_high",
     "market_sample_basis",
+    # (감사 2026-07-15 / T8 기존지적 audit-t8-20260703) 권리분석 수행 여부. DDL에 없어서 DB
+    # 왕복 시 항상 False 로 복원됐다 — 권리 배선(apply_rights_from_rows) 도입으로 이 값이
+    # 실제 의미를 갖게 되므로 영속화한다. sqlite는 bool을 0/1 정수로 저장.
+    "rights_verified",
 ]
 
 # v1(구스키마)에서 이관 대상 컬럼 — court/item_no/doc_id는 v1에 없으므로 '' 기본값.
@@ -184,6 +189,20 @@ def load_all_naver(conn: sqlite3.Connection) -> list[dict]:
     return [dict(r) for r in conn.execute("SELECT * FROM naver_prices")]
 
 
+def load_all_rights(conn: sqlite3.Connection) -> list[dict]:
+    """listing_rights 전량(채점 전 권리 배선용 — pipeline.apply_rights_from_rows).
+
+    단건 조회(load_rights)를 물건마다 부르면 N번 왕복하므로 배치는 전량 1회 로드 후
+    (court,case_no,item_no) 맵으로 조인한다. 테이블이 없으면 빈 리스트(신규 DB 안전).
+    """
+    has = conn.execute(
+        "SELECT 1 FROM sqlite_master WHERE type='table' AND name='listing_rights'"
+    ).fetchone()
+    if not has:
+        return []
+    return [dict(r) for r in conn.execute("SELECT * FROM listing_rights")]
+
+
 def _migrate(conn: sqlite3.Connection) -> None:
     """구스키마 자동 이관 — v1(case_no 단일 PK) → v2(복합 PK) → v3(market_scope).
 
@@ -230,8 +249,15 @@ def _migrate(conn: sqlite3.Connection) -> None:
             conn.execute(
                 "ALTER TABLE scored_listings ADD COLUMN market_comps TEXT NOT NULL DEFAULT '[]'"
             )
+    if "rights_verified" not in cols:
+        # v6 → v7(권리 배선, 감사 2026-07-15): 권리분석 수행 여부. 레거시 행은 0(권리미확인) —
+        # 실제로도 그 시점 채점은 권리를 안 봤으므로 0이 사실이다. 다음 새로고침이 실값을 채운다.
+        with conn:
+            conn.execute(
+                "ALTER TABLE scored_listings ADD COLUMN rights_verified INTEGER NOT NULL DEFAULT 0"
+            )
 
-    # listing_rights: 감정평가 요항점 컬럼 추가(v6 → v7). 테이블이 이미 있고 컬럼만 없을 때 ALTER.
+    # listing_rights: 감정평가 요항점 컬럼 추가. 테이블이 이미 있고 컬럼만 없을 때 ALTER.
     rt = conn.execute(
         "SELECT 1 FROM sqlite_master WHERE type='table' AND name='listing_rights'"
     ).fetchone()
@@ -287,6 +313,11 @@ def replace_all(conn: sqlite3.Connection, items: Iterable[ScoredListing]) -> int
 
     팔리거나 취하돼 이번 크롤에 없는 물건을 남겨 두지 않는다(만료 매물 추천 방지).
     """
+    items = list(items)
+    if not items:
+        # 방어선: 수집 0건에 전량 교체를 돌리면 서빙 DB가 통째로 비워진다(크롤 실패=만료 아님).
+        # 빈 스냅샷은 교체하지 않고 기존 데이터를 보존한다(호출부가 실수해도 데이터 소실 방지).
+        return 0
     with conn:  # 트랜잭션: 전부 성공 or 롤백(웹이 반쯤 지워진 상태를 서빙하지 않게)
         conn.execute("DELETE FROM scored_listings")
         n = _insert_rows(conn, items)
@@ -443,6 +474,9 @@ def load_scored(conn: sqlite3.Connection) -> list[ScoredListing]:
     for r in fetch_ranked(conn):
         kw = {c: r[c] for c in _COLS}
         kw["market_comps"] = _parse_comps(r["market_comps"] if "market_comps" in r.keys() else None)
+        # sqlite는 bool을 0/1 정수로 돌려준다 — dataclass 계약(bool)에 맞춰 복원.
+        # (truthy 비교는 통과하지만 `is True` 류 검사와 직렬화에서 어긋난다.)
+        kw["rights_verified"] = bool(kw.get("rights_verified"))
         out.append(ScoredListing(**kw))
     return out
 

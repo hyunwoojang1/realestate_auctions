@@ -9,6 +9,7 @@ from src.courtauction_fields import (
     CourtAuctionRecord,
     classify_property_type,
     is_personal_field,
+    mask_personal_names,
     parse_area_m2,
     parse_row,
     sanitize_row,
@@ -89,6 +90,115 @@ def test_free_text_name_masking_in_bigo():
     assert "김철수" not in clean["mulBigo"]
     assert "일괄매각" in clean["mulBigo"]      # 공시정보는 보존
     assert "채무자 [성명]" in clean["mulBigo"]
+
+
+# --- 감사 2026-07-15: maejibun PII 누락 + 비고 권리검출 미호출 --------------------
+
+
+def test_maejibun_is_masked_name_first_word_order():
+    """매각지분은 '홍길동 지분'처럼 **이름이 앞**에 온다 — 역할라벨 패턴으로는 미탐이었다.
+
+    실측 1,870행이 무방비 저장돼 있던 회귀(감사 2026-07-15).
+    """
+    clean = sanitize_row({"maejibun": "공유자지분 중 100분의 15 최선웅 지분"})
+    assert "최선웅" not in clean["maejibun"]
+    assert "[성명] 지분" in clean["maejibun"]
+    assert "100분의 15" in clean["maejibun"]     # 지분 비율(공시정보)은 보존
+
+    clean2 = sanitize_row({"maejibun": "한웅희 소유"})
+    assert "한웅희" not in clean2["maejibun"]
+
+
+def test_maejibun_masking_keeps_legal_terms():
+    """'소유권'·'전원의'·'대지권 비율'은 이름 자리에 와도 성명이 아니다(오탐 방지)."""
+    for text in ("전 소유권 지분 중 2분의 1", "공유자 전원의 지분 전부", "대지권 비율 500분의 21.7849"):
+        assert sanitize_row({"maejibun": text})["maejibun"] == text
+
+
+def test_name_starting_with_excluded_term_is_still_masked():
+    """제외어 접두일치 버그 회귀 — '전원'이 제외어라고 **전원철**(실명)을 놓치면 안 된다.
+
+    실측 누출(2026-07-15, 천안 2025타경11313): "임차인 전원철, 박화란" 무마스킹으로 Supabase
+    미러까지 나갔다. 제외 판정은 정확일치+조사분리로만 한다.
+    """
+    from src.courtauction_fields import _looks_like_name
+
+    for real_name in ("전원철", "소유진", "토지원", "명의찬"):
+        assert _looks_like_name(real_name) is True
+    for term in ("전원", "전원의", "소유권", "미상", "있으며"):
+        assert _looks_like_name(term) is False
+
+
+def test_masks_comma_separated_name_list():
+    """'임차인 전원철, 박화란' — 역할라벨 뒤 쉼표 나열의 둘째 이후 성명도 마스킹."""
+    out = mask_personal_names(
+        "주택도시보증공사(임차인 전원철, 박화란)는 경매신청채권자로 "
+        "임차인 전원철, 박화란의 임차보증금반환채권 양수")
+    assert "전원철" not in out
+    assert "박화란" not in out
+    assert "[성명]의 임차보증금반환채권" in out       # 조사 보존
+    assert "주택도시보증공사" in out                  # 법인명은 개인정보 아님 — 보존
+
+
+def test_rights_normalize_masks_names():
+    """listing_rights(=Supabase 미러 대상) 저장 경로도 마스킹돼야 한다.
+
+    실측: 클라우드 auction_listing_rights.remark 297행에 실명이 올라가 있었다.
+    """
+    from src.courtauction_detail import normalize
+
+    cr = normalize({
+        "dspslGdsDxdyInfo": {
+            "gdsSpcfcRmk": "유치권신고인 윤용섭로부터 공사대금채권 금 229,900,000원",
+            "ndstrcRghCtt": "대항력 있는 임차인 홍길동",
+            "sprfcExstcDts": "",
+            "tprtyRnkHypthcStngDts": "2021.4.28.근저당권",
+        },
+    })
+    assert "윤용섭" not in cr.remark
+    assert "홍길동" not in cr.surviving_rights
+    assert "229,900,000" in cr.remark                 # 금액(공시정보)은 보존
+    assert cr.senior_lien == "2021.4.28.근저당권"     # 최선순위는 무손상
+
+
+def test_bigo_masks_lien_claimant_and_keeps_josa():
+    """유치권신고인·임차권자 등 역할어 뒤 성명도 마스킹하되 조사는 원문 유지."""
+    clean = sanitize_row({"mulBigo": "유치권신고인 윤용섭로부터 공사대금채권 금 229,900,000원"})
+    assert "윤용섭" not in clean["mulBigo"]
+    assert "유치권신고인 [성명]로부터" in clean["mulBigo"]   # '[성명]부터'로 훼손되지 않음
+    assert "229,900,000" in clean["mulBigo"]
+
+
+def test_to_auction_listing_reads_opposable_and_assumed_from_bigo():
+    """비고에 대항력·인수금액이 있으면 Tier-0 힌트로 반영돼 하드게이트가 발동해야 한다.
+
+    (감사 2026-07-15) detect_special_rights 만 부르고 나머지 둘을 안 불러, batch 전 물건이
+    assumed_amount=0·tenant_opposable=False 로 적재되던 회귀.
+    """
+    from src.score import is_hard_gated
+
+    rec = parse_row({
+        "srnSaNo": "2025타경1", "jiwonNm": "테스트지원", "maemulSer": "1",
+        "notifyMinmaePrice1": "35535000", "gamevalAmt": "300000000",
+        "mulBigo": ("매수인에게 대항할 수 있는 을구 순위 4번 임차권등기 있음. 배당에서 보증금이"
+                    " 전액 변제되지 아니하면 잔액 155,000,000원을 매수인이 인수함"),
+    })
+    lst = to_auction_listing(rec)
+    assert lst.tenant_opposable is True
+    assert lst.assumed_amount == 155_000_000
+    assert is_hard_gated(lst) is True          # 인수비율 436% > 30% 게이트
+
+
+def test_to_auction_listing_clean_bigo_stays_unflagged():
+    """깨끗한 비고는 종전대로 무플래그 — 오탐으로 정상 물건을 죽이지 않는다."""
+    rec = parse_row({
+        "srnSaNo": "2025타경2", "jiwonNm": "테스트지원", "maemulSer": "1",
+        "notifyMinmaePrice1": "100000000", "gamevalAmt": "200000000",
+        "mulBigo": "특별매각조건 매수신청보증금 최저매각가격의 20%",
+    })
+    lst = to_auction_listing(rec)
+    assert lst.tenant_opposable is False
+    assert lst.assumed_amount == 0
 
 
 def test_discount_vs_appraisal():

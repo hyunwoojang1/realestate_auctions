@@ -3,6 +3,10 @@ __pycache__/
 *.pyc
 .env
 *.db
+# 스냅샷 백업(auction.db.pre-xxx-20260715 류) — `*.db` 는 확장자로 안 끝나 못 잡는다.
+# 84M×N 이라 실수로 커밋되면 레포가 망가진다(2026-07-15 실제로 스테이징 직전에 발견).
+*.db.*
+data/backup/
 .pytest_cache/
 .ruff_cache/
 

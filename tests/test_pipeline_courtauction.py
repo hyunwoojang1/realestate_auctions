@@ -173,6 +173,69 @@ def test_enrich_keeps_unverified_when_no_text():
     assert out[0].rights_verified is False
 
 
+# --- 감사 2026-07-15: 권리 배선(apply_rights_from_rows) — batch가 권리를 보게 한다 ---------
+
+
+def _listing(case_no: str = "2025타경9", court: str = "테스트지원", item_no: str = "1",
+             min_bid: int = 97_300_000) -> AuctionListing:
+    return AuctionListing(
+        case_no=case_no, court=court, item_no=item_no, address="강원 강릉시", lawd_cd="42150",
+        dong="교동", apt_name="테스트오피스텔", property_type="오피스텔", area_m2=30.0,
+        appraisal_price=190_000_000, min_bid_price=min_bid, fail_count=3,
+        sale_date="2026-08-01")
+
+
+def _rights_row(court: str = "테스트지원", case_no: str = "2025타경9", item_no: str = "1",
+                surviving: str = "") -> dict:
+    return {
+        "court": court, "case_no": case_no, "item_no": item_no,
+        "surviving_rights": surviving, "senior_lien": "2025.12.15.경매개시결정",
+        "lien_note": "", "remark": "", "claim_amt": 100_000_000, "demand_end": "2026-03-01",
+        "spec_write_ymd": "2026-07-01", "court_dept": "경매1계", "schedule": "[]",
+        "appraisal_notes": "[]", "fetched_at": "2026-07-15",
+    }
+
+
+def test_apply_rights_from_rows_gates_assumed_deposit():
+    """상세 요지의 인수금액이 채점 전에 반영돼 하드게이트가 발동해야 한다.
+
+    (감사 2026-07-15) 이 배선이 없어 batch 8,245건 중 79.7%가 rights_score=85.0 상수였다.
+    실측 사례: 강릉지원 2025타경30912 — 최저가 9,730만원 / 인수 보증금 1.1억 → 인수비율 113%.
+    배선 후 실측 rights_score 85.0 → 0.0 확인.
+    """
+    from src.score import is_hard_gated, rights_score
+
+    surviving = ("매수인에게 대항할 수 있는 을구 순위 3번 임차권등기(2024. 3. 26.등기) 있음"
+                 "(임대차보증금 11000만 원, 전입일 2019. 1. 17.). 배당에서 보증금이 전액"
+                 " 변제되지 아니하면 잔액을 매수인이 인수함")
+    out, stats = pipeline.apply_rights_from_rows(
+        [_listing()], [_rights_row(surviving=surviving)])
+
+    e = out[0]
+    assert e.rights_verified is True
+    assert e.tenant_opposable is True
+    assert e.assumed_amount == 110_000_000
+    assert is_hard_gated(e) is True
+    assert rights_score(e) == 0.0
+    assert stats == {"total": 1, "matched": 1, "empty": 0, "gated": 1}
+
+
+def test_apply_rights_from_rows_leaves_uncrawled_unverified():
+    """미크롤 물건은 손대지 않는다 — '인수 없음'이 아니라 '권리미확인'으로 남아야 한다."""
+    out, stats = pipeline.apply_rights_from_rows([_listing()], [])
+    assert out[0].rights_verified is False
+    assert out[0].assumed_amount == 0
+    assert stats["matched"] == 0
+
+
+def test_apply_rights_from_rows_requires_exact_item_no():
+    """물건번호가 다르면 형제 물건의 명세서를 끌어다 쓰지 않는다(감사 idx16 회귀 방지)."""
+    out, _ = pipeline.apply_rights_from_rows(
+        [_listing(item_no="1")], [_rights_row(item_no="2", surviving="매수인이 인수함 금 5억원")])
+    assert out[0].rights_verified is False
+    assert out[0].assumed_amount == 0
+
+
 def test_courtauction_listings_flow_through_scoring():
     """실매물을 pipeline.run에 넣어 ScoredListing까지 — 샘플 시세로 채점(시세 없으면 추정불가)."""
     fake = FakeClient(_records())
