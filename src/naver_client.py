@@ -89,7 +89,7 @@ class NaverClient:
                 except (json.JSONDecodeError, TypeError):
                     # 200인데 JSON이 아님 = 안티봇 챌린지 HTML. '데이터 없음'이 아니라 차단이므로
                     # 조용히 None으로 삼키지 않고 즉시 중단(차단 감지 안전장치 우회 방지).
-                    raise NaverBlocked(f"200 non-JSON 응답(안티봇 챌린지 의심): {path}")
+                    raise NaverBlocked(f"200 non-JSON 응답(안티봇 챌린지 의심): {path}") from None
             if res["status"] == 429:
                 wait = 30 * (attempt + 1) + random.uniform(0, 15)
                 self._log(f"  [naver 429] {wait:.0f}s 대기({attempt+1}/3)")

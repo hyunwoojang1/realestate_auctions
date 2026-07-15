@@ -198,9 +198,8 @@ def test_unregistered_land_right_never_estimates():
 
 def test_fallback_appraisal_bounds():
     """서빙감사 #8·#10: 폴백 시세가 감정가 1.5배 초과/0.6배 미만이면 무효화."""
-    from src.matcher import estimate_market, SCOPE_APPRAISAL_MISMATCH, SCOPE_SAME_DONG_FALLBACK
+    from src.matcher import SCOPE_APPRAISAL_MISMATCH, estimate_market
     # 같은 동 다른 이름 comps만 있게 → fallback. 감정 1억에 comps 2억(2배) → 무효
-    dong_comps = [Trace for Trace in []]  # placeholder
     lst = _lst(apt_name="A동네빌", area_m2=84.9, appraisal_price=100_000_000, dong="상계동", lawd_cd="11350")
     trades = [
         Trade(apt_name="딴이름아파트", area_m2=84.9, price=200_000_000, deal_ym="202605", dong="상계동", kind="apt", lawd_cd="11350"),
@@ -213,7 +212,7 @@ def test_fallback_appraisal_bounds():
 
 def test_multi_complex_demotes_from_same_area():
     """서빙감사 #2: 마을명 부분일치가 여러 단지를 끌어오면 same_complex 인정 안 함."""
-    from src.matcher import match_trades_scoped, SCOPE_SAME_COMPLEX_SAME_AREA
+    from src.matcher import SCOPE_SAME_COMPLEX_SAME_AREA, match_trades_scoped
     lst = _lst(apt_name="갑오마을", area_m2=126.48, dong="대청동", lawd_cd="48250")
     trades = [
         Trade(apt_name="갑오마을3단지대동", area_m2=126.48, price=230_000_000, deal_ym="202605", dong="대청동", kind="apt", lawd_cd="48250"),
@@ -226,7 +225,7 @@ def test_multi_complex_demotes_from_same_area():
 
 def test_creditor_bid_floor_raises_min_bid():
     """서빙감사 #3: 신청채권자 매수신청액이 공고최저가보다 크면 유효 최저입찰가로."""
-    from src.courtauction_fields import to_auction_listing, CourtAuctionRecord
+    from src.courtauction_fields import CourtAuctionRecord, to_auction_listing
     rec = CourtAuctionRecord(
         doc_id="D", case_no="2025타경570", court="창원지방법원", dept="", property_type="아파트",
         usage_name="아파트", address="창원", sido="", sigu="", dong="중동", lawd_cd="48120",

@@ -6,7 +6,6 @@ meta-refresh 로 10초마다 스스로 갱신 → 에이전트가 멈춰도 진�
 """
 from __future__ import annotations
 
-import html
 import sys
 import time
 from pathlib import Path

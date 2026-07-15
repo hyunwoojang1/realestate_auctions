@@ -175,7 +175,7 @@ def _complex_ids(name: str) -> frozenset[str]:
     return frozenset(m.group(1) for m in _COMPLEX_ID_RE.finditer(name or ""))
 
 
-def _multi_complex(comps: list["Trade"]) -> bool:
+def _multi_complex(comps: list[Trade]) -> bool:
     """매칭 comps 가 서로 다른 단지 식별자(N단지/N차)를 2개 이상 포함하면 True — '같은 단지'
     라벨을 붙이면 안 된다. 마을·지구명 부분일치가 이웃 단지를 끌어온 신호."""
     # (감사 2026-07-15) 단지별 식별자 집합끼리 비교한다. 한 이름에 토큰이 둘인 경우

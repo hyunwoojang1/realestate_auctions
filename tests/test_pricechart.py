@@ -149,8 +149,8 @@ def test_no_schedule_falls_back_to_current_only():
 
 def test_timechart_gain_reflects_assumed():
     """서빙감사 #19(재발): 인수금액이 밴드-원가 차를 넘으면 차트 차익 구간 없음(히어로 음수와 정합)."""
-    from src.pricechart import build_timechart
     from src.models import ScoredListing
+    from src.pricechart import build_timechart
     from src.store import _COLS
     base = {c: None for c in _COLS}
     base.update(dict(case_no="T", apt_name="테스트", address="서울", property_type="아파트",

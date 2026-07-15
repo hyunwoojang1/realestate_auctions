@@ -369,13 +369,13 @@ def _clean_lawd(raw: str) -> str:
     return s.replace(",", "")[:5]
 
 
-def _has_building(rec: "CourtAuctionRecord") -> bool:
+def _has_building(rec: CourtAuctionRecord) -> bool:
     """이 목적물 행에 건물 실체 표식이 있는가(집합건물 전유 행 판별)."""
     r = rec.raw or {}
     return bool(rec.building_name or rec.building_detail or r.get("pjbBuldList"))
 
 
-def merge_mokmul_rows(records: list["CourtAuctionRecord"]) -> list["CourtAuctionRecord"]:
+def merge_mokmul_rows(records: list[CourtAuctionRecord]) -> list[CourtAuctionRecord]:
     """같은 물건(court,case_no,item_no)의 목적물(mokmulSer)별 다중 행을 1행으로 병합.
 
     감사(2026-07-10 HIGH) 확정: 검색 API 는 일괄매각 물건을 목적물 단위(docid 끝=mokmulSer)로

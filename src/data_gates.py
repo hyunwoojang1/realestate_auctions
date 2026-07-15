@@ -63,8 +63,8 @@ def gate_type_physical(conn) -> GateResult:
         select s.court, s.case_no, s.item_no, r.raw_json
         from scored_listings s join raw_listings r
           on r.court=s.court and r.case_no=s.case_no and r.item_no=s.item_no
-        where s.property_type in (%s)
-    """ % ",".join("?" * len(_HOUSING)), _HOUSING):
+        where s.property_type in ({})
+    """.format(",".join("?" * len(_HOUSING))), _HOUSING):
         groups.setdefault((r["court"], r["case_no"], r["item_no"]), []).append(
             json.loads(r["raw_json"]))
     bad = []
@@ -92,8 +92,8 @@ def gate_scls_consistency(conn) -> GateResult:
         select s.court, s.case_no, s.item_no, s.property_type, r.raw_json
         from scored_listings s join raw_listings r
           on r.court=s.court and r.case_no=s.case_no and r.item_no=s.item_no
-        where s.est_market_price is not null and s.property_type in (%s)
-    """ % ",".join("?" * len(_HOUSING)), _HOUSING):
+        where s.est_market_price is not null and s.property_type in ({})
+    """.format(",".join("?" * len(_HOUSING))), _HOUSING):
         scls = str(json.loads(r["raw_json"]).get("sclsUtilCd") or "")
         if not scls:
             continue

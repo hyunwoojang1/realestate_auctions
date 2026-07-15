@@ -116,7 +116,7 @@ def test_store_load_rights_fallback_keeps_court(tmp_path):
 
 # ---- 2026-07-11 재검증 감사 확정 — 권리 문구 파서 회귀 ----
 
-def test_double_negation_is_assumption(): 
+def test_double_negation_is_assumption():
     """idx7 CRITICAL: '말소되지 않고 … 인수함'은 negation('말소')이 있어도 인수다."""
     from src.courtauction_rights import detect_assumed_amount
     txt = "을구 5번 임차권등기(임대차보증금 450,000,000원)는 말소되지 않고 매수인이 인수함"
@@ -176,7 +176,7 @@ def test_empty_case_rights_is_empty():
 
 def test_korean_hundred_thousand_unit_amounts():
     """#0: 백/천 혼합 한글 단위 금액 파싱('1억9천5백만원')."""
-    from src.courtauction_rights import detect_assumed_amount, _korean_won
+    from src.courtauction_rights import _korean_won, detect_assumed_amount
     assert _korean_won("1억9천5백만") == 195_000_000
     assert _korean_won("2억5천만") == 250_000_000
     assert _korean_won("6,500만") == 65_000_000

@@ -103,7 +103,7 @@ def test_stats_counts_entries(tmp_path):
     conn = _conn(tmp_path)
     for ymd in ("202503", "202504"):
         molit_cache.get_or_fetch(
-            conn, "apt", "11680", ymd, lambda: [_trade(ymd=ymd)],
+            conn, "apt", "11680", ymd, lambda ymd=ymd: [_trade(ymd=ymd)],
             cacheable=True, now="2026-07-14 00:00:00", throttle_s=0)
     s = molit_cache.stats(conn)
     assert s["entries"] == 2

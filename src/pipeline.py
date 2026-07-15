@@ -180,11 +180,11 @@ def load_live_trades(listings: list[AuctionListing], api_key: str,
     기본 아파트/연립다세대/오피스텔 + 필요 시 단독/다가구(sh)·상업업무(nrg)·토지(land) 확장(E).
     확장 유형은 해당 물건이 실제로 있는 법정동에만 호출한다(불필요한 API 부하 회피).
     """
+    from datetime import datetime  # noqa: PLC0415
+
+    from . import molit_cache  # noqa: PLC0415
     from .matcher import expected_kind  # noqa: PLC0415
     from .molit_extra_client import fetch_extra_trades  # noqa: PLC0415
-
-    from datetime import datetime  # noqa: PLC0415
-    from . import molit_cache  # noqa: PLC0415
 
     # 시세추정은 아파트·오피스텔만 지원(matcher.SUPPORTED_ESTIMATION_KINDS). 그 유형이 실제로 있는
     # 법정동만 국토부를 호출한다 — 토지·상가만 있는 지역까지 긁으면 est엔 안 쓰이면서 쿼터만 태워 429.
@@ -242,9 +242,9 @@ def load_live_trades(listings: list[AuctionListing], api_key: str,
             workers = max(1, int(os.environ.get("AUCTION_MOLIT_WORKERS", "8")))
 
             def _fetch_one(t):
-                k, l, y, ex_ = t
+                k, lawd, y, ex_ = t
                 try:
-                    return t, _do_fetch(k, l, y, ex_)
+                    return t, _do_fetch(k, lawd, y, ex_)
                 except Exception as e:  # noqa: BLE001
                     return t, e
 

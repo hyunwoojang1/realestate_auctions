@@ -51,7 +51,8 @@ def main(argv=None) -> int:
     cloud_batch = []
     for i, r in enumerate(rows, 1):
         if Path(STOP).exists():
-            print("[STOP] 중단"); break
+            print("[STOP] 중단")
+            break
         try:
             jpeg = base64.b64decode(r["thumb_b64"])
             url = photo_store.upload_photo(jpeg, r["court"], r["case_no"], r["item_no"], r["seq"])

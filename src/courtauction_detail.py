@@ -131,7 +131,7 @@ class CaseRights:
         return d
 
     @classmethod
-    def from_row(cls, row: dict) -> "CaseRights":
+    def from_row(cls, row: dict) -> CaseRights:
         d = dict(row)
         for jkey in ("schedule", "appraisal_notes"):
             v = d.get(jkey)
@@ -190,7 +190,7 @@ class PriorityAnalysis:
     note: str = ""
 
 
-def analyze_priority(r: "CaseRights") -> PriorityAnalysis:
+def analyze_priority(r: CaseRights) -> PriorityAnalysis:
     """CaseRights → 대항력 판정 근거. surviving_rights(+remark)에서 전입일, senior_lien에서 말소기준."""
     text = f"{r.surviving_rights}\n{r.remark}"
     # 말소기준: senior_lien 의 첫 날짜 + 그 근처 유형 키워드

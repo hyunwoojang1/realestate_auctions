@@ -1,5 +1,17 @@
 # versions.md — auction-arbitrage 루프 작업 로그 (append-only, 최신순)
 
+## 2026-07-15 23:25 KST — 🧹 CI ruff green (24건 → 0, push 차단 해소)
+- 무엇: push 시 CI를 red로 만들던 ruff 24건 전부 해소(기능 무관, 이전 세션 이전부터 누적).
+  자동수정 17건(I001 import정렬·UP037 주석따옴표·F401 미사용import·UP035 Callable출처·W291 공백) +
+  수동 7건: E702 세미콜론분리(migrate_photos), UP031 %→.format 2건(data_gates, SQL ? 바인드 보존),
+  B904 raise from None(naver_client 차단감지), E741 `l`→`lawd`(pipeline _fetch_one),
+  F841 죽은 placeholder 제거(test_matcher), **B023 lambda 늦은바인딩 `lambda ymd=ymd:` (test_molit_cache,
+  실제 정확성 버그 — 루프변수 캡처)**.
+- 증거: **ruff `All checks passed!`** + **pytest 517 pass / 1 skip**(회귀0). 14파일 net -2줄.
+- 평가자: 정찰 워크플로 wf_4cf4e64b-ebe(ruff 전수 관측·자동/수동 분류). data/coords_cache.json은 내 것 아니라 제외.
+- 다음: (운영) 해제거래 소급정정용 molit_trades.db 재수집 + 커버리지(인근매각사례 selectAroundDspslGds ·
+  pgj15B 이해관계인 구조화 추출 = 추가HTTP 0 퀵윈).
+
 ## 2026-07-15 23:21 KST — 🎯 해제거래(cdealType) 파싱·시세 제외 (데이터 정확성, +11.18% 오염 차단)
 - 무엇: 국토부 실거래 중 신고 후 취소된 **해제거래**가 comps에 섞여 시세를 부풀리던 것 차단
   (감사 실측: 강남·분당 2개월 182/1,628건 해제 → 평균 +11.18% 과대). 4파일 최소 변경:
