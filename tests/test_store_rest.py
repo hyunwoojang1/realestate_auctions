@@ -73,7 +73,7 @@ def test_load_scored_single_page(monkeypatch):
     monkeypatch.setattr(store_rest.requests, "get", fake_get)
     items = store_rest.load_scored(use_cache=False)
     assert [s.case_no for s in items] == ["2024타경1", "2024타경2"]
-    assert seen["params"]["order"] == "arb_score.desc.nullslast"
+    assert seen["params"]["order"] == "arb_score.desc.nullslast,court.asc,case_no.asc,item_no.asc"
     assert seen["url"].endswith("/rest/v1/auction_scored_listings")
 
 
@@ -144,16 +144,17 @@ def test_replace_all_upserts_then_deletes_stale(monkeypatch):
         return FakeResp()
 
     def fake_delete(url, headers=None, params=None, timeout=None):
-        order.append(("delete", params.get("refreshed_at")))
+        order.append(("delete", params.get("or")))
         return FakeResp()
 
     monkeypatch.setattr(store_rest.requests, "post", fake_post)
     monkeypatch.setattr(store_rest.requests, "delete", fake_delete)
     store_rest.replace_all([_sl(case_no="a"), _sl(case_no="b")])
-    # 순서 불변식: 먼저 업서트(post), 그 다음 만료 삭제(delete lt.<stamp>).
+    # 순서 불변식: 먼저 업서트(post), 그 다음 만료 삭제(delete). 만료 조건은 오래된 행 + NULL
+    # refreshed_at(증분 upsert 구행)을 함께 지운다(감사 2026-07-15).
     assert order[0][0] == "post"
     assert order[-1][0] == "delete"
-    assert order[-1][1].startswith("lt.")
+    assert "refreshed_at.lt." in order[-1][1] and "refreshed_at.is.null" in order[-1][1]
 
 
 def test_fetch_rights_exact_match_only(monkeypatch):

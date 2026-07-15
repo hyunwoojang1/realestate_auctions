@@ -1,5 +1,22 @@
 # versions.md — auction-arbitrage 루프 작업 로그 (append-only, 최신순)
 
+## 2026-07-15 22:10 KST — 🛠 2차 감사 수정 A~H(위험추천·알림·캐시크래시·만료·정렬·매처·지역·리포트)
+- A(score): 하드게이트(유치권 등)가 시세추정불가(est None) 경로에서 미적용 → 서빙 KB 재계산 시
+  market_view가 위험신호 못받아 추천되던 것 수정(est None 경로에서도 is_hard_gated→grade '위험').
+- B(run_alerts·run_digest): pipeline.run() 무인자=샘플 6건 → 실제 서빙 DB(store.load_scored) 읽게.
+  알림이 영구 '변동 0건', 다이제스트가 항상 샘플이던 것 수정.
+- C(molit_cache): _load의 Trade(**d)를 try 안으로 → 캐시 스키마 드리프트/손상 시 크래시 방지(#15).
+  ⚠#28(빈결과 미캐시)은 '빈 달 의도적 캐시' 설계와 충돌·요청증폭이라 되돌림(트레이드오프 주석).
+- D(store_rest): 전량교체 만료삭제가 NULL refreshed_at(증분 upsert 구행)을 안 지워 팔림/취하
+  매물이 영구 잔존 → DELETE에 is.null OR 추가.
+- E(store_rest): load_scored·load_all_naver 페이지네이션에 유일키 타이브레이커 order 추가
+  (1000건 초과 시 페이지 경계 누락/중복 방지).
+- F(matcher): _multi_complex가 한 이름의 두 토큰('2차 3단지')을 혼입으로 오판 → 단지별 식별자
+  집합 비교로 교정. G(region): name_to_code 부분일치가 '중구'류를 임의 구로 반환 → 유일할 때만 채택.
+  H(report): to_html의 area_m2 None → 크래시 가드. +naver articles 호가 상한 9억 제거(고가 누락).
+- 회귀 테스트 tests/test_audit_round2_fixes.py 신설(10건) + store_rest 테스트 2건 갱신. 514 통과.
+  (인수금액 파싱 #9는 다른 세션이 소유 중인 courtauction_rights라 충돌회피로 제외.)
+
 ## 2026-07-15 21:40 KST — 🔍 크롤 버그 3종 실피해 검증(결론: 손실 0) + 음차맵·실패분 재시도
 - 사용자 질문: 방금 고친 크롤 버그 3개(①국토부 페이지 조기중단 ②네이버 차단을 0건으로 삼킴
   ③0건 지역 영구 스킵) 때문에 5시간 크롤링이 덜 긁혔는가? → **데이터 손실 0. 재수집 불필요.**

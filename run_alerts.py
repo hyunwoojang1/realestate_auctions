@@ -13,13 +13,25 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parent
 sys.path.insert(0, str(ROOT))
 
-from src import pipeline, watchlist  # noqa: E402
+import os  # noqa: E402
+
+from src import store, watchlist  # noqa: E402
 
 EVID = ROOT / "evidence"
 
 
+def _scored() -> list:
+    # (감사 2026-07-15) 알림은 실제 서빙 DB를 봐야 한다. pipeline.run() 무인자는 샘플 fixture
+    # 6건만 읽어, 기준선 저장 후 매 실행이 동일 결과 → detect_changes 가 영구 '변동 0건'이었다.
+    conn = store.connect(os.environ.get("AUCTION_DB", "auction.db"))
+    try:
+        return store.load_scored(conn)
+    finally:
+        conn.close()
+
+
 def main() -> int:
-    current = watchlist.snapshot_from_scored(pipeline.run())
+    current = watchlist.snapshot_from_scored(_scored())
     prev = watchlist.load_snapshot()
     wl = watchlist.load_watchlist() or None
 

@@ -121,8 +121,10 @@ class NaverClient:
         return (j or {}).get("marketPrices") or []
 
     def articles(self, complex_no, trade="A1", kind="APT"):
+        # (감사 2026-07-15) priceMax/areaMax 상한을 매우 크게 — 기존 9억 하드코딩은 9억 초과
+        # 매물을 호가 표본에서 통째로 누락시켜 고가 단지 호가가 편향됐다.
         j = self.fetch(f"/api/articles/complex/{complex_no}?realEstateType={kind}&tradeType={trade}"
-                       f"&priceMin=0&priceMax=900000000&areaMin=0&areaMax=900000000"
+                       f"&priceMin=0&priceMax=99900000000&areaMin=0&areaMax=99900000000"
                        f"&page=1&complexNo={complex_no}&order=prc")
         return (j or {}).get("articleList") or []
 

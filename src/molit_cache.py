@@ -79,9 +79,11 @@ def _load(conn: sqlite3.Connection, kind: str, lawd_cd: str, ymd: str) -> list[T
         return None
     try:
         raw = json.loads(row["trades_json"])
+        return [Trade(**d) for d in raw]
     except (json.JSONDecodeError, TypeError):
+        # (감사 2026-07-15) Trade(**d) 도 try 안으로 — 캐시 스키마 드리프트/손상 시 TypeError 가
+        # 미포착 전파돼 해당 지역 캐시 읽기가 통째로 크래시하던 것 방지(미스로 강등 → 재수집).
         return None
-    return [Trade(**d) for d in raw]
 
 
 def _save(conn: sqlite3.Connection, kind: str, lawd_cd: str, ymd: str,
@@ -114,6 +116,8 @@ def get_or_fetch(conn: sqlite3.Connection, kind: str, lawd_cd: str, ymd: str,
     if throttle_s > 0:
         time.sleep(throttle_s)
     if cacheable:
+        # 빈 달([])도 의도적으로 캐시한다 — 거래 0건인 닫힌 달을 미캐시(None)와 구분해
+        # 재fetch 를 막는다(요청 절감). 스푸리어스 '0건' 오염 위험은 알려진 트레이드오프.
         _save(conn, kind, lawd_cd, ymd, trades, now)
     return trades, False
 

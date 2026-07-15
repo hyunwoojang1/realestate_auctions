@@ -120,6 +120,11 @@ def score_listing(listing: AuctionListing, est_market_price: int | None, matched
         # (T2) v1 미지원 유형(빌라/상가/토지/유형불명)은 '데이터가 부족해서'가 아니라
         # '정책상 추정하지 않아서'임을 구분해 표기한다 — 사용자가 원인을 알아야 신뢰가 생긴다.
         na_grade = grade_of(None) if is_estimation_supported(listing.property_type) else "미지원유형"
+        # (감사 2026-07-15) 하드게이트(유치권 등 치명권리·인수금액 과다)는 시세추정 여부와 무관하게
+        # '위험'으로 표기한다. 이 경로에서 게이트를 건너뛰면, 서빙 때 KB시세로 재계산될 때
+        # market_view 가 s.grade=="위험" 신호를 못 받아 위험 물건에 추천 등급을 주게 된다.
+        if is_hard_gated(listing):
+            na_grade = "위험"
         return ScoredListing(
             case_no=listing.case_no, apt_name=listing.apt_name, address=listing.address,
             property_type=listing.property_type, area_m2=listing.area_m2,

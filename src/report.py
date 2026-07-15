@@ -210,7 +210,7 @@ def to_html(items: list[ScoredListing], path: str | Path) -> Path:
         rows_html.append(f"""<tr>
   <td class="num rank">{i}</td>
   <td class="num profit">{_won(s.expected_profit)}<div class="ty">{_pct(s.gap_rate)}</div></td>
-  <td><b>{e_warn}</b><div class="ty">{e_type} · {s.area_m2:.0f}㎡ · 유찰{s.fail_count}</div></td>
+  <td><b>{e_warn}</b><div class="ty">{e_type} · {f"{s.area_m2:.0f}㎡" if s.area_m2 else "-"} · 유찰{s.fail_count}</div></td>
   <td class="name">{e_name}<div class="addr">{e_addr}</div></td>
   <td class="meter">{_gap_meter(s)}</td>
   <td class="num">{_won(s.min_bid_price)}</td>

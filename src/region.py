@@ -31,10 +31,10 @@ def name_to_code(name: str) -> str | None:
     n = name.replace(" ", "")
     if not n:
         return None
-    for k, v in LAWD.items():
-        if n in k.replace(" ", ""):
-            return v
-    return None
+    # (감사 2026-07-15) 부분일치는 유일할 때만 채택. '중구'처럼 여러 시도에 있는 이름은 먼저
+    # 걸린 임의의 구를 반환하면 엉뚱한 지역을 수집한다 — 모호하면 None(호출부가 처리).
+    matches = [v for k, v in LAWD.items() if n in k.replace(" ", "")]
+    return matches[0] if len(matches) == 1 else None
 
 
 def code_to_name(code: str) -> str | None:

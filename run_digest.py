@@ -8,13 +8,14 @@
 from __future__ import annotations
 
 import argparse
+import os
 import sys
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent
 sys.path.insert(0, str(ROOT))
 
-from src import digest, pipeline, report  # noqa: E402
+from src import digest, report, store  # noqa: E402
 
 EVID = ROOT / "evidence"
 
@@ -26,7 +27,14 @@ def main(argv=None) -> int:
                     help="예상차익 하한(원)")
     args = ap.parse_args(argv)
 
-    items = digest.top_listings(pipeline.run(), n=args.n, min_profit=args.min_profit)
+    # (감사 2026-07-15) 실제 서빙 DB를 대상으로 — 무인자 pipeline.run()은 샘플 6건만 봐서
+    # 주간 TOP 이 항상 같은 샘플이었다.
+    conn = store.connect(os.environ.get("AUCTION_DB", "auction.db"))
+    try:
+        scored = store.load_scored(conn)
+    finally:
+        conn.close()
+    items = digest.top_listings(scored, n=args.n, min_profit=args.min_profit)
     md = digest.to_markdown(items)
     print(md)
 

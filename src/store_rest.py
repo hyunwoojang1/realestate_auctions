@@ -106,7 +106,10 @@ def load_scored(use_cache: bool = True) -> list[ScoredListing]:
             headers=_headers(key),
             params={
                 "select": select,
-                "order": "arb_score.desc.nullslast",
+                # (감사 2026-07-15) 정렬에 유일키(court,case_no,item_no) 타이브레이커 추가 —
+                # arb_score 단독은 동점·NULL 다수라 순서가 불안정해 1000건 초과 시 페이지 경계에서
+                # 행이 누락/중복되던 것 방지(전 순서 결정화).
+                "order": "arb_score.desc.nullslast,court.asc,case_no.asc,item_no.asc",
                 "limit": _PAGE,
                 "offset": offset,
             },
@@ -247,7 +250,10 @@ def load_all_naver(use_cache: bool = True) -> list[dict]:
     offset = 0
     while True:
         r = requests.get(_endpoint(url, NAVER_TABLE), headers=_headers(key),
-                         params={"select": "*", "limit": _PAGE, "offset": offset},
+                         # (감사 2026-07-15) order 추가 — 정렬 없는 offset 페이지네이션은 1000건
+                         # 초과(2351건) 시 페이지 경계에서 행 누락/중복. 유일키로 전 순서 결정화.
+                         params={"select": "*", "order": "court.asc,case_no.asc,item_no.asc",
+                                 "limit": _PAGE, "offset": offset},
                          timeout=30)
         r.raise_for_status()
         batch = r.json()
@@ -339,7 +345,10 @@ def replace_all(items: Iterable[ScoredListing]) -> int:
     r = requests.delete(
         _endpoint(url, table),
         headers=_headers(key, {"Prefer": "return=minimal"}),
-        params={"refreshed_at": f"lt.{stamp}"},
+        # (감사 2026-07-15) refreshed_at 이 NULL 인 행(증분 upsert 경로로 들어온 구행)도 만료
+        # 삭제한다. 전량 스냅샷에선 현재 매물은 모두 방금 stamp 를 받았으므로 NULL 은 이번 크롤에
+        # 없던 팔림/취하 매물 → NULL 이 lt 비교에서 빠져 영구 잔존하던 것 제거.
+        params={"or": f"(refreshed_at.lt.{stamp},refreshed_at.is.null)"},
         timeout=60,
     )
     r.raise_for_status()
