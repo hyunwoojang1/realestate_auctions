@@ -94,6 +94,34 @@ CREATE TABLE IF NOT EXISTS listing_photos (
 );
 """
 
+# 네이버 KB시세·호가 매핑 결과(물건별). status: matched_kb | matched_ask | no_kb | no_match | no_coord
+DDL_NAVER = """
+CREATE TABLE IF NOT EXISTS naver_prices (
+    court TEXT NOT NULL DEFAULT '',
+    case_no TEXT NOT NULL,
+    item_no TEXT NOT NULL DEFAULT '',
+    status TEXT NOT NULL DEFAULT '',
+    complex_no TEXT DEFAULT '',
+    complex_name TEXT DEFAULT '',
+    area_no TEXT DEFAULT '',
+    match_conf TEXT DEFAULT '',
+    kb_low INTEGER,          -- 하한가(원)
+    kb_avg INTEGER,          -- 일반가(원) = KB '시세'
+    kb_high INTEGER,         -- 상한가(원)
+    lease_avg INTEGER,       -- 전세 일반가(원)
+    ask_min INTEGER,         -- 호가 최저(원)
+    ask_max INTEGER,         -- 호가 최고(원)
+    ask_count INTEGER DEFAULT 0,
+    base_ymd TEXT DEFAULT '',
+    fetched_at TEXT NOT NULL DEFAULT '',
+    PRIMARY KEY (court, case_no, item_no)
+);
+"""
+
+_NAVER_COLS = ["court", "case_no", "item_no", "status", "complex_no", "complex_name",
+               "area_no", "match_conf", "kb_low", "kb_avg", "kb_high", "lease_avg",
+               "ask_min", "ask_max", "ask_count", "base_ymd", "fetched_at"]
+
 _COLS = [
     "case_no", "apt_name", "address", "property_type", "area_m2",
     "appraisal_price", "min_bid_price", "fail_count", "sale_date",
@@ -124,8 +152,30 @@ def connect(db_path: str = "auction.db") -> sqlite3.Connection:
     conn.execute(DDL_RAW)
     conn.execute(DDL_RIGHTS)
     conn.execute(DDL_PHOTOS)
+    conn.execute(DDL_NAVER)
     conn.execute(f"PRAGMA user_version={SCHEMA_VERSION}")
     return conn
+
+
+def save_naver_price(conn: sqlite3.Connection, row: dict) -> None:
+    """네이버 매핑 결과 1건 upsert(물건당 1행)."""
+    vals = [row.get(c) for c in _NAVER_COLS]
+    ph = ",".join("?" * len(_NAVER_COLS))
+    with conn:
+        conn.execute(
+            f"INSERT OR REPLACE INTO naver_prices ({','.join(_NAVER_COLS)}) VALUES ({ph})", vals)
+
+
+def naver_done_keys(conn: sqlite3.Connection) -> set:
+    """이미 처리한 (court,case_no,item_no) — 이어받기용."""
+    return {(r["court"], r["case_no"], r["item_no"])
+            for r in conn.execute("SELECT court, case_no, item_no FROM naver_prices")}
+
+
+def load_naver_price(conn: sqlite3.Connection, court: str, case_no: str, item_no: str) -> dict | None:
+    r = conn.execute("SELECT * FROM naver_prices WHERE court=? AND case_no=? AND item_no=?",
+                     (court, case_no, item_no)).fetchone()
+    return dict(r) if r else None
 
 
 def _migrate(conn: sqlite3.Connection) -> None:

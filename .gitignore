@@ -33,3 +33,7 @@ STEER.md
 # 로컬 미디어 아티팩트(스크린샷·레퍼런스)
 images/
 design-refs/
+
+# 네이버 수집
+NAVER_STOP
+data/naver_cache.json

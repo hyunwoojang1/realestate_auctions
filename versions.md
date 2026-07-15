@@ -1,5 +1,18 @@
 # versions.md — auction-arbitrage 루프 작업 로그 (append-only, 최신순)
 
+## 2026-07-15 11:30 KST — 🏢 네이버 KB시세·호가 수집 파이프라인(Phase 1~3 착수)
+- 배경: 국토부 통계추정 커버리지 41%·정확도 한계. KB시세(은행기준)를 붙여 밴드·호가·전월세 보강.
+- 실증(Phase1): 네이버는 토큰/쿠키 없는 순수 requests를 429 거부 → Playwright 헤드리스로 토큰·쿠키
+  확보 후 in-page fetch(page.evaluate)로 200 정상. provider=kbstar로 KB 하한/일반/상한+전세+호가 확보.
+- 매핑(Phase2): 좌표→법정동(cortars)→단지목록(regions/complexes)→이름(RapidFuzz token_set/partial
+  +음차·접미사 정규화)+전용면적 확증. 2배치 24건 검증: 매칭 24/24, KB 23/24, 데이터(KB+호가) 24/24, 429 0.
+- 신규: src/naver_client.py(safety=지터·세션갱신·429백오프·순차·kill-switch NAVER_STOP),
+  src/naver_match.py, store.naver_prices 테이블+save/load/이어받기, deploy/crawl_naver.py(진행%·cortar캐시).
+- Safety 정책: 순차 전용(병렬 절대 금지), 요청간 2~4s 지터, 80건마다 세션갱신, 429연속=중단.
+- 소규모(15건) 테스트: 진행바·저장·이어받기 정상. 실패는 소형 주상복합/사택/미등재(다세대 경매라 세대수
+  기준 부풀려짐), 제대로된 아파트는 매칭·KB 정상. requirements에 rapidfuzz·playwright 추가.
+- 다음: 전체 2,521건 수집(밤샘 진행% 보고) → Phase4 시세로직 통합(KB 1차>국토부 폴백).
+
 ## 2026-07-15 08:20 KST — ⚡ load_live_trades 병렬화(재채점 속도개선) + 스케줄러 충돌 정리
 - 문제: 재채점의 열린달 fetch가 순차(약 780콜)라 ~10분+. 또, 05:30 Windows 스케줄러가 수정 커밋
   전 코드로 --nationwide --live 실행 중이라 토지·상가 전국 긁으며 429 폭탄·쿼터경합 유발(kill).
