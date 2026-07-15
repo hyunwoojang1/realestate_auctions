@@ -11,7 +11,9 @@ from rapidfuzz import fuzz
 
 # 음차/브랜드 표기 정규화 (경매표기 ↔ 네이버표기)
 _TRANS = {"에스클래스": "s클래스", "이그린": "e그린", "이편한세상": "e편한세상",
-          "이편한": "e편한", "아이파크": "ipark", "더샵": "thesharp"}
+          "이편한": "e편한", "아이파크": "ipark", "더샵": "thesharp",
+          "에쓰제이": "sj", "엘지": "lg", "에스케이": "sk", "케이비": "kb",
+          "에이치": "h", "제이알": "jr", "지에스": "gs"}
 
 
 def normalize(name: str) -> str:
@@ -29,8 +31,15 @@ def name_score(a: str, b: str) -> float:
     na, nb = normalize(a), normalize(b)
     if not na or not nb:
         return 0.0
-    return max(fuzz.token_set_ratio(na, nb), fuzz.partial_ratio(na, nb),
-              fuzz.ratio(na, nb)) / 100.0
+    # ratio + 정렬문자비교(어순차이 강건: 시지2차사월↔사월시지2차) + token_set.
+    scores = [fuzz.token_set_ratio(na, nb), fuzz.ratio(na, nb),
+              fuzz.ratio("".join(sorted(na)), "".join(sorted(nb)))]
+    # partial은 '완전 포함'(정평현대⊂정평현대타운=100)엔 옳지만 '접두 부분겹침'(청라봄↔청라로데오…=67)은
+    # 과대평가 → 거의 완전포함(≥90)일 때만 신뢰.
+    pr = fuzz.partial_ratio(na, nb)
+    if pr >= 90:
+        scores.append(pr)
+    return max(scores) / 100.0
 
 
 def best_complex(apt_name: str, complexes: list[dict]) -> tuple[dict | None, float]:
