@@ -62,7 +62,8 @@
     <div class="dsum-card">
       <div class="dsum-row"><span class="l">감정가</span><span class="val">{{ won(s.appraisal_price) }}</span></div>
       <div class="dsum-row"><span class="l">최저입찰가{% if cut_rate is not none and cut_rate > 0.01 %} <span class="dsum-badge">감정 대비 −{{ (cut_rate*100)|round|int }}%</span>{% endif %}</span><span class="val">{{ won(s.min_bid_price) }}</span></div>
-      <div class="dsum-row"><span class="l">입찰보증금 <span style="color:var(--ink-400)">(10%)</span></span><span class="val">{{ won((s.min_bid_price * 0.1)|round|int) }}</span></div>
+      {% set is_reauction = s.fail_count == 0 and cut_rate is not none and cut_rate > 0.01 %}
+      <div class="dsum-row"><span class="l">입찰보증금 <span style="color:var(--ink-500)">{% if is_reauction %}(재매각 · 통상 20~30%){% else %}(통상 10%){% endif %}</span></span><span class="val">{{ won((s.min_bid_price * 0.1)|round|int) }}{% if is_reauction %}<b class="alpha" style="font-size:11px;color:var(--caution)" title="재매각(전 낙찰자 대금미납)은 통상 보증금 20~30% — 최저가의 2~3배 현금 필요"> ×2~3</b>{% endif %}</span></div>
     </div>
     <div class="dsum-card accent{% if hero_worst is not none and hero_worst < 0 %} neg{% endif %}">
       <div class="dsum-row"><span class="l">{% if s.market_source == 'kb' %}KB 시세 {{ srcpill('kb') }}{% elif s.market_band_low is not none %}실거래 시세 <span style="color:var(--ink-400)">(검증 하한)</span>{% elif s.est_market_price %}추정 시세{% else %}시세{% endif %}</span><span class="val">{% if s.market_band_low is not none %}{{ won(s.market_band_low) }}{% elif s.est_market_price %}{{ won(s.est_market_price) }}{% else %}—{% endif %}</span></div>
