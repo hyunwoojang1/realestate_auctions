@@ -161,67 +161,12 @@ def sanitize_row(raw: dict) -> dict:
 
 
 # ---------------------------------------------------------------------------
-# 2. 필드 한글 라벨 (사용자 가독성용) — 검색응답 117필드
-# ---------------------------------------------------------------------------
-FIELD_LABELS: dict[str, str] = {
-    "docid": "문서ID", "boCd": "기관코드", "saNo": "사건일련번호", "maemulSer": "매물일련번호",
-    "mokmulSer": "목적물일련번호", "srnSaNo": "사건번호", "jpDeptCd": "담당계코드",
-    "jinstatCd": "진행상태코드", "mulStatcd": "물건상태코드", "mulJinYn": "물건진행여부",
-    "maemulUtilCd": "매물용도코드", "mulBigo": "비고", "gamevalAmt": "감정평가액(원)",
-    "minmaePrice": "최저매각가격(원)", "yuchalCnt": "유찰횟수", "maeAmt": "매각가격(원)",
-    "inqCnt": "조회수", "gwansMulRegCnt": "관심물건등록수", "remaeordDay": "재매각명령일",
-    "ipchalGbncd": "입찰구분코드", "maeGiil": "매각기일", "maegyuljGiil": "매각결정기일",
-    "maeHh1": "매각시각1", "maeHh2": "매각시각2", "maeHh3": "매각시각3", "maeHh4": "매각시각4",
-    "notifyMinmaePrice1": "공고최저가1(원)", "notifyMinmaePrice2": "공고최저가2(원)",
-    "notifyMinmaePrice3": "공고최저가3(원)", "notifyMinmaePrice4": "공고최저가4(원)",
-    "notifyMinmaePriceRate1": "공고최저가율1(%)", "notifyMinmaePriceRate2": "공고최저가율2(%)",
-    "maeGiilCnt": "매각기일횟수", "ipgiganFday": "입찰기간시작", "ipgiganTday": "입찰기간종료",
-    "maePlace": "매각장소", "spJogCd": "특수조건코드", "mokGbncd": "목적물구분코드",
-    "jongCd": "종별코드", "stopsaGbncd": "정지사건구분코드",
-    "daepyoSidoCd": "대표시도코드", "daepyoSiguCd": "대표시군구코드", "daepyoDongCd": "대표읍면동코드",
-    "daepyoRdCd": "대표도로코드", "hjguSido": "행정구역시도", "hjguSigu": "행정구역시군구",
-    "hjguDong": "행정구역읍면동", "hjguRd": "행정구역도로", "daepyoLotno": "대표지번",
-    "buldNm": "건물명", "buldList": "건물내역", "areaList": "면적내역", "jimokList": "지목내역",
-    "lclsUtilCd": "용도대분류코드", "mclsUtilCd": "용도중분류코드", "sclsUtilCd": "용도소분류코드",
-    "jejosaNm": "제조사명", "fuelKindcd": "연료종류코드", "bsgFormCd": "차량형태코드",
-    "carNm": "차량명", "carYrtype": "차량연식", "xCordi": "X좌표(투영)", "yCordi": "Y좌표(투영)",
-    "cordiLvl": "좌표정밀도", "bgPlaceSidoCd": "보관장소시도코드", "bgPlaceSiguCd": "보관장소시군구코드",
-    "bgPlaceDongCd": "보관장소읍면동코드", "bgPlaceRdCd": "보관장소도로코드", "bgPlaceLotno": "보관장소지번",
-    "bgPlaceSido": "보관장소시도", "bgPlaceSigu": "보관장소시군구", "bgPlaceDong": "보관장소읍면동",
-    "bgPlaceRd": "보관장소도로", "srchHjguBgFlg": "검색행정구역보관플래그", "pjbBuldList": "표제부건물내역",
-    "minArea": "최소면적", "maxArea": "최대면적", "groupmaemulser": "그룹매물일련번호",
-    "bocdsano": "기관사건번호", "dupSaNo": "중복사건번호", "byungSaNo": "병합사건번호",
-    "srchLclsUtilCd": "검색용도대분류", "srchMclsUtilCd": "검색용도중분류", "srchSclsUtilCd": "검색용도소분류",
-    "srchHjguSidoCd": "검색시도코드", "srchHjguSiguCd": "검색시군구코드(LAWD5)",
-    "srchHjguDongCd": "검색읍면동코드", "srchHjguRdCd": "검색도로코드", "srchHjguLotno": "검색지번",
-    "jiwonNm": "관할법원", "jpDeptNm": "담당계", "tel": "담당계전화(기관)", "maejibun": "매각지번",
-    "wgs84Xcordi": "WGS84경도(정수부)", "wgs84Ycordi": "WGS84위도(정수부)",
-    "rd1Cd": "도로명시도코드", "rd2Cd": "도로명시군구코드", "rd3Rd4Cd": "도로명읍면동코드",
-    "rd1Nm": "도로명시도", "rd2Nm": "도로명시군구", "rdEubMyun": "도로명읍면", "rdNm": "도로명",
-    "buldNo": "건물번호", "rdAddrSub": "도로명부가정보", "addrGbncd": "주소구분코드",
-    "bgPlaceRdAllAddr": "보관장소도로전체주소", "bgPlaceAddrGbncd": "보관장소주소구분",
-    "srchRd1Cd": "검색도로시도", "srchRd2Cd": "검색도로시군구", "srchRd3Rd4Cd": "검색도로읍면동",
-    "alias": "별칭", "dummyField": "더미", "dspslUsgNm": "매각물건용도명", "convAddr": "정제주소",
-    "printSt": "출력용주소", "printCsNo": "출력용사건번호", "colMerge": "행병합키",
-}
-
-
-def label_row(raw: dict) -> dict:
-    """원본 dict를 {한글라벨: 값}으로 — 사람이 읽는 덤프용(미정의 키는 원본 키 유지)."""
-    return {FIELD_LABELS.get(k, k): v for k, v in raw.items()}
-
-
-# ---------------------------------------------------------------------------
 # 3. 코드 상수 (검색·표시용)
 # ---------------------------------------------------------------------------
 SIDO_CODES: dict[str, str] = {
     "11": "서울", "26": "부산", "27": "대구", "28": "인천", "29": "광주", "30": "대전",
     "31": "울산", "36": "세종", "41": "경기", "43": "충북", "44": "충남", "46": "전남",
     "47": "경북", "48": "경남", "50": "제주", "51": "강원", "52": "전북",
-}
-# 부동산 용도 대분류(lclsUtilCd) — 매물 분류·환금성 매핑용 (관측 기반, 점진 보강)
-USAGE_LCLS = {
-    "10000": "토지", "20000": "건물", "30000": "집합건물",
 }
 SRCH_COND_REAL_ESTATE = "0004601"  # cortAuctnSrchCondCd: 부동산
 SRCH_COND_MOVABLE = "0004604"      # 동산
@@ -409,16 +354,6 @@ class CourtAuctionRecord:
     raw: dict = field(default_factory=dict)
     # 물건번호(maemulSer) — 한 사건에 물건 여러 개 가능. case_no 단일 식별 금지(T1).
     item_no: str = ""
-
-    @property
-    def discount_vs_appraisal(self) -> float:
-        if self.appraisal_price <= 0:
-            return 0.0
-        return 1 - self.min_bid_price / self.appraisal_price
-
-    def labeled(self) -> dict:
-        """{한글라벨: 값} 전체 덤프(사람이 읽는 용도)."""
-        return label_row(self.raw)
 
 
 def _clean_lawd(raw: str) -> str:

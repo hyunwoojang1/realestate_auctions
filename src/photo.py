@@ -43,10 +43,3 @@ def thumbnail_jpeg(src_b64: str, max_w: int = THUMB_MAX_W,
     except Exception as e:  # noqa: BLE001 — 비이미지/디코더 오류 등은 사진 없음으로 강등
         logger.debug("썸네일 생성 실패: %s", e)
         return None
-
-
-def thumbnail_b64(src_b64: str, max_w: int = THUMB_MAX_W,
-                  quality: int = THUMB_QUALITY) -> str | None:
-    """base64 JPEG → 리사이즈 base64 JPEG(하위호환 — data URI 접두 없음)."""
-    b = thumbnail_jpeg(src_b64, max_w, quality)
-    return base64.b64encode(b).decode("ascii") if b else None

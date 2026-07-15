@@ -5,7 +5,6 @@ import json
 from pathlib import Path
 
 from src.courtauction_fields import (
-    FIELD_LABELS,
     CourtAuctionRecord,
     classify_property_type,
     is_personal_field,
@@ -201,12 +200,6 @@ def test_to_auction_listing_clean_bigo_stays_unflagged():
     assert lst.assumed_amount == 0
 
 
-def test_discount_vs_appraisal():
-    rec = parse_row(_rows()[0])
-    # (95,000,000 - 60,800,000)/95,000,000 = 0.36 — 공고가(notify1) 기준(idx15)
-    assert abs(rec.discount_vs_appraisal - 0.36) < 1e-9
-
-
 def test_to_auction_listing_maps_to_pipeline_model():
     rec = parse_row(_rows()[0])
     lst = to_auction_listing(rec)
@@ -223,14 +216,6 @@ def test_all_rows_parse_without_error():
     assert all(isinstance(r, CourtAuctionRecord) for r in recs)
     # 모든 행이 affordable(감정가<=1억 쿼리였음) — 최저가 양수
     assert all(r.min_bid_price > 0 for r in recs)
-
-
-def test_labeled_dump_uses_korean_labels():
-    rec = parse_row(_rows()[0])
-    labeled = rec.labeled()
-    assert labeled["감정평가액(원)"] == "95000000"
-    assert labeled["관할법원"] == "서울중앙지방법원"
-    assert FIELD_LABELS["minmaePrice"] == "최저매각가격(원)"
 
 
 def test_helpers():

@@ -1,5 +1,23 @@
 # versions.md — auction-arbitrage 루프 작업 로그 (append-only, 최신순)
 
+## 2026-07-15 23:06 KST — 🧹 포니테일 죽은코드 정리 (검증 후 확정분만 삭제, -115줄)
+- 무엇: Ponytail 감사에서 나온 죽은코드 후보 11종을 병렬 워크플로(11 에이전트)로 읽기전용
+  재검증 → SAFE_DELETE 8종만 삭제. 정의·참조·동적사용(getattr/문자열키/템플릿/DB컬럼) 전수 추적.
+  삭제: `web.py`의 죽은 `_truthy` 첫 정의(import 시 868행 정의에 덮여 도달불가) /
+  `molit_client.fetch_apt_trades`·`fetch_trades_months`(미사용, load_live_trades가 인라인 대체) /
+  `models.AuctionListing.discount_vs_appraisal` + `courtauction_fields.CourtAuctionRecord.discount_vs_appraisal`(호출 0) /
+  `photo.thumbnail_b64`(Phase5 Storage 이후 고아 — DB컬럼 thumb_b64는 별개·유지) /
+  `courtauction_client._PII_NOTE`·`courtauction_fields.USAGE_LCLS`(죽은 상수) /
+  `FIELD_LABELS`→`label_row`→`CourtAuctionRecord.labeled()` 죽은 체인 전체(테스트에서만 삶).
+  + 전용 테스트 2건(test_discount_vs_appraisal·test_labeled_dump) 제거,
+  + courtauction_detail.py:297 stale 주석(thumbnail_b64→thumbnail_jpeg) 교정.
+- 증거: py_compile OK, 잔존 코드참조 0건(grep), **pytest 512 passed / 1 skipped**(514−삭제테스트2=512, 회귀0).
+  변경파일 ruff 신규오류 0(기존 UP037 5건은 line378 등 미변경부·Phase2 대상).
+- 평가자: 병렬 검증 워크플로 wf_65a3501c-969 (적대검증). **FETCH_EXTRA는 KEEP 판정**(AUCTION_FETCH_EXTRA=1
+  config 게이트 실기능 — 죽은코드 아님, 삭제 회피). 3중복이라던 페이지네이션은 실측 2중복(naver 무관).
+- 다음: (선택) 리팩터 dedup 2종 — pagination(molit 2중복→_paginate 헬퍼)·env파서(5곳→config 헬퍼).
+  그 다음 Phase 2 = 데이터 정확성·크롤 커버리지(CI ruff green → 해제거래 cdealType 파싱+국토부 재수집).
+
 ## 2026-07-15 22:10 KST — 🛠 2차 감사 수정 A~H(위험추천·알림·캐시크래시·만료·정렬·매처·지역·리포트)
 - A(score): 하드게이트(유치권 등)가 시세추정불가(est None) 경로에서 미적용 → 서빙 KB 재계산 시
   market_view가 위험신호 못받아 추천되던 것 수정(est None 경로에서도 is_hard_gated→grade '위험').

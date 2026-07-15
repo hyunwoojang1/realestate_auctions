@@ -65,7 +65,6 @@ _POST_HEADERS = {
 }
 
 PAGE_SIZE = 40            # 실측 상한(200은 HTTP400). 초과 금지.
-_PII_NOTE = "개인정보 필드는 courtauction_fields.sanitize_row가 제거"
 
 
 class CourtAuctionError(RuntimeError):

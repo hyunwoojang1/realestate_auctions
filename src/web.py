@@ -197,10 +197,6 @@ def _uncertain_of(badges: dict):
     return f
 
 
-def _truthy(v) -> bool:
-    return str(v).lower() in ("1", "true", "yes", "on")
-
-
 def _filtered(args, badges: dict | None = None, evaluable_default: bool = False):
     """요청 쿼리(min_profit[억]/min_score/type/region/sort)로 필터·정렬된 목록.
 

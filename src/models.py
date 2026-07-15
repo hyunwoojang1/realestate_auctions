@@ -33,12 +33,6 @@ class AuctionListing:
     item_no: str = ""     # 물건번호(courtauction maemulSer). 샘플/미상은 ""
     doc_id: str = ""      # courtauction 고유 문서 id(있으면 최우선 식별자)
 
-    def discount_vs_appraisal(self) -> float:
-        """감정가 대비 최저가 할인율 (레거시 사이트가 보여주는 그 수치)."""
-        if self.appraisal_price <= 0:
-            return 0.0
-        return 1 - self.min_bid_price / self.appraisal_price
-
 
 @dataclass
 class Trade:
