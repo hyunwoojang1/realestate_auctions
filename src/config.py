@@ -26,9 +26,12 @@ class ScoreConfig:
     # 권리 페널티 / 하드게이트
     special_penalty: dict = field(default_factory=lambda: {
         "유치권": 30, "법정지상권": 25, "지분": 20, "분묘기지권": 20, "대지권미등기": 15, "위반건축물": 15,
+        "지분매각": 30,
     })
     special_penalty_default: int = 10
-    fatal_special: list = field(default_factory=lambda: ["유치권"])
+    # 지분매각 = 통물건 실거래 comps로 시세를 매기면 지분을 온전물건 값으로 과대평가(실측 376건) →
+    # 차익 추천에서 제외하기 위해 하드게이트. (감사 2026-07-15, 법원 명세서 '지분매각' 분류 기반)
+    fatal_special: list = field(default_factory=lambda: ["유치권", "지분매각"])
     assumed_ratio_gate: float = 0.30
     occupant_penalty: dict = field(default_factory=lambda: {
         "공실": 0, "임차인": 10, "소유자점유": 15, "다수점유": 25,

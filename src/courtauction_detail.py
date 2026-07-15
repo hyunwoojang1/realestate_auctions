@@ -260,6 +260,12 @@ class RightsBadge:
         return self.status == "burden" and self.assumed <= 0
 
 
+# 지분매각 — 법원이 '지분매각'/'지분경매'로 분류한 물건(비고·명세서). 통물건 시세로 과대평가되는
+# 지분물건을 차익 추천에서 제외하기 위한 신호. 'N분의 M' 단순 언급이나 '지분(2분의1) 매각'의
+# 괄호삽입형은 배제하고 법원 분류어(연속된 지분매각/지분경매)만 잡아 통물건 오배제를 막는다.
+_SHARE_SALE_RE = re.compile(r"지분\s*(?:매각|경매)")
+
+
 def summarize(rights: CaseRights) -> RightsBadge:
     """CaseRights → 인수 부담 판정. 판정 규칙은 기존 명세서 파서(courtauction_rights)를 재사용.
 
@@ -279,6 +285,11 @@ def summarize(rights: CaseRights) -> RightsBadge:
     jeonse = rights.senior_jeonse
     if jeonse and "선순위전세권" not in special:
         special.append("선순위전세권")
+    # (감사 2026-07-15) 지분매각 하드게이트 라벨 — 통물건 시세로 과대평가되는 지분물건(실측 376건)을
+    # 차익 추천에서 제외한다. 법원 분류어(지분매각/지분경매)만 잡아 'N분의M' 단순 언급 오배제를 막는다.
+    if (_SHARE_SALE_RE.search(f"{rights.remark}\n{rights.surviving_rights}\n{rights.lien_note}")
+            and "지분매각" not in special):
+        special.append("지분매각")
     burden = (opposable or assumed > 0 or bool(special) or rights.has_risk_text or jeonse)
     # (#9) 인수 부담인데 금액 미상(+α)이면 명세서 원문의 보증금액을 보수 추정으로 채택 —
     # 임차권 미소멸(보증금 잔액 인수) 물건이 무차감으로 랭킹 상위를 점하지 않게 한다.

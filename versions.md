@@ -1,5 +1,23 @@
 # versions.md — auction-arbitrage 루프 작업 로그 (append-only, 최신순)
 
+## 2026-07-15 23:52 KST — 🎯 지분매각 하드게이트 (통물건 과대평가 424건 차익추천 제외) + 라이브 캡처 정찰
+- 무엇: 커버리지 착수 위해 실제 courtauction 응답을 **라이브 1건 캡처**(kill-switch 임시해제→작업후 원위치).
+  **핵심 발견**: pgj15B(selectAuctnCsSrchRslt) 응답에 **점유자/이해관계인 표가 아예 없음**(임차/전입/보증금/
+  점유/대항 키워드 전체 0회) — scout가 "있다"던 이해관계인 퀵윈은 **존재하지 않는 데이터**였고, 추측 파서였으면
+  '점유자 0명' 침묵실패가 됐을 것. 캡처가 이를 막음. selectAroundDspslGds(인근매각사례)는 URL 2종 다 302
+  (밴 아님·요청형식 미상, 프론트 JS 분석 필요) → 보류.
+  **대신 진짜 win 확보 = 지분매각**: 응답의 gdsDspslObjctLst.dspslStkCtt('…지분 1345.8분의 281.23')·
+  gdsSpcfcRmk('-지분매각')로 실증. 이미 저장된 remark에 신호가 있어 **추가 크롤·마이그레이션 0, 소급 적용**.
+- 변경: config.fatal_special에 '지분매각' 추가(+special_penalty 30) / courtauction_detail.summarize가
+  법원 분류어 정규식 `지분\s*(?:매각|경매)`로 '지분매각' 라벨 부여(remark+surviving+lien). detect_special_rights의
+  광범위 '지분'(bare substring, 440건)은 그대로 소프트페널티 유지 — 정밀 '지분매각'만 게이트해 통물건 오배제 방지.
+- 증거: **pytest 519 pass / 1 skip**(+2 신규: 게이트 확정·단순언급 미게이트), ruff clean. 전체 6,156 권리 재평가:
+  **지분매각 라벨 424건 전부 하드게이트 확정**(remark문자열 376 + surviving/lien '지분경매' 등 48, 유치권 겹침 0).
+  이전엔 소프트페널티(20)만 받아 통물건 시세로 과대평가돼 허위 차익 상위 노출되던 424건이 차익추천에서 제외됨.
+- 평가자: 라이브 캡처(dma_capture.json 구조 실측) + 실데이터 424건 재평가. 'N분의M' 단순언급 미게이트 확인.
+- 다음: (보류) selectAroundDspslGds 요청형식 = 프론트 JS 리버스 필요 / 이해관계인 = 미발견 엔드포인트 /
+  지분 분수(dspslStkCtt) 파싱은 표시·정밀도 향상용 후속. kill-switch(COURTAUCTION_STOP) 원위치함.
+
 ## 2026-07-15 23:25 KST — 🧹 CI ruff green (24건 → 0, push 차단 해소)
 - 무엇: push 시 CI를 red로 만들던 ruff 24건 전부 해소(기능 무관, 이전 세션 이전부터 누적).
   자동수정 17건(I001 import정렬·UP037 주석따옴표·F401 미사용import·UP035 Callable출처·W291 공백) +

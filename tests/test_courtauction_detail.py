@@ -155,6 +155,32 @@ def test_share_keyword_not_matched_in_bubun():
     assert "지분" in detect_special_rights("소유권 2분의 1 매각")
 
 
+def test_share_sale_hard_gated():
+    """지분매각(법원 분류)은 하드게이트 — 통물건 시세로 과대평가되므로 차익 추천 제외(감사 2026-07-15)."""
+    from src.courtauction_detail import CaseRights, summarize
+    from src.models import AuctionListing
+    from src.score import is_hard_gated
+    cr = CaseRights(court="서울중앙지방법원", case_no="2024타경1", item_no="1",
+                    remark="-지분매각, 공유자우선매수신고는 1회에 한함",
+                    spec_write_ymd="2024-01-01", senior_lien="2015.07.28.근저당")
+    badge = summarize(cr)
+    assert "지분매각" in badge.special
+    lst = AuctionListing(case_no="2024타경1", court="서울중앙지방법원", address="서울 강남구",
+                         lawd_cd="11680", dong="대치동", apt_name="샘플", property_type="아파트",
+                         area_m2=59.9, appraisal_price=100_000_000, min_bid_price=70_000_000,
+                         fail_count=1, sale_date="2026-08-01", special_rights=badge.special)
+    assert is_hard_gated(lst) is True
+
+
+def test_plain_share_mention_not_share_sale():
+    """'대지권 지분' 등 단순 언급(매각/경매 분류어 없음)은 지분매각 게이트를 트리거하지 않는다."""
+    from src.courtauction_detail import CaseRights, summarize
+    cr = CaseRights(court="c", case_no="2024타경2", item_no="1",
+                    senior_lien="대지권 지분 근저당 2020.01.01", spec_write_ymd="2024-01-01")
+    badge = summarize(cr)
+    assert "지분매각" not in badge.special
+
+
 def test_multiple_deposits_summed_distinct():
     """idx12 MEDIUM: 서로 다른 보증금 여러 건은 합산, 같은 금액 반복은 1회."""
     from src.courtauction_rights import detect_assumed_amount
