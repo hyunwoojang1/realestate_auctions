@@ -23,3 +23,12 @@
    (레퍼런스 탐색→모방 구현→감사→하네스 조이기)을 따른다. 백로그는 `harness/BACKLOG.md`,
    사람 결정 대기는 `harness/QUESTIONS.md`(+푸시 알림), 방향 수정은 `harness/STEER.md`.
    LOOP.md의 절대 금지(범위 잠금) 항목은 이 파일 규칙과 동급으로 준수.
+
+## Supabase 스키마/DDL — 에이전트가 직접 실행 (클립보드 금지)
+
+이 프로젝트가 쓰는 Supabase(프로젝트 ref **`trajmfklbyarbkiljogj`**, "Finance AI") 스키마 변경(DDL)이나 임의 SQL은 **에이전트가 Management API로 직접 실행한다.** DDL을 사용자에게 "클립보드에 넣고 대시보드에서 실행" 넘기지 말 것. (사용자 지시 2026-07-13)
+
+- 토큰: `.env`의 `SUPABASE_ACCESS_TOKEN` (`sbp_...`)
+- 엔드포인트: `POST https://api.supabase.com/v1/projects/trajmfklbyarbkiljogj/database/query`
+- 예: `curl -sS -X POST -H "Authorization: Bearer $SUPABASE_ACCESS_TOKEN" -H "Content-Type: application/json" -d '{"query":"<SQL>"}' https://api.supabase.com/v1/projects/trajmfklbyarbkiljogj/database/query`
+- 결과 JSON 배열 반환. DDL 동일 엔드포인트. ⚠️ 파괴적 변경은 사용자 확인 후.

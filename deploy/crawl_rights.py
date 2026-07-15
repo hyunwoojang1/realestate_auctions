@@ -18,7 +18,7 @@ import sys
 from datetime import datetime, timedelta, timezone
 
 from deploy.migrate_to_supabase import _load_env
-from src import photo, store, store_rest
+from src import photo, photo_store, store, store_rest
 from src.courtauction_client import CourtAuctionBlocked, CourtAuctionClient, CourtAuctionError
 from src.courtauction_detail import extract_photos, normalize
 
@@ -110,6 +110,9 @@ def main(argv=None) -> int:
     now = datetime.now(_KST).strftime("%Y-%m-%d %H:%M:%S")
     # 사진은 용량 때문에 '시세추정 가능' 물건에만 저장(사용자가 여는 물건 ≈ 평가 가능한 것).
     estimable = store.estimable_keys(conn)
+    _use_storage = photo_store.enabled() and photo_store.ensure_bucket()
+    if _use_storage:
+        print("[+] 사진=Supabase Storage 업로드 모드")
     try:
         for i, t in enumerate(targets, 1):
             try:
@@ -131,11 +134,20 @@ def main(argv=None) -> int:
             batch.append(cr.to_row())
             ok += 1
             # 사진 썸네일 — 같은 pgj15B 응답에서 추출(추가 요청 0), 시세추정 물건만 저장.
+            # Storage 가능하면 업로드→URL 저장(DB 경량), 아니면 base64 폴백(로컬 개발).
             key = (t["court"], t["case_no"], str(t["item_no"] or ""))
             if key in estimable:
-                thumbs = [th for r in extract_photos(dma, cap=PHOTO_CAP)
-                          if (th := photo.thumbnail_b64(r))]
-                if thumbs:
+                jpegs = [j for r in extract_photos(dma, cap=PHOTO_CAP)
+                         if (j := photo.thumbnail_jpeg(r))]
+                if jpegs and _use_storage:
+                    urls = [u for s, j in enumerate(jpegs)
+                            if (u := photo_store.upload_photo(j, *key, s))]
+                    if urls:
+                        store.save_photo_urls(conn, *key, urls, fetched_at=now)
+                        photo_n += len(urls)
+                elif jpegs:
+                    import base64 as _b64  # noqa: PLC0415
+                    thumbs = [_b64.b64encode(j).decode("ascii") for j in jpegs]
                     store.save_photos(conn, *key, thumbs, fetched_at=now)
                     photo_n += len(thumbs)
             if i % 10 == 0:

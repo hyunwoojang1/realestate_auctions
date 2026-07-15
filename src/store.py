@@ -88,7 +88,8 @@ CREATE TABLE IF NOT EXISTS listing_photos (
     case_no TEXT NOT NULL,
     item_no TEXT NOT NULL DEFAULT '',
     seq INTEGER NOT NULL DEFAULT 0,
-    thumb_b64 TEXT NOT NULL,
+    thumb_b64 TEXT NOT NULL DEFAULT '',
+    photo_url TEXT NOT NULL DEFAULT '',
     fetched_at TEXT NOT NULL DEFAULT '',
     PRIMARY KEY (court, case_no, item_no, seq)
 );
@@ -242,6 +243,17 @@ def _migrate(conn: sqlite3.Connection) -> None:
                     "ALTER TABLE listing_rights ADD COLUMN appraisal_notes TEXT NOT NULL DEFAULT '[]'"
                 )
 
+    # listing_photos: base64(thumb_b64)→Storage URL 이전용 photo_url 컬럼 추가.
+    pt = conn.execute(
+        "SELECT 1 FROM sqlite_master WHERE type='table' AND name='listing_photos'"
+    ).fetchone()
+    if pt is not None:
+        pcols = {r["name"] for r in conn.execute("PRAGMA table_info(listing_photos)")}
+        if "photo_url" not in pcols:
+            with conn:
+                conn.execute(
+                    "ALTER TABLE listing_photos ADD COLUMN photo_url TEXT NOT NULL DEFAULT ''")
+
 
 # 저장 컬럼 = 스칼라 _COLS + market_comps(JSON 텍스트). market_comps는 리스트라 스칼라
 # 경로(_COLS)에 넣지 않고 직렬화해 별도 취급한다(load_scored에서 역직렬화).
@@ -381,13 +393,36 @@ def save_photos(conn: sqlite3.Connection, court: str, case_no: str, item_no: str
     return len([t for t in thumbs if t])
 
 
+def save_photo_urls(conn: sqlite3.Connection, court: str, case_no: str, item_no: str,
+                    urls: list[str], fetched_at: str = "") -> int:
+    """Storage 업로드 후 공개 URL 저장 — 물건별 전량 교체(stale 방지). 반환=저장 장수."""
+    key = (court, case_no, str(item_no or ""))
+    with conn:
+        conn.execute("DELETE FROM listing_photos WHERE court=? AND case_no=? AND item_no=?", key)
+        conn.executemany(
+            "INSERT INTO listing_photos (court,case_no,item_no,seq,photo_url,fetched_at) "
+            "VALUES (?,?,?,?,?,?)",
+            [(*key, i, u, fetched_at) for i, u in enumerate(urls) if u])
+    return sum(1 for u in urls if u)
+
+
 def load_photos(conn: sqlite3.Connection, court: str, case_no: str,
                 item_no: str = "") -> list[str]:
-    """단건 물건 사진 썸네일(base64) seq 순 — 상세 히어로용."""
+    """단건 물건 사진의 렌더용 src seq 순 — 상세 히어로용.
+
+    듀얼모드: photo_url(Storage) 있으면 그 URL을, 없으면 base64를 data URI로 감싸 반환.
+    → 마이그레이션 중에도 기존 base64 사진이 그대로 렌더된다(무중단 이전).
+    """
     cur = conn.execute(
-        "SELECT thumb_b64 FROM listing_photos WHERE court=? AND case_no=? AND item_no=? "
+        "SELECT photo_url, thumb_b64 FROM listing_photos WHERE court=? AND case_no=? AND item_no=? "
         "ORDER BY seq", (court, case_no, str(item_no or "")))
-    return [r["thumb_b64"] for r in cur.fetchall()]
+    out = []
+    for r in cur.fetchall():
+        if r["photo_url"]:
+            out.append(r["photo_url"])
+        elif r["thumb_b64"]:
+            out.append(f"data:image/jpeg;base64,{r['thumb_b64']}")
+    return out
 
 
 def fetch_ranked(conn: sqlite3.Connection) -> list[dict]:

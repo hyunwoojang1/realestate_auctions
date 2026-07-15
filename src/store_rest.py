@@ -208,15 +208,24 @@ def upsert_photos(rows: list[dict]) -> int:
 
 
 def fetch_photos(court: str, case_no: str, item_no: str = "") -> list[str]:
-    """단건 물건 사진 썸네일(base64) seq 순 — 클라우드 상세 서빙. 실패/미배포 시 빈 리스트."""
+    """단건 물건 사진의 렌더용 src seq 순 — 클라우드 상세 서빙. 실패/미배포 시 빈 리스트.
+
+    듀얼모드: photo_url(Storage) 우선, 없으면 base64를 data URI로. 마이그레이션 중에도 무중단.
+    """
     url, key, _ = _cfg()
     try:
         r = requests.get(_endpoint(url, PHOTOS_TABLE), headers=_headers(key),
-                         params={"select": "thumb_b64,seq", "court": f"eq.{court}",
+                         params={"select": "photo_url,thumb_b64,seq", "court": f"eq.{court}",
                                  "case_no": f"eq.{case_no}", "item_no": f"eq.{item_no or ''}",
                                  "order": "seq"}, timeout=20)
         r.raise_for_status()
-        return [row["thumb_b64"] for row in r.json()]
+        out = []
+        for row in r.json():
+            if row.get("photo_url"):
+                out.append(row["photo_url"])
+            elif row.get("thumb_b64"):
+                out.append(f"data:image/jpeg;base64,{row['thumb_b64']}")
+        return out
     except Exception:  # noqa: BLE001 — 사진 없음/테이블 미배포는 히어로 생략으로 강등
         return []
 

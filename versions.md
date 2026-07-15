@@ -1,5 +1,16 @@
 # versions.md — auction-arbitrage 루프 작업 로그 (append-only, 최신순)
 
+## 2026-07-15 16:35 KST — 📦 Phase5: 사진 base64→Supabase Storage 이전(듀얼모드)
+- 목적: listing_photos.thumb_b64(전 사진 base64)가 Supabase 공유티어 DB(500MB)를 압박 → 이미지를
+  Storage 버킷(auction-photos, public)으로 옮기고 DB엔 photo_url만 보관(경량화).
+- store: listing_photos에 photo_url 컬럼(ALTER 마이그레이션) + save_photo_urls(). load_photos 듀얼모드
+  = photo_url 있으면 URL, 없으면 data:image/jpeg;base64,{thumb} 로 감싸 렌더용 반환(전환기 무중단).
+- photo: thumbnail_jpeg()(리사이즈→JPEG bytes) 신설, thumbnail_b64는 이를 base64 래핑. photo_store(신설):
+  Supabase Storage REST 클라이언트(enabled/ensure_bucket/upload_photo, sha1 ASCII 키). 업로드 실측 200 OK.
+- crawl_rights: Storage 가능 시 업로드→save_photo_urls, 아니면 base64 폴백(로컬개발). store_rest.fetch_photos
+  듀얼모드. detail.html img src(data-uri→url). migrate_photos_to_storage.py(신설): 기존 base64 일괄 이전
+  (멱등·이어받기·PHOTO_MIGRATE_STOP·진행바·local·cloud 동시반영). 468 테스트 통과.
+
 ## 2026-07-15 16:20 KST — 🏦 Phase4: KB시세·호가·전세 사이트 통합
 - naver_prices(2351건, KB794·호가) 를 서빙에 통합. models.ScoredListing에 naver/market_source(비영속) 추가.
 - score.market_view(): KB있으면 시세·밴드·차익·등급을 KB기준 재계산(불변, 권리상태는 보존), 없으면 표시용 첨부.

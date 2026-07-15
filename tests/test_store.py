@@ -59,10 +59,15 @@ def test_prune_orphan_rights_removes_only_unmatched():
 
 def test_photos_roundtrip_and_replace():
     conn = store.connect(":memory:")
+    # base64 저장 → load_photos는 렌더용 data URI로 감싸 반환(듀얼모드)
     store.save_photos(conn, "", "A", "", ["aaa", "bbb", "ccc"])
-    assert store.load_photos(conn, "", "A") == ["aaa", "bbb", "ccc"]  # seq 순 보존
+    assert store.load_photos(conn, "", "A") == [
+        "data:image/jpeg;base64,aaa", "data:image/jpeg;base64,bbb", "data:image/jpeg;base64,ccc"]
+    # Storage URL 저장 → URL 그대로 반환(전량 교체)
+    store.save_photo_urls(conn, "", "A", "", ["http://x/1.jpg", "http://x/2.jpg"])
+    assert store.load_photos(conn, "", "A") == ["http://x/1.jpg", "http://x/2.jpg"]
     store.save_photos(conn, "", "A", "", ["xxx"])         # 재저장 = 전량 교체(stale 방지)
-    assert store.load_photos(conn, "", "A") == ["xxx"]
+    assert store.load_photos(conn, "", "A") == ["data:image/jpeg;base64,xxx"]
     assert store.load_photos(conn, "", "MISSING") == []
 
 

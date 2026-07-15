@@ -34,7 +34,7 @@
   <div class="dphoto">
     {% if photos|length > 1 %}<span class="cnt">📷 {{ photos|length }}</span>{% endif %}
     <div class="dphoto-track">
-      {% for p in photos %}<img src="data:image/jpeg;base64,{{ p }}" alt="물건 사진 {{ loop.index }}" loading="{{ 'eager' if loop.first else 'lazy' }}">{% endfor %}
+      {% for p in photos %}<img src="{{ p }}" alt="물건 사진 {{ loop.index }}" loading="{{ 'eager' if loop.first else 'lazy' }}">{% endfor %}
     </div>
     {% if photos|length > 1 %}<div class="dphoto-dots">{% for p in photos %}<i class="{{ 'on' if loop.first }}"></i>{% endfor %}</div>{% endif %}
   </div>
