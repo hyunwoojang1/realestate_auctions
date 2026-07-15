@@ -1,5 +1,12 @@
 # versions.md — auction-arbitrage 루프 작업 로그 (append-only, 최신순)
 
+## 2026-07-15 13:35 KST — ⚡ 네이버 수집 속도개선(안전선 내: 중복요청 제거)
+- 사용자 "더 빠르게, 근데 크롤링 금지 안 걸리게". 요청 간격 줄이기=429/IP차단 위험이라, 요청 "개수"를
+  줄이는 방향으로. 다세대 경매(건물당 2.8세대)·같은 동네 물건이 cortar·KB시세·호가를 재요청하던 것 캐싱.
+- crawl_naver Cache에 cortar_pt(좌표 3자리 반올림)·kb(complexNo:areaNo)·arts(complexNo:kind) 추가.
+  딜레이 env화(AUCTION_NAVER_MIN/MAX, 기본 2~4s→1.5~3s).
+- 검증: 30물건 처리에 9콜(이전 ~60-90콜, 3.3배 감소), 429 0. 캐싱이 KB fetch 안 깨뜨림 확인.
+
 ## 2026-07-15 13:10 KST — 🐛 네이버 오피스텔 realEstateType 버그 수정(매칭실패 75% 원인)
 - 진단: 수집 중 매칭실패 448건 분해 → 오피스텔 338건(75%)이 원인. 네이버는 아파트(APT)·오피스텔(OPST)이
   별도 realEstateType인데 단지목록을 APT로만 조회 → 오피스텔은 시작부터 못 찾음.

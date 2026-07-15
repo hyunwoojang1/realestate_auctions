@@ -59,21 +59,23 @@ def _parse_kor_price(s: str) -> int | None:
 
 
 class Cache:
+    """중복 요청 제거용 영구 캐시 — 다세대 경매(건물당 여러 세대)·같은 동네 물건이 재요청 안 하게."""
+    _KEYS = ("cortar_pt", "cortar_complexes", "complex_detail", "kb", "arts")
+
     def __init__(self):
-        self.cortar_complexes: dict = {}
-        self.complex_detail: dict = {}
+        for k in self._KEYS:
+            setattr(self, k, {})
         if _CACHE.exists():
             try:
                 d = json.loads(_CACHE.read_text(encoding="utf-8"))
-                self.cortar_complexes = d.get("cortar_complexes", {})
-                self.complex_detail = d.get("complex_detail", {})
+                for k in self._KEYS:
+                    setattr(self, k, d.get(k, {}))
             except Exception:  # noqa: BLE001
                 pass
 
     def save(self):
-        _CACHE.write_text(json.dumps(
-            {"cortar_complexes": self.cortar_complexes, "complex_detail": self.complex_detail},
-            ensure_ascii=False), encoding="utf-8")
+        _CACHE.write_text(json.dumps({k: getattr(self, k) for k in self._KEYS},
+                                     ensure_ascii=False), encoding="utf-8")
 
 
 def _targets(conn, cache_coords, limit, refresh):
@@ -110,7 +112,9 @@ def main(argv=None) -> int:
         return 0
 
     cache = Cache()
-    nc = NaverClient(min_delay=2.0, max_delay=4.0)
+    mn = float(os.environ.get("AUCTION_NAVER_MIN", "1.5"))
+    mx = float(os.environ.get("AUCTION_NAVER_MAX", "3.0"))
+    nc = NaverClient(min_delay=mn, max_delay=mx)
     now = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
     stat = {"matched_kb": 0, "matched_ask": 0, "no_kb": 0, "no_match": 0, "no_coord": 0}
     try:
@@ -149,7 +153,11 @@ def _process(nc, cache, r, pt, row):
     lat, lng = pt
     # 네이버는 아파트(APT)·오피스텔(OPST)이 별도 타입 — 유형에 맞는 목록을 조회해야 매칭된다.
     kind = "OPST" if r["property_type"] == "오피스텔" else "APT"
-    cortar = nc.cortar_for(lat, lng)
+    # 좌표별 cortar 캐시(~110m 반올림) — 같은 건물 세대·같은 동네 물건이 재조회 안 하게.
+    ptkey = f"{lat:.3f},{lng:.3f}"
+    if ptkey not in cache.cortar_pt:
+        cache.cortar_pt[ptkey] = nc.cortar_for(lat, lng) or ""
+    cortar = cache.cortar_pt[ptkey]
     if not cortar:
         row["status"] = "no_coord"
         return
@@ -175,7 +183,10 @@ def _process(nc, cache, r, pt, row):
         return
     an = bestpy.get("pyeongNo") or bestpy.get("areaNo")
     row["area_no"] = str(an)
-    prices = nc.kb_price(cno, an)
+    kbkey = f"{cno}:{an}"          # 같은 단지·같은 면적타입 KB시세 재요청 방지
+    if kbkey not in cache.kb:
+        cache.kb[kbkey] = nc.kb_price(cno, an)
+    prices = cache.kb[kbkey]
     if prices:
         p = prices[0]
         row.update(status="matched_kb", base_ymd=p.get("baseYearMonthDay", ""),
@@ -184,8 +195,11 @@ def _process(nc, cache, r, pt, row):
                    kb_high=_won_from_manwon(p.get("dealUpperPriceLimit")),
                    lease_avg=_won_from_manwon(p.get("leaseAveragePrice")))
         return
-    # KB 미등재(주상복합 등) → 호가 폴백
-    arts = nc.articles(cno, kind=kind)
+    # KB 미등재(주상복합 등) → 호가 폴백. 단지·유형별 호가목록 캐시.
+    akey = f"{cno}:{kind}"
+    if akey not in cache.arts:
+        cache.arts[akey] = nc.articles(cno, kind=kind)
+    arts = cache.arts[akey]
     prc = [_parse_kor_price(a.get("dealOrWarrantPrc")) for a in arts
            if abs(float(a.get("area2") or a.get("area1") or 0) - area) < 8]
     prc = [x for x in prc if x]
