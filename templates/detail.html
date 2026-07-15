@@ -557,8 +557,8 @@
     g.appendChild(el('rect',{x:L,y:Tp,width:R-L,height:Bp-Tp,fill:'transparent'}));
   }
 
-  svg.addEventListener('mousemove',function(e){
-    var r=svg.getBoundingClientRect(); var sx=(e.clientX-r.left)/r.width*VB, sy=(e.clientY-r.top)/r.height*VH;
+  function moveAt(clientX, clientY){
+    var r=svg.getBoundingClientRect(); var sx=(clientX-r.left)/r.width*VB, sy=(clientY-r.top)/r.height*VH;
     var cross=svg.querySelector('#ptc-cross'), hi=svg.querySelector('#ptc-hi');
     if(sx<L||sx>R||sy<Tp||sy>Bp){ hide(); return; }
     var near=null,best=13; PTS.forEach(function(pt){ var dd=Math.hypot(sx-pt.cx,sy-pt.cy); if(dd<best){best=dd;near=pt;} });
@@ -573,9 +573,14 @@
       var ms=D0+(sx-L)/(R-L)*(D1-D0), pr=PHI-(sy-Tp)/(Bp-Tp)*(PHI-PLO);
       tt.innerHTML='<div class="tp">약 '+won(Math.round(pr/1e6)*1e6)+'</div><div class="td">'+fmtYMD(ms)+' 기준선</div>';
     }
-    tt.style.left=(e.clientX-cw.left)+'px'; tt.style.top=(e.clientY-cw.top)+'px';
-  });
+    tt.style.left=(clientX-cw.left)+'px'; tt.style.top=(clientY-cw.top)+'px';
+  }
+  svg.addEventListener('mousemove',function(e){ moveAt(e.clientX, e.clientY); });
   svg.addEventListener('mouseleave',hide);
+  // 폰 터치 지원(U2): 드래그로 차트 값 판독. 차트 위 드래그는 스크롤 대신 값 이동.
+  svg.addEventListener('touchstart',function(e){ if(e.touches[0]) moveAt(e.touches[0].clientX, e.touches[0].clientY); },{passive:true});
+  svg.addEventListener('touchmove',function(e){ if(e.touches[0]){ moveAt(e.touches[0].clientX, e.touches[0].clientY); e.preventDefault(); } },{passive:false});
+  svg.addEventListener('touchend',hide);
   function hide(){ tt.hidden=true; var c=svg.querySelector('#ptc-cross'),h=svg.querySelector('#ptc-hi');
     if(c)c.setAttribute('opacity',0); if(h)h.setAttribute('opacity',0); }
 

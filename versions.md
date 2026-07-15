@@ -1,5 +1,18 @@
 # versions.md — auction-arbitrage 루프 작업 로그 (append-only, 최신순)
 
+## 2026-07-16 01:14 KST — ♿ 밤샘UX 사이클3: 지도 키보드접근(U1)·차트 터치 툴팁(U2)
+- 무엇: 확정 접근성/모바일 결함 2건.
+  · **U1 지도 a11y**(map.html): 사이드 목록 item과 지역칩(`.rchip`)이 클릭 전용(키보드/스크린리더 불가)이던 것
+    → `role="button"`+`tabindex="0"`+Enter/Space keydown 핸들러, 칩엔 `aria-pressed`, item엔 `aria-label`.
+    `:focus-visible` 아웃라인 CSS 추가(키보드 포커스 가시화). 모드버튼은 이미 실제 `<button>`이라 무수정.
+  · **U2 차트 터치**(detail.html): 가격-시간 SVG 툴팁이 mousemove 전용이라 폰에서 수치 판독 불가 →
+    핸들러를 `moveAt(clientX,clientY)`로 공통화하고 touchstart/touchmove(preventDefault)/touchend 배선.
+    mousemove 경로 불변(회귀 없음).
+- 증거: evidence/ux_map_a11y.html + 렌더 검증(사이드 role/keydown·칩 aria-pressed·focus CSS / moveAt·touch 3종·
+  mousemove 유지). **pytest 519 pass/1 skip, ruff clean.**
+- 다음: B4 자유텍스트 정제(사용자 확인 대기 → QUESTIONS만) → B3 홈 로딩(저위험분: TTL·vercel번들·create_app 중복만,
+  쿼리 재구조화는 운영자) → **A1 code-reviewer · A2 Ponytail 재감사(적대검증 필수)**. push 금지·로컬만.
+
 ## 2026-07-16 01:01 KST — ♿ 밤샘UX 사이클2: 대비(U3)·재매각 보증금(U5) + 오탐 1건 기각(U6)
 - 무엇: 확정 UX 결함 2건 수정 + 오버플래그 1건 적발.
   · **U3 대비**: 의미있는 라벨 3곳(`.hh`×2·`.mcard .ms .k`)이 `--ink-400`(#98a2b3, ≈2.6:1, WCAG AA 미달)

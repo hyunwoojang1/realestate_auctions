@@ -35,6 +35,8 @@
     font-size:var(--t-note);padding:3px 10px;cursor:pointer;white-space:nowrap}
   .rchip .c{color:var(--muted);margin-left:4px}
   .rchip:hover{border-color:var(--ink-800)}
+  .mapside .item:focus-visible{outline:2px solid #2f6fdd;outline-offset:-2px}
+  .rchip:focus-visible{outline:2px solid #2f6fdd;outline-offset:2px}
   .rchip.on{background:#2f6fdd;border-color:#2f6fdd;color:#fff}
   .rchip.on .c{color:#dce8ff}
   @media (max-width: 860px){
@@ -123,16 +125,21 @@
       if (i >= SIDE_MAX) return;   // 핀은 이미 지도에 추가됨 — 패널 항목만 생략
       const div = document.createElement('div');
       div.className = 'item';
+      div.setAttribute('role', 'button');
+      div.setAttribute('tabindex', '0');
+      div.setAttribute('aria-label', (p.apt_name || p.property_type) + ' · ' + p.grade + ' — 지도에서 위치 보기');
       div.innerHTML = '<span class="nm">' + (p.apt_name || p.property_type) + '</span>'
         + ' <small style="color:' + colorOf(p.grade) + '">●</small> <small>' + p.grade + '</small>'
         + '<div class="meta"><span class="pf' + (p.profit != null && p.profit < 0 ? ' neg' : (p.profit != null && p.profit > 0 ? ' pos' : '')) + '">'
         + label + ' ' + eok(p.profit) + '</span>' + alpha + ' · 최저 ' + eok(p.min_bid) + '</div>';
-      div.onclick = () => {
+      const activate = () => {
         map.setView([lat, lon], 15);
         m.openPopup();
         side.querySelectorAll('.item').forEach(el => el.classList.remove('active'));
         div.classList.add('active');
       };
+      div.addEventListener('click', activate);
+      div.addEventListener('keydown', (e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); activate(); } });
       side.appendChild(div);
     });
     if (markers.length) {
@@ -149,15 +156,17 @@
     const rows = (lastGj && lastGj.by_sido) || [];
     const total = rows.reduce((a, e) => a + e.count, 0);
     let html = '<span class="rlabel">지역별</span>';
-    html += '<span class="rchip' + (sidoFilter ? '' : ' on') + '" data-sido="">전체'
+    html += '<span class="rchip' + (sidoFilter ? '' : ' on') + '" role="button" tabindex="0" aria-pressed="' + (sidoFilter ? 'false' : 'true') + '" data-sido="">전체'
       + '<span class="c">' + total + '</span></span>';
     rows.forEach(e => {
-      html += '<span class="rchip' + (sidoFilter === e.sido ? ' on' : '') + '" data-sido="'
+      html += '<span class="rchip' + (sidoFilter === e.sido ? ' on' : '') + '" role="button" tabindex="0" aria-pressed="' + (sidoFilter === e.sido ? 'true' : 'false') + '" data-sido="'
         + e.sido + '">' + e.sido + '<span class="c">' + e.count + '</span></span>';
     });
     bar.innerHTML = html;
     bar.querySelectorAll('.rchip').forEach(chip => {
-      chip.onclick = () => { sidoFilter = chip.dataset.sido || null; renderRegionBar(); draw(); };
+      const pick = () => { sidoFilter = chip.dataset.sido || null; renderRegionBar(); draw(); };
+      chip.onclick = pick;
+      chip.addEventListener('keydown', ev => { if (ev.key === 'Enter' || ev.key === ' ') { ev.preventDefault(); pick(); } });
     });
   }
 
