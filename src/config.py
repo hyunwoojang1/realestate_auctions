@@ -39,6 +39,9 @@ class ScoreConfig:
     occupant_penalty_default: int = 15
     tenant_opposable_penalty: float = 30
     gate_ceiling: float = 25.0
+    # KB시세(호가 기반) 폴백 신뢰계수 — 국토부 실거래(신뢰 0.6~1.0)보다 보수적으로 하향(감사 2026-07-16).
+    # 국토부 comps가 없을 때만 KB로 시세를 산정하며, arb·표시 신뢰를 이 값으로 낮춘다.
+    kb_confidence: float = 0.75
 
     # 환금성
     type_base: dict = field(default_factory=lambda: {

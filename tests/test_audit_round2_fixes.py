@@ -38,6 +38,37 @@ def test_hardgated_estnone_stays_wirheom_with_kb():
     assert v.grade == "위험"                        # KB 붙어도 위험 유지(추천 안 됨)
 
 
+# ── KB는 폴백 — 국토부 실거래 우선(감사 2026-07-16, 국토부 오버라이드 319건 교정) ──
+def _clean() -> AuctionListing:
+    return AuctionListing(
+        case_no="C1", court="서울중앙지방법원", address="서울 노원구 상계동",
+        lawd_cd="11350", dong="상계동", apt_name="정상단지", property_type="아파트",
+        area_m2=84.0, appraisal_price=600_000_000, min_bid_price=400_000_000,
+        fail_count=1, sale_date="2026-08-01", rights_verified=True)
+
+
+def test_kb_does_not_override_molit_estimate():
+    """국토부 실거래 est가 있으면 KB가 덮지 않는다(실거래 기반 원칙)."""
+    s = score_listing(_clean(), 620_000_000, 6)    # 국토부 est 성공
+    naver = {"status": "matched_kb", "kb_avg": 900_000_000,
+             "kb_low": 880_000_000, "kb_high": 920_000_000}
+    v = market_view(s, naver)
+    assert v.market_source == "molit"              # KB로 안 덮임
+    assert v.est_market_price == s.est_market_price  # 국토부 시세 유지
+
+
+def test_kb_fallback_only_when_no_molit_comps():
+    """국토부 comps 없을(est None) 때만 KB 폴백 — 신뢰계수 하향(0.75) 반영."""
+    from src.config import CONFIG
+    s = score_listing(_clean(), None, 0)           # 국토부 실패 → 시세추정불가
+    naver = {"status": "matched_kb", "kb_avg": 800_000_000,
+             "kb_low": 780_000_000, "kb_high": 820_000_000}
+    v = market_view(s, naver)
+    assert v.market_source == "kb"
+    assert v.est_market_price == 800_000_000
+    assert v.confidence == CONFIG.kb_confidence     # 신뢰 하향(1.0 아님)
+
+
 # ── F) _multi_complex: 한 이름의 두 토큰은 혼입이 아님 ──
 def _t(name: str) -> Trade:
     return Trade(apt_name=name, area_m2=84.0, price=1, deal_ym="202606",

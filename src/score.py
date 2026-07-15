@@ -216,8 +216,10 @@ def market_view(s: ScoredListing, naver: dict | None) -> ScoredListing:
     if naver is None:
         return s
     kb = kb_price_of(naver)
-    if kb is None:
-        # KB 미등재(호가만/미매칭) — 시세·차익은 기존(국토부) 유지, 표시용 페이로드만 첨부.
+    # KB는 폴백 — 국토부 실거래 est가 있으면 실거래를 우선한다('실거래 기반' 원칙, 감사 2026-07-16:
+    # KB가 국토부를 덮던 319건 교정). 국토부 comps가 없을(est None) 때만 KB로 시세를 산정한다.
+    if kb is None or (s.est_market_price and s.est_market_price > 0):
+        # KB 미등재이거나 국토부 성공 — 시세·차익은 기존 유지, 표시용 페이로드만 첨부.
         return dataclasses.replace(
             s, naver=naver, market_source=("molit" if s.est_market_price else "none"))
     cost = s.real_acquisition_cost or 0
@@ -226,7 +228,7 @@ def market_view(s: ScoredListing, naver: dict | None) -> ScoredListing:
     gap_rate = (kb - cost) / kb if kb else 0.0
     gap = gap_score_from_rate(gap_rate)
     raw = gap * CONFIG.w_gap + s.rights_score * CONFIG.w_rights + s.liquidity_score * CONFIG.w_liq
-    arb = round(raw, 1)   # KB=신뢰계수 1.0
+    arb = round(raw * CONFIG.kb_confidence, 1)   # KB=호가 기반 → 신뢰계수 하향(실거래보다 보수)
     p_low = kb_low - cost
     if s.grade == "위험":                     # 하드게이트(권리 위험)는 KB로 안 풀림
         grade = "위험"
@@ -241,4 +243,5 @@ def market_view(s: ScoredListing, naver: dict | None) -> ScoredListing:
         s, est_market_price=kb, market_band_low=kb_low, market_band_high=kb_high,
         expected_profit=kb - cost, profit_low=p_low, profit_high=kb_high - cost,
         gap_rate=round(gap_rate, 4), gap_score=gap, arb_score=arb, grade=grade,
+        confidence=CONFIG.kb_confidence,
         market_scope=SCOPE_RECOMMENDABLE, market_source="kb", naver=naver)
