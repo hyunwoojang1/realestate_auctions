@@ -1,5 +1,22 @@
 # versions.md — auction-arbitrage 루프 작업 로그 (append-only, 최신순)
 
+## 2026-07-15 23:21 KST — 🎯 해제거래(cdealType) 파싱·시세 제외 (데이터 정확성, +11.18% 오염 차단)
+- 무엇: 국토부 실거래 중 신고 후 취소된 **해제거래**가 comps에 섞여 시세를 부풀리던 것 차단
+  (감사 실측: 강남·분당 2개월 182/1,628건 해제 → 평균 +11.18% 과대). 4파일 최소 변경:
+  · models.Trade에 `cdeal_type`·`cdeal_day` 필드 + `is_cancelled` property(cdealType 'O' 또는 해제일 존재).
+  · molit_client `_COMMON_TAGS`에 해제여부/cdealType·해제사유발생일/cdealDay 이중태그 추가 + `_parse_root`에서 보존.
+  · matcher `match_trades_scoped` pool에 `and not t.is_cancelled` 1조건 — same_area/near_area/by_dong·
+    중앙값·밴드·차트 comps를 모두 파생하는 단일 초크포인트라 여기서 한 번만 걸러 전 경로 커버.
+  · molit_cache 무변경(asdict/Trade(**d) 자동 직렬화, 신규필드 기본값으로 구캐시 하위호환).
+- 증거: **pytest 517 passed / 1 skipped**(512+신규5, 회귀0). 신규테스트: 파싱 해제감지 국·영문 2 +
+  정상거래 미해제 1(test_molit_parse) + matcher 제외 1(고가 990M outlier 유입 차단) + 캐시 라운드트립·
+  구캐시 하위호환 1. 전체 repo ruff 24건 불변(신규 오류 0).
+- 평가자: 정찰 워크플로 wf_4cf4e64b-ebe(cdealType 루트 4곳 라인단위 지목). 이중키 _find라 API가 국문/영문
+  어느 태그를 반환해도 견고.
+- 다음: (운영) **재수집 필요** — data/molit_trades.db(gitignore 파생캐시)는 파싱본만 저장해 구건은 해제여부
+  소실 → 퍼지 후 재워밍해야 소급 정정(무료·법원무관·멱등·재개가능, 쿼터 신선시각 권장). 열린 달은 매 실행
+  재fetch라 즉시 반영. 코드수정만으로는 신규 fetch만 정정. + CI ruff green(17자동+7수동) + 커버리지(인근매각사례·pgj15B 이해관계인).
+
 ## 2026-07-15 23:06 KST — 🧹 포니테일 죽은코드 정리 (검증 후 확정분만 삭제, -115줄)
 - 무엇: Ponytail 감사에서 나온 죽은코드 후보 11종을 병렬 워크플로(11 에이전트)로 읽기전용
   재검증 → SAFE_DELETE 8종만 삭제. 정의·참조·동적사용(getattr/문자열키/템플릿/DB컬럼) 전수 추적.

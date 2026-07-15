@@ -79,6 +79,8 @@ def _load(conn: sqlite3.Connection, kind: str, lawd_cd: str, ymd: str) -> list[T
         return None
     try:
         raw = json.loads(row["trades_json"])
+        # 신규 필드(cdeal_type/cdeal_day)는 기본값 하위호환 — 구(舊)캐시엔 없어 ""로 복원된다.
+        # ⚠ 구캐시는 해제여부가 소실돼 있어, 소급 정정은 재수집(molit_trades.db 퍼지) 후에만 유효.
         return [Trade(**d) for d in raw]
     except (json.JSONDecodeError, TypeError):
         # (감사 2026-07-15) Trade(**d) 도 try 안으로 — 캐시 스키마 드리프트/손상 시 TypeError 가

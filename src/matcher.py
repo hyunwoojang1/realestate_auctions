@@ -206,7 +206,11 @@ def match_trades_scoped(listing: AuctionListing, trades: list[Trade]) -> tuple[l
     # 비교하면 타지역 동명(서울 신정동↔대구 신정동)의 실거래가 comps 로 혼입돼 시세가 왜곡된다.
     # 물건의 시군구(lawd_cd)가 있으면 같은 시군구 거래만 풀에 남긴다(레거시 빈 값은 통과).
     lawd = (listing.lawd_cd or "").strip()
+    # 해제거래 제외(감사 2026-07-15): 국토부는 신고 후 취소(cdealType="O")된 건도 반환하는데,
+    # comps에 섞이면 시세가 부풀려진다(실측 +11.18%). 이 pool이 same_area/near_area/by_dong·
+    # 중앙값·밴드·차트 comps를 모두 파생하는 단일 초크포인트 → 여기서 한 번만 걸러낸다.
     pool = [t for t in trades if _kind_ok(t, want)
+            and not t.is_cancelled
             and (not lawd or not t.lawd_cd or t.lawd_cd == lawd)]
     name = _norm(listing.apt_name)
     dong = _norm(listing.dong)

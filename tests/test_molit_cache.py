@@ -54,6 +54,29 @@ def test_open_month_always_fetches_and_not_cached(tmp_path):
     assert molit_cache._load(conn, "apt", "11680", "202507") is None  # 미저장
 
 
+def test_cancelled_flag_roundtrips_and_old_cache_backward_compatible(tmp_path):
+    """cdeal_type가 캐시 라운드트립에 보존되고, 구(舊)캐시(필드 없음)는 기본값으로 하위호환 복원."""
+    import json
+    conn = _conn(tmp_path)
+    # 신규: 해제 플래그 저장 → 복원 보존
+    t = Trade(apt_name="해제", area_m2=84.9, price=9_0000_0000, deal_ym="202504",
+              dong="역삼동", floor=10, kind="apt", lawd_cd="11680",
+              cdeal_type="O", cdeal_day="26.05.10")
+    molit_cache._save(conn, "apt", "11680", "202504", [t], "2026-07-14 00:00:00")
+    got = molit_cache._load(conn, "apt", "11680", "202504")
+    assert got and got[0].is_cancelled is True
+    assert got[0].cdeal_day == "26.05.10"
+    # 구캐시: cdeal_type 키 없는 dict를 직접 심어도 Trade(**d) 기본값으로 복원(크래시 X, is_cancelled=False)
+    old = json.dumps([{"apt_name": "구", "area_m2": 84.9, "price": 5_0000_0000,
+                       "deal_ym": "202503", "dong": "역삼동", "floor": 3,
+                       "kind": "apt", "lawd_cd": "11680"}], ensure_ascii=False)
+    conn.execute("INSERT OR REPLACE INTO molit_trades (kind,lawd_cd,ymd,trades_json,n,fetched_at) "
+                 "VALUES (?,?,?,?,?,?)", ("apt", "11680", "202503", old, 1, "2026-07-14 00:00:00"))
+    conn.commit()
+    got_old = molit_cache._load(conn, "apt", "11680", "202503")
+    assert got_old and got_old[0].is_cancelled is False
+
+
 def test_empty_result_is_cached_and_distinguished_from_miss(tmp_path):
     """거래 0건인 달도 캐시(빈 리스트) — 미캐시(None)와 구분해 재fetch 방지."""
     conn = _conn(tmp_path)

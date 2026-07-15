@@ -47,6 +47,22 @@ def test_no_match_returns_none():
     assert est is None and n == 0
 
 
+def test_cancelled_trade_excluded_from_matching():
+    """해제거래(is_cancelled)는 pool에서 제외 — comps/matched에 안 들어가 시세를 부풀리지 않는다
+    (감사 2026-07-15: 국토부 cdealType='O' 신고취소 건이 +11.18% 과대추정 유발)."""
+    lst = _lst()  # 상계주공 84.9
+    normal = [
+        Trade("상계주공", 84.9, 630_000_000, "202605", "상계동", kind="apt"),
+        Trade("상계주공", 84.9, 620_000_000, "202605", "상계동", kind="apt"),
+    ]
+    cancelled = Trade("상계주공", 84.9, 990_000_000, "202605", "상계동", kind="apt",
+                      cdeal_type="O", cdeal_day="26.05.20")
+    matched = match_trades(lst, normal + [cancelled])
+    assert len(matched) == 2                                  # 해제건 제외
+    assert all(not m.is_cancelled for m in matched)
+    assert 990_000_000 not in {m.price for m in matched}      # 고가 outlier 유입 안 됨
+
+
 # ---- X1: 매칭 품질(이상치·최근성·다월) ----
 
 def test_trim_outliers():

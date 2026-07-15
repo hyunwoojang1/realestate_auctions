@@ -112,3 +112,37 @@ def test_parse_english_tags():
     assert trades[0].apt_name == "테스트아파트"
     assert trades[0].price == 345_000_000
     assert trades[0].deal_ym == "202603"
+
+
+def test_parse_cancelled_trade_english_tags():
+    """해제거래(cdealType='O')는 파싱해 보존하되 is_cancelled=True로 표시한다."""
+    xml = """<response><body><items>
+      <item><dealAmount>90,000</dealAmount><aptNm>해제테스트</aptNm>
+      <excluUseAr>84.9</excluUseAr><dealYear>2026</dealYear><dealMonth>5</dealMonth>
+      <umdNm>대치동</umdNm><floor>7</floor>
+      <cdealType>O</cdealType><cdealDay>26.05.10</cdealDay></item>
+    </items></body></response>"""
+    trades = parse_apt_trades_xml(xml)
+    assert len(trades) == 1
+    assert trades[0].is_cancelled is True
+    assert trades[0].cdeal_day == "26.05.10"
+
+
+def test_parse_cancelled_trade_korean_tags():
+    """국문 태그(해제여부/해제사유발생일)도 동일하게 해제로 인식."""
+    xml = """<response><body><items>
+      <item><거래금액>90,000</거래금액><아파트>해제테스트</아파트>
+      <전용면적>84.9</전용면적><년>2026</년><월>5</월>
+      <법정동>대치동</법정동><층>7</층>
+      <해제여부>O</해제여부><해제사유발생일>26.05.10</해제사유발생일></item>
+    </items></body></response>"""
+    trades = parse_apt_trades_xml(xml)
+    assert len(trades) == 1
+    assert trades[0].is_cancelled is True
+
+
+def test_normal_trade_not_cancelled():
+    """해제 태그 없는 정상 거래는 is_cancelled=False(하위호환)."""
+    trades = parse_apt_trades_xml(FIXTURE.read_text(encoding="utf-8"))
+    assert trades
+    assert all(not t.is_cancelled for t in trades)

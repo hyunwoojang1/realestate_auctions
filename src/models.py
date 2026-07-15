@@ -47,9 +47,18 @@ class Trade:
     # 시군구(LAWD_CD 5자리) — 전국 풀에서 타지역 동명(洞名) 혼입 방지(감사 2026-07-10 CRITICAL).
     # ""=레거시(스코프 제약 미적용, 하위호환).
     lawd_cd: str = ""
+    # 해제거래(신고 후 취소된 계약) — cdealType="O"면 해제. comps에 섞이면 시세가 부풀려진다
+    # (감사 실측: 강남·분당 2개월 182/1,628건 해제 → 평균 +11.18% 과대). 파싱은 보존, 매칭에서 제외.
+    cdeal_type: str = ""   # 국토부 cdealType/해제여부. "O"=해제
+    cdeal_day: str = ""    # cdealDay/해제사유발생일(YY.MM.DD, 감사용)
 
     def price_per_m2(self) -> float:
         return self.price / self.area_m2 if self.area_m2 else 0.0
+
+    @property
+    def is_cancelled(self) -> bool:
+        """해제(취소)된 거래인가 — cdealType 'O' 또는 해제일 존재 시 True(이중 신호)."""
+        return self.cdeal_type.strip().upper() == "O" or bool(self.cdeal_day.strip())
 
 
 @dataclass
