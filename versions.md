@@ -1,5 +1,19 @@
 # versions.md — auction-arbitrage 루프 작업 로그 (append-only, 최신순)
 
+## 2026-07-16 01:50 KST — 🔍 밤샘UX 사이클5: 코드리뷰+Ponytail 재감사(적대검증) → 자기결함 3건 수정
+- 무엇: 사용자 핵심 요청. 밤샘 diff(9ff0593..HEAD)를 code-reviewer 2 + Ponytail 1 관점으로 감사 후
+  **각 발견 적대검증**(워크플로 wf_d8561f00). 발견 3건 전부 CONFIRMED이나 검증관이 **code-reviewer의
+  medium 2건을 low로 정확히 하향**(과대평가 교정 — 오버플래그 방지 작동). CRITICAL/HIGH·오탐 0건.
+- 수정(전부 이번 밤샘에 내가 넣은 코드의 마감결함, low라 선택적이나 값싸고 사용자 우선순위 부합):
+  · **라이트박스 포커스 트랩**(detail.html): aria-modal="true" 선언했으나 Tab 트랩 부재로 배경 컨트롤에
+    포커스 새던 것 → keydown에 Tab/Shift+Tab 순환 브랜치 추가(a11y 선언과 동작 일치).
+  · **차트 터치 축 감지**(detail.html): touchmove 무조건 preventDefault로 수직 스크롤까지 막던 것 →
+    축 감지(수평=스크럽·수직=스크롤 통과). 폰 스크롤 방해 제거(사용자 폰 우선).
+  · **중복 CSS 제거**(base.html): `.dphoto-empty span`의 color:--ink-500이 부모 상속과 동일한 no-op → 삭제.
+- 증거: 렌더에 Tab트랩·_lock 축감지·CSS정리 반영 확인. **pytest 519 pass/1 skip, ruff clean.**
+- 평가자: 적대검증 5에이전트(감사3+검증). **오탐 0·과대평가 2건 교정** — 이번 밤샘 코드가 견고함을 확인.
+- 상태: GOAL_UX의 실행가능 확정항목 **전부 완료**. 남은 건 사용자/운영자 게이트(Q3 사진텍스트·Q4 홈쿼리)뿐 → 루프 종료.
+
 ## 2026-07-16 01:33 KST — ⚡ 밤샘UX 사이클4: 홈 로딩 저위험 최적화(B3 일부) + B4·근본해결 보류
 - 무엇: 콜드 로딩 저위험분만(회귀위험 큰 홈쿼리 재구조화는 운영자 보류).
   · store_rest `SUPABASE_CACHE_TTL` 기본 120→**600**(야간 nightly 새로고침이라 stale 허용, 워엄 콜드 왕복 절감).

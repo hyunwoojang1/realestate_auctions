@@ -391,7 +391,11 @@
     document.addEventListener('keydown',function(e){ if(lb.hidden) return;
       if(e.key==='Escape') close();
       else if(e.key==='ArrowRight'&&imgs.length>1) show(cur+1);
-      else if(e.key==='ArrowLeft'&&imgs.length>1) show(cur-1); });
+      else if(e.key==='ArrowLeft'&&imgs.length>1) show(cur-1);
+      else if(e.key==='Tab'){ var f=lb.querySelectorAll('button'); if(!f.length) return;   // 포커스 트랩(aria-modal 일치)
+        var first=f[0], last=f[f.length-1], a=document.activeElement;
+        if(e.shiftKey){ if(a===first||!lb.contains(a)){ e.preventDefault(); last.focus(); } }
+        else { if(a===last||!lb.contains(a)){ e.preventDefault(); first.focus(); } } } });
   }
 })();
 </script>
@@ -577,9 +581,13 @@
   }
   svg.addEventListener('mousemove',function(e){ moveAt(e.clientX, e.clientY); });
   svg.addEventListener('mouseleave',hide);
-  // 폰 터치 지원(U2): 드래그로 차트 값 판독. 차트 위 드래그는 스크롤 대신 값 이동.
-  svg.addEventListener('touchstart',function(e){ if(e.touches[0]) moveAt(e.touches[0].clientX, e.touches[0].clientY); },{passive:true});
-  svg.addEventListener('touchmove',function(e){ if(e.touches[0]){ moveAt(e.touches[0].clientX, e.touches[0].clientY); e.preventDefault(); } },{passive:false});
+  // 폰 터치 지원(U2): 드래그로 차트 값 판독. 축 감지 — 수평 드래그만 스크럽(preventDefault),
+  // 수직 드래그는 네이티브 페이지 스크롤 통과(재감사 2026-07-16: 무조건 preventDefault로 스크롤 막던 것 완화).
+  var _tsx=0,_tsy=0,_lock=null;
+  svg.addEventListener('touchstart',function(e){ if(e.touches[0]){ _tsx=e.touches[0].clientX; _tsy=e.touches[0].clientY; _lock=null; moveAt(_tsx,_tsy); } },{passive:true});
+  svg.addEventListener('touchmove',function(e){ if(!e.touches[0]) return; var t=e.touches[0];
+    if(_lock===null){ var dx=Math.abs(t.clientX-_tsx), dy=Math.abs(t.clientY-_tsy); if(dx<6&&dy<6) return; _lock = dx>dy?'x':'y'; }
+    if(_lock==='x'){ moveAt(t.clientX, t.clientY); e.preventDefault(); } },{passive:false});
   svg.addEventListener('touchend',hide);
   function hide(){ tt.hidden=true; var c=svg.querySelector('#ptc-cross'),h=svg.querySelector('#ptc-hi');
     if(c)c.setAttribute('opacity',0); if(h)h.setAttribute('opacity',0); }
