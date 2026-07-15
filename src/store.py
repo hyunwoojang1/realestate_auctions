@@ -172,10 +172,28 @@ def save_naver_price(conn: sqlite3.Connection, row: dict) -> None:
             f"INSERT OR REPLACE INTO naver_prices ({','.join(_NAVER_COLS)}) VALUES ({ph})", vals)
 
 
-def naver_done_keys(conn: sqlite3.Connection) -> set:
-    """이미 처리한 (court,case_no,item_no) — 이어받기용."""
-    return {(r["court"], r["case_no"], r["item_no"])
-            for r in conn.execute("SELECT court, case_no, item_no FROM naver_prices")}
+# 매칭·수집이 성사되지 못한 status — 코드 수정 후 재시도 가치가 있는 것들.
+# no_kb(단지는 찾았으나 KB·호가 모두 없음)도 포함: 단지가 오매칭이었을 수 있다.
+NAVER_FAILED_STATUS = ("no_match", "no_kb", "no_coord", "")
+
+
+def naver_done_keys(conn: sqlite3.Connection, include_failed: bool = True) -> set:
+    """이미 처리한 (court,case_no,item_no) — 이어받기용.
+
+    include_failed=False 면 **실패로 저장된 행을 '미처리'로 취급**해 재시도 대상이 되게 한다.
+    (감사 2026-07-15) 기본 동작은 status 무관하게 전부 '처리됨'이라, 옛 버그 시절에 실패로
+    굳은 행이 코드를 고쳐도 영영 재수집되지 않았다 — 실측 861건이 영구 스킵 상태였고 그중
+    150건은 오피스텔 realEstateType 버그(13:10 수정)·이름매칭 개선(14:05) **이전** 수집분이다.
+    운영자가 --retry-failed 로 명시할 때만 재시도한다(매 실행 재시도는 진짜 미등재 물건에
+    불필요한 요청을 반복하므로 기본값은 보수적으로 유지).
+    """
+    sql = "SELECT court, case_no, item_no FROM naver_prices"
+    params: tuple = ()
+    if not include_failed:
+        ph = ",".join("?" * len(NAVER_FAILED_STATUS))
+        sql += f" WHERE status NOT IN ({ph})"
+        params = NAVER_FAILED_STATUS
+    return {(r["court"], r["case_no"], r["item_no"]) for r in conn.execute(sql, params)}
 
 
 def load_naver_price(conn: sqlite3.Connection, court: str, case_no: str, item_no: str) -> dict | None:

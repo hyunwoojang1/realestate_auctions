@@ -78,8 +78,13 @@ class Cache:
                                      ensure_ascii=False), encoding="utf-8")
 
 
-def _targets(conn, cache_coords, limit, refresh):
-    done = set() if refresh else store.naver_done_keys(conn)
+def _targets(conn, cache_coords, limit, refresh, retry_failed=False):
+    if refresh:
+        done = set()
+    else:
+        # retry_failed: 실패로 저장된 행(no_match/no_kb/no_coord)을 '미처리'로 봐 재시도 대상에 포함.
+        # 코드 수정(음차맵·유형버그 등) 후 옛 실패분을 회수할 때 쓴다 — 성공분은 그대로 건너뛴다.
+        done = store.naver_done_keys(conn, include_failed=not retry_failed)
     rows = conn.execute(
         "SELECT doc_id, court, case_no, item_no, apt_name, area_m2, property_type FROM scored_listings "
         "WHERE property_type IN ('아파트','오피스텔') AND apt_name != '' ORDER BY case_no").fetchall()
@@ -100,14 +105,18 @@ def main(argv=None) -> int:
     ap.add_argument("--db", default=os.environ.get("AUCTION_DB", "auction.db"))
     ap.add_argument("--limit", type=int, default=None)
     ap.add_argument("--refresh", action="store_true", help="기존분도 재수집")
+    ap.add_argument("--retry-failed", dest="retry_failed", action="store_true",
+                    help="실패로 저장된 행(no_match/no_kb/no_coord)만 재시도 — 성공분은 유지. "
+                         "코드 수정(음차맵·유형버그) 후 옛 실패분 회수용")
     args = ap.parse_args(argv)
     _load_env()
 
     conn = store.connect(args.db)
     coord_cache = coords.load_coord_cache()
-    targets = _targets(conn, coord_cache, args.limit, args.refresh)
+    targets = _targets(conn, coord_cache, args.limit, args.refresh, args.retry_failed)
     total = len(targets)
-    print(f"[*] 대상 {total}건 (DB={args.db}, 이어받기={not args.refresh})", flush=True)
+    mode = "전량재수집" if args.refresh else ("실패분 재시도" if args.retry_failed else "이어받기")
+    print(f"[*] 대상 {total}건 (DB={args.db}, 모드={mode})", flush=True)
     if not total:
         return 0
 
