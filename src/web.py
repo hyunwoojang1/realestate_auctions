@@ -858,9 +858,6 @@ def create_app() -> Flask:
     return app
 
 
-app = create_app()
-
-
 def _truthy(val: str | None) -> bool:
     """env flag → bool. 미설정/빈값/0/false/no/off 는 False."""
     return (val or "").strip().lower() in {"1", "true", "yes", "on"}
@@ -868,6 +865,9 @@ def _truthy(val: str | None) -> bool:
 
 if __name__ == "__main__":
     # 개발 편의용 진입점. 프로덕션 서빙은 waitress(scripts/start.ps1 / src.serve)를 쓴다.
+    # (콜드부팅 최적화) 모듈 임포트 시 앱 이중생성 제거 — 서빙(api/index.py·src.serve)은 각자
+    # create_app()을 부르므로, 여기서 만든 app은 이 dev 러너 전용이다.
+    app = create_app()
     # debug/reloader 는 명시적 env flag(AUCTION_DEBUG=1)로만 켜지고, 기본값은 항상 off.
     debug = _truthy(os.environ.get("AUCTION_DEBUG"))
     host = os.environ.get("AUCTION_HOST", "127.0.0.1")

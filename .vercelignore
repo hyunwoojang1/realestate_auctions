@@ -3,6 +3,11 @@
 *.db
 *.db-wal
 *.db-shm
+# 크롤러 전용 캐시(서빙 미참조, 실측: web 임포트 체인이 안 읽음) — 함수 번들에서 제외해 콜드부팅·크기 절감
+data/courtauction_full_cache.json
+data/naver_cache.json
+data/courtauction_cache.json
+data/*.dryrun.json
 .env
 tests/
 design-refs/

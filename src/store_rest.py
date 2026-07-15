@@ -30,7 +30,7 @@ _KST = timezone(timedelta(hours=9))
 
 # 서빙 캐시: Vercel 매 요청마다 3천여 건 REST 페치를 피한다(warm 인스턴스 내에서만 유효).
 # 새로고침은 로컬 nightly 라 TTL 만큼 지연돼도 무방. write 후 즉시 반영이 필요하면 invalidate().
-_CACHE_TTL = float(os.environ.get("SUPABASE_CACHE_TTL", "120"))
+_CACHE_TTL = float(os.environ.get("SUPABASE_CACHE_TTL", "600"))  # 야간 nightly 새로고침이라 stale 허용 — 콜드 왕복 절감
 _cache: dict = {"at": 0.0, "rows": None}
 
 

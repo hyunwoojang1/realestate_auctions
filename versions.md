@@ -1,5 +1,20 @@
 # versions.md — auction-arbitrage 루프 작업 로그 (append-only, 최신순)
 
+## 2026-07-16 01:33 KST — ⚡ 밤샘UX 사이클4: 홈 로딩 저위험 최적화(B3 일부) + B4·근본해결 보류
+- 무엇: 콜드 로딩 저위험분만(회귀위험 큰 홈쿼리 재구조화는 운영자 보류).
+  · store_rest `SUPABASE_CACHE_TTL` 기본 120→**600**(야간 nightly 새로고침이라 stale 허용, 워엄 콜드 왕복 절감).
+  · **.vercelignore**: 크롤러 전용 캐시(courtauction_full_cache 41M·naver_cache 36M·courtauction_cache 3M·*.dryrun)
+    함수 번들 제외 — **서빙 미참조 전수확인 후**(서빙이 읽는 data/는 coords_cache·lawd_codes·score_config·
+    sample_*·buyer_profile뿐). 콜드부팅·배포크기 절감.
+  · web.py **create_app 이중생성 제거**: 모듈전역 `app=create_app()`을 `__main__`으로 이동. 서빙(api/index.py·
+    src.serve)은 각자 create_app 호출하고 `web.app` 외부참조 0이라, 임포트 시 불필요한 두 번째 앱 생성이 없어짐.
+- **오버플래그 가드 준수**: .vercelignore·create_app 변경 전에 (a)서빙의 data/ 읽기 전수 (b)naver_cache/courtauction_cache
+  서빙 미참조 (c)tests·src의 web.app 참조 0 을 grep으로 실증 → 누락 파손 위험 배제 후 적용.
+- 증거: 서빙 스모크 /health·/·/api/listings 200(create_app 변경 후 정상), 모듈전역 app 제거 확인, TTL=600.
+  **pytest 519 pass/1 skip, ruff clean.**
+- 보류(QUESTIONS): Q4 홈쿼리 서버측 limit 재구조화(회귀위험, 운영자) · Q3 "사진 특수문자" 실제 텍스트 확인(B4, 추측수정 금지).
+- 다음: **A1 code-reviewer 재감사 → A2 Ponytail 재감사**(적대검증, 오탐 REJECTED.md). push 금지.
+
 ## 2026-07-16 01:14 KST — ♿ 밤샘UX 사이클3: 지도 키보드접근(U1)·차트 터치 툴팁(U2)
 - 무엇: 확정 접근성/모바일 결함 2건.
   · **U1 지도 a11y**(map.html): 사이드 목록 item과 지역칩(`.rchip`)이 클릭 전용(키보드/스크린리더 불가)이던 것
