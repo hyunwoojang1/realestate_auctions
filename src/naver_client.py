@@ -115,8 +115,8 @@ class NaverClient:
                        f"&year=5&priceChartChange=false&type=table&areaNo={area_no}&provider=kbstar")
         return (j or {}).get("marketPrices") or []
 
-    def articles(self, complex_no, trade="A1"):
-        j = self.fetch(f"/api/articles/complex/{complex_no}?realEstateType=APT&tradeType={trade}"
+    def articles(self, complex_no, trade="A1", kind="APT"):
+        j = self.fetch(f"/api/articles/complex/{complex_no}?realEstateType={kind}&tradeType={trade}"
                        f"&priceMin=0&priceMax=900000000&areaMin=0&areaMax=900000000"
                        f"&page=1&complexNo={complex_no}&order=prc")
         return (j or {}).get("articleList") or []

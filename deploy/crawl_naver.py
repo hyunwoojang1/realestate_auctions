@@ -79,7 +79,7 @@ class Cache:
 def _targets(conn, cache_coords, limit, refresh):
     done = set() if refresh else store.naver_done_keys(conn)
     rows = conn.execute(
-        "SELECT doc_id, court, case_no, item_no, apt_name, area_m2 FROM scored_listings "
+        "SELECT doc_id, court, case_no, item_no, apt_name, area_m2, property_type FROM scored_listings "
         "WHERE property_type IN ('아파트','오피스텔') AND apt_name != '' ORDER BY case_no").fetchall()
     out = []
     for r in rows:
@@ -147,13 +147,16 @@ def _process(nc, cache, r, pt, row):
         row["status"] = "no_coord"
         return
     lat, lng = pt
+    # 네이버는 아파트(APT)·오피스텔(OPST)이 별도 타입 — 유형에 맞는 목록을 조회해야 매칭된다.
+    kind = "OPST" if r["property_type"] == "오피스텔" else "APT"
     cortar = nc.cortar_for(lat, lng)
     if not cortar:
         row["status"] = "no_coord"
         return
-    if cortar not in cache.cortar_complexes:
-        cache.cortar_complexes[cortar] = nc.complexes_in(cortar)
-    comps = cache.cortar_complexes[cortar]
+    ckey = f"{cortar}:{kind}"
+    if ckey not in cache.cortar_complexes:
+        cache.cortar_complexes[ckey] = nc.complexes_in(cortar, kind=kind)
+    comps = cache.cortar_complexes[ckey]
     best, bs = naver_match.best_complex(r["apt_name"], comps)
     if not best or bs < 0.70:
         row["status"] = "no_match"
@@ -182,7 +185,7 @@ def _process(nc, cache, r, pt, row):
                    lease_avg=_won_from_manwon(p.get("leaseAveragePrice")))
         return
     # KB 미등재(주상복합 등) → 호가 폴백
-    arts = nc.articles(cno)
+    arts = nc.articles(cno, kind=kind)
     prc = [_parse_kor_price(a.get("dealOrWarrantPrc")) for a in arts
            if abs(float(a.get("area2") or a.get("area1") or 0) - area) < 8]
     prc = [x for x in prc if x]

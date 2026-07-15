@@ -1,5 +1,14 @@
 # versions.md — auction-arbitrage 루프 작업 로그 (append-only, 최신순)
 
+## 2026-07-15 13:10 KST — 🐛 네이버 오피스텔 realEstateType 버그 수정(매칭실패 75% 원인)
+- 진단: 수집 중 매칭실패 448건 분해 → 오피스텔 338건(75%)이 원인. 네이버는 아파트(APT)·오피스텔(OPST)이
+  별도 realEstateType인데 단지목록을 APT로만 조회 → 오피스텔은 시작부터 못 찾음.
+- 수정: crawl_naver._process가 property_type로 kind(OPST/APT) 결정→complexes_in·articles에 전달.
+  naver_client.articles에 kind 파라미터. cortar 캐시 키를 f"{cortar}:{kind}"로 분리.
+- 검증: 이전 매칭실패 오피스텔 5건 재시도 → 매칭 5/5(한마음·몽삐에뜨골드·스마트시티리버뷰·이지크라운·
+  한마음, 전부 1.00), 데이터(KB1+호가4) 5/5. 오피스텔은 KB보단 호가 위주(0이던 게 채워짐).
+- 후속: 오피스텔 naver_prices 삭제 후 재수집. 아파트 A유형(맞는단지 면적탈락)은 별도 튜닝 여지.
+
 ## 2026-07-15 11:30 KST — 🏢 네이버 KB시세·호가 수집 파이프라인(Phase 1~3 착수)
 - 배경: 국토부 통계추정 커버리지 41%·정확도 한계. KB시세(은행기준)를 붙여 밴드·호가·전월세 보강.
 - 실증(Phase1): 네이버는 토큰/쿠키 없는 순수 requests를 429 거부 → Playwright 헤드리스로 토큰·쿠키
