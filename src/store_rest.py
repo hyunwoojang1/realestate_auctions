@@ -49,6 +49,8 @@ def _cfg() -> tuple[str | None, str | None, str]:
 RIGHTS_TABLE = os.environ.get("SUPABASE_RIGHTS_TABLE", "auction_listing_rights")
 # 물건 사진 썸네일 미러 테이블 — 상세 히어로 클라우드 서빙용.
 PHOTOS_TABLE = os.environ.get("SUPABASE_PHOTOS_TABLE", "auction_listing_photos")
+# 네이버 KB시세·호가 매핑 미러 테이블 — 목록 배지·상세 차익 클라우드 서빙용.
+NAVER_TABLE = os.environ.get("SUPABASE_NAVER_TABLE", "auction_naver_prices")
 
 
 def enabled() -> bool:
@@ -217,6 +219,64 @@ def fetch_photos(court: str, case_no: str, item_no: str = "") -> list[str]:
         return [row["thumb_b64"] for row in r.json()]
     except Exception:  # noqa: BLE001 — 사진 없음/테이블 미배포는 히어로 생략으로 강등
         return []
+
+
+_naver_cache: dict = {"at": 0.0, "rows": None}
+
+
+def load_all_naver(use_cache: bool = True) -> list[dict]:
+    """네이버 KB시세 전량(목록 배지·차익 조인용) — listings 와 같은 TTL 캐시.
+
+    반환 dict 의 키는 store._NAVER_COLS(court…fetched_at). web._naver_map 이
+    (court|case_no|item_no) 맵으로 조인한다. 실패 시 예외 전파 → 호출부가 국토부 추정으로 강등.
+    """
+    if use_cache and _naver_cache["rows"] is not None and (
+            time.time() - _naver_cache["at"] < _CACHE_TTL):
+        return _naver_cache["rows"]
+    url, key, _ = _cfg()
+    rows: list[dict] = []
+    offset = 0
+    while True:
+        r = requests.get(_endpoint(url, NAVER_TABLE), headers=_headers(key),
+                         params={"select": "*", "limit": _PAGE, "offset": offset},
+                         timeout=30)
+        r.raise_for_status()
+        batch = r.json()
+        rows.extend(batch)
+        if len(batch) < _PAGE:
+            break
+        offset += _PAGE
+    _naver_cache["rows"] = rows
+    _naver_cache["at"] = time.time()
+    return rows
+
+
+def upsert_naver(rows: list[dict]) -> int:
+    """네이버 KB시세 매핑(naver_prices 행 dict) 병합 미러 — 500행 청크 upsert."""
+    url, key, _ = _cfg()
+    n = _post_upsert(url, key, NAVER_TABLE, rows)
+    _naver_cache["rows"] = None
+    return n
+
+
+def fetch_naver_price(court: str, case_no: str, item_no: str = "") -> dict | None:
+    """단건 네이버 KB시세(클라우드 상세 폴백) — (court, case_no, item_no) 정확 매칭.
+
+    fetch_photos 와 동일하게 실패/미배포(테이블 없음)는 조용히 None 으로 강등 →
+    상세 페이지가 국토부 추정만으로 서빙된다(네이버 없음 = 무해).
+    """
+    url, key, _ = _cfg()
+    try:
+        r = requests.get(_endpoint(url, NAVER_TABLE), headers=_headers(key),
+                         params={"select": "*", "court": f"eq.{court}",
+                                 "case_no": f"eq.{case_no}",
+                                 "item_no": f"eq.{item_no or ''}", "limit": 1},
+                         timeout=15)
+        r.raise_for_status()
+        rows = r.json()
+        return rows[0] if rows else None
+    except Exception:  # noqa: BLE001 — 네이버 없음/테이블 미배포는 국토부 추정으로 강등
+        return None
 
 
 def prune_rights() -> int:

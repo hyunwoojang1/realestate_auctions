@@ -178,6 +178,11 @@ def load_naver_price(conn: sqlite3.Connection, court: str, case_no: str, item_no
     return dict(r) if r else None
 
 
+def load_all_naver(conn: sqlite3.Connection) -> list[dict]:
+    """naver_prices 전량(서빙 조인용). (court,case_no,item_no) 복합키로 맵 구성해 쓴다."""
+    return [dict(r) for r in conn.execute("SELECT * FROM naver_prices")]
+
+
 def _migrate(conn: sqlite3.Connection) -> None:
     """구스키마 자동 이관 — v1(case_no 단일 PK) → v2(복합 PK) → v3(market_scope).
 

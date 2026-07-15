@@ -87,7 +87,7 @@ def _scored():
             try:
                 if store.has_rows(conn):
                     _mark_source("db")
-                    return store.load_scored(conn)
+                    return _enrich_naver(store.load_scored(conn))
             finally:
                 conn.close()
             # 연결은 됐지만 적재 결과 0건 — 조용히 샘플로 넘어가지 않도록 경고(침묵실패 방지).
@@ -104,7 +104,7 @@ def _scored():
             rows = store_rest.load_scored()
             if rows:
                 _mark_source("db")
-                return rows
+                return _enrich_naver(rows)
             logger.warning(
                 "Supabase 연결됐으나 적재 결과 0건 → 샘플 폴백(라이브 데이터 아님). "
                 "새로고침(run.py --live)이 실패했거나 아직 실행 전일 수 있음.")
@@ -114,7 +114,7 @@ def _scored():
             _mark_source("sample(db-error)")
     else:
         _mark_source("sample(no-db)")
-    return pipeline.run()
+    return _enrich_naver(pipeline.run())
 
 
 def _rights_badges() -> dict:
@@ -147,6 +147,38 @@ def _rights_badges() -> dict:
             continue
         out[f"{cr.court}|{cr.case_no}|{cr.item_no}"] = summarize(cr)
     return out
+
+
+def _naver_map() -> dict:
+    """(court|case_no|item_no) → naver_prices dict. 요청당 1회 로드(g 캐시). 실패 시 {} 폴백."""
+    from flask import g, has_request_context  # noqa: PLC0415
+    if has_request_context() and hasattr(g, "_navermap"):
+        return g._navermap
+    rows: list[dict] = []
+    db_path = os.environ.get(DB_ENV)
+    try:
+        if db_path:
+            conn = store.connect(db_path)
+            try:
+                rows = store.load_all_naver(conn)
+            finally:
+                conn.close()
+        elif store_rest.enabled():
+            rows = store_rest.load_all_naver()
+    except Exception as e:  # noqa: BLE001 — 네이버 로드 실패는 국토부 추정으로 무해 degrade
+        logger.warning("네이버 KB시세 로드 실패 → 국토부 추정 유지: %s", e)
+        rows = []
+    m = {f"{r['court']}|{r['case_no']}|{r['item_no']}": r for r in rows}
+    if has_request_context():
+        g._navermap = m
+    return m
+
+
+def _enrich_naver(rows: list) -> list:
+    """각 물건에 네이버 KB시세·호가를 붙이고, KB 있으면 시세·차익을 KB 기준으로 재계산(score.market_view)."""
+    from .score import market_view  # noqa: PLC0415
+    nm = _naver_map()
+    return [market_view(s, nm.get(f"{s.court}|{s.case_no}|{s.item_no}")) for s in rows]
 
 
 def _burden_of(badges: dict):

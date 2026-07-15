@@ -190,3 +190,50 @@ def score_listing(listing: AuctionListing, est_market_price: int | None, matched
         profit_low=p_low, profit_high=p_high,
         market_comps=[list(c) for c in comps],
     )
+
+
+def kb_price_of(naver: dict | None) -> int | None:
+    """네이버 페이로드에서 신뢰할 KB 일반가(원) — matched_kb + 양수일 때만(이중 게이트)."""
+    if naver and naver.get("status") == "matched_kb":
+        v = naver.get("kb_avg")
+        if v and v > 0:
+            return int(v)
+    return None
+
+
+def market_view(s: ScoredListing, naver: dict | None) -> ScoredListing:
+    """서빙 시점 시세뷰 — KB시세 있으면 그걸 시세로 덮어 차익·등급 재계산(불변), 없으면 표시용 페이로드만.
+
+    KB는 은행기준 유지시세라 표본·스코프 게이트를 적용하지 않는다(추천 가능). 다만 권리 상태
+    (위험=하드게이트·권리미확인)는 KB로 바뀌지 않으므로 보존한다.
+    """
+    import dataclasses  # noqa: PLC0415
+    if naver is None:
+        return s
+    kb = kb_price_of(naver)
+    if kb is None:
+        # KB 미등재(호가만/미매칭) — 시세·차익은 기존(국토부) 유지, 표시용 페이로드만 첨부.
+        return dataclasses.replace(
+            s, naver=naver, market_source=("molit" if s.est_market_price else "none"))
+    cost = s.real_acquisition_cost or 0
+    kb_low = naver.get("kb_low") or kb
+    kb_high = naver.get("kb_high") or kb
+    gap_rate = (kb - cost) / kb if kb else 0.0
+    gap = gap_score_from_rate(gap_rate)
+    raw = gap * CONFIG.w_gap + s.rights_score * CONFIG.w_rights + s.liquidity_score * CONFIG.w_liq
+    arb = round(raw, 1)   # KB=신뢰계수 1.0
+    p_low = kb_low - cost
+    if s.grade == "위험":                     # 하드게이트(권리 위험)는 KB로 안 풀림
+        grade = "위험"
+        arb = min(arb, CONFIG.gate_ceiling)
+    elif not s.rights_verified:               # 권리 미검증 → 비단정
+        grade = "권리미확인"
+    elif p_low <= 0:                          # 보수(하한) 차익 없으면 추천 제외
+        grade = "차익없음"
+    else:
+        grade = grade_of(arb)
+    return dataclasses.replace(
+        s, est_market_price=kb, market_band_low=kb_low, market_band_high=kb_high,
+        expected_profit=kb - cost, profit_low=p_low, profit_high=kb_high - cost,
+        gap_rate=round(gap_rate, 4), gap_score=gap, arb_score=arb, grade=grade,
+        market_scope=SCOPE_RECOMMENDABLE, market_source="kb", naver=naver)

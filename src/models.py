@@ -106,6 +106,10 @@ class ScoredListing:
     # 상세 시간축 차트용 개별 실거래 점 [(deal_ym, price)] — 최신순, 다년치 맥락 포함.
     # 밴드 산정과 독립(맥락 표시용). 저장 시 JSON 텍스트로 직렬화(store). 기본 빈 리스트.
     market_comps: list[tuple[str, int]] = field(default_factory=list)
+    # 서빙 전용(비영속 — store._COLS 밖이라 마이그레이션 불필요). 네이버 KB시세·호가 원본 페이로드와
+    # 시세·차익 출처. market_source: "kb"(KB부동산) | "molit"(국토부 추정) | "none"(시세없음).
+    naver: dict | None = None
+    market_source: str = ""
 
     @property
     def uid(self) -> str:

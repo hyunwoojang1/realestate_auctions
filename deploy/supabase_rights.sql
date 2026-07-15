@@ -39,6 +39,30 @@ create table if not exists public.auction_listing_photos (
 );
 alter table public.auction_listing_photos enable row level security;
 
+-- [2026-07-15] 네이버 KB시세·호가 매핑 미러(store.DDL_NAVER 등가) — 목록 배지·상세 차익 서빙용.
+-- status: matched_kb | matched_ask | no_kb | no_match | no_coord. RLS on + 정책 없음 = service key 전용.
+create table if not exists public.auction_naver_prices (
+    court        text not null default '',
+    case_no      text not null,
+    item_no      text not null default '',
+    status       text not null default '',
+    complex_no   text default '',
+    complex_name text default '',
+    area_no      text default '',
+    match_conf   text default '',
+    kb_low       integer,               -- 하한가(원)
+    kb_avg       integer,               -- 일반가(원) = KB '시세'
+    kb_high      integer,               -- 상한가(원)
+    lease_avg    integer,               -- 전세 일반가(원)
+    ask_min      integer,               -- 호가 최저(원)
+    ask_max      integer,               -- 호가 최고(원)
+    ask_count    integer default 0,
+    base_ymd     text default '',
+    fetched_at   text not null default '',
+    primary key (court, case_no, item_no)
+);
+alter table public.auction_naver_prices enable row level security;
+
 -- 고아 권리 자동정리 RPC — scored 에 대응 물건이 없는 rights 를 서버측 단일 쿼리로 삭제.
 -- run.py 가 풀스냅샷 새로고침 후 store_rest.prune_rights()로 호출(rights 무한누적 방지).
 create or replace function public.prune_auction_orphan_rights()

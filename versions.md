@@ -1,5 +1,14 @@
 # versions.md — auction-arbitrage 루프 작업 로그 (append-only, 최신순)
 
+## 2026-07-15 16:20 KST — 🏦 Phase4: KB시세·호가·전세 사이트 통합
+- naver_prices(2351건, KB794·호가) 를 서빙에 통합. models.ScoredListing에 naver/market_source(비영속) 추가.
+- score.market_view(): KB있으면 시세·밴드·차익·등급을 KB기준 재계산(불변, 권리상태는 보존), 없으면 표시용 첨부.
+  kb_price_of() 이중게이트(matched_kb+kb_avg>0). web._enrich_naver()가 _scored() 단일지점서 전 물건 enrich
+  → 목록·상세·지도·차익·API 자동 KB반영. web._naver_map() 요청캐시(로컬 store.load_all_naver / 클라우드 store_rest).
+- detail.html: KB시세 밴드(하한/일반/상한)+호가+전세 패널 + 출처 pill(KB부동산/국토부추정). base.html CSS(기존토큰).
+- store_rest: load_all_naver·upsert_naver·fetch_naver_price. Supabase auction_naver_prices 테이블 생성+2351행 미러.
+- 병렬구현: 설계4축→표시·미러2축(담당파일 분리, 충돌0). 468 테스트 통과, 로컬 스모크(삼정그린코아 KB2.95억 렌더).
+
 ## 2026-07-15 14:05 KST — 🔍 네이버 매칭 오분류 점검·수정(중간 품질점검)
 - 사용자 중간점검 요청. KB시세 vs 감정가 대조: 배율 중앙 0.95·이상치 0(오매칭 거의 없음), 429·오류 0.
 - 발견: 짧은 이름 오분류 1건(청라로데오시티포레안→청라봄, partial이 접두 "청라"만 겹쳐도 0.80). name_score
