@@ -449,8 +449,10 @@ def save_photo_urls(conn: sqlite3.Connection, court: str, case_no: str, item_no:
     with conn:
         conn.execute("DELETE FROM listing_photos WHERE court=? AND case_no=? AND item_no=?", key)
         conn.executemany(
-            "INSERT INTO listing_photos (court,case_no,item_no,seq,photo_url,fetched_at) "
-            "VALUES (?,?,?,?,?,?)",
+            # thumb_b64='' 명시 — 기존 DB가 옛 스키마(thumb_b64 NOT NULL·기본값 없음)로 생성됐으면
+            # Storage 모드 insert가 NOT NULL 위반으로 깨진다(2026-07-16 백필 실패 재현). 열 순서 명시로 회피.
+            "INSERT INTO listing_photos (court,case_no,item_no,seq,photo_url,thumb_b64,fetched_at) "
+            "VALUES (?,?,?,?,?,'',?)",
             [(*key, i, u, fetched_at) for i, u in enumerate(urls) if u])
     return sum(1 for u in urls if u)
 
