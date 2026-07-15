@@ -1,5 +1,12 @@
 # versions.md — auction-arbitrage 루프 작업 로그 (append-only, 최신순)
 
+## 2026-07-15 18:10 KST — ✅ Phase5 마이그레이션 완료 + VACUUM
+- 기존 사진 8,076장 전량 base64→Storage 이전 완료(실패 1건은 멱등 재실행으로 재이전, 최종 실패 0).
+  실패 원인=전송 순간 네트워크 hiccup(데이터는 정상 114KB), 듀얼모드라 이전 중에도 표시 무중단.
+- 로컬 auction.db VACUUM: 575MB→84MB(약 491MB·81% 회수). listing_photos.thumb_b64 잔량 0.
+- 검증: 로컬 load_photos·클라우드 fetch_photos 모두 URL 반환, 샘플 URL 200 image/jpeg. Supabase 미러도
+  배치 반영(photo_url 채움+thumb_b64 비움). 진행 대시보드(자동새로고침 HTML)로 전 구간 모니터링.
+
 ## 2026-07-15 16:35 KST — 📦 Phase5: 사진 base64→Supabase Storage 이전(듀얼모드)
 - 목적: listing_photos.thumb_b64(전 사진 base64)가 Supabase 공유티어 DB(500MB)를 압박 → 이미지를
   Storage 버킷(auction-photos, public)으로 옮기고 DB엔 photo_url만 보관(경량화).
