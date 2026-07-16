@@ -6,4 +6,5 @@ pyproj>=3.6
 
 # 네이버 KB시세·호가 수집(crawl_naver) 전용
 rapidfuzz>=3.0
-playwright>=1.40
+# playwright(107MB)는 crawl_naver 전용(lazy import) — Vercel 함수 225MB 한도 초과 방지 위해 제외(2026-07-16).
+# 로컬 크롤 시에만: pip install "playwright>=1.40" && playwright install chromium

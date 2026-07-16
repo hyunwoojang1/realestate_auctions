@@ -1,5 +1,14 @@
 # versions.md — auction-arbitrage 루프 작업 로그 (append-only, 최신순)
 
+## 2026-07-16 09:50 KST — 🚀 배포 수정(정정): 진짜 원인=playwright 107MB, requirements에서 제외
+- 정정: 앞 항목(includeFiles 대형파일 제외)은 **오진** — 재배포 후에도 번들 315.46MB **동일**해서 데이터가 원인이
+  아님이 드러남(.vercelignore가 이미 대형 data/db를 제외하고 있었음). vercel.json includeFiles는 검증된 원래
+  값으로 **원복**(내 새 glob은 템플릿 미포함 위험).
+- 진짜 원인: **requirements.txt의 playwright(107MB)** — naver_client 크롤 시에만 lazy import되는데 Vercel이
+  함수에 통째로 설치. 서빙·테스트 어디도 top-level import 안 함(전수확인) → requirements.txt에서 제외.
+  315−107 ≈ 208MB < 225MB 한도. 로컬 크롤은 .venv에 이미 설치돼 무영향, 신규 로컬만 수동 설치.
+- 배포: CLI 재배포. CI(requirements.txt+pytest)는 playwright 미사용이라 무영향.
+
 ## 2026-07-16 09:45 KST — 🚀 배포 수정: vercel.json includeFiles 대형 크롤러파일 제외(번들 315M→한도내)
 - 문제: `vercel deploy --prod` 실패 — 함수 번들 315MB > 225MB 한도. 원인: `includeFiles:"{templates,data,static}/**"`가
   **.vercelignore를 무시하고** data/ 전체(molit_trades.db 130M + naver_cache.json 36M 등)를 함수에 강제 포함.
