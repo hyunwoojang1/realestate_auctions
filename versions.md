@@ -1,5 +1,14 @@
 # versions.md — auction-arbitrage 루프 작업 로그 (append-only, 최신순)
 
+## 2026-07-16 09:45 KST — 🚀 배포 수정: vercel.json includeFiles 대형 크롤러파일 제외(번들 315M→한도내)
+- 문제: `vercel deploy --prod` 실패 — 함수 번들 315MB > 225MB 한도. 원인: `includeFiles:"{templates,data,static}/**"`가
+  **.vercelignore를 무시하고** data/ 전체(molit_trades.db 130M + naver_cache.json 36M 등)를 함수에 강제 포함.
+  이전 배포는 molit_trades.db가 더 작았을 때 통과했던 것.
+- 수정: includeFiles를 **서빙 필요 소형 파일만 명시**(templates/**·static/**·coords_cache·lawd_codes·backtest_outcomes·
+  sample_* 등). 대형 크롤러 캐시·DB 전부 제외. (실측: 서빙이 읽는 data는 coords/lawd/sample뿐, score_config·buyer_profile·
+  asking_prices는 파일 없이 기본값 사용).
+- 배포: CLI 재배포. (GitHub 자동배포는 세션2 지적대로 멈춤 상태 — 마지막 자동배포 Phase4 d703571, 이후 CLI만.)
+
 ## 2026-07-16 09:38 KST — 📄 홈 페이지네이션(60/페이지) + push·배포
 - 무엇: 홈 전체노출(1,127건)이 무거워지는 것 방지 — 페이지당 60개 슬라이스 + 이전/다음 페이저.
   정렬·필터·카운트는 전체 기준(정렬이 전체에 적용된 뒤 페이지만 나눔), 페이저 링크가 sort·필터 전부 보존.
