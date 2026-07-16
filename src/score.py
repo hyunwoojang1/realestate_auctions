@@ -206,31 +206,53 @@ def kb_price_of(naver: dict | None) -> int | None:
     return None
 
 
-def market_view(s: ScoredListing, naver: dict | None) -> ScoredListing:
-    """서빙 시점 시세뷰 — KB시세 있으면 그걸 시세로 덮어 차익·등급 재계산(불변), 없으면 표시용 페이로드만.
+def ask_view_of(naver: dict | None, property_type: str) -> tuple[int, int, int, float] | None:
+    """호가(ask) 폴백 시세 — 매칭 평형 기준 호가 범위에 보수 할인. (mid, low, high, conf) 또는 None.
 
-    KB는 은행기준 유지시세라 표본·스코프 게이트를 적용하지 않는다(추천 가능). 다만 권리 상태
-    (위험=하드게이트·권리미확인)는 KB로 바뀌지 않으므로 보존한다.
+    호가는 미체결·상향 편향이라 유형별 할인계수를 곱해 하향한다. 호가가 1건뿐이면 신뢰를 더 낮춘다.
+    (매칭된 area_no 기준이라 kb_avg처럼 면적 정합됨 — 별도 ㎡정규화 불필요.)
+    """
+    if not naver:
+        return None
+    lo = naver.get("ask_min") or 0
+    if lo <= 0:
+        return None
+    hi = naver.get("ask_max") or lo
+    if hi < lo:
+        hi = lo
+    hc = CONFIG.ask_haircut_offi if property_type == "오피스텔" else CONFIG.ask_haircut_apt
+    low = int(lo * hc)
+    high = int(hi * hc)
+    mid = (low + high) // 2
+    conf = CONFIG.ask_confidence_single if (naver.get("ask_count") or 0) <= 1 else CONFIG.ask_confidence
+    return (mid, low, high, conf)
+
+
+def lease_view_of(naver: dict | None, property_type: str) -> int | None:
+    """전세 역산 시세(원) — 시세 = 전세 일반가 / 전세가율. 양수 전세가 있을 때만."""
+    if not naver:
+        return None
+    lv = naver.get("lease_avg") or 0
+    if lv <= 0:
+        return None
+    ratio = CONFIG.jeonse_ratio_offi if property_type == "오피스텔" else CONFIG.jeonse_ratio_apt
+    return int(lv / ratio)
+
+
+def _apply_market_price(s: ScoredListing, naver: dict, price: int, price_low: int,
+                        price_high: int, confidence: float, source: str) -> ScoredListing:
+    """주어진 시세(price)로 차익·등급 재계산 — KB/호가/전세 폴백 공통 로직.
+
+    권리 하드게이트(위험)·권리미확인은 시세로 풀리지 않으므로 보존한다. 차익은 하한밴드(보수)로 판정.
     """
     import dataclasses  # noqa: PLC0415
-    if naver is None:
-        return s
-    kb = kb_price_of(naver)
-    # KB는 폴백 — 국토부 실거래 est가 있으면 실거래를 우선한다('실거래 기반' 원칙, 감사 2026-07-16:
-    # KB가 국토부를 덮던 319건 교정). 국토부 comps가 없을(est None) 때만 KB로 시세를 산정한다.
-    if kb is None or (s.est_market_price and s.est_market_price > 0):
-        # KB 미등재이거나 국토부 성공 — 시세·차익은 기존 유지, 표시용 페이로드만 첨부.
-        return dataclasses.replace(
-            s, naver=naver, market_source=("molit" if s.est_market_price else "none"))
     cost = s.real_acquisition_cost or 0
-    kb_low = naver.get("kb_low") or kb
-    kb_high = naver.get("kb_high") or kb
-    gap_rate = (kb - cost) / kb if kb else 0.0
+    gap_rate = (price - cost) / price if price else 0.0
     gap = gap_score_from_rate(gap_rate)
     raw = gap * CONFIG.w_gap + s.rights_score * CONFIG.w_rights + s.liquidity_score * CONFIG.w_liq
-    arb = round(raw * CONFIG.kb_confidence, 1)   # KB=호가 기반 → 신뢰계수 하향(실거래보다 보수)
-    p_low = kb_low - cost
-    if s.grade == "위험":                     # 하드게이트(권리 위험)는 KB로 안 풀림
+    arb = round(raw * confidence, 1)          # 폴백 시세 → 신뢰계수 하향(실거래보다 보수)
+    p_low = price_low - cost
+    if s.grade == "위험":                     # 하드게이트(권리 위험)는 시세로 안 풀림
         grade = "위험"
         arb = min(arb, CONFIG.gate_ceiling)
     elif not s.rights_verified:               # 권리 미검증 → 비단정
@@ -240,8 +262,40 @@ def market_view(s: ScoredListing, naver: dict | None) -> ScoredListing:
     else:
         grade = grade_of(arb)
     return dataclasses.replace(
-        s, est_market_price=kb, market_band_low=kb_low, market_band_high=kb_high,
-        expected_profit=kb - cost, profit_low=p_low, profit_high=kb_high - cost,
+        s, est_market_price=price, market_band_low=price_low, market_band_high=price_high,
+        expected_profit=price - cost, profit_low=p_low, profit_high=price_high - cost,
         gap_rate=round(gap_rate, 4), gap_score=gap, arb_score=arb, grade=grade,
-        confidence=CONFIG.kb_confidence,
-        market_scope=SCOPE_RECOMMENDABLE, market_source="kb", naver=naver)
+        confidence=confidence, market_scope=SCOPE_RECOMMENDABLE, market_source=source, naver=naver)
+
+
+def market_view(s: ScoredListing, naver: dict | None) -> ScoredListing:
+    """서빙 시점 시세뷰 — 폴백 사다리로 시세를 산정해 차익·등급 재계산(불변).
+
+    우선순위: 국토부 실거래(est, 최우선) → KB시세(0.75) → 네이버 호가(0.55) → 전세 역산(0.50).
+    실거래(est)가 있으면 '실거래 기반' 원칙상 폴백을 쓰지 않는다(감사 2026-07-16: KB가 국토부를 덮던
+    319건 교정). 폴백들은 표본·스코프 게이트 없이 추천 가능하되 신뢰계수를 낮춰 표기하며, 권리 상태
+    (위험=하드게이트·권리미확인)는 폴백으로 바뀌지 않으므로 보존한다.
+    """
+    import dataclasses  # noqa: PLC0415
+    if naver is None:
+        return s
+    # 국토부 실거래 최우선 — est 있으면 실거래 유지, 표시용 페이로드만 첨부.
+    if s.est_market_price and s.est_market_price > 0:
+        return dataclasses.replace(s, naver=naver, market_source="molit")
+    # 폴백 1: KB시세.
+    kb = kb_price_of(naver)
+    if kb is not None:
+        kb_low = naver.get("kb_low") or kb
+        kb_high = naver.get("kb_high") or kb
+        return _apply_market_price(s, naver, kb, kb_low, kb_high, CONFIG.kb_confidence, "kb")
+    # 폴백 2: 네이버 호가(보수 할인).
+    ask = ask_view_of(naver, s.property_type)
+    if ask is not None:
+        mid, low, high, conf = ask
+        return _apply_market_price(s, naver, mid, low, high, conf, "ask")
+    # 폴백 3: 전세 역산.
+    lease = lease_view_of(naver, s.property_type)
+    if lease is not None:
+        return _apply_market_price(s, naver, lease, lease, lease, CONFIG.lease_confidence, "lease")
+    # 폴백 없음 — 표시용 페이로드만.
+    return dataclasses.replace(s, naver=naver, market_source="none")

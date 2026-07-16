@@ -69,6 +69,61 @@ def test_kb_fallback_only_when_no_molit_comps():
     assert v.confidence == CONFIG.kb_confidence     # 신뢰 하향(1.0 아님)
 
 
+# ── 폴백 사다리 확장(2026-07-16): 호가·전세 (국토부·KB 둘 다 없을 때) ──
+def test_ask_fallback_when_no_molit_no_kb():
+    """국토부·KB 없고 호가만 있을 때 호가로 시세 산정 — 보수 할인·신뢰 하향."""
+    from src.config import CONFIG
+    s = score_listing(_clean(), None, 0)            # 국토부 실패
+    naver = {"status": "matched_ask", "kb_avg": 0,
+             "ask_min": 500_000_000, "ask_max": 600_000_000, "ask_count": 4}
+    v = market_view(s, naver)
+    assert v.market_source == "ask"
+    assert v.confidence == CONFIG.ask_confidence     # 0.55
+    # 아파트 haircut 0.93 → low=465M, high=558M, mid=511.5M
+    assert v.market_band_low == int(500_000_000 * CONFIG.ask_haircut_apt)
+    assert v.market_band_high == int(600_000_000 * CONFIG.ask_haircut_apt)
+
+
+def test_ask_single_listing_lower_confidence():
+    """호가가 1건뿐이면 신뢰계수를 더 낮춘다(과대호가 위험)."""
+    from src.config import CONFIG
+    s = score_listing(_clean(), None, 0)
+    naver = {"status": "matched_ask", "ask_min": 500_000_000,
+             "ask_max": 500_000_000, "ask_count": 1}
+    v = market_view(s, naver)
+    assert v.confidence == CONFIG.ask_confidence_single  # 0.45
+
+
+def test_molit_and_kb_preferred_over_ask():
+    """폴백 우선순위: 국토부 > KB > 호가. 호가는 최후순위."""
+    s = score_listing(_clean(), None, 0)
+    naver = {"status": "matched_kb", "kb_avg": 800_000_000,
+             "kb_low": 780_000_000, "kb_high": 820_000_000,
+             "ask_min": 500_000_000, "ask_max": 600_000_000, "ask_count": 3}
+    v = market_view(s, naver)
+    assert v.market_source == "kb"                   # KB가 있으면 호가 무시
+
+
+def test_lease_fallback_when_only_jeonse():
+    """국토부·KB·호가 다 없고 전세만 있을 때 전세 역산으로 시세 산정."""
+    from src.config import CONFIG
+    s = score_listing(_clean(), None, 0)
+    naver = {"status": "no_kb", "lease_avg": 400_000_000}
+    v = market_view(s, naver)
+    assert v.market_source == "lease"
+    assert v.confidence == CONFIG.lease_confidence   # 0.50
+    assert v.est_market_price == int(400_000_000 / CONFIG.jeonse_ratio_apt)
+
+
+def test_ask_hardgate_wirheom_preserved():
+    """호가 폴백이어도 권리 하드게이트(위험)는 풀리지 않는다."""
+    s = score_listing(_gated(), None, 0)             # 위험(하드게이트)
+    naver = {"status": "matched_ask", "ask_min": 500_000_000,
+             "ask_max": 600_000_000, "ask_count": 5}
+    v = market_view(s, naver)
+    assert v.grade == "위험"                          # 호가로도 안 풀림
+
+
 # ── F) _multi_complex: 한 이름의 두 토큰은 혼입이 아님 ──
 def _t(name: str) -> Trade:
     return Trade(apt_name=name, area_m2=84.0, price=1, deal_ym="202606",

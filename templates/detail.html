@@ -13,6 +13,8 @@
 {%- macro srcpill(src) -%}
 {%- if src == 'kb' -%}<span class="srcpill kb">KB부동산</span>
 {%- elif src == 'molit' -%}<span class="srcpill molit">국토부 추정</span>
+{%- elif src == 'ask' -%}<span class="srcpill ask">호가 기반</span>
+{%- elif src == 'lease' -%}<span class="srcpill lease">전세 역산</span>
 {%- endif -%}
 {%- endmacro -%}
 
@@ -66,7 +68,7 @@
       <div class="dsum-row"><span class="l">입찰보증금 <span style="color:var(--ink-500)">{% if is_reauction %}(재매각 · 통상 20~30%){% else %}(통상 10%){% endif %}</span></span><span class="val">{{ won((s.min_bid_price * 0.1)|round|int) }}{% if is_reauction %}<b class="alpha" style="font-size:11px;color:var(--caution)" title="재매각(전 낙찰자 대금미납)은 통상 보증금 20~30% — 최저가의 2~3배 현금 필요"> ×2~3</b>{% endif %}</span></div>
     </div>
     <div class="dsum-card accent{% if hero_worst is not none and hero_worst < 0 %} neg{% endif %}">
-      <div class="dsum-row"><span class="l">{% if s.market_source == 'kb' %}KB 시세 {{ srcpill('kb') }}{% elif s.market_band_low is not none %}실거래 시세 <span style="color:var(--ink-400)">(검증 하한)</span>{% elif s.est_market_price %}추정 시세{% else %}시세{% endif %}</span><span class="val">{% if s.market_band_low is not none %}{{ won(s.market_band_low) }}{% elif s.est_market_price %}{{ won(s.est_market_price) }}{% else %}—{% endif %}</span></div>
+      <div class="dsum-row"><span class="l">{% if s.market_source == 'kb' %}KB 시세 {{ srcpill('kb') }}{% elif s.market_source == 'ask' %}호가 기반 시세 {{ srcpill('ask') }}{% elif s.market_source == 'lease' %}전세 역산 시세 {{ srcpill('lease') }}{% elif s.market_band_low is not none %}실거래 시세 <span style="color:var(--ink-400)">(검증 하한)</span>{% elif s.est_market_price %}추정 시세{% else %}시세{% endif %}</span><span class="val">{% if s.market_band_low is not none %}{{ won(s.market_band_low) }}{% elif s.est_market_price %}{{ won(s.est_market_price) }}{% else %}—{% endif %}</span></div>
       <div class="dsum-row"><span class="l">예상 차익{% if has_burden %} <span style="color:var(--ink-400)">(최대 인수 반영)</span>{% endif %}</span><span class="val {% if hero_worst is not none %}{{ 'neg' if hero_worst < 0 else 'gain' }}{% endif %}">{% if hero_worst is not none %}{{ won(hero_worst) }}{% if badge and badge.amount_unknown %}<span class="sm" style="color:var(--risk)"> −α</span>{% endif %}{% else %}—{% endif %}</span></div>
       {% if has_burden and hero_best is not none %}
       <div class="dsum-range">범위 <b style="color:var(--risk)">{% if badge.amount_unknown %}−α{% else %}{{ won(hero_worst) }}{% endif %}</b> 최악 ~ <b style="color:var(--gain-strong)">{{ won(hero_best) }}</b> 최선 · 배당 0 가정 상한이라 실제는 보통 이보다 큼</div>

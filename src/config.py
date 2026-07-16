@@ -43,6 +43,19 @@ class ScoreConfig:
     # 국토부 comps가 없을 때만 KB로 시세를 산정하며, arb·표시 신뢰를 이 값으로 낮춘다.
     kb_confidence: float = 0.75
 
+    # 폴백 사다리 확장 (2026-07-16): 국토부 실거래·KB시세 둘 다 없는 물건에 네이버 '호가'·'전세'로
+    # 시세를 근사한다. 호가·전세는 미체결/파생값이라 KB(0.75)보다 신뢰를 더 낮추고 보수 할인을 건다.
+    # 순환차익 함정 없음(감정가와 독립인 시장 앵커) → 안전. 라벨로 출처를 명시한다.
+    ask_confidence: float = 0.55       # 호가 기반 추정 신뢰계수
+    ask_confidence_single: float = 0.45  # 호가가 1건뿐이면 추가 하향
+    lease_confidence: float = 0.50     # 전세 역산 신뢰계수
+    # 호가 할인(haircut) — 호가는 체결가보다 높게 부르므로 하향. 오피스텔은 유동성 낮아 더 보수.
+    ask_haircut_apt: float = 0.93
+    ask_haircut_offi: float = 0.85
+    # 전세→매매 역산 전세가율(시세 = 전세가 / 전세가율). 오피스텔이 전세가율 높음(안정적).
+    jeonse_ratio_apt: float = 0.65
+    jeonse_ratio_offi: float = 0.80
+
     # 환금성
     type_base: dict = field(default_factory=lambda: {
         "아파트": 90, "오피스텔": 75, "다세대": 60, "빌라": 60, "연립": 60, "상가": 45, "토지": 35,

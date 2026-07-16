@@ -22,10 +22,11 @@
 
 {%- macro pricecell(s) -%}
 {%- set fb = s.market_scope == 'same_dong_fallback' -%}
+{%- set soft = s.market_source in ('ask', 'lease') -%}
 {%- if s.market_band_low is not none -%}
-<div class="pk-val{% if fb %} warn{% endif %}">{{ won(s.market_band_low) }}</div><div class="pk-vsub{% if fb %} warn{% endif %}">{% if fb %}동 폴백 참고치{% else %}실거래 검증 하한{% endif %}</div>
+<div class="pk-val{% if fb or soft %} warn{% endif %}">{{ won(s.market_band_low) }}</div><div class="pk-vsub{% if fb or soft %} warn{% endif %}">{% if s.market_source == 'ask' %}호가 기반 추정{% elif s.market_source == 'lease' %}전세 역산{% elif s.market_source == 'kb' %}KB시세 참고{% elif fb %}동 폴백 참고치{% else %}실거래 검증 하한{% endif %}</div>
 {%- elif s.est_market_price -%}
-<div class="pk-val{% if fb %} warn{% endif %}">{{ won(s.est_market_price) }}</div><div class="pk-vsub{% if fb %} warn{% endif %}">{% if fb %}동 폴백 참고치{% else %}추정 시세{% endif %}</div>
+<div class="pk-val{% if fb or soft %} warn{% endif %}">{{ won(s.est_market_price) }}</div><div class="pk-vsub{% if fb or soft %} warn{% endif %}">{% if s.market_source == 'ask' %}호가 기반 추정{% elif s.market_source == 'lease' %}전세 역산{% elif fb %}동 폴백 참고치{% else %}추정 시세{% endif %}</div>
 {%- else -%}<div class="pk-val na">—</div><div class="pk-vsub">시세 추정 불가</div>{%- endif -%}
 {%- endmacro -%}
 
