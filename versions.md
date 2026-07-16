@@ -1,5 +1,14 @@
 # versions.md — auction-arbitrage 루프 작업 로그 (append-only, 최신순)
 
+## 2026-07-16 09:38 KST — 📄 홈 페이지네이션(60/페이지) + push·배포
+- 무엇: 홈 전체노출(1,127건)이 무거워지는 것 방지 — 페이지당 60개 슬라이스 + 이전/다음 페이저.
+  정렬·필터·카운트는 전체 기준(정렬이 전체에 적용된 뒤 페이지만 나눔), 페이저 링크가 sort·필터 전부 보존.
+- 변경: web.py index — PAGE_SIZE=60, page 파싱·클램프·슬라이스, _page_url 헬퍼(page 제외 후 재부여), count=전체.
+  listings.html — 페이저 블록(total_pages>1일 때, 다른 라우트 재사용 대비 is defined 가드). base.html — .pager CSS.
+- 증거: 페이지1 전체count 1,127·렌더 60·이전비활성, 페이지2 이전활성, /?sort=recent&page=2 링크에 sort 보존·
+  recent 선택 유지. **pytest 522 pass/1 skip, ruff clean.**
+- 배포: 사용자 지시로 origin/main push + Vercel 배포.
+
 ## 2026-07-16 (주간) — 🏠 홈 개편: top-9 큐레이션 폐지 → 평가가능 전체(1,127건) 점수순 + 정렬 4종
 - 무엇(사용자 요청): 홈이 top-9만 보여주던 것 폐지 → **시세 평가가능 물건 전체를 노출**하고 정렬 선택 제공.
   위험·차익없음·권리미확인도 숨기지 않고 등급 칩과 함께 표시(사용자 명시). 미지원유형·시세추정불가만 all=1.

@@ -233,6 +233,14 @@
 </div>
 {% endif %}
 
+{% if total_pages is defined and total_pages > 1 %}
+<div class="pager">
+  {% if page > 1 %}<a class="pg" href="{{ page_url(page - 1) }}">← 이전</a>{% else %}<span class="pg off">← 이전</span>{% endif %}
+  <span class="pg-cur">{{ page }} / {{ total_pages }} · 전체 {{ count }}건</span>
+  {% if page < total_pages %}<a class="pg" href="{{ page_url(page + 1) }}">다음 →</a>{% else %}<span class="pg off">다음 →</span>{% endif %}
+</div>
+{% endif %}
+
 <p class="foot" style="color:var(--ink-400)">추천 = 아파트·오피스텔 중 같은 단지·평형 실거래로 시세가 검증되고 보수 기준 차익이 양수인 물건.
 <b>권리미확인</b>은 물건상세 권리분석 전 상태이니 대항력 임차인·인수권리를 직접 확인하세요.
 보수 기준 차익 = 검증 하한가 − (최저입찰가 + 취득세, {{ tax_label }}). <b>명도·수리·인수금·양도세·보유세 제외</b>된 취득 시점 표면차익입니다.</p>

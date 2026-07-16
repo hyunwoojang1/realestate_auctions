@@ -417,8 +417,25 @@ def create_app() -> Flask:
         filters = {"q": q, "region": region, "type": ptype, "budget": budget, "sort": sort,
                    "area": area, "fails": fails,
                    "clean": chip_clean, "soon": chip_soon, "high": chip_high}
+        # 페이지네이션(2026-07-16) — 전체 정렬 후 슬라이스. 정렬·필터·카운트는 전체 기준, 렌더만 페이지.
+        PAGE_SIZE = 60
+        total = len(items)
+        try:
+            page = max(1, int(request.args.get("page", 1)))
+        except (TypeError, ValueError):
+            page = 1
+        total_pages = max(1, (total + PAGE_SIZE - 1) // PAGE_SIZE)
+        page = min(page, total_pages)
+        items = items[(page - 1) * PAGE_SIZE:page * PAGE_SIZE]
+
+        def _page_url(p):
+            from urllib.parse import urlencode  # noqa: PLC0415
+            a = {k: v for k, v in request.args.items() if k != "page"}
+            a["page"] = str(p)
+            return "/?" + urlencode(a)
         return render_template(
-            "listings.html", items=items, count=len(items), filters=filters, chips=chips,
+            "listings.html", items=items, count=total, filters=filters, chips=chips,
+            page=page, total_pages=total_pages, page_url=_page_url,
             mode=mode, coverage=coverage, all_mode=all_mode,
             hero=hero, legacy_only=legacy_only, badges=badges,
             won=report.won, pct=report.pct, meter=report.gap_meter_html,
