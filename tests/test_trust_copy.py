@@ -88,20 +88,17 @@ def test_listing_page_conservative_copy():
     assert "확실한 차익" not in html
 
 
-def test_recommend_picks_exclude_risky():
-    """(검색 우선 홈 재작업) 엄선 추천 헤드라인에 '위험'(하드게이트) 물건 금지.
-
-    이전 결함: 히어로/추천이 위험 물건의 차익을 헤드라인. 위험은 '전체 탐색'에만 남긴다.
+def test_home_shows_risky_labeled_not_hidden():
+    """(사용자 2026-07-16 정책변경) 홈 top-9 큐레이션 폐지 → 시세 평가가능 물건 '전체'를 점수순 노출.
+    위험 물건도 숨기지 않고 '위험' 칩으로 명확히 표시한다(사용자 요청). 하드게이트로 점수가 낮아 상위엔 안 온다.
     """
     import re
     html = _client().get("/").get_data(as_text=True)
-    m = re.search(r'class="scards">(.*)', html, re.S)  # 엄선 추천 카드 영역
-    assert m, "엄선 추천 카드 그리드가 있어야 함"
+    m = re.search(r'class="scards">(.*)', html, re.S)
+    assert m, "카드 그리드가 있어야 함"
     picks = m.group(1)
-    assert "해운대마린시티자이" not in picks   # 위험(하드게이트)은 추천 금지
-    assert "chip sm risk" not in picks         # 위험 칩이 추천 카드에 없음
-    # 위험 물건은 전체 탐색(all=1)에는 남는다(배제 아님)
-    assert "해운대마린시티자이" in _client().get("/?all=1").get_data(as_text=True)
+    assert "해운대마린시티자이" in picks       # 위험도 이제 홈에 노출(숨김 아님)
+    assert "chip sm risk" in picks             # 단 '위험' 칩으로 표시
 
 
 def test_listing_footer_formula_conservative():

@@ -10,7 +10,7 @@ import datetime as _dt
 from .models import ScoredListing
 from .region import matches_region, sido_of
 
-SORT_KEYS = ("profit", "gap", "score")
+SORT_KEYS = ("profit", "gap", "score", "score_asc", "recent", "old")
 DEFAULT_SORT = "profit"
 
 # 검색 우선 홈(2026-07): 기본 화면은 '평가 가능한' 물건만 — 시세 추정치가 있는 것.
@@ -197,6 +197,12 @@ def sort_items(items: list[ScoredListing], key: str = DEFAULT_SORT,
         return sorted(items, key=lambda s: (s.gap_rate is None, -(s.gap_rate or 0)))
     if key == "score":
         return sorted(items, key=lambda s: (s.arb_score is None, -(s.arb_score or 0)))
+    if key == "score_asc":   # 점수 낮은순
+        return sorted(items, key=lambda s: (s.arb_score is None, (s.arb_score or 0)))
+    if key == "recent":      # 매각기일 최신(늦은)순
+        return sorted(items, key=lambda s: s.sale_date or "", reverse=True)
+    if key == "old":         # 매각기일 오래된(빠른)순
+        return sorted(items, key=lambda s: s.sale_date or "9999-99-99")
 
     def _eff(s):
         p = decision_profit(s)

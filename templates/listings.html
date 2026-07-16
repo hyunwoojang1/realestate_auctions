@@ -129,9 +129,19 @@
 
 <!-- 결과 헤더 -->
 <div class="reshead">
-  <h2>{% if filters.q %}‘{{ filters.q }}’ 검색{% elif all_mode %}전체 탐색{% elif mode == 'recommend' %}엄선 추천{% else %}결과{% endif %}
-    <span class="sub">· {% if filters.q %}단지명·주소 일치{% elif all_mode %}미지원·추정불가 포함{% elif mode == 'recommend' %}차익·인수없음 상위{% else %}보수 기준 차익 큰 순{% endif %}</span></h2>
+  <h2>{% if filters.q %}‘{{ filters.q }}’ 검색{% elif all_mode %}전체 탐색{% elif mode == 'recommend' %}시세 검증 물건{% else %}결과{% endif %}
+    <span class="sub">· {% if filters.q %}단지명·주소 일치{% elif all_mode %}미지원·추정불가 포함{% elif mode == 'recommend' %}시세 추정된 전체{% else %}조건 결과{% endif %}</span></h2>
   <span class="cnt">{{ count }}건</span>
+  <form class="sortbar" method="get" action="/">
+    {% for k in ['q','region','budget','type','area','fails','all','clean','soon','high'] %}{% if filters[k] %}<input type="hidden" name="{{ k }}" value="{{ filters[k] }}">{% endif %}{% endfor %}
+    <label class="srt-l" for="srt">정렬</label>
+    <select id="srt" name="sort" onchange="this.form.submit()">
+      <option value="score"{% if filters.sort == 'score' %} selected{% endif %}>점수 높은순</option>
+      <option value="score_asc"{% if filters.sort == 'score_asc' %} selected{% endif %}>점수 낮은순</option>
+      <option value="recent"{% if filters.sort == 'recent' %} selected{% endif %}>매각기일 최신순</option>
+      <option value="old"{% if filters.sort == 'old' %} selected{% endif %}>매각기일 오래된순</option>
+    </select>
+  </form>
   <a class="clear" href="/export.csv{% if request.query_string %}?{{ request.query_string.decode() }}{% endif %}" title="현재 결과를 CSV로 저장">↓ CSV</a>
   {% if mode == 'results' or all_mode %}<a class="clear" href="/">필터 초기화</a>{% endif %}
 </div>

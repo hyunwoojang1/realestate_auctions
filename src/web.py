@@ -325,9 +325,9 @@ def create_app() -> Flask:
         budget = request.args.get("budget", "")
         area = request.args.get("area", "")
         fails = request.args.get("fails", "")
-        sort = request.args.get("sort", query.DEFAULT_SORT)
+        sort = request.args.get("sort", "score")   # 홈 기본 = 점수 높은순(사용자 2026-07-16)
         if sort not in query.SORT_KEYS:
-            sort = query.DEFAULT_SORT
+            sort = "score"
         chip_clean = request.args.get("clean") == "1"
         chip_soon = request.args.get("soon") == "1"
         chip_high = request.args.get("high") == "1"
@@ -377,13 +377,9 @@ def create_app() -> Flask:
             mode = "results"
         else:
             mode = "recommend"
-            # 엄선 추천 = 평가가능·보수차익 양수·비위험·검증 비교군(같은 단지/레거시)만.
-            # 폴백(same_dong_fallback, scope_tier 2)은 '참고치 — 추천 금지'라 추천에서 제외한다.
-            picks = [s for s in evaluable
-                     if (query.decision_profit(s) or 0) > 0 and s.grade != "위험"
-                     and query.scope_tier(s) <= 1]
-            picks.sort(key=lambda s: (not _clean(s), -(query.decision_profit(s) or 0)))
-            items = picks[:9]
+            # (사용자 2026-07-16) top-9 엄선 폐지 — 시세 평가가능 물건 '전체'를 선택 정렬 순서대로 노출.
+            # items 는 위에서 evaluable 을 sort_items(기본 점수 높은순)로 이미 정렬함. 위험·차익없음·
+            # 권리미확인도 est 가 있으면 is_evaluable=True 라 포함된다. 미지원유형·시세추정불가만 all=1.
 
         from .digest import passes_recommend_gates  # noqa: PLC0415
 

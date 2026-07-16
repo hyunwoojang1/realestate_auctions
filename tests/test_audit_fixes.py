@@ -67,15 +67,16 @@ def test_no_hero_on_search_home_legacy_banner_in_all_mode(monkeypatch):
     assert "기준 시세 차익" in allm                     # 구 기준 라벨
 
 
-def test_recommend_excludes_fallback_and_includes_verified(monkeypatch):
-    """엄선 추천은 검증 비교군(같은 단지)만 — 폴백 참고치(same_dong_fallback)는 추천 금지."""
-    fallback_big = _scored("F", scope=SCOPE_SAME_DONG_FALLBACK, min_bid=400_000_000)  # 차익 큼
+def test_home_shows_all_incl_fallback(monkeypatch):
+    """(사용자 2026-07-16 정책변경) 홈은 평가가능 물건 '전체'를 점수순 노출 — 폴백(same_dong_fallback)도
+    숨기지 않는다(이전엔 추천서 제외). 검증 비교군·폴백 모두 포함."""
+    fallback_big = _scored("F", scope=SCOPE_SAME_DONG_FALLBACK, min_bid=400_000_000)
     ok = _scored("OK")
     c = _client(monkeypatch, [fallback_big, ok])
     import re
     picks = re.search(r'class="scards">(.*)', c.get("/").get_data(as_text=True), re.S).group(1)
-    assert "/property/OK" in picks                     # 검증 비교군은 추천에 포함
-    assert "/property/F" not in picks                  # 폴백은 추천 금지(참고치)
+    assert "/property/OK" in picks                     # 검증 비교군 포함
+    assert "/property/F" in picks                      # 폴백도 이제 노출(전체 정렬 정책)
 
 
 # ---- ② 복합키 소비계층 (감사 2·3) ----
