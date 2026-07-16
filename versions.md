@@ -1,5 +1,17 @@
 # versions.md — auction-arbitrage 루프 작업 로그 (append-only, 최신순)
 
+## 2026-07-16 10:02 KST — ✅ 프로덕션 배포 성공 — 진짜 원인 확정 + 안전배포 스크립트
+- 진짜 원인(앞 두 항목 오진 정정): 번들 315MB는 **의존성도(리눅스 wheel 실측 16MB) playwright도 데이터 크롤캐시도
+  아니라**, `includeFiles:"{templates,data,static}/**"` 가 .gitignore/.vercelignore 를 **무시하고** 로컬
+  `data/backup/*.pre-*`(84M×3=252M) + `molit_trades.db`(130M) 등을 함수 번들에 강제 포함한 것.
+  (070ee8a 성공배포 땐 이 파일들이 없었음. GitHub 자동배포는 git에 없는 이 파일들을 안 올려 무관 — 단 그건 멈춤.)
+- 해결: 배포 동안만 대형 로컬 파일을 stash 로 옮기고 원본 includeFiles 로 배포 → **성공**
+  (auction-arbitrage-r0tr7zwra…, target=production). 대형 파일 원위치 완료.
+- 재발방지: `scripts/deploy.ps1` — 대형 파일 이동→배포→복원 자동화. 이후 CLI 배포는 이걸로.
+- 라이브 확인: auction-arbitrage-nine.vercel.app 홈 = "시세 검증 1127건" · 정렬 4종 · 페이지네이션 1/19 ·
+  60카드/페이지 · KB폴백/사진/모든 UX 반영 확정.
+- (부수) requirements.txt playwright 제외는 유지(크롤 lazy import라 서빙 무영향, 클린).
+
 ## 2026-07-16 09:50 KST — 🚀 배포 수정(정정): 진짜 원인=playwright 107MB, requirements에서 제외
 - 정정: 앞 항목(includeFiles 대형파일 제외)은 **오진** — 재배포 후에도 번들 315.46MB **동일**해서 데이터가 원인이
   아님이 드러남(.vercelignore가 이미 대형 data/db를 제외하고 있었음). vercel.json includeFiles는 검증된 원래
