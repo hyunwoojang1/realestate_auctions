@@ -119,7 +119,9 @@ def derive_grade(arb: float | None, *, gated: bool, rights_verified: bool,
         return L["rights_unverified"]
     grade = grade_of(arb)
     if apply_scope_sample_gates:
-        top, second = L["top"], L["second"]
+        # top/second는 grade_of가 쓰는 grade_thresholds에서 직접 읽는다(grade_labels registry와
+        # 비교하면 두 출처가 갈릴 때 강등이 조용히 무력화됨 — 리뷰 지적, 옛 코드와 동일하게 단일출처).
+        top, second = CONFIG.grade_thresholds[0][1], CONFIG.grade_thresholds[1][1]
         if market_scope not in ("", SCOPE_RECOMMENDABLE) and grade in (top, second):
             return L["interest"]
         if band_basis is not None and band_basis < band_confident_basis() and grade in (top, second):
@@ -273,8 +275,9 @@ def _apply_market_price(s: ScoredListing, naver: dict, price: int, price_low: in
         arb = min(arb, CONFIG.gate_ceiling)
     # 등급 파생은 derive_grade 단일 출처(채점 score_listing과 동일 우선순위). 폴백은 scope·표본
     # 게이트 없이 추천 허용(신뢰계수로 이미 하향) → apply_scope_sample_gates=False.
+    # gap_rate=None: 옛 폴백은 p_low만 검사했다(price_low≤price라 수학적으론 동치지만 명시적으로 보존).
     grade = derive_grade(arb, gated=gated, rights_verified=s.rights_verified,
-                         gap_rate=gap_rate, p_low=p_low, apply_scope_sample_gates=False)
+                         gap_rate=None, p_low=p_low, apply_scope_sample_gates=False)
     return dataclasses.replace(
         s, est_market_price=price, market_band_low=price_low, market_band_high=price_high,
         expected_profit=price - cost, profit_low=p_low, profit_high=price_high - cost,

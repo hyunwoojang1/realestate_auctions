@@ -1,5 +1,16 @@
 # versions.md — auction-arbitrage 루프 작업 로그 (append-only, 최신순)
 
+## 2026-07-17 12:35 KST — 🔍 리팩터 애드버서리얼 리뷰 반영 + live_months 정정
+- 3에이전트 병렬 리뷰(B1/B2/A) 결과: **critical/high/medium 0건**, low 5건. 확정 결함 없음(무회귀).
+- 반영한 low 2건: ①derive_grade의 scope게이트 top/second 비교를 grade_labels→grade_thresholds 단일출처로
+  되돌림(두 출처 드리프트 시 강등 무력화 방지) ②폴백 derive_grade에 gap_rate=None 명시(옛 p_low-only와
+  정확히 일치, 수학적 동치지만 명료화). pytest 530 유지.
+- **정정(중요)**: 앞 항목의 "+269 국토부 회복"은 과장. 프로덕션 새로고침(refresh-daily.ps1)은 이미
+  `--live-months 24`를 넘겨 **넓은 창을 사용 중**(evidence/refresh-20260717-053002.log 확인). config 기본값
+  3은 실제로 안 쓰이던 값 → B1은 "정합성 수정"이지 회복 드라이버가 아님. 24개월을 쓰는데도 아파트/오피
+  1,435건이 시세추정불가 = **창 문제 아님**(지역 미크롤 + 거래 드문 소형 물건). 오프라인 테스트가 426건
+  살린 건 완전 캐시 사용 때문 — 프로덕션 라이브 크롤 지역 완전성은 별도 조사거리(후속).
+
 ## 2026-07-17 12:10 KST — 🧹 시세 로직 리팩터(중구난방 정리) B+A
 - 배경: 사용자가 "코드 로직이 너무 중구난방"이라 지적. 4개 층 병렬 정독(워크플로)으로 지도화 후 정리.
 - **B1 (live_months 3→12)**: `config.SAMPLE.live_months` 3→12로 matcher.RECENCY_WINDOW_MONTHS(12)와 정렬.
