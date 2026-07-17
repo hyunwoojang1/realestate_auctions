@@ -1,5 +1,23 @@
 # versions.md — auction-arbitrage 루프 작업 로그 (append-only, 최신순)
 
+## 2026-07-17 12:10 KST — 🧹 시세 로직 리팩터(중구난방 정리) B+A
+- 배경: 사용자가 "코드 로직이 너무 중구난방"이라 지적. 4개 층 병렬 정독(워크플로)으로 지도화 후 정리.
+- **B1 (live_months 3→12)**: `config.SAMPLE.live_months` 3→12로 matcher.RECENCY_WINDOW_MONTHS(12)와 정렬.
+  3개월만 수집해 12개월 창을 굶기던 문제(실측 재매칭 시 국토부 +269건 회복 가능). 옛 `pipeline.LIVE_MONTHS`
+  모듈상수 제거 → config 단일 출처화. molit_cache 22개월치라 재크롤 불요.
+- **B2 (상수 외부화)**: liquidity_score의 region 승수(1.10/1.05/1.00/0.85)·turnover(cap10·×2)를 ScoreConfig로
+  (유일하게 남았던 하드코딩 예외 해소). 9개 등급을 `CONFIG.grade_labels` 단일 registry로 — 흩어진 문자열
+  리터럴 제거, _validate에 점수테이블 일치 검사 추가.
+- **A (등급 파생 단일화)**: score_listing과 _apply_market_price가 **중복 구현**하던 등급 파생을 `derive_grade()`
+  하나로. **실제 불일치 교정**: 채점=차익없음→권리미확인, 폴백=권리미확인→차익없음 순이 갈렸던 것을
+  '차익없음 우선'으로 통일(하한밴드 차익 없으면 권리 무관하게 정직히 '차익없음'). scope·표본 게이트는
+  국토부 채점만(apply_scope_sample_gates=True), 폴백은 신뢰계수로 이미 하향돼 게이트 없이(False).
+- 검증: pytest **530 통과**(신규 6: live_months·derive_grade 우선순위·게이트·폴백순서). 국토부 채점 경로는
+  순서 동일 재현(무회귀), 유일 의도 변경=폴백 등급 순서(둘 다 '추천 안 함'이라 영향 라벨뿐).
+- ⚠️ auction.db는 오늘 05:58 스케줄 새로고침이 이미 재채점(stored est 645→902, live_months=3 기준). +269
+  국토부 회복은 live_months=12로 재채점해야 반영 — 다음 단계.
+- 미배포: 커밋 후 Vercel 배포(서빙 derive_grade)+재채점 필요.
+
 ## 2026-07-16 11:20 KST — 🆕 폴백 사다리 확장: 네이버 호가·전세 → +587건 회복
 - 배경: 아파트/오피 1,876건이 국토부·KB 둘 다 없어 '시세추정불가'였는데, 그중 **587건은 네이버 호가를
   크롤해두고도 안 쓰고 있었음**(market_view가 matched_kb만 인정). 레퍼런스 조사(은행 담보 캐스케이드·요이땅·

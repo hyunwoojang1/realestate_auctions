@@ -124,6 +124,45 @@ def test_ask_hardgate_wirheom_preserved():
     assert v.grade == "위험"                          # 호가로도 안 풀림
 
 
+# ── derive_grade 단일화(2026-07-17): 채점·폴백이 같은 우선순위를 쓴다 ──
+def test_derive_grade_priority_order():
+    """위험 → 차익없음 → 권리미확인 순. 차익없음이 권리미확인보다 우선(정보량↑)."""
+    from src.score import derive_grade
+    # 하드게이트는 무엇보다 우선
+    assert derive_grade(90, gated=True, rights_verified=True, p_low=100) == "위험"
+    # 차익없음(p_low≤0)이 권리미확인보다 먼저 — 권리 미검증이어도 차익없음
+    assert derive_grade(90, gated=False, rights_verified=False, p_low=-1) == "차익없음"
+    # 차익 있고 권리 미검증 → 권리미확인
+    assert derive_grade(90, gated=False, rights_verified=False, p_low=100) == "권리미확인"
+    # 정상 → grade_of
+    assert derive_grade(90, gated=False, rights_verified=True, p_low=100) == "차익 유력"
+
+
+def test_derive_grade_scope_sample_gates_only_when_enabled():
+    """apply_scope_sample_gates=True(국토부)만 scope/표본 게이트로 상위등급 강등. 폴백은 미적용."""
+    from src.score import derive_grade
+    # 국토부: 폴백 scope(same_dong_fallback)면 상위등급 '관심' 강등
+    assert derive_grade(90, gated=False, rights_verified=True, p_low=100,
+                        market_scope="same_dong_fallback",
+                        apply_scope_sample_gates=True) == "관심"
+    # 폴백(KB/호가): 게이트 미적용 → grade_of 유지
+    assert derive_grade(90, gated=False, rights_verified=True, p_low=100,
+                        market_scope="same_dong_fallback",
+                        apply_scope_sample_gates=False) == "차익 유력"
+
+
+def test_fallback_path_uses_unified_order():
+    """market_view 폴백(KB)도 차익없음→권리미확인 통일 순서를 따른다."""
+    s = score_listing(_clean(), None, 0)
+    object.__setattr__(s, "rights_verified", False)   # 권리 미검증
+    # 취득원가보다 낮은 KB → p_low≤0 → '차익없음'(권리미확인 아님)
+    naver = {"status": "matched_kb", "kb_avg": 100_000_000,
+             "kb_low": 90_000_000, "kb_high": 110_000_000}
+    v = market_view(s, naver)
+    assert v.market_source == "kb"
+    assert v.grade == "차익없음"                       # 통일 순서: 차익없음이 권리미확인보다 우선
+
+
 # ── F) _multi_complex: 한 이름의 두 토큰은 혼입이 아님 ──
 def _t(name: str) -> Trade:
     return Trade(apt_name=name, area_m2=84.0, price=1, deal_ym="202606",

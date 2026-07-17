@@ -144,10 +144,10 @@ def test_sample_config_env_override():
     assert cfg.area_band == pytest.approx(0.18)
 
 
-def test_sample_config_defaults_match_legacy():
-    """오버라이드 없으면 기존 동작과 동일한 기본값(무회귀)."""
+def test_sample_config_default_live_months_is_12():
+    """오버라이드 없으면 live_months=12(matcher.RECENCY_WINDOW_MONTHS와 정렬, 2026-07-17)."""
     cfg = config.load_sample_config(path="__nonexistent__", env={})
-    assert cfg.live_months == pipeline.LIVE_MONTHS == 3
+    assert cfg.live_months == 12 == matcher.RECENCY_WINDOW_MONTHS
     assert cfg.area_band == pytest.approx(matcher.AREA_BAND) == pytest.approx(0.10)
 
 

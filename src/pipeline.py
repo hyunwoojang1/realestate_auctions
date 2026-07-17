@@ -25,13 +25,14 @@ logger = logging.getLogger(__name__)
 
 ROOT = Path(__file__).resolve().parent.parent
 DATA = ROOT / "data"
-LIVE_MONTHS = 3   # 기본값(무회귀); 실제 사용값은 config.SAMPLE.live_months
-
-
 def _live_months() -> int:
-    """현재 유효 수집 개월수. config.SAMPLE로 튜닝 가능(기본=LIVE_MONTHS)."""
+    """현재 유효 수집 개월수. 단일 출처=config.SAMPLE.live_months(기본 12).
+
+    (2026-07-17) 옛 pipeline.LIVE_MONTHS 모듈상수는 config와 값이 갈리는 중구난방이라 제거.
+    config를 유일 출처로 삼고, monkeypatch(SAMPLE 교체)도 그대로 반영된다.
+    """
     from . import config as _cfg  # noqa: PLC0415 — 런타임 monkeypatch(SAMPLE 교체) 반영
-    return _cfg.SAMPLE.live_months if _cfg.SAMPLE else LIVE_MONTHS
+    return _cfg.SAMPLE.live_months if _cfg.SAMPLE else _cfg.SampleConfig().live_months
 
 
 def load_sample_auctions(path: Path | None = None) -> list[AuctionListing]:

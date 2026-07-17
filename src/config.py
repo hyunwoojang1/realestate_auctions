@@ -61,6 +61,16 @@ class ScoreConfig:
         "아파트": 90, "오피스텔": 75, "다세대": 60, "빌라": 60, "연립": 60, "상가": 45, "토지": 35,
     })
     type_base_default: int = 30
+    # 환금성 지역 승수 — 주소 접두 매칭(위→아래 우선), 목록 밖은 default. (2026-07-17 score.py에서 외부화)
+    region_multipliers: list = field(default_factory=lambda: [
+        [["서울"], 1.10],
+        [["경기"], 1.05],
+        [["부산", "대구", "인천", "광주", "대전", "울산"], 1.00],
+    ])
+    region_multiplier_default: float = 0.85
+    # 거래빈도 환금성 보너스 = min(cap, matched_trades × per_trade). (2026-07-17 외부화)
+    turnover_bonus_cap: int = 10
+    turnover_bonus_per_trade: int = 2
 
     # 가격갭 점수 보간점 [[갭률, 점수], ...] (오름차순)
     gap_points: list = field(default_factory=lambda: [
@@ -75,6 +85,14 @@ class ScoreConfig:
     grade_thresholds: list = field(default_factory=lambda: [
         [80, "차익 유력"], [60, "양호"], [40, "관심"], [0, "주의"],
     ])
+    # 등급 라벨 단일 출처 (2026-07-17) — 코드 전반에 흩어진 문자열 리터럴 대신 이 registry를 참조.
+    # 점수기반 4종(top/second/interest/caution)은 grade_thresholds와 값이 일치해야 한다(_validate 검사).
+    # 오버라이드 5종은 grade_of가 아닌 후처리에서 부여된다.
+    grade_labels: dict = field(default_factory=lambda: {
+        "top": "차익 유력", "second": "양호", "interest": "관심", "caution": "주의",
+        "no_profit": "차익없음", "rights_unverified": "권리미확인",
+        "risk": "위험", "unestimable": "시세추정불가", "unsupported": "미지원유형",
+    })
 
     # 표본(comps) 게이트 — 허위 차익 방지.
     #  - min_comps_price: 이 미만이면 '시세'로 신뢰하지 않음(1건 중앙값을 시세로 쓰지 않는다).
@@ -93,7 +111,10 @@ class SampleConfig:
     우선순위: 명시 인자 > 환경변수(AUCTION_LIVE_MONTHS/AUCTION_AREA_BAND) > 기본값.
     기본값은 기존 동작과 동일(무회귀).
     """
-    live_months: int = 3        # 기존 pipeline.LIVE_MONTHS 기본값과 동일
+    # (2026-07-17) 3→12: matcher.RECENCY_WINDOW_MONTHS(12)와 정렬. 3개월만 수집하면 12개월 창을
+    # 굶겨(5~12개월 전 실거래를 못 봄) 국토부 시세추정불가가 과다 발생 — 실측 +269건 회복 가능.
+    # molit_cache에 22개월치 적재돼 있어 재크롤 없이 캐시로 12개월 매칭 가능.
+    live_months: int = 12
     area_band: float = 0.10     # 기존 matcher.AREA_BAND 기본값과 동일
     # (T5) 표본 게이트 — 밴드 실기반 표본수(최근성 필터+이상치 트림 후 실제 사용 건수) 기준.
     #  - band_min_basis 미만(기본 0~2건): 밴드 생성 금지 → '시세근거 부족'(추정 자체를 안 함).
@@ -131,6 +152,10 @@ def _validate(cfg: ScoreConfig) -> None:
     gap_xs = [x for x, _ in cfg.gap_points]
     if gap_xs != sorted(gap_xs):
         logger.warning("gap_points 갭률이 오름차순이 아님 — 보간이 어긋날 수 있음")
+    # 등급 라벨 registry가 점수 테이블과 갈리면 코드 오버라이드와 grade_of가 서로 다른 라벨을 뱉는다.
+    gl, gt = cfg.grade_labels, [lbl for _, lbl in cfg.grade_thresholds]
+    if [gl.get(k) for k in ("top", "second", "interest", "caution")] != gt:
+        logger.warning("grade_labels 점수기반 4종이 grade_thresholds와 불일치 — 등급 라벨이 어긋날 수 있음")
 
 
 def load_config(path: str | Path | None = None) -> ScoreConfig:

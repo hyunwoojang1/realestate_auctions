@@ -75,25 +75,58 @@ def rights_score(listing: AuctionListing) -> float:
 def liquidity_score(listing: AuctionListing, matched_trades: int = 0) -> float:
     base = CONFIG.type_base.get(listing.property_type, CONFIG.type_base_default)
     addr = listing.address
-    if addr.startswith("서울"):
-        region = 1.10
-    elif addr.startswith("경기"):
-        region = 1.05
-    elif any(addr.startswith(c) for c in ("부산", "대구", "인천", "광주", "대전", "울산")):
-        region = 1.00
-    else:
-        region = 0.85
-    turnover_bonus = min(10, matched_trades * 2)
+    region = CONFIG.region_multiplier_default
+    for prefixes, mult in CONFIG.region_multipliers:      # 위→아래 우선, 첫 매칭 채택
+        if any(addr.startswith(p) for p in prefixes):
+            region = mult
+            break
+    turnover_bonus = min(CONFIG.turnover_bonus_cap, matched_trades * CONFIG.turnover_bonus_per_trade)
     return max(0.0, min(100.0, round(base * region + turnover_bonus, 1)))
 
 
 def grade_of(arb: float | None) -> str:
     if arb is None:
-        return "시세추정불가"
+        return CONFIG.grade_labels["unestimable"]
     for min_score, label in CONFIG.grade_thresholds:   # 내림차순
         if arb >= min_score:
             return label
     return CONFIG.grade_thresholds[-1][1]
+
+
+def derive_grade(arb: float | None, *, gated: bool, rights_verified: bool,
+                 gap_rate: float | None = None, p_low: int | None = None,
+                 market_scope: str | None = None, band_basis: int | None = None,
+                 matched_trades: int | None = None,
+                 apply_scope_sample_gates: bool = False) -> str:
+    """arb+상태 → 등급 라벨 — 채점(국토부)·서빙폴백(KB/호가/전세) **단일 출처**.
+
+    (2026-07-17 통합) 이전엔 score_listing과 market_view._apply_market_price가 등급 파생을
+    각자 중복 구현해 우선순위가 갈렸다(채점=차익없음→권리미확인, 폴백=권리미확인→차익없음).
+    아래 하나의 우선순위로 통일한다:
+        위험(하드게이트) → 차익없음(보수차익≤0) → 권리미확인 → [scope·표본 게이트] → 표본강등 → grade_of
+
+    - 차익없음을 권리미확인보다 먼저: 하한밴드로도 차익이 없으면 권리와 무관하게 '추천 안 함'이
+      더 정직하고 정보량이 크다(차익 있는데 권리만 미검증일 때 '권리미확인'으로 남긴다).
+    - apply_scope_sample_gates=True(국토부 채점): 같은단지·표본 게이트로 상위등급을 '관심' 강등.
+      폴백은 신뢰계수로 이미 하향돼 있어 게이트 없이 추천 허용(False).
+    """
+    L = CONFIG.grade_labels
+    if gated:
+        return L["risk"]
+    if (gap_rate is not None and gap_rate <= 0) or (p_low is not None and p_low <= 0):
+        return L["no_profit"]
+    if not rights_verified:
+        return L["rights_unverified"]
+    grade = grade_of(arb)
+    if apply_scope_sample_gates:
+        top, second = L["top"], L["second"]
+        if market_scope not in ("", SCOPE_RECOMMENDABLE) and grade in (top, second):
+            return L["interest"]
+        if band_basis is not None and band_basis < band_confident_basis() and grade in (top, second):
+            return L["interest"]
+        if matched_trades is not None and matched_trades < CONFIG.min_comps_confident and grade == top:
+            return second
+    return grade
 
 
 def score_listing(listing: AuctionListing, est_market_price: int | None, matched_trades: int,
@@ -119,12 +152,13 @@ def score_listing(listing: AuctionListing, est_market_price: int | None, matched
         # (이상치 1건이 허위 차익을 만드는 것을 막는다).
         # (T2) v1 미지원 유형(빌라/상가/토지/유형불명)은 '데이터가 부족해서'가 아니라
         # '정책상 추정하지 않아서'임을 구분해 표기한다 — 사용자가 원인을 알아야 신뢰가 생긴다.
-        na_grade = grade_of(None) if is_estimation_supported(listing.property_type) else "미지원유형"
+        na_grade = grade_of(None) if is_estimation_supported(listing.property_type) \
+            else CONFIG.grade_labels["unsupported"]
         # (감사 2026-07-15) 하드게이트(유치권 등 치명권리·인수금액 과다)는 시세추정 여부와 무관하게
         # '위험'으로 표기한다. 이 경로에서 게이트를 건너뛰면, 서빙 때 KB시세로 재계산될 때
         # market_view 가 s.grade=="위험" 신호를 못 받아 위험 물건에 추천 등급을 주게 된다.
         if is_hard_gated(listing):
-            na_grade = "위험"
+            na_grade = CONFIG.grade_labels["risk"]
         return ScoredListing(
             case_no=listing.case_no, apt_name=listing.apt_name, address=listing.address,
             property_type=listing.property_type, area_m2=listing.area_m2,
@@ -153,32 +187,14 @@ def score_listing(listing: AuctionListing, est_market_price: int | None, matched
     if gated:
         arb = min(arb, CONFIG.gate_ceiling)
 
-    grade = grade_of(arb)
-    top_grade = CONFIG.grade_thresholds[0][1]      # '차익 유력'
-    second_grade = CONFIG.grade_thresholds[1][1]   # '양호'
-    if gated:
-        grade = "위험"
-    elif gap_rate <= 0 or (p_low is not None and p_low <= 0):
-        # (T4) 보수 기준: 검증 하한가로도 차익이 안 남으면 '차익없음' — 기준가 차익이 있어도
-        # 추천하지 않는다(문서 11장 "보수 기준 차익이 충분하지 않습니다 → 추천 제외").
-        grade = "차익없음"
-    elif not listing.rights_verified:
-        # 권리분석 미수행(라이브 크롤 등) → 점수는 참고로 남기되 등급은 비단정 '권리미확인'.
-        # 허위 안전신호('차익 유력'·초록 안전문구)를 절대 부여하지 않는다.
-        grade = "권리미확인"
-    elif market_scope not in ("", SCOPE_RECOMMENDABLE) and grade in (top_grade, second_grade):
-        # (T3) 비교군 scope 게이트 — v1 추천은 '같은 단지·같은 평형' 표본만 인정(문서 15장 3단계).
-        # 인접 평형·같은 법정동 폴백 표본은 시세 참고치일 뿐 — 상위 등급('차익 유력'/'양호') 금지.
-        # ""(레거시 호출·구 DB)는 게이트 미적용(하위호환).
-        grade = "관심"
-    elif band_basis is not None and band_basis < band_confident_basis() \
-            and grade in (top_grade, second_grade):
-        # (T5) 표본 게이트 — 실기반 표본 3~4건은 밴드는 만들되 '낮은 신뢰': 추천 등급 금지.
-        # 소표본 중앙값·하한가는 통계 흉내일 수 있다(문서 10장 권장 기준).
-        grade = "관심"
-    elif matched_trades < CONFIG.min_comps_confident and grade == top_grade:
-        # 표본 부족(신뢰계수 1.0 미만)인데 최상위면 한 단계 강등(1~2건 표본으로 '차익 유력' 금지).
-        grade = second_grade
+    # 등급 파생 — derive_grade 단일 출처(폴백 재계산 _apply_market_price와 동일 우선순위).
+    # 국토부 채점은 scope·표본 게이트 적용(apply_scope_sample_gates=True):
+    #  (T3) 같은단지·같은평형 표본만 상위등급 인정, (T5) 실표본 5건 미만 강등, 표본<3 최상위 강등.
+    grade = derive_grade(
+        arb, gated=gated, rights_verified=listing.rights_verified,
+        gap_rate=gap_rate, p_low=p_low, market_scope=market_scope,
+        band_basis=band_basis, matched_trades=matched_trades,
+        apply_scope_sample_gates=True)
 
     return ScoredListing(
         case_no=listing.case_no, apt_name=listing.apt_name, address=listing.address,
@@ -252,15 +268,13 @@ def _apply_market_price(s: ScoredListing, naver: dict, price: int, price_low: in
     raw = gap * CONFIG.w_gap + s.rights_score * CONFIG.w_rights + s.liquidity_score * CONFIG.w_liq
     arb = round(raw * confidence, 1)          # 폴백 시세 → 신뢰계수 하향(실거래보다 보수)
     p_low = price_low - cost
-    if s.grade == "위험":                     # 하드게이트(권리 위험)는 시세로 안 풀림
-        grade = "위험"
+    gated = (s.grade == CONFIG.grade_labels["risk"])   # 하드게이트는 채점층이 등급 문자열로 전달
+    if gated:                                 # 위험(권리)은 시세로 안 풀림 — arb 상한 유지
         arb = min(arb, CONFIG.gate_ceiling)
-    elif not s.rights_verified:               # 권리 미검증 → 비단정
-        grade = "권리미확인"
-    elif p_low <= 0:                          # 보수(하한) 차익 없으면 추천 제외
-        grade = "차익없음"
-    else:
-        grade = grade_of(arb)
+    # 등급 파생은 derive_grade 단일 출처(채점 score_listing과 동일 우선순위). 폴백은 scope·표본
+    # 게이트 없이 추천 허용(신뢰계수로 이미 하향) → apply_scope_sample_gates=False.
+    grade = derive_grade(arb, gated=gated, rights_verified=s.rights_verified,
+                         gap_rate=gap_rate, p_low=p_low, apply_scope_sample_gates=False)
     return dataclasses.replace(
         s, est_market_price=price, market_band_low=price_low, market_band_high=price_high,
         expected_profit=price - cost, profit_low=p_low, profit_high=price_high - cost,
