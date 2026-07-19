@@ -77,6 +77,23 @@ def test_load_scored_single_page(monkeypatch):
     assert seen["url"].endswith("/rest/v1/auction_scored_listings")
 
 
+def test_load_scored_selects_and_restores_market_comps(monkeypatch):
+    """회귀(2026-07-20): market_comps 는 _COLS 밖 별도 컬럼 — select 에 빠지면 응답에 없어서
+    프로덕션 상세 차트 실거래 점이 전부 사라진다(저장은 되는데 로드만 [] 되던 비대칭)."""
+    seen = {}
+
+    def fake_get(url, headers=None, params=None, timeout=None):
+        seen["params"] = params
+        row = _row(case_no="2024타경1")
+        row["market_comps"] = [["202401", 368000000], ["200812", 145000000]]
+        return FakeResp([row])
+
+    monkeypatch.setattr(store_rest.requests, "get", fake_get)
+    items = store_rest.load_scored(use_cache=False)
+    assert "market_comps" in seen["params"]["select"].split(",")
+    assert items[0].market_comps == [["202401", 368000000], ["200812", 145000000]]
+
+
 def test_load_scored_paginates(monkeypatch):
     pages = iter([
         [_row(case_no=f"c{i}") for i in range(store_rest._PAGE)],  # 꽉 참 → 다음 페이지 요청

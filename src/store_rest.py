@@ -97,7 +97,9 @@ def load_scored(use_cache: bool = True) -> list[ScoredListing]:
     if use_cache and _cache["rows"] is not None and (time.time() - _cache["at"] < _CACHE_TTL):
         return _cache["rows"]
     url, key, table = _cfg()
-    select = ",".join(_COLS)
+    # market_comps 는 _COLS 밖 별도 jsonb 컬럼 — select 에 명시하지 않으면 응답에서 빠져
+    # 상세 차트 실거래 점이 프로덕션에서만 0개가 되는 버그(2026-07-20 수정). 저장(_payload)과 대칭.
+    select = ",".join([*_COLS, "market_comps"])
     rows: list[dict] = []
     offset = 0
     while True:

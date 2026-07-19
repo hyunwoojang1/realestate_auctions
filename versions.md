@@ -1,5 +1,24 @@
 # versions.md — auction-arbitrage 루프 작업 로그 (append-only, 최신순)
 
+## 2026-07-20 01:06 KST — 🐛 프로덕션 차트 실거래 점 0개 버그(store_rest select 누락) 수정
+- 사용자: "역사적 거래 점이 왜 없어(네이버 캡처처럼 있어야지)" → 조사 결과 **렌더링·데이터 둘 다
+  아닌 서빙 버그**: 로컬(auction.db)은 trades 2+hist 58(2008~2024, 60건) 정상인데
+  **프로덕션(Supabase REST)만 trades 0·hist 0**.
+- 원인: Supabase `auction_scored_listings.market_comps`엔 60건이 **있음**(SQL 실측: with_comps
+  1,270행·max 60) — 그런데 `store_rest.load_scored`의 REST `select=",".join(_COLS)`에
+  **market_comps(_COLS 밖 별도 jsonb)가 빠져** 응답에 없고 `row.get(...) or []`가 항상 [].
+  저장(_payload)은 넣는데 로드만 빼는 비대칭.
+- 수정: `select=[*_COLS,"market_comps"]` + 회귀 테스트
+  `test_load_scored_selects_and_restores_market_comps`. pytest store_rest+web 39 PASS.
+- 효과: 배포 시 프로덕션 차트에 실거래 점 복원 — 이 물건은 **2008~2024 역사 점 60개**가 '전체'
+  모드에 바로 나타남(장기 데이터가 이미 있던 물건). 네이버식 장기 점은 타 세션 수집 완료 시 전 물건 확대.
+
+## 2026-07-19 16:24 KST — 🚀 정돈 3종 push+배포 완료(d3dd747 라이브)
+- 사용자 승인("나쁘지 않네 이걸로 푸쉬 및 배포") → 콤팩트+계산서 통합+좌숫자/우그래프 재배치
+  일괄 커밋(`ff150b5..d3dd747`, 이 세션 3파일만: detail.html·test_web.py·versions.md) →
+  deploy_prod.sh로 Vercel 프로덕션 배포(##0.5 준수). 라이브 검증: col-nums/col-vis/dlow/
+  dhead-acts/계산서/1440px 전부 확인, /health=db. 타 세션 파일(matcher 등 11종) 워킹트리 보존.
+
 ## 2026-07-19 16:21 KST — 🗂️ 좌=숫자·우=그래프 재배치 + 스티키바 제거 — 배포결정 대기
 - 사용자 피드백: ①스티키바(관심등록/법원경매)가 본문 가림 ②숫자표(명세서·계산서·KB·기일)가
   좌우중하에 산개해 눈에 안 들어옴 — 숫자는 왼쪽 한 번에, 오른쪽은 그래프, 아래 적정성+감정요항,
@@ -120,6 +139,35 @@
 - **증거**: 1600px 실서버 캡처 — dmap 1개(중복 없음)·pane-site 0·KPI 6타일·D-2 표기·컬럼라벨
   3개 visible 확인. v1↔v2 합성 `경매-비포애프터\상세페이지_대시보드정돈_v1v2_20260719.png`.
   pytest test_web(+watchlist) 47 PASS. 다음: 사용자 배포 결정 대기.
+
+## 2026-07-19 15:40 KST — ✅ T10~T11 완료: 전량 크롤 + 재처리 + 재채점 + Supabase 적재 (프로덕션 반영)
+- **크롤 완료**: 983쌍·실거래 74,404행(2006~2026). 잔여 115쌍=네이버 실거래 없는 빈 평형(M3, 무해).
+  중간 절전으로 2회 중단됐으나 이어받기로 무손실 재개.
+- **C1 재처리**: reprocess_real_trades → 취소거래 **2,378건 올바르게 제외**(수정 전 0=전부 오염이었음).
+- **재채점**(--live-months 24): 네이버 확정 실거래 **1,360물건 주입**, 권리배선 4,526/7,800.
+- **품질 게이트 오탐 1건 수정**: scls 게이트가 덕원아파트(코드 10108, 접두'101') 오탐 → 전체 적재 차단.
+  근본수정: 네이버 complexNo 고/중신뢰 매칭 물건은 scls 게이트 제외(건물 ID로 검증된 comps라 유형코드
+  무관). 게이트 9종 전건 PASS 후 미러.
+- **Supabase 미러**: auction_scored_listings **7,800건 적재 완료** → 프로덕션 반영. 진천 실측 3.30억·
+  same_complex_same_area 프로덕션 확인. 아파트+오피 시세성공 **55%(1,270/2,307)**, same_complex_same_area
+  **1,267건**(개편 전 748 → +519), band_too_wide 가드 118건(오염 정직 무효화).
+- ⚠️미완: auction_naver_prices 미러 400(신규 lease_low/high 컬럼이 Supabase 테이블에 없음, 비치명—
+  KB폴백은 기존 컬럼으로 동작). DB백업=auction.db.bak-20260719-1534.
+
+## 2026-07-19 09:10 KST — 🔍 중간감사(6에이전트) + CRITICAL 즉시수정
+- 감사 판정 🟡노랑(조건부정상). 검증: pytest 데이터관련 전건 통과, 진천 재실행 정상. 발견 21건.
+- **C1 CRITICAL 확정·수정**: 취소거래 판정값이 실제 `'O'`인데 코드가 `'Y'`를 찾아 **캐시 650건
+  취소거래 전부 deleted=0으로 시세 혼입**(그중 345건은 정상행 쌍둥이까지 공존). 이 프로젝트의
+  존재이유(취소거래 배제)를 정면 위반. 수정: ①`_is_cancelled` 값 'O' ②PK에서 deleted 제거
+  ③**거래 단위 취소 집계**(쌍둥이 억제) ④scripts/reprocess_real_trades.py(캐시 재처리 — 재크롤 0).
+- **C2 수정**: 매칭 신뢰도 게이트 — 저신뢰(match_conf='저신뢰') 매칭은 실거래 주입 제외
+  (naver_match 휴리스틱 오답이 '확정 같은단지'로 둔갑 방지). run.py _load_naver_real_map.
+- **H1 수정**: upsert_complex 빈값 덮어쓰기 금지(재파싱이 기존 min/max·전세가율 파괴 방지) +
+  전세가율 0.0 falsy 유실 버그(_lease_rate_str). 단 소스 전건 0.0이라 현재 실유실은 없음(감사 확인).
+- 신규 테스트 6(취소 쌍둥이 억제·전세가율 정규화·보존 upsert). 전체 555 passed.
+- 미수정(의도): pytest 2건 실패 = 타 세션 detail.html 카피 회귀(L3, 데이터무관·수정금지영역).
+- 재처리·재보정은 크롤 완료 후: reprocess_real_trades → 재채점(--live-months 24) → Supabase.
+- 상세 스코어카드: tasks/whcsruomb.output. HIGH 4·MEDIUM 7·LOW 4는 크롤 후 순차.
 
 ## 2026-07-19 08:05 KST — 🛡 크롤 크래시 2중 방어 + 재시작 (246쌍 지점)
 - 실측 크래시: Playwright `Page.evaluate: Failed to fetch`(브라우저 컨텍스트 네트워크 순단)가
