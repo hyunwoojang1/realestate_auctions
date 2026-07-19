@@ -10,6 +10,7 @@
 """
 from __future__ import annotations
 
+import html
 import logging
 import os
 from pathlib import Path
@@ -234,6 +235,22 @@ def create_app() -> Flask:
     app.json.sort_keys = False
     # 전용면적 평 환산은 모든 화면(홈·리스트·상세)에서 쓰므로 Jinja 전역으로 한 번만 등록.
     app.jinja_env.globals["pyeong"] = report.pyeong
+
+    # 법원 자유텍스트 HTML 엔티티 복원 필터. 크롤 시점(_sanitize)에서 이미 해제하지만,
+    # 재크롤 전 DB/Supabase 에 남은 옛 데이터(&amp;quot; &lt; …)를 렌더 시점에도 복원해
+    # 화면이 즉시 정상화되게 한다. 반환값은 평문이라 Jinja 자동이스케이프가 다시 안전하게 처리.
+    def _deent(value):
+        if not value:
+            return value
+        s = str(value)
+        for _ in range(3):
+            u = html.unescape(s)
+            if u == s:
+                break
+            s = u
+        return s
+
+    app.jinja_env.filters["deent"] = _deent
 
     @app.after_request
     def _tag_data_source(resp):

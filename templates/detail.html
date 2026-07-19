@@ -38,7 +38,11 @@
     <div class="dphoto-track">
       {% for p in photos %}<img src="{{ p }}" alt="물건 사진 {{ loop.index }}" width="800" height="600" decoding="async" loading="{{ 'eager' if loop.first else 'lazy' }}">{% endfor %}
     </div>
-    {% if photos|length > 1 %}<div class="dphoto-dots">{% for p in photos %}<i class="{{ 'on' if loop.first }}"></i>{% endfor %}</div>{% endif %}
+    {% if photos|length > 1 %}
+    <button type="button" class="dphoto-nav prev" aria-label="이전 사진" hidden>‹</button>
+    <button type="button" class="dphoto-nav next" aria-label="다음 사진">›</button>
+    <div class="dphoto-dots">{% for p in photos %}<i class="{{ 'on' if loop.first }}"></i>{% endfor %}</div>
+    {% endif %}
   </div>
   {% else %}
   <div class="dphoto-empty" role="note">📷 등록된 물건 사진이 없습니다 <span>(법원 미제공이거나 아직 수집 전)</span></div>
@@ -97,12 +101,12 @@
       <h2>법원 매각물건명세서 요지 <span class="sub">· 물건상세 수집 {{ rights.fetched_at[:10] }}</span></h2></div>
     <div class="dpanel{% if rights.has_risk_text %} risk{% endif %}">
       {% if rights.surviving_is_real %}
-      <div class="dbanner risk">⛔ <b>매수인에게 인수되는 권리</b> — {{ rights.surviving_rights }}</div>
+      <div class="dbanner risk">⛔ <b>매수인에게 인수되는 권리</b> — {{ rights.surviving_rights | deent }}</div>
       {% else %}
       <div class="dbanner ok">✓ 소멸되지 않는(인수) 등기 권리: 해당사항없음</div>
       {% endif %}
       {% if rights.senior_lien %}
-      <div class="drow"><span class="k">최선순위 설정 <span class="hint">(말소기준 — 이보다 늦은 권리는 소멸)</span></span><span class="v" style="font-size:13px;font-weight:600;color:var(--ink-700);white-space:pre-line;text-align:right">{{ rights.senior_lien }}</span></div>
+      <div class="drow"><span class="k">최선순위 설정 <span class="hint">(말소기준 — 이보다 늦은 권리는 소멸)</span></span><span class="v" style="font-size:13px;font-weight:600;color:var(--ink-700);white-space:pre-line;text-align:right">{{ rights.senior_lien | deent }}</span></div>
       {% endif %}
       {% if priority and priority.verdict != 'no_basis' %}
       <div class="dpri {{ 'ok' if priority.verdict=='confirmed_opposable' else ('warn' if priority.verdict=='contradiction' else 'info') }}">
@@ -121,10 +125,10 @@
       </div>
       {% endif %}
       {% if rights.lien_note %}
-      <div class="drow"><span class="k">유치권·법정지상권 등</span><span class="v" style="font-size:13px;font-weight:600;{% if rights.lien_note not in ('해당사항없음','해당사항 없음') %}color:var(--risk){% else %}color:var(--ink-600){% endif %};white-space:pre-line;text-align:right">{{ rights.lien_note }}</span></div>
+      <div class="drow"><span class="k">유치권·법정지상권 등</span><span class="v" style="font-size:13px;font-weight:600;{% if rights.lien_note not in ('해당사항없음','해당사항 없음') %}color:var(--risk){% else %}color:var(--ink-600){% endif %};white-space:pre-line;text-align:right">{{ rights.lien_note | deent }}</span></div>
       {% endif %}
       {% if rights.remark %}
-      <div class="drow"><span class="k">명세서 비고</span><span class="v" style="font-size:13px;font-weight:500;color:var(--ink-700);white-space:pre-line;text-align:right">{{ rights.remark }}</span></div>
+      <div class="drow"><span class="k">명세서 비고</span><span class="v" style="font-size:13px;font-weight:500;color:var(--ink-700);white-space:pre-line;text-align:right">{{ rights.remark | deent }}</span></div>
       {% endif %}
       {% if rights.claim_amt %}
       <div class="drow"><span class="k">청구금액 <span class="hint">(채권자가 받으려는 돈)</span></span><span class="v">{{ won(rights.claim_amt) }}</span></div>
@@ -204,7 +208,7 @@
       {% for n in rights.appraisal_notes %}
       <div class="drow" style="align-items:flex-start">
         <span class="k" style="font-weight:600;min-width:84px;flex:0 0 auto">{{ n.label }}</span>
-        <span class="v" style="font-size:14px;color:var(--ink-700);white-space:pre-line;text-align:left">{{ n.text }}</span></div>
+        <span class="v" style="font-size:14px;color:var(--ink-700);white-space:pre-line;text-align:left">{{ n.text | deent }}</span></div>
       {% endfor %}
     </div>
     {% endif %}
@@ -363,10 +367,21 @@
     });
   }
   var track=document.querySelector('.dphoto-track'), dots=document.querySelectorAll('.dphoto-dots i');
-  if(track&&dots.length){ track.addEventListener('scroll',function(){
-    var i=Math.round(track.scrollLeft/track.clientWidth);
-    dots.forEach(function(d,j){ d.classList.toggle('on',j===i); });
-  },{passive:true}); }
+  var navPrev=document.querySelector('.dphoto-nav.prev'), navNext=document.querySelector('.dphoto-nav.next');
+  if(track){
+    var syncNav=function(){
+      var i=Math.round(track.scrollLeft/track.clientWidth);
+      dots.forEach(function(d,j){ d.classList.toggle('on',j===i); });
+      var maxL=track.scrollWidth-track.clientWidth-1;          // 끝 도달 판정 여유 1px
+      if(navPrev) navPrev.hidden=track.scrollLeft<=1;          // 첫 장에선 왼쪽 화살표 숨김
+      if(navNext) navNext.hidden=track.scrollLeft>=maxL;       // 마지막 장에선 오른쪽 숨김
+    };
+    track.addEventListener('scroll',syncNav,{passive:true});
+    var page=function(dir){ track.scrollBy({left:dir*track.clientWidth,behavior:'smooth'}); };
+    if(navPrev) navPrev.addEventListener('click',function(){ page(-1); });
+    if(navNext) navNext.addEventListener('click',function(){ page(1); });
+    syncNav();
+  }
   // 사진 클릭 확대 라이트박스 (접근성: Esc/←→/백드롭 닫기, 포커스 복귀)
   var imgs=track?Array.prototype.slice.call(track.querySelectorAll('img')):[];
   if(imgs.length){

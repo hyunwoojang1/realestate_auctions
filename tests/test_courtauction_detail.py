@@ -208,6 +208,19 @@ def test_normalize_sanitizes_free_text():
     assert "[성명]" in cr.surviving_rights
 
 
+def test_sanitize_unescapes_html_entities():
+    """법원 자유텍스트의 HTML 엔티티(단일·이중 인코딩)를 실제 문자로 복원한다(2026-07-19).
+
+    자동이스케이프 템플릿에서 &amp;quot; 처럼 깨져 보이던 감정 요항 버그를 소스에서 교정.
+    """
+    from src.courtauction_detail import _sanitize
+    assert _sanitize("&amp;quot;대구진천초등학교&amp;quot;") == '"대구진천초등학교"'
+    assert _sanitize("&lt;가축분뇨의 관리 및 이용에 관한 법률&gt;") == "<가축분뇨의 관리 및 이용에 관한 법률>"
+    assert _sanitize("&amp;apos;천안백석중학교&amp;apos;") == "'천안백석중학교'"
+    assert _sanitize("A &amp; B") == "A & B"
+    assert _sanitize("정상 텍스트") == "정상 텍스트"      # 엔티티 없으면 그대로(멱등)
+
+
 def test_multiple_deposits_summed_distinct():
     """idx12 MEDIUM: 서로 다른 보증금 여러 건은 합산, 같은 금액 반복은 1회."""
     from src.courtauction_rights import detect_assumed_amount

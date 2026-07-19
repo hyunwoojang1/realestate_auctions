@@ -13,6 +13,7 @@
 """
 from __future__ import annotations
 
+import html
 import json
 import re
 from dataclasses import asdict, dataclass, field
@@ -73,6 +74,14 @@ def _sanitize(text: str) -> str:
     """자유텍스트 정제: 제어문자·제로폭 제거, NBSP/전각공백→일반, 연속 수평공백 축약. 개행 보존."""
     if not text:
         return ""
+    # 법원 API 자유텍스트는 HTML 엔티티가 섞여 온다(&quot; &lt; &gt; &amp; …). 자동이스케이프
+    # 템플릿에 그대로 넣으면 &amp;quot; 처럼 깨져 보이므로 저장 전 실제 문자로 되돌린다.
+    # 간혹 이중 인코딩(&amp;quot;)도 오므로 변화가 없을 때까지(최대 3회) 반복 해제한다.
+    for _ in range(3):
+        u = html.unescape(text)
+        if u == text:
+            break
+        text = u
     t = _JUNK_RE.sub("", text).replace(" ", " ").replace("　", " ")
     t = re.sub(r"[ \t]{2,}", " ", t)
     t = re.sub(r"\n{3,}", "\n\n", t)

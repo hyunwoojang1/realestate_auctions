@@ -1,5 +1,31 @@
 # versions.md — auction-arbitrage 루프 작업 로그 (append-only, 최신순)
 
+## 2026-07-19 13:00 KST — 🐛 상세페이지 잔고장 2건: 감정요항 HTML엔티티 깨짐 + 사진 넘김 화살표
+- 사용자 신고: 물건 상세 "감정 요항" 등 자유텍스트가 `&amp;quot;대구진천초등학교&amp;quot;`,
+  `&lt;가축분뇨…법률&gt;` 처럼 깨져 보임 + 사진이 스와이프로만 넘어가 불편.
+- **원인**: 법원 API 자유텍스트에 HTML 엔티티가 섞여 오는데(간혹 이중 인코딩), `_sanitize`가
+  이를 해제하지 않아 Jinja 자동이스케이프에서 `&amp;`가 다시 이스케이프돼 화면 노출.
+- **수정 ①(소스)**: `src/courtauction_detail.py::_sanitize`에 `html.unescape` 반복(최대3회) 추가 →
+  향후 크롤은 실제 문자로 저장. **②(렌더 즉시교정)**: `src/web.py`에 Jinja 필터 `deent` 등록,
+  `detail.html`의 자유텍스트(감정요항 text·surviving_rights·senior_lien·lien_note·remark)에 `| deent`
+  적용 → 재크롤 전 DB/Supabase 옛 데이터(&amp;quot;)도 렌더 시점에 복원(평문 반환이라 자동이스케이프가
+  다시 안전 처리). **③(화살표)**: `.dphoto`에 `.dphoto-nav.prev/.next` 버튼 추가 — 평소 opacity:0,
+  `@media (hover:hover)`에서 `.dphoto:hover` 시 opacity .5로 연하게 페이드인·버튼 hover 시 1.0,
+  focus-visible 노출(키보드 접근성), reduced-motion 존중. JS는 `track.scrollBy(±clientWidth, smooth)` +
+  첫/끝 장에서 해당 화살표 hidden 토글. 터치는 기존 스와이프 유지(hover 없어 화살표 미노출).
+- **증거**: 실제 신고 케이스 `2025타경32139` 테스트클라이언트 렌더 → `&amp;quot;` 잔존 0,
+  `&#34;대구진천초등학교&#34;`·`&lt;가축분뇨…&gt;`(브라우저가 `"`/`<`로 표시), nav 버튼 삽입 확인,
+  X-Data-Source=db. 회귀 테스트 `test_sanitize_unescapes_html_entities` 추가. pytest
+  test_courtauction_detail(31)·test_web 전부 PASS. 다음: 프로덕션 배포 후 실기기 확인(사용자).
+- 사용자 요청: "제일 중요한 엔진=크롤링 코드"를 기준으로 어떤 사이트인지 + 어떤 로직으로 크롤링하는지 한국어 설명.
+- 기존 README는 PoC 시절("v1에서 크롤러") 구식이라, 실제 코드를 정독해 정확도 반영 후 재작성.
+- 추가/개편 섹션: 전체 파이프라인 다이어그램, **크롤링 엔진 상세**(공통 밴회피 철학 표 + 4개 원천별
+  ①courtauction ②molit ③naver ④건축물대장/좌표), 캐시·증분 diff, 매칭/시세추정, 스코어, Supabase 서빙,
+  실행/배포/키발급, 크롤링 중심 프로젝트 구조.
+- 근거: courtauction_client·molit_client·naver_client·matcher·pipeline·coords·region·store_rest·
+  courtauction_rights·photo 실코드 Read 후 서술(엔드포인트·안전장치·버그픽스 이력 반영).
+- 코드 변경 없음(문서만). 다음: 세션 노트의 두 갈래(감정가/유찰가/시세 3분할 UI vs 시세추정불가 원인 규명) 대기.
+
 ## 2026-07-17 12:35 KST — 🔍 리팩터 애드버서리얼 리뷰 반영 + live_months 정정
 - 3에이전트 병렬 리뷰(B1/B2/A) 결과: **critical/high/medium 0건**, low 5건. 확정 결함 없음(무회귀).
 - 반영한 low 2건: ①derive_grade의 scope게이트 top/second 비교를 grade_labels→grade_thresholds 단일출처로
