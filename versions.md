@@ -1,5 +1,39 @@
 # versions.md — auction-arbitrage 루프 작업 로그 (append-only, 최신순)
 
+## 2026-07-19 15:05 KST — 🔁 push=배포 원칙 확립(deploy_prod.sh + CLAUDE.md ##0.5)
+- 사용자 질책: "너가 배포하는 방식으로 바꾼 지가 언젠데 뭔 수동배포" — push만 하고 배포 빠뜨리는
+  일 재발 방지.
+- `vercel git connect` 시도 → **실패**(Vercel GitHub App이 프라이빗 레포
+  hyunwoojang1/realestate_auctions 접근권한 없음 — 자동연동은 사용자가 GitHub App에 레포 허용해야
+  가능, 허용 시 push=자동배포로 업그레이드됨).
+- 대신 **`scripts/deploy_prod.sh`**(원커맨드: HEAD를 깨끗한 worktree로 체크아웃→.vercel 복사→
+  `vercel deploy --prod`→/health 자동검증→worktree 정리) + **CLAUDE.md ##0.5 절대규칙**
+  "main push했으면 그 턴에 deploy_prod.sh로 배포까지" — 이 레포의 모든 세션에 강제.
+- 프로덕션 URL 고정 표기: auction-arbitrage-hyunwoo-jang-s-projects.vercel.app
+  (무접미사 auction-arbitrage.vercel.app은 남의 앱 — CLAUDE.md에도 경고 명기).
+
+## 2026-07-19 14:58 KST — 🌐 Vercel 프로덕션 배포 완료(48c03df 라이브)
+- 사용자 지적: git push만으론 실서비스 미반영 — **GitHub 자동배포 없음, Vercel CLI 수동 배포 방식**
+  (마지막 배포 2일 전 확인). 오늘 개편 3종을 프로덕션 배포.
+- **오염 방지**: 워킹트리에 타 세션 미완성 변경 10파일(matcher·pipeline 등)이 있어 폴더째 배포
+  금지 → `git worktree add`로 커밋 48c03df 깨끗한 체크아웃 + `.vercel` 링크 복사 →
+  `vercel deploy --prod` (배포 후 worktree 제거). **앞으로 배포도 이 절차 권장.**
+- 라이브 검증(auction-arbitrage-hyunwoo-jang-s-projects.vercel.app): /health=db,
+  상세페이지 dkpi 6타일·dmap 1·네이버 차트색·5y버튼 확인, 구 탭바 0·엔티티 깨짐 0.
+- ⚠️ **함정 발견**: `auction-arbitrage.vercel.app`(무접미사)은 **남의 앱**(영문 Kijiji 플리핑
+  트래커) — 이름만 같음. 우리 프로덕션 도메인은 반드시
+  **`auction-arbitrage-hyunwoo-jang-s-projects.vercel.app`** 사용.
+
+## 2026-07-19 14:50 KST — 🚀 상세페이지 개편 3종 배포(push 48c03df)
+- 사용자 승인("좋아 보이네, 이렇게 쭉 바꿔줘") → 누적 3건 일괄 커밋·푸시:
+  **①지도 인라인**(카카오맵 외부이동 제거) **②대시보드 v2**(탭 제거·존 기반: KPI밴드→게이트→
+  사진|지도→3컬럼→감정요항 2단→푸터) **③차트 v3**(네이버 시세 문법: 상한/하한 스텝라인·호버
+  흰 카드·기간 1/3/5/전체) + 비포/애프터 캡처 도구(scripts/shot_pane·compose_ba).
+- 스테이징은 이 세션 5개 파일만(detail.html·web.py·scripts 2종·versions.md) — 타 세션의
+  네이버 대개편 작업 파일(matcher·models·pipeline 등 10종)은 워킹트리에 그대로 보존.
+- 커밋 전 origin 동기 확인(ahead 0), pytest 78 PASS. `1041c63..48c03df`.
+- 후속: 시세 밴드 데이터 교정(타 세션 대개편)·장기(3/5년+) 실거래 데이터 수급 시 차트 자동 수혜.
+
 ## 2026-07-19 14:44 KST — 📈 차트 v3: 네이버 시세 그래프 문법 이식 — 피드백 대기
 - 사용자 피드백(v2 필 버전에): 기간은 1/3/5/전체로, 월평균 추세선 보류(개별점 잇는 게 이상),
   필 2개도 안 이쁨. **레퍼런스 스크린샷 제공**: `경매-비포애프터\네이버 부동산 밴드.png`.
@@ -48,6 +82,17 @@
 - **증거**: 1600px 실서버 캡처 — dmap 1개(중복 없음)·pane-site 0·KPI 6타일·D-2 표기·컬럼라벨
   3개 visible 확인. v1↔v2 합성 `경매-비포애프터\상세페이지_대시보드정돈_v1v2_20260719.png`.
   pytest test_web(+watchlist) 47 PASS. 다음: 사용자 배포 결정 대기.
+
+## 2026-07-19 07:20 KST — ⚡ T10 속도튜닝 재시작 + 상태판 개통
+- **초기 ETA 실측 45시간**(15분에 6쌍 — 대단지 실거래 80p+호가 5p로 쌍당 ~90콜) → NAVER_STOP으로
+  graceful 중단(8쌍 저장) 후 튜닝 재시작: ①실거래 페이지 캡 80→25(env AUCTION_NAVER_REAL_PAGES,
+  최근 5~10년 확보 — 창 계층화 최대 60개월·차트에 충분) ②백필에서 호가 수집 제거(실거래 확보 시
+  호가 폴백 중요도 급락, 신선도는 Phase A·일일 증분 몫). 쌍당 ~7콜 → 예상 ~6시간.
+- **상태판**: evidence/backfill_status.html — 5분 자동갱신(생성 루프+meta refresh), 진행바·ETA·
+  스탯 6종·스케줄표·최근 로그. 사용자 전달 완료.
+- **물건 수 팩트체크**(사용자 질문): 수집 상한은 10억 아닌 **현금 5억**(refresh-daily.ps1 기본,
+  결정 #8). 실측 깔때기: 아파트+오피 2,307건(3억↓ 2,131) → est 865 → 권리확인 1,393 → 둘다 606건.
+  10억 확장은 -Cash 파라미터 하나(수집 재크롤 필요).
 
 ## 2026-07-19 06:40 KST — ✅ T4~T9 완료 (네이버 실거래 개편 2/3) — 진천 실측 교정 성공
 - **T4**: NaverClient.real_prices(addedRowCount 커서, 빈페이지 종료, 80p캡+잘림경고)·overview()·

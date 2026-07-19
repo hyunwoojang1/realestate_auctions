@@ -9,6 +9,14 @@
 - 사용자 지시로 명시 도입(2026-06-30). 전역 `PostToolUse` 훅
   (`~/.claude/hooks/auction-versions-reminder.js`)이 리마인더로 이 규칙을 강제한다.
 
+## 0.5 절대 규칙 — push = 배포까지 (사용자 지시 2026-07-19)
+**main에 push했으면 그 턴에서 `bash scripts/deploy_prod.sh`로 Vercel 프로덕션 배포까지 끝낸다.**
+"push 완료"는 배포가 아니다 — 이 프로젝트는 GitHub 자동배포 연동이 **없다**(Vercel GitHub App이
+프라이빗 레포 접근권한 없음). 스크립트가 깨끗한 worktree에서 배포하므로 워킹트리에 타 세션
+변경이 섞여 있어도 안전. 프로덕션 URL은
+`auction-arbitrage-hyunwoo-jang-s-projects.vercel.app`
+(⚠️ 무접미사 `auction-arbitrage.vercel.app`은 **남의 앱** — 절대 혼동 금지).
+
 1. **항상 `PROGRESS.md` 먼저 읽기.** 현재 상태/다음 할 일 파악 후 시작.
 2. **한 번에 기능 하나.** GOAL.md의 F1~F10 중 하나씩. 완주 못 하면 PROGRESS에 남기고 중단.
 3. **증거 후 합격.** 테스트/출력 결과 파일(evidence/, test 통과 로그)을 Read로 확인하기 전에는
