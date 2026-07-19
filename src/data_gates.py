@@ -83,17 +83,47 @@ _SCLS_NONHOUSING_PREFIX = ("101", "211", "212", "221")
 _SCLS_HOUSING = {"20104": "아파트", "20110": "오피스텔", "20105": "연립", "20106": "다세대"}
 
 
+def _naver_verified_keys(conn) -> set:
+    """네이버 complexNo(건물 고유번호)로 고/중신뢰 매칭돼 실거래가 주입된 물건 키 집합.
+
+    (2026-07-19) 이 물건들의 시세는 유형코드가 아니라 **건물 ID + 전용면적**으로 검증된 같은
+    단지·같은 평형 실거래에서 나온다. courtauction 세부용도코드(scls)가 변종/오분류여도 comps는
+    엉뚱한 유형이 아니므로, scls 정합 게이트의 전제(유형 불일치=잘못된 comps)가 성립하지 않는다.
+    테이블이 없으면(구 DB·dryrun) 빈 집합 — 게이트는 종전대로 전량 검사(안전측).
+    """
+    try:
+        rows = conn.execute(
+            "SELECT DISTINCT np.court, np.case_no, np.item_no FROM naver_prices np "
+            "JOIN naver_real_trades nrt ON nrt.complex_no=np.complex_no AND nrt.area_no=np.area_no "
+            "WHERE np.complex_no IS NOT NULL AND np.complex_no != '' "
+            "  AND np.match_conf IN ('고신뢰','중신뢰') AND nrt.deleted=0")
+    except sqlite3.DatabaseError:
+        return set()
+    return {(r[0], r[1], str(r[2] or "")) for r in rows}
+
+
 def gate_scls_consistency(conn) -> GateResult:
     """세부용도코드 교차검증(감사 2026-07-10 CRITICAL) — 시세가 매겨진 물건의 저장 유형이
     코드 실체와 모순되면 위반: ①주거유형인데 코드=비주거(근생/공장/토지) ②아파트인데
-    코드=오피스텔(또는 그 역) — 엉뚱한 유형의 실거래 comps 로 시세가 산정된 신호."""
+    코드=오피스텔(또는 그 역) — 엉뚱한 유형의 실거래 comps 로 시세가 산정된 신호.
+
+    (2026-07-19) 네이버 complexNo 고/중신뢰 매칭 물건은 제외 — 시세가 건물 ID로 검증된
+    같은 단지 실거래에서 나와 scls 변종(예: 아파트 코드 10108)이 오탐을 낸다(실측: 덕원아파트
+    고신뢰·실거래 137건이 접두 '101' 규칙에 걸려 전체 적재를 막았다)."""
     bad = []
+    verified = _naver_verified_keys(conn)
     for r in _rows(conn, """
-        select s.court, s.case_no, s.item_no, s.property_type, r.raw_json
+        select s.court, s.case_no, s.item_no, s.property_type, s.market_scope, r.raw_json
         from scored_listings s join raw_listings r
           on r.court=s.court and r.case_no=s.case_no and r.item_no=s.item_no
         where s.est_market_price is not null and s.property_type in ({})
     """.format(",".join("?" * len(_HOUSING))), _HOUSING):
+        # (감사 2026-07-20 MEDIUM1) 면제는 '네이버 매칭 존재'가 아니라 '네이버 실거래가 실제 주입돼
+        # 같은단지·같은평형(same_complex_same_area) 시세가 된' 물건만. 네이버 표본이 게이트 미달이라
+        # 국토부 이름매칭으로 폴백한 est는 유형코드 검증을 계속 받아야 한다(출처-기반 면제).
+        if (r["court"], r["case_no"], str(r["item_no"] or "")) in verified \
+                and r["market_scope"] == "same_complex_same_area":
+            continue   # 건물 ID 검증 comps — scls 유형코드 무관
         scls = str(json.loads(r["raw_json"]).get("sclsUtilCd") or "")
         if not scls:
             continue

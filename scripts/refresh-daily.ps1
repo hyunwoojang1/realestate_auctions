@@ -37,7 +37,9 @@ param(
     [long]$Cash = 500000000,   # 사용자 결정 #8: 전국 · 현금 5억 상한
     [int]$LiveMonths = 24,     # 국토부 실거래 수집창(개월). 캐시(molit_trades.db)로 닫힌 달은 1회만 호출(깊이↑=비용동일, 열린 2개월만 매번).
     [string]$Ym = "",
-    [string]$DbPath = ""
+    [string]$DbPath = "",
+    [switch]$SkipNaver,        # 네이버 증분 단계 건너뛰기(안티밴 사고 시)
+    [int]$NaverStaleDays = 14  # 네이버 실거래 증분 신선도 기준(일). 이보다 오래된 쌍만 재수집
 )
 
 $ErrorActionPreference = "Stop"
@@ -82,6 +84,19 @@ $prevEAP = $ErrorActionPreference
 $ErrorActionPreference = "Continue"
 Push-Location $RepoRoot
 try {
+    # --- 네이버 증분 (main 채점 전) — 어제 매물 기준 신규 매칭 + 오래된 쌍 실거래 갱신 ---
+    #     실패해도 채점을 막지 않는다(네이버는 보조 시세). 신규 물건은 이번 채점 후 다음날 매칭됨(1일 지연 허용).
+    #     -SkipNaver 로 건너뛸 수 있다(안티밴 사고 시).
+    if (-not $SkipNaver) {
+        "--- 네이버 Phase A(신규 매칭) ---" | Tee-Object -FilePath $LogPath -Append
+        & $Python -m deploy.crawl_naver --db $DbPath 2>&1 | Tee-Object -FilePath $LogPath -Append
+        "--- 네이버 Phase B(증분 실거래 >$NaverStaleDays일) ---" | Tee-Object -FilePath $LogPath -Append
+        & $Python -m deploy.crawl_naver --backfill-real --incremental --stale-days $NaverStaleDays 2>&1 | Tee-Object -FilePath $LogPath -Append
+    } else {
+        "--- 네이버 증분 건너뜀(-SkipNaver) ---" | Tee-Object -FilePath $LogPath -Append
+    }
+
+    # --- 메인 채점(courtauction 크롤 + 국토부 시세 + 네이버 실거래 주입 + Supabase) ---
     & $Python @runArgs 2>&1 | Tee-Object -FilePath $LogPath -Append
     $code = $LASTEXITCODE
 } finally {

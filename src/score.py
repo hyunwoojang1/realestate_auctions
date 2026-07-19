@@ -298,7 +298,16 @@ def market_view(s: ScoredListing, naver: dict | None) -> ScoredListing:
         return s
     # 국토부 실거래 최우선 — est 있으면 실거래 유지, 표시용 페이로드만 첨부.
     if s.est_market_price and s.est_market_price > 0:
-        return dataclasses.replace(s, naver=naver, market_source="molit")
+        # (T8b, 2026-07-19) KB 교차검증 플래그 — 추정시세가 KB 밴드를 크게 벗어나면 표시용 신호를
+        # 심는다(실사고: 진천태왕아너스 est 4.69억 vs KB 상한 3.70억 = 1.27배 — 폴백 오염을 KB가
+        # 알고 있었지만 서빙이 무시했다). 자동 강등은 안 함(정책 미정) — 데이터만 UI로 전달.
+        payload = dict(naver)
+        kb_high, kb_low = payload.get("kb_high") or 0, payload.get("kb_low") or 0
+        if kb_high and s.est_market_price > kb_high * 1.15:
+            payload["kb_divergence"] = "over"    # 추정이 KB 상한보다 15%+ 높음 — 과대 의심
+        elif kb_low and s.est_market_price < kb_low * 0.85:
+            payload["kb_divergence"] = "under"   # 추정이 KB 하한보다 15%+ 낮음 — 과소/특이 의심
+        return dataclasses.replace(s, naver=payload, market_source="molit")
     # 폴백 1: KB시세.
     kb = kb_price_of(naver)
     if kb is not None:

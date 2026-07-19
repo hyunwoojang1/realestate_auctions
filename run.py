@@ -146,7 +146,20 @@ def main(argv=None) -> int:
                       f"(하드게이트 {_rstats['gated']}건 · 빈요지 {_rstats['empty']}건 "
                       f"· 미크롤 {_rstats['total'] - _rstats['matched'] - _rstats['empty']}건=권리미확인)")
 
-        scored = pipeline.run(use_live=use_live, deal_ymd=args.ym, auctions=listings)
+        # (2026-07-19 T7) 네이버 complexNo 확정 실거래 배선 — 있으면 이름매칭을 우회해
+        # 같은 단지·같은 평형 실거래로 추정(폴백 오염 교정). 로드 실패해도 채점은 계속.
+        _real_map = {}
+        try:
+            _real_map = _load_naver_real_map(args.db)
+        except Exception as e:  # noqa: BLE001
+            print(f"  ⚠ 네이버 실거래 배선 건너뜀({e})")
+        if _real_map and not args.json:
+            print(f"  네이버 확정 실거래 배선: {len(_real_map)}물건 (naver_real_trades)")
+        _lookup = (lambda lst: _real_map.get((lst.court, lst.case_no, str(lst.item_no or "")))) \
+            if _real_map else None
+
+        scored = pipeline.run(use_live=use_live, deal_ymd=args.ym, auctions=listings,
+                              real_trades_lookup=_lookup)
     else:
         scored = pipeline.run(use_live=use_live, deal_ymd=args.ym)
 
@@ -246,6 +259,38 @@ def main(argv=None) -> int:
     print(f"증거: {csv_path}")
     print(f"증거: {html_path}")
     return 0
+
+
+def _load_naver_real_map(db_path: str) -> dict:
+    """naver_prices 매핑 × naver_real_trades 조인 → {(court,case_no,item_no): [실거래 행]}.
+
+    (2026-07-19 T7) 채점 전에 1회 로드 — 물건별로 그 단지·그 평형의 확정 실거래를 붙인다.
+    해제거래(deleted=1) 제외. 테이블 없거나 비어 있으면 빈 dict(주입 생략).
+    """
+    from src import naver_store as ns  # noqa: PLC0415
+
+    conn = store.connect(db_path)
+    try:
+        ns.ensure_schema(conn)
+        out: dict = {}
+        # (감사 2026-07-19 C2) 매칭 신뢰도 게이트 — naver_match는 휴리스틱(24건 검증)이라
+        # '저신뢰' 매칭을 그대로 주입하면 "확정 같은단지"라는 자신만만한 오답이 된다.
+        # 고신뢰·중신뢰만 실거래 주입, 저신뢰(match_conf='저신뢰')·NULL은 종전 이름매칭 경로로.
+        # (감사 2026-07-20 정합) 주석 계약대로 '고/중신뢰만' 주입 — 저신뢰·NULL은 종전 이름매칭 경로로.
+        # 종전 `match_conf IS NULL OR`는 주석·자매쿼리(data_gates._naver_verified_keys)와 모순이라 제거.
+        # (현 DB엔 NULL+유효 complex_no 행 0건이라 실동작 무변 — 방어적 정합.)
+        q = ("SELECT np.court, np.case_no, np.item_no, nrt.trade_ymd, nrt.price, "
+             "       nrt.floor, nrt.exclusive_area "
+             "FROM naver_prices np JOIN naver_real_trades nrt "
+             "  ON nrt.complex_no = np.complex_no AND nrt.area_no = np.area_no "
+             "WHERE nrt.deleted = 0 AND np.complex_no IS NOT NULL AND np.complex_no != '' "
+             "  AND np.area_no IS NOT NULL AND np.area_no != '' "
+             "  AND np.match_conf IN ('고신뢰','중신뢰')")
+        for r in conn.execute(q):
+            out.setdefault((r["court"], r["case_no"], str(r["item_no"] or "")), []).append(dict(r))
+        return out
+    finally:
+        conn.close()
 
 
 def _apply_sample_overrides(live_months, area_band) -> None:

@@ -49,11 +49,32 @@ def name_score(a: str, b: str) -> float:
     return max(scores) / 100.0
 
 
+# 단지 식별자 — 'N단지'·'N차'. 다른 번호끼리 매칭(노빌리안1↔노빌리안2, 영등3차↔영등4차)을
+# 막는다. (2026-07-20 야간 3c 검수: 중신뢰 매칭에서 실측된 오매칭 2건 — KB교차검증은 통과했으나
+# 인접 단지의 다른 실거래를 comps로 씀). 국토부 경로 matcher._complex_ids와 동일 취지.
+_ID_RE = re.compile(r"(\d+)\s*(?:단지|차)")
+
+
+def _complex_ids(name: str) -> frozenset:
+    return frozenset(m.group(1) for m in _ID_RE.finditer(name or ""))
+
+
 def best_complex(apt_name: str, complexes: list[dict]) -> tuple[dict | None, float]:
-    """단지 목록에서 이름 최고유사도 후보 반환."""
+    """단지 목록에서 이름 최고유사도 후보 반환.
+
+    (3c 가드) 경매물건에 단지식별자(N단지/N차)가 있으면, 그와 '다른 번호만' 가진 후보는
+    이름이 아무리 비슷해도 다른 단지이므로 제외한다. 물건에 식별자가 없으면 종전대로.
+    """
+    want_ids = _complex_ids(apt_name)
     best, bs = None, 0.0
     for cp in complexes:
-        sc = name_score(apt_name, cp.get("complexName", ""))
+        cname = cp.get("complexName", "")
+        if want_ids:
+            cand_ids = _complex_ids(cname)
+            # 후보에 식별자가 있는데 물건 식별자와 교집합이 0이면 = 다른 단지/차수 → 제외.
+            if cand_ids and not (want_ids & cand_ids):
+                continue
+        sc = name_score(apt_name, cname)
         if sc > bs:
             bs, best = sc, cp
     return best, bs

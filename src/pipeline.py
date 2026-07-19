@@ -351,7 +351,19 @@ def apply_rights_from_rows(listings: list[AuctionListing],
 
 def run(use_live: bool = False, deal_ymd: str | None = None,
         auctions: list[AuctionListing] | None = None,
-        trades: list[Trade] | None = None) -> list[ScoredListing]:
+        trades: list[Trade] | None = None,
+        real_trades_lookup=None) -> list[ScoredListing]:
+    """채점 파이프라인.
+
+    real_trades_lookup (2026-07-19 T7): callable(listing) -> naver_real_trades 행 리스트 | None.
+    네이버 complexNo로 확정된 같은 단지·같은 평형 실거래가 있으면 **이름 매칭을 우회**하고
+    그것으로 추정한다(estimate_from_complex_trades — scope 직부여·창 계층화). 확정 comps가
+    표본 게이트 미달이면 종전 국토부 이름매칭 경로로 폴백. 감정가 괴리로 무효화됐으면
+    (확정 comps에서 괴리 = 강한 적신호) 이름매칭 폴백도 하지 않는다.
+    """
+    from .matcher import estimate_from_complex_trades  # noqa: PLC0415
+    from .matcher import SCOPE_APPRAISAL_MISMATCH  # noqa: PLC0415
+
     listings = auctions if auctions is not None else load_sample_auctions()
 
     if trades is not None:
@@ -366,14 +378,51 @@ def run(use_live: bool = False, deal_ymd: str | None = None,
         trade_pool = load_sample_trades()
 
     scored: list[ScoredListing] = []
+    n_naver = n_widened = 0
     for lst in listings:
-        m = estimate_market(lst, trade_pool)
-        scored.append(score_listing(lst, m.est, m.matched, market_scope=m.scope,
-                                    band_low=m.band_low, band_high=m.band_high,
-                                    band_basis=m.basis, comps=m.comps))
+        m = None
+        mult = 1.0
+        if real_trades_lookup is not None:
+            rows = real_trades_lookup(lst)
+            if rows:
+                nm, nmult = estimate_from_complex_trades(lst, rows)
+                if nm.est is not None:
+                    m, mult = nm, nmult
+                    n_naver += 1
+                    if nmult < 1.0:
+                        n_widened += 1
+                elif nm.scope == SCOPE_APPRAISAL_MISMATCH:
+                    m = nm   # 확정 comps 감정가 괴리 — 이름매칭 폴백 금지(적신호 유지)
+        if m is None:
+            m = estimate_market(lst, trade_pool)
+        s = score_listing(lst, m.est, m.matched, market_scope=m.scope,
+                          band_low=m.band_low, band_high=m.band_high,
+                          band_basis=m.basis, comps=m.comps)
+        if mult < 1.0 and s.arb_score is not None:
+            s = _apply_window_mult(s, lst, m, mult)
+        scored.append(s)
+    if n_naver:
+        logger.info("네이버 확정 실거래 추정: %d건 (창 확장 %d건)", n_naver, n_widened)
 
     scored.sort(key=lambda s: (s.arb_score is None, -(s.arb_score or 0)))
     return scored
+
+
+def _apply_window_mult(s: ScoredListing, lst: AuctionListing, m, mult: float) -> ScoredListing:
+    """창 확장(24/60개월) 신뢰 하향 — arb·confidence 축소 후 등급 재파생(단일 출처 derive_grade).
+
+    근거(실측 S2 2026-07-19): 옛 거래로 표본이 불어나면 게이트를 통과해 등급이 '상향'되는
+    신뢰 부풀림이 생긴다. 확장 창으로 얻은 추정은 명시적으로 하향해 그 부풀림을 상쇄한다.
+    """
+    from .score import derive_grade, is_hard_gated  # noqa: PLC0415
+
+    arb = round(s.arb_score * mult, 1)
+    grade = derive_grade(
+        arb, gated=is_hard_gated(lst), rights_verified=lst.rights_verified,
+        gap_rate=s.gap_rate, p_low=s.profit_low, market_scope=m.scope,
+        band_basis=m.basis, matched_trades=m.matched, apply_scope_sample_gates=True)
+    return dataclasses.replace(s, arb_score=arb, grade=grade,
+                               confidence=round(s.confidence * mult, 2))
 
 
 def _prev_month() -> str:

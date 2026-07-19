@@ -114,6 +114,8 @@ CREATE TABLE IF NOT EXISTS naver_prices (
     ask_min INTEGER,         -- 호가 최저(원)
     ask_max INTEGER,         -- 호가 최고(원)
     ask_count INTEGER DEFAULT 0,
+    lease_low INTEGER,       -- 전세 하한(원) — 2026-07-19 실거래 개편
+    lease_high INTEGER,      -- 전세 상한(원)
     base_ymd TEXT DEFAULT '',
     fetched_at TEXT NOT NULL DEFAULT '',
     PRIMARY KEY (court, case_no, item_no)
@@ -122,7 +124,8 @@ CREATE TABLE IF NOT EXISTS naver_prices (
 
 _NAVER_COLS = ["court", "case_no", "item_no", "status", "complex_no", "complex_name",
                "area_no", "match_conf", "kb_low", "kb_avg", "kb_high", "lease_avg",
-               "ask_min", "ask_max", "ask_count", "base_ymd", "fetched_at"]
+               "ask_min", "ask_max", "ask_count", "lease_low", "lease_high",
+               "base_ymd", "fetched_at"]
 
 _COLS = [
     "case_no", "apt_name", "address", "property_type", "area_m2",

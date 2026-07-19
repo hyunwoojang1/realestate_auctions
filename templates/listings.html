@@ -7,7 +7,7 @@
 {%- set cls = 'chip' + (' sm' if sm else '') -%}
 {%- if s.grade == '권리미확인' -%}{%- if not skip_pending -%}<span class="{{ cls }} pending"><span class="cdot"></span>권리미확인</span>{%- endif -%}
 {%- elif s.grade == '위험' -%}<span class="{{ cls }} risk">위험</span>
-{%- elif s.grade == '시세추정불가' -%}<span class="{{ cls }} na">시세추정불가</span>
+{%- elif s.grade == '시세추정불가' -%}{%- set na_reason = {'no_comps':'같은 단지·평형 실거래 표본 부족','band_too_wide':'같은 동 다른 단지 혼입 의심 — 시세 보류','appraisal_mismatch':'추정치가 감정가와 크게 달라 보류','share_sale':'지분·대지권 문제로 온전가 비교 불가'}.get(s.market_scope, '시세 근거 부족') -%}<span class="{{ cls }} na" title="{{ na_reason }}">시세추정불가{% if s.market_scope in ('band_too_wide','appraisal_mismatch') %}<span class="cdot" style="margin-left:3px" title="{{ na_reason }}"></span>{% endif %}</span>
 {%- elif s.grade == '미지원유형' -%}<span class="{{ cls }} na">미지원 유형</span>
 {%- elif s.grade == '차익없음' -%}<span class="{{ cls }} none">차익없음</span>
 {%- endif -%}

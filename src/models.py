@@ -51,6 +51,11 @@ class Trade:
     # (감사 실측: 강남·분당 2개월 182/1,628건 해제 → 평균 +11.18% 과대). 파싱은 보존, 매칭에서 제외.
     cdeal_type: str = ""   # 국토부 cdealType/해제여부. "O"=해제
     cdeal_day: str = ""    # cdealDay/해제사유발생일(YY.MM.DD, 감사용)
+    # 거래유형(2026-07-19 네이버 실거래 개편): 직거래는 가족 간 저가양도 가능성이 있어 표본 경계값이 된다
+    # (진천태왕아너스 실측 S3 — 직거래 1건이 '시세 2.8억' vs '시세추정불가'를 가름). 제외하지 않고
+    # 표시·감사용으로 보존한다(제외 시 표본 고갈 실측 확인).
+    dealing_gbn: str = ""  # 국토부 dealingGbn/거래유형: "중개거래" | "직거래" | ""(미상·구년도)
+    rgst_date: str = ""    # 국토부 rgstDate/등기일자(YY.MM.DD) — 등기완료=확정 체결 신호. ""=미등록/미상
 
     def price_per_m2(self) -> float:
         return self.price / self.area_m2 if self.area_m2 else 0.0
@@ -59,6 +64,11 @@ class Trade:
     def is_cancelled(self) -> bool:
         """해제(취소)된 거래인가 — cdealType 'O' 또는 해제일 존재 시 True(이중 신호)."""
         return self.cdeal_type.strip().upper() == "O" or bool(self.cdeal_day.strip())
+
+    @property
+    def is_direct(self) -> bool:
+        """직거래(중개사 미경유)인가 — 표시·신뢰 판단용. 미상("")은 False(단정하지 않음)."""
+        return "직거래" in self.dealing_gbn
 
 
 @dataclass

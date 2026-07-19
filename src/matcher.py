@@ -29,6 +29,13 @@ SCOPE_UNSUPPORTED = "unsupported"                        # v1 미지원 유형 (
 SCOPE_NO_COMPS = "no_comps"                              # 지원 유형이나 표본 없음
 SCOPE_SHARE_SALE = "share_sale"                          # 지분 매각 — 온전가 비교 무의미(추정 안 함)
 SCOPE_APPRAISAL_MISMATCH = "appraisal_mismatch"          # 시세가 감정가와 괴리 — 비교군 불신(추정 무효)
+SCOPE_BAND_TOO_WIDE = "band_too_wide"                    # 폴백 밴드폭 과대 — 타단지 혼입 신호(추정 무효)
+
+# 폴백 밴드폭 가드(T8, 2026-07-19): same_dong_fallback에서 band_high/band_low가 이 배수를 넘으면
+# 서로 다른 단지가 comps에 섞였다는 신호(실사고: 진천태왕아너스 2.68~4.69억 = **1.748배**, 3.0~8.65억
+# comps 49건 혼입 — 1.75로 잡으면 이 실사고가 아슬아슬하게 새 나간다). 같은 동·비슷한 면적의
+# 정상 밴드는 대개 1.3~1.5배 이내 → 1.6로 설정(실사고 포착 + 정상 밴드 여유).
+FALLBACK_BAND_SPREAD_MAX = 1.6
 
 # 감정가 교차검증 상한(2026-07-10 실사고 계열 방어): 비교군 시세가 감정가의 이 배수를 넘으면
 # 비교군이 잘못됐다는 신호로 보고 시세를 말하지 않는다. 감정평가사가 2.5배 저평가할 확률은
@@ -348,8 +355,85 @@ def estimate_market(listing: AuctionListing, trades: list[Trade]) -> MarketEstim
             return MarketEstimate(None, matched_count, SCOPE_APPRAISAL_MISMATCH, basis=basis)
     # (T4) 2선 밴드 — 하한가: 트림 후 최저 평단가(보수), 기준가: 트림 후 중앙값(=est, 호환 유지).
     band_low = int(round(min(ppm2_list) * listing.area_m2))
+    # (T8, 2026-07-19) 폴백 밴드폭 가드 — 트림 후에도 밴드가 비정상적으로 넓으면 같은 동의
+    # '다른 단지'들이 섞였다는 신호(진천태왕아너스 실사고: 감정가 1.33배라 감정가 가드는 통과했지만
+    # 밴드 2.68~4.69억). 틀린 시세를 자신 있게 말하느니 '시세추정불가'가 정직하다.
+    if scope == SCOPE_SAME_DONG_FALLBACK and band_low > 0 and est / band_low > FALLBACK_BAND_SPREAD_MAX:
+        logger.warning("폴백 밴드폭 과대(%s): %s~%s (%.2f배) — 타단지 혼입 의심, 시세 무효화",
+                       listing.case_no, band_low, est, est / band_low)
+        return MarketEstimate(None, matched_count, SCOPE_BAND_TOO_WIDE, basis=basis)
     return MarketEstimate(est, matched_count, scope, band_low=band_low, band_high=est,
                           basis=basis, comps=_pack_comps(matched))
+
+
+# ---------------------------------------------------------------------------
+# 네이버 complexNo 확정 실거래 기반 추정 (2026-07-19 대개편 T7)
+# ---------------------------------------------------------------------------
+# 창 계층화: 최근 12개월 표본이 게이트(band_min_basis) 미달이면 24→60개월로 넓히되 신뢰를 깎는다.
+# 근거(실측 S2): 5년 창을 무조건 쓰면 침체장(-33%)의 옛 거래가 표본수를 부풀려 '등급'이 상향된다
+# — 가격(중앙값)은 방어되지만 신뢰 부풀림은 방어 안 됨. 그래서 "부족할 때만 확장 + 신뢰 하향".
+WINDOW_LADDER: tuple[tuple[int, float], ...] = ((12, 1.0), (24, 0.9), (60, 0.75))
+
+
+def estimate_from_complex_trades(listing: AuctionListing,
+                                 rows: list) -> tuple[MarketEstimate, float]:
+    """네이버 complexNo·areaNo로 확정된 같은 단지·같은 평형 실거래 → 시세 추정.
+
+    rows: naver_real_trades 행(sqlite Row/dict: trade_ymd YYYYMMDD·price 원·floor·exclusive_area).
+    이름 문자열 매칭을 우회한다 — 단지 대응이 이미 확정이라 scope=same_complex_same_area.
+    같은 평형이므로 평단가 환산 없이 **가격 자체의 중앙값**을 쓴다(면적 불일치 부풀림 원천 차단).
+    반환: (MarketEstimate, window_mult) — mult<1.0이면 창 확장분 신뢰 하향(호출부가 arb·confidence에 적용).
+    """
+    if not is_estimation_supported(listing.property_type):
+        return MarketEstimate(None, 0, SCOPE_UNSUPPORTED), 1.0
+    _sr = listing.special_rights or []
+    if "지분" in _sr or "대지권미등기" in _sr:
+        return MarketEstimate(None, 0, SCOPE_SHARE_SALE), 1.0
+    pts: list[tuple[int, int]] = []   # (ym_int, price)
+    for r in rows:
+        ymd = str(r["trade_ymd"] if not isinstance(r, dict) else r.get("trade_ymd", ""))
+        price = int(r["price"] if not isinstance(r, dict) else r.get("price", 0) or 0)
+        m = _ym_to_int(ymd[:6])
+        if m is None or price <= 0:
+            continue
+        pts.append((m, price))
+    if not pts:
+        return MarketEstimate(None, 0, SCOPE_NO_COMPS), 1.0
+    pts.sort(reverse=True)
+    latest = pts[0][0]
+    matched_count = len(pts)
+    for window, mult in WINDOW_LADDER:
+        prices = [p for m, p in pts if m >= latest - window]
+        trimmed = trim_outliers([float(p) for p in prices])
+        basis = len(trimmed)
+        if basis < _band_min_basis():
+            continue   # 이 창으로는 표본 부족 — 다음 창으로 확장
+        est = int(round(statistics.median(trimmed)))
+        # 감정가 교차검증 — 확정 단지 comps라도 상한 가드는 유지(안전망).
+        if listing.appraisal_price > 0 and est / listing.appraisal_price > EST_VS_APPRAISAL_MAX:
+            logger.warning("감정가 괴리(확정단지, %s): est %s vs 감정 %s — 시세 무효화",
+                           listing.case_no, est, listing.appraisal_price)
+            return MarketEstimate(None, matched_count, SCOPE_APPRAISAL_MISMATCH, basis=basis), 1.0
+        band_low = int(round(min(trimmed)))
+        comps = tuple((_int_to_ym(m), p) for m, p in pts[:COMPS_CAP])
+        if mult < 1.0:
+            logger.info("창 확장(%s): %d개월 창 basis %d — 신뢰 ×%.2f",
+                        listing.case_no, window, basis, mult)
+        return MarketEstimate(est, matched_count, SCOPE_SAME_COMPLEX_SAME_AREA,
+                              band_low=band_low, band_high=est, basis=basis,
+                              comps=comps), mult
+    # 60개월로도 부족 — 표본 게이트 미달(마지막 창 기준 basis 기록)
+    prices = [p for m, p in pts if m >= latest - WINDOW_LADDER[-1][0]]
+    basis = len(trim_outliers([float(p) for p in prices]))
+    return MarketEstimate(None, matched_count, SCOPE_SAME_COMPLEX_SAME_AREA, basis=basis), 1.0
+
+
+def _int_to_ym(m: int) -> str:
+    """_ym_to_int 역변환 — 월 인덱스 → 'YYYYMM'."""
+    y, mm = divmod(m, 12)
+    if mm == 0:
+        y, mm = y - 1, 12
+    return f"{y}{mm:02d}"
 
 
 def estimate_market_price(listing: AuctionListing, trades: list[Trade]) -> tuple[int | None, int]:

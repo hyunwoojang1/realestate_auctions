@@ -1,11 +1,19 @@
-"""네이버 KB시세·호가 배치 수집 — 아파트·오피스텔 물건별 매핑·저장.
+"""네이버 KB시세·호가·실거래 배치 수집 — 아파트·오피스텔 물건별 매핑·저장.
 
-파이프라인: 좌표 → 법정동(cortar) → 단지목록 → 이름·면적 매칭 → KB시세(+호가 폴백) → naver_prices 저장.
-Safety: NaverClient(지터·세션갱신·429백오프·순차) + kill-switch(NAVER_STOP). 이어받기: naver_prices 기존분 skip.
-캐시: cortar→단지목록, complexNo→상세 를 data/naver_cache.json 에 영구화(재fetch 최소화).
+Phase A(물건 단위): 좌표 → 법정동(cortar) → 단지목록 → 이름·면적 매칭 → KB시세+호가+overview →
+  naver_prices 저장 + naver_store(단지메타·KB시계열·호가) upsert.
+Phase B(--backfill-real, 단지·평형 단위): 이미 매칭된 (complex_no, area_no) 쌍의 prices/real
+  실거래 이력을 커서 루프로 수집 → naver_real_trades. 물건 매칭 불필요 — 쌍당 ~3콜.
+  우선순위: 시세추정불가(est NULL) → same_dong_fallback(오염) → 나머지. 재실행 시
+  naver_real_trades 기존 쌍 skip(멱등 이어받기).
+
+Safety: NaverClient(지터·세션갱신·429백오프·순차) + kill-switch(NAVER_STOP).
+캐시(C1 원본 전량 저장): cortar→단지목록, complexNo→상세/overview, (cno:an)→kb/real 을
+data/naver_cache.json 에 영구화 — 파싱 버그가 나도 재크롤 없이 회수 가능.
 
 사용:
   PYTHONUTF8=1 AUCTION_DB=auction.db .venv/Scripts/python.exe -m deploy.crawl_naver [--limit N] [--refresh]
+  PYTHONUTF8=1 .venv/Scripts/python.exe -m deploy.crawl_naver --backfill-real [--limit N]
 """
 from __future__ import annotations
 
@@ -20,7 +28,7 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT))
 
-from src import coords, naver_match, store  # noqa: E402
+from src import coords, naver_match, naver_store as ns, store  # noqa: E402
 from src.naver_client import NaverBlocked, NaverClient  # noqa: E402
 
 _CACHE = ROOT / "data" / "naver_cache.json"
@@ -59,8 +67,11 @@ def _parse_kor_price(s: str) -> int | None:
 
 
 class Cache:
-    """중복 요청 제거용 영구 캐시 — 다세대 경매(건물당 여러 세대)·같은 동네 물건이 재요청 안 하게."""
-    _KEYS = ("cortar_pt", "cortar_complexes", "complex_detail", "kb", "arts")
+    """중복 요청 제거용 영구 캐시 — 다세대 경매(건물당 여러 세대)·같은 동네 물건이 재요청 안 하게.
+
+    (2026-07-19) overview·real 추가 — C1 원칙(원본 전량 저장): 신규 엔드포인트 응답도 통째 보존.
+    """
+    _KEYS = ("cortar_pt", "cortar_complexes", "complex_detail", "kb", "arts", "overview", "real")
 
     def __init__(self):
         for k in self._KEYS:
@@ -85,9 +96,13 @@ def _targets(conn, cache_coords, limit, refresh, retry_failed=False):
         # retry_failed: 실패로 저장된 행(no_match/no_kb/no_coord)을 '미처리'로 봐 재시도 대상에 포함.
         # 코드 수정(음차맵·유형버그 등) 후 옛 실패분을 회수할 때 쓴다 — 성공분은 그대로 건너뛴다.
         done = store.naver_done_keys(conn, include_failed=not retry_failed)
+    # 우선순위 큐(C6): ①시세추정불가(est NULL — 네이버가 유일한 시세 희망) ②same_dong_fallback
+    # (오염 의심 — 실거래 교정 대상) ③나머지. 차단으로 중간에 죽어도 가치 높은 물건부터 처리된다.
     rows = conn.execute(
         "SELECT doc_id, court, case_no, item_no, apt_name, area_m2, property_type FROM scored_listings "
-        "WHERE property_type IN ('아파트','오피스텔') AND apt_name != '' ORDER BY case_no").fetchall()
+        "WHERE property_type IN ('아파트','오피스텔') AND apt_name != '' "
+        "ORDER BY CASE WHEN est_market_price IS NULL THEN 0 "
+        "WHEN market_scope='same_dong_fallback' THEN 1 ELSE 2 END, case_no").fetchall()
     out = []
     for r in rows:
         key = (r["court"], r["case_no"], r["item_no"])
@@ -100,6 +115,108 @@ def _targets(conn, cache_coords, limit, refresh, retry_failed=False):
     return out
 
 
+def _backfill_pairs(conn, limit=None, refresh=False, stale_days=None):
+    """Phase B 대상 — 매칭된 (complex_no, area_no) 쌍, 우선순위순.
+
+    이어받기: **naver_pair_status에 이미 확인된 쌍은 skip**(실거래 0건 쌍도 확인 완료로 기록돼
+    매 실행 재크롤 안 함 — M3 수정). --refresh면 전량 재수집.
+    stale_days 지정(증분): 그 일수보다 오래 전 확인된 쌍만 재수집 대상(신선한 쌍은 skip).
+    """
+    from datetime import datetime, timedelta  # noqa: PLC0415
+    from src import naver_store as _ns  # noqa: PLC0415
+
+    if refresh:
+        have = set()
+    elif stale_days is not None:
+        # 증분: stale_days 이내 확인된 쌍만 '완료'로 봐 제외 → 오래된 쌍은 재대상.
+        cutoff = (datetime.now() - timedelta(days=stale_days)).strftime("%Y-%m-%d %H:%M:%S")
+        have = _ns.checked_pairs(conn, stale_before=cutoff)
+    else:
+        have = _ns.checked_pairs(conn)   # 처리한 모든 쌍(0건 포함) skip
+    rows = conn.execute(
+        "SELECT np.complex_no, np.area_no, MAX(np.complex_name) name, "
+        "  MIN(CASE WHEN sl.est_market_price IS NULL THEN 0 "
+        "      WHEN sl.market_scope='same_dong_fallback' THEN 1 ELSE 2 END) pri, "
+        "  MAX(sl.property_type) ptype "
+        "FROM naver_prices np JOIN scored_listings sl "
+        "  ON sl.court=np.court AND sl.case_no=np.case_no AND sl.item_no=np.item_no "
+        "WHERE np.complex_no IS NOT NULL AND np.complex_no != '' "
+        "  AND np.area_no IS NOT NULL AND np.area_no != '' "
+        "GROUP BY np.complex_no, np.area_no ORDER BY pri, np.complex_no").fetchall()
+    out = [r for r in rows if (r["complex_no"], r["area_no"]) not in have]
+    return out[:limit] if limit else out
+
+
+def backfill_real(args) -> int:
+    """Phase B: 매칭된 쌍의 prices/real 실거래 + overview + 호가를 단지 단위로 백필.
+
+    --incremental: naver_pair_status 기준 stale_days(기본 14)보다 오래된 쌍 + 미확인 신규 쌍만.
+    매일 스케줄에서 이 모드로 돌면 안티밴 예산을 아끼며 신선도를 유지한다.
+    """
+    conn = store.connect(args.db)
+    ns.ensure_schema(conn)
+    stale = args.stale_days if getattr(args, "incremental", False) else None
+    pairs = _backfill_pairs(conn, args.limit, args.refresh, stale_days=stale)
+    total = len(pairs)
+    mode = f"증분(>{args.stale_days}일)" if stale is not None else ("전량재수집" if args.refresh else "이어받기")
+    print(f"[*] backfill-real 대상 {total}쌍 (DB={args.db}, 모드={mode})", flush=True)
+    if not total:
+        return 0
+    cache = Cache()
+    mn = float(os.environ.get("AUCTION_NAVER_MIN", "1.5"))
+    mx = float(os.environ.get("AUCTION_NAVER_MAX", "3.0"))
+    # 실거래 페이지 캡(2026-07-19 속도튜닝): 80p는 대단지에서 쌍당 ~90콜 → 45h ETA 실측.
+    # 25p(~250행)면 최근 5~10년 확보 — 창 계층화(최대 60개월)·차트에 충분, 옛 꼬리만 포기.
+    real_cap = int(os.environ.get("AUCTION_NAVER_REAL_PAGES", "25"))
+    nc = NaverClient(min_delay=mn, max_delay=mx)
+    now = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+    n_rows = n_pairs = n_trunc = 0
+    n_fail = 0
+    try:
+        for i, p in enumerate(pairs, 1):
+            cno, ano = str(p["complex_no"]), str(p["area_no"])
+            try:
+                # 1) 실거래(핵심) — 캐시 저장(C1) 후 upsert
+                rows, meta = nc.real_prices(cno, ano, max_pages=real_cap)
+                cache.real[f"{cno}:{ano}"] = {"rows": rows, "meta": meta}
+                if not meta["exhausted"]:
+                    n_trunc += 1
+                saved = ns.upsert_real_trades(conn, cno, ano, rows, now)
+                n_rows += saved
+                n_pairs += 1
+                # (M3) 쌍 처리상태 기록 — 0건이어도 '확인함'으로 남겨 재크롤 방지·증분 기준.
+                live = ns.load_real_trades(conn, cno, ano)
+                latest = live[0]["trade_ymd"] if live else ""
+                ns.record_pair_status(conn, cno, ano, len(live), latest,
+                                      meta.get("exhausted", True), now)
+                # 2) overview(단지당 1회) — 전세가율·매물수·세대수
+                if cno not in cache.overview:
+                    cache.overview[cno] = nc.overview(cno) or {}
+                    det = cache.complex_detail.get(cno) or {}
+                    ns.upsert_complex(conn, det, now, overview=cache.overview[cno])
+            except NaverBlocked:
+                raise   # 차단·kill-switch는 전체 중단(우회 금지)
+            except Exception as e:  # noqa: BLE001 — 한 쌍 실패가 10시간 크롤을 죽이지 않게
+                # (실측 2026-07-19) 일시 오류 미방어로 246쌍에서 전체 크래시 — 쌍 단위로 격리하고
+                # 스킵을 침묵시키지 않는다(개수·로그). 스킵된 쌍은 다음 실행 이어받기가 재시도.
+                n_fail += 1
+                print(f"  ⚠ 쌍 실패 skip ({cno}:{ano}) {type(e).__name__}: {str(e)[:60]}", flush=True)
+            # (속도튜닝) 호가는 백필에서 제외 — 실거래가 생기면 호가 폴백 중요도가 급락하고,
+            # 호가 신선도는 Phase A·일일 증분 크롤 몫. 쌍당 콜 ~90→~7로 감축(45h→~6h).
+            if i % 10 == 0 or i == total:
+                cache.save()
+                pct = 100 * i // total
+                print(f"  [{pct:3d}%] {i}/{total}쌍 — 실거래 {n_rows}행"
+                      f"{f'·잘림 {n_trunc}' if n_trunc else ''} (콜 {nc.calls}) {p['name'][:12]}", flush=True)
+    except NaverBlocked as e:
+        print(f"[중단] {e} — {n_pairs}쌍/{n_rows}행까지 저장됨(이어받기 가능)", flush=True)
+    finally:
+        cache.save()
+        nc.close()
+    print(f"[완료] {n_pairs}쌍 · 실거래 {n_rows}행 적재 (잘림 {n_trunc}·실패skip {n_fail})", flush=True)
+    return 0
+
+
 def main(argv=None) -> int:
     ap = argparse.ArgumentParser(description="네이버 KB시세·호가 수집")
     ap.add_argument("--db", default=os.environ.get("AUCTION_DB", "auction.db"))
@@ -108,10 +225,20 @@ def main(argv=None) -> int:
     ap.add_argument("--retry-failed", dest="retry_failed", action="store_true",
                     help="실패로 저장된 행(no_match/no_kb/no_coord)만 재시도 — 성공분은 유지. "
                          "코드 수정(음차맵·유형버그) 후 옛 실패분 회수용")
+    ap.add_argument("--backfill-real", dest="backfill_real", action="store_true",
+                    help="Phase B: 매칭된 (단지,평형) 쌍의 prices/real 실거래를 단지 단위로 백필")
+    ap.add_argument("--incremental", action="store_true",
+                    help="증분 갱신: naver_pair_status 기준 오래된(>stale-days) 쌍+신규만 재수집(일일 스케줄용)")
+    ap.add_argument("--stale-days", dest="stale_days", type=int, default=14,
+                    help="증분 신선도 기준(일). 이보다 오래 확인 안 된 쌍만 재수집")
     args = ap.parse_args(argv)
     _load_env()
 
+    if args.backfill_real:
+        return backfill_real(args)
+
     conn = store.connect(args.db)
+    ns.ensure_schema(conn)
     coord_cache = coords.load_coord_cache()
     targets = _targets(conn, coord_cache, args.limit, args.refresh, args.retry_failed)
     total = len(targets)
@@ -131,7 +258,7 @@ def main(argv=None) -> int:
             row = {"court": r["court"], "case_no": r["case_no"], "item_no": r["item_no"],
                    "fetched_at": now, "status": "no_match"}
             try:
-                _process(nc, cache, r, pt, row)
+                _process(nc, cache, r, pt, row, conn=conn, now=now)
             except NaverBlocked:
                 raise
             except Exception as e:  # noqa: BLE001 — 한 건 실패가 전체를 막지 않게
@@ -155,7 +282,7 @@ def main(argv=None) -> int:
     return 0
 
 
-def _process(nc, cache, r, pt, row):
+def _process(nc, cache, r, pt, row, conn=None, now=""):
     if not pt:
         row["status"] = "no_coord"
         return
@@ -185,35 +312,55 @@ def _process(nc, cache, r, pt, row):
     pys = det.get("complexPyeongDetailList") or []
     area = float(r["area_m2"] or 0)
     bestpy, bd = naver_match.best_area(area, pys)
+    if not bestpy or naver_match.accept(bs, bd) is None:
+        # (P0 실측 2026-07-19) 캐시된 상세가 평형 일부만 담고 있던 사례(24958: 6평형 중 1개) —
+        # 캐시 불완전이 무매칭으로 굳지 않게, 면적 매칭 실패 시 상세를 1회 강제 재수집 후 재시도.
+        cache.complex_detail[cno] = nc.complex_detail(cno) or {}
+        det = cache.complex_detail[cno]
+        pys = det.get("complexPyeongDetailList") or []
+        bestpy, bd = naver_match.best_area(area, pys)
     conf = naver_match.accept(bs, bd) if bestpy else None
     row.update(complex_no=cno, complex_name=best.get("complexName", ""), match_conf=conf or "저신뢰")
     if not conf:
         row["status"] = "no_match"
         return
-    an = bestpy.get("pyeongNo") or bestpy.get("areaNo")
-    row["area_no"] = str(an)
+    an = str(bestpy.get("pyeongNo") or bestpy.get("areaNo"))
+    row["area_no"] = an
+    # 단지 메타(overview 포함) — 전세가율·매물수·세대수·사용승인일 (2026-07-19 개편)
+    if conn is not None:
+        if cno not in cache.overview:
+            cache.overview[cno] = nc.overview(cno) or {}
+        ns.upsert_complex(conn, det, now, overview=cache.overview[cno])
     kbkey = f"{cno}:{an}"          # 같은 단지·같은 면적타입 KB시세 재요청 방지
     if kbkey not in cache.kb:
         cache.kb[kbkey] = nc.kb_price(cno, an)
     prices = cache.kb[kbkey]
+    if conn is not None and prices:
+        ns.upsert_kb_history(conn, cno, an, prices, now)   # 시계열 전체 보존(종전 [0]만 쓰고 폐기)
+    # 호가 — 항상 수집(C2-a: 종전 'KB 있으면 스킵'은 교차검증 불가) + 전 페이지(C2-b).
+    akey = f"{cno}:{kind}"
+    if akey not in cache.arts:
+        arts_all, _complete = nc.articles_all(cno, kind=kind)
+        cache.arts[akey] = arts_all
+    arts = cache.arts[akey]
+    if conn is not None and arts:
+        ns.upsert_articles(conn, cno, arts, now)
+    prc = [_parse_kor_price(a.get("dealOrWarrantPrc")) for a in arts
+           if abs(float(a.get("area2") or a.get("area1") or 0) - area) < 8]
+    prc = [x for x in prc if x]
+    if prc:
+        row.update(ask_min=min(prc), ask_max=max(prc), ask_count=len(prc))
     if prices:
         p = prices[0]
         row.update(status="matched_kb", base_ymd=p.get("baseYearMonthDay", ""),
                    kb_low=_won_from_manwon(p.get("dealLowPriceLimit")),
                    kb_avg=_won_from_manwon(p.get("dealAveragePrice")),
                    kb_high=_won_from_manwon(p.get("dealUpperPriceLimit")),
-                   lease_avg=_won_from_manwon(p.get("leaseAveragePrice")))
-        return
-    # KB 미등재(주상복합 등) → 호가 폴백. 단지·유형별 호가목록 캐시.
-    akey = f"{cno}:{kind}"
-    if akey not in cache.arts:
-        cache.arts[akey] = nc.articles(cno, kind=kind)
-    arts = cache.arts[akey]
-    prc = [_parse_kor_price(a.get("dealOrWarrantPrc")) for a in arts
-           if abs(float(a.get("area2") or a.get("area1") or 0) - area) < 8]
-    prc = [x for x in prc if x]
-    if prc:
-        row.update(status="matched_ask", ask_min=min(prc), ask_max=max(prc), ask_count=len(prc))
+                   lease_avg=_won_from_manwon(p.get("leaseAveragePrice")),
+                   lease_low=_won_from_manwon(p.get("leaseLowPriceLimit")),
+                   lease_high=_won_from_manwon(p.get("leaseUpperPriceLimit")))
+    elif prc:
+        row["status"] = "matched_ask"
     else:
         row["status"] = "no_kb"
 

@@ -43,6 +43,8 @@ _COMMON_TAGS = {
     "floor": ("층", "floor"),
     "cdeal_type": ("해제여부", "cdealType"),        # "O"=해제(취소)거래 → 시세 comps에서 제외
     "cdeal_day": ("해제사유발생일", "cdealDay"),     # 해제사유발생일(YY.MM.DD, 감사용)
+    "dealing_gbn": ("거래유형", "dealingGbn"),       # "중개거래"/"직거래" — 직거래=가족 저가양도 가능(표시용)
+    "rgst_date": ("등기일자", "rgstDate"),           # 등기완료일 — 확정 체결 신호(YY.MM.DD)
 }
 _SUCCESS_CODES = {"00", "000"}
 
@@ -129,6 +131,8 @@ def _parse_root(root: ET.Element, kind: str) -> list[Trade]:
             kind=kind,
             cdeal_type=_find(item, _COMMON_TAGS["cdeal_type"]),
             cdeal_day=_find(item, _COMMON_TAGS["cdeal_day"]),
+            dealing_gbn=_find(item, _COMMON_TAGS["dealing_gbn"]),
+            rgst_date=_find(item, _COMMON_TAGS["rgst_date"]),
         ))
     return trades
 
