@@ -1,6 +1,129 @@
 {% extends "base.html" %}
 {% block title %}{{ s.apt_name or s.property_type }} — 차익 분석{% endblock %}
 
+{% block head %}
+{% if coord %}
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"
+      integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY=" crossorigin=""/>
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"
+        integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=" crossorigin=""></script>
+{% endif %}
+<style>
+  .dmap{height:300px;width:100%;background:var(--surface-sunken);z-index:0}
+  .dmap-empty{padding:28px var(--sp-5);text-align:center;color:var(--ink-500);font-size:14px;line-height:1.7;background:var(--surface-sunken)}
+  .dmap-empty span{display:block;font-size:12.5px;color:var(--ink-400);margin-top:4px}
+  .dmap-bar{display:flex;align-items:center;gap:12px;flex-wrap:wrap;justify-content:space-between;padding:12px var(--sp-5);border-top:1px solid var(--hairline)}
+  .dmap-addr{font-size:13px;color:var(--ink-700);font-weight:600;flex:1 1 200px;min-width:0}
+  .dmap-acts{display:flex;gap:8px;flex-wrap:wrap}
+  .dmap-btn{display:inline-flex;align-items:center;gap:4px;font-size:13px;font-weight:600;
+    padding:7px 13px;border-radius:var(--r-pill);border:1px solid var(--hairline-strong);
+    color:var(--ink-700);background:var(--surface);white-space:nowrap;cursor:pointer;
+    transition:background .15s,border-color .15s,transform .05s}
+  .dmap-btn:hover{background:var(--surface-sunken);border-color:var(--ink-400)}
+  .dmap-btn:active{transform:translateY(1px)}
+  .dmap-btn.primary{background:var(--ink-800);color:#fff;border-color:var(--ink-800)}
+  .dmap-btn.primary:hover{background:var(--ink-900,#0d1524)}
+  .dmap-note{margin:0;padding:2px var(--sp-5) 14px;font-size:11.5px;color:var(--ink-400);line-height:1.6}
+  .leaflet-popup-content{font-size:13px;font-weight:700;margin:8px 12px}
+  .dmap-hint{position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);z-index:400;pointer-events:none;
+    background:rgba(13,21,36,.62);color:#fff;font-size:12px;font-weight:600;padding:6px 12px;border-radius:var(--r-pill);
+    opacity:0;transition:opacity .2s}
+  .dmap.show-hint .dmap-hint{opacity:1}
+
+  /* ══ 맥시멀 대시보드 v2(2026-07-19): 탭 제거 + '존' 기반 정돈 ══
+     헤더띠 → KPI 스탯밴드 → 미디어행(사진|지도 등높이) → 3컬럼(권리|시세|수익)
+     → 감정요항 전폭 2단 → 공시/면책 푸터. 모바일(<1100px)은 세로 스택 폴백. */
+
+  /* KPI 스탯 밴드 — 핵심 숫자 6개를 한 줄에. 시선의 첫 정거장. */
+  .dkpi{display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin:var(--sp-4) 0 0}
+  .dkpi-t{background:var(--surface);border:1px solid var(--hairline);border-radius:var(--r-lg);
+    padding:12px 16px 13px;box-shadow:var(--e1,0 1px 2px rgba(13,21,36,.04))}
+  .dkpi-t .k{display:block;font-size:11.5px;font-weight:700;color:var(--ink-400);letter-spacing:.02em;white-space:nowrap}
+  .dkpi-t .v{display:block;margin-top:3px;font-size:21px;font-weight:800;color:var(--ink-900);
+    font-variant-numeric:tabular-nums;letter-spacing:-.01em;white-space:nowrap}
+  .dkpi-t .s{font-size:11px;font-weight:700;color:var(--ink-400)}
+  .dkpi-t.hot{background:var(--gain-weak,#eefaf2);border-color:var(--gain,#1e8c46)}
+  .dkpi-t.hot .k{color:var(--gain-strong,#166b36)}
+  .dkpi-t.hot .v{color:var(--gain-strong,#166b36)}
+  .dkpi-t.hot.neg{background:var(--risk-weak,#fdeeee);border-color:var(--risk)}
+  .dkpi-t.hot.neg .k,.dkpi-t.hot.neg .v{color:var(--risk-strong,#a32020)}
+  .dkpi-t .badge{display:inline-block;font-size:10.5px;font-weight:800;color:var(--caution-ink,#8a5a00);
+    background:var(--caution-weak,#fff4e0);border-radius:var(--r-pill);padding:1px 7px;margin-left:6px;vertical-align:2px}
+
+  /* 미디어 행 — 실물(사진)과 위치(지도)를 같은 높이로 나란히 */
+  .dmedia{margin-top:var(--sp-4)}
+  .dmedia .dphoto,.dmedia .dphoto-empty{margin:0}
+  .dmapcard{background:var(--surface);border:1px solid var(--hairline);border-radius:var(--r-xl);
+    overflow:hidden;box-shadow:var(--e2);display:flex;flex-direction:column;margin-top:var(--sp-3)}
+  .dmapcard .dmap{flex:1 1 auto;min-height:260px}
+  .dmapcard .dmap-empty{flex:1 1 auto;display:flex;flex-direction:column;justify-content:center}
+
+  /* 섹션 헤더 통일 — 컬럼 안에서 밀도 있게 */
+  .dpane .dstep-head{margin-bottom:10px}
+  .dpane .dstep-head h2{font-size:16.5px}
+  .dpane{gap:var(--sp-4)}
+
+  /* 감정 요항 전폭 존 — 참고자료로 강등(2단·저채도) */
+  .dnotes-zone .dpanel{background:var(--surface-sunken)}
+  .dnotes-cols{column-count:1;column-gap:40px}
+  .dnotes-cols .drow{break-inside:avoid}
+
+  /* 차트(네이버 부동산 시세 문법) — 스와치 + 흰 카드 툴팁 (페이지 로컬) */
+  .ptc-legend .sw.bandhi{width:16px;height:0;border-top:2.5px solid #e8574f;border-radius:0;background:none;align-self:center}
+  .ptc-legend .sw.bandlo{width:16px;height:0;border-top:2.5px solid #3f74e0;border-radius:0;background:none;align-self:center}
+  .ptc-legend .sw.trade{background:#8b46c9;border-radius:50%}
+  .ptc-legend .sw.hist{background:var(--ink-300);border-radius:50%}
+  .ptc-legend .sw.minbid{background:var(--ink-800)}
+  .ptc .ptc-tt{background:#fff;color:var(--ink-900);border:1px solid var(--hairline-strong);box-shadow:var(--e3);min-width:150px}
+  .ptc .ptc-tt::after{border-top-color:#fff}
+  .ptc .ptc-tt .th{font-size:12px;font-weight:800;color:var(--ink-900);padding-bottom:5px;margin-bottom:5px;border-bottom:1px solid var(--hairline)}
+  .ptc .ptc-tt .tr{display:flex;justify-content:space-between;gap:16px;font-size:12px;font-weight:600;margin-top:3px}
+  .ptc .ptc-tt .tr .n{font-weight:700}
+  .ptc .ptc-tt .tr .w{color:var(--ink-900);font-weight:800;font-variant-numeric:tabular-nums}
+
+  .dcol-label{display:none}
+
+  @media(min-width:1100px){
+    main.wrap{max-width:1800px}
+    .ddetail{max-width:none;display:grid;
+      grid-template-columns:1fr 1fr 1fr;
+      grid-template-areas:
+        "head  head  head"
+        "kpi   kpi   kpi"
+        "gate  gate  gate"
+        "media media media"
+        "a     b     c"
+        "notes notes notes"
+        "foot  foot  foot"
+        "bar   bar   bar";
+      column-gap:36px;align-items:start}
+    .dhead{grid-area:head}
+    .dkpi{grid-area:kpi;grid-template-columns:repeat(6,1fr);gap:12px}
+    .ddetail>.gatebar{grid-area:gate}
+    .dmedia{grid-area:media;display:grid;grid-template-columns:1fr 1fr;gap:20px;align-items:stretch}
+    .dmedia .dphoto{height:430px}
+    .dmedia .dphoto-track{aspect-ratio:auto;height:100%}
+    .dmedia .dphoto-empty{height:430px;display:flex;flex-direction:column;justify-content:center;margin:0}
+    .dmapcard{margin-top:0;height:430px}
+    #pane-auction{grid-area:a}
+    #pane-value{grid-area:b}
+    #pane-profit{grid-area:c}
+    .dnotes-zone{grid-area:notes;margin-top:var(--sp-6)}
+    .dnotes-cols{column-count:2}
+    .dfootzone{grid-area:foot;margin-top:var(--sp-5)}
+    .dbottom{grid-area:bar}
+    /* 컬럼 상단 라벨 — 3영역 구획을 명시 */
+    .dcol-label{display:flex;align-items:baseline;gap:8px;font-size:13px;font-weight:800;
+      color:var(--ink-800);border-bottom:2px solid var(--ink-800);padding-bottom:9px;letter-spacing:.01em}
+    .dcol-label .n{font-size:11px;font-weight:800;color:var(--surface);background:var(--ink-800);
+      border-radius:6px;padding:1px 7px;letter-spacing:.05em}
+    .dcol-label .d{margin-left:auto;font-size:11px;font-weight:600;color:var(--ink-400)}
+  }
+  @media(min-width:1500px){ .ddetail{column-gap:44px} .dmedia{gap:24px} }
+  @media(max-width:1099px){ .dkpi{grid-template-columns:repeat(2,1fr)} }
+</style>
+{% endblock %}
+
 {%- macro statuschip(s) -%}
 {%- if s.grade == '권리미확인' -%}<span class="chip pending"><span class="cdot"></span>권리미확인</span>
 {%- elif s.grade == '위험' -%}<span class="chip risk">위험</span>
@@ -31,24 +154,8 @@
 
 <div class="ddetail">
 
-  <!-- 물건 사진 히어로 (스와이프 + 클릭 확대) -->
-  {% if photos %}
-  <div class="dphoto">
-    {% if photos|length > 1 %}<span class="cnt">📷 {{ photos|length }}</span>{% endif %}
-    <div class="dphoto-track">
-      {% for p in photos %}<img src="{{ p }}" alt="물건 사진 {{ loop.index }}" width="800" height="600" decoding="async" loading="{{ 'eager' if loop.first else 'lazy' }}">{% endfor %}
-    </div>
-    {% if photos|length > 1 %}
-    <button type="button" class="dphoto-nav prev" aria-label="이전 사진" hidden>‹</button>
-    <button type="button" class="dphoto-nav next" aria-label="다음 사진">›</button>
-    <div class="dphoto-dots">{% for p in photos %}<i class="{{ 'on' if loop.first }}"></i>{% endfor %}</div>
-    {% endif %}
-  </div>
-  {% else %}
-  <div class="dphoto-empty" role="note">📷 등록된 물건 사진이 없습니다 <span>(법원 미제공이거나 아직 수집 전)</span></div>
-  {% endif %}
-
-  <!-- 제목 -->
+  <!-- ── 존 1: 헤더(제목·메타) ── -->
+  <div class="dhead">
   <div class="dtitle" style="margin-top:var(--sp-3)">
     <div>
       <div class="hd">
@@ -62,39 +169,75 @@
       </div>
     </div>
   </div>
+  </div><!-- /dhead -->
 
-  <!-- 핵심 요약 카드 -->
-  <div class="dsum">
-    <div class="dsum-card">
-      <div class="dsum-row"><span class="l">감정가</span><span class="val">{{ won(s.appraisal_price) }}</span></div>
-      <div class="dsum-row"><span class="l">최저입찰가{% if cut_rate is not none and cut_rate > 0.01 %} <span class="dsum-badge">감정 대비 −{{ (cut_rate*100)|round|int }}%</span>{% endif %}</span><span class="val">{{ won(s.min_bid_price) }}</span></div>
-      {% set is_reauction = s.fail_count == 0 and cut_rate is not none and cut_rate > 0.01 %}
-      <div class="dsum-row"><span class="l">입찰보증금 <span style="color:var(--ink-500)">{% if is_reauction %}(재매각 · 통상 20~30%){% else %}(통상 10%){% endif %}</span></span><span class="val">{{ won((s.min_bid_price * 0.1)|round|int) }}{% if is_reauction %}<b class="alpha" style="font-size:11px;color:var(--caution)" title="재매각(전 낙찰자 대금미납)은 통상 보증금 20~30% — 최저가의 2~3배 현금 필요"> ×2~3</b>{% endif %}</span></div>
+  <!-- ── 존 2: KPI 스탯 밴드 — 핵심 숫자 6개, 시선의 첫 정거장 ── -->
+  {% set is_reauction = s.fail_count == 0 and cut_rate is not none and cut_rate > 0.01 %}
+  {% set dd = days_until(s.sale_date) if s.sale_date else None %}
+  <div class="dkpi">
+    <div class="dkpi-t"><span class="k">감정가</span><span class="v">{{ won(s.appraisal_price) }}</span></div>
+    <div class="dkpi-t"><span class="k">최저입찰가{% if cut_rate is not none and cut_rate > 0.01 %}<span class="badge">−{{ (cut_rate*100)|round|int }}%</span>{% endif %}</span><span class="v">{{ won(s.min_bid_price) }}</span></div>
+    <div class="dkpi-t"><span class="k">입찰보증금 <span class="s">{% if is_reauction %}(재매각 20~30%){% else %}(통상 10%){% endif %}</span></span><span class="v">{{ won((s.min_bid_price * 0.1)|round|int) }}{% if is_reauction %}<span class="s" style="color:var(--caution)" title="재매각(전 낙찰자 대금미납)은 통상 보증금 20~30% — 최저가의 2~3배 현금 필요"> ×2~3</span>{% endif %}</span></div>
+    <div class="dkpi-t"><span class="k">{% if s.market_source == 'kb' %}KB 시세{% elif s.market_source == 'ask' %}호가 기반 시세{% elif s.market_source == 'lease' %}전세 역산 시세{% elif s.market_band_low is not none %}실거래 시세 <span class="s">(검증 하한)</span>{% elif s.est_market_price %}추정 시세{% else %}시세{% endif %}</span><span class="v">{% if s.market_band_low is not none %}{{ won(s.market_band_low) }}{% elif s.est_market_price %}{{ won(s.est_market_price) }}{% else %}—{% endif %}</span></div>
+    <div class="dkpi-t hot{% if hero_worst is not none and hero_worst < 0 %} neg{% endif %}">
+      <span class="k">예상 차익{% if has_burden %} <span class="s">(최대 인수 반영)</span>{% endif %}</span>
+      <span class="v">{% if hero_worst is not none %}{{ won(hero_worst) }}{% if badge and badge.amount_unknown %}<span class="s" style="color:var(--risk)"> −α</span>{% endif %}{% else %}—{% endif %}</span>
+      {% if has_burden and hero_best is not none %}<span class="s">최선 {{ won(hero_best) }}까지 · 배당 0 가정 상한</span>{% endif %}
     </div>
-    <div class="dsum-card accent{% if hero_worst is not none and hero_worst < 0 %} neg{% endif %}">
-      <div class="dsum-row"><span class="l">{% if s.market_source == 'kb' %}KB 시세 {{ srcpill('kb') }}{% elif s.market_source == 'ask' %}호가 기반 시세 {{ srcpill('ask') }}{% elif s.market_source == 'lease' %}전세 역산 시세 {{ srcpill('lease') }}{% elif s.market_band_low is not none %}실거래 시세 <span style="color:var(--ink-400)">(검증 하한)</span>{% elif s.est_market_price %}추정 시세{% else %}시세{% endif %}</span><span class="val">{% if s.market_band_low is not none %}{{ won(s.market_band_low) }}{% elif s.est_market_price %}{{ won(s.est_market_price) }}{% else %}—{% endif %}</span></div>
-      <div class="dsum-row"><span class="l">예상 차익{% if has_burden %} <span style="color:var(--ink-400)">(최대 인수 반영)</span>{% endif %}</span><span class="val {% if hero_worst is not none %}{{ 'neg' if hero_worst < 0 else 'gain' }}{% endif %}">{% if hero_worst is not none %}{{ won(hero_worst) }}{% if badge and badge.amount_unknown %}<span class="sm" style="color:var(--risk)"> −α</span>{% endif %}{% else %}—{% endif %}</span></div>
-      {% if has_burden and hero_best is not none %}
-      <div class="dsum-range">범위 <b style="color:var(--risk)">{% if badge.amount_unknown %}−α{% else %}{{ won(hero_worst) }}{% endif %}</b> 최악 ~ <b style="color:var(--gain-strong)">{{ won(hero_best) }}</b> 최선 · 배당 0 가정 상한이라 실제는 보통 이보다 큼</div>
-      {% endif %}
-    </div>
+    <div class="dkpi-t"><span class="k">매각기일</span><span class="v" style="font-size:18px">{{ s.sale_date or '미상' }}{% if dd is not none and dd >= 0 %} <span class="s" style="color:var(--risk-strong);font-size:12px">D-{{ dd }}</span>{% endif %}</span></div>
   </div>
 
-  <!-- 통합 게이트 배너 -->
+  <!-- ── 존 3: 통합 게이트 배너 ── -->
   <div class="gatebar">
     <span class="ic">⚠</span>
     <p><b>권리 확인 완료 전까지 최종 판단 금지.</b> 매각물건명세서·현황조사서·등기부등본으로 인수 권리를 직접 확인하기 전에는 위 수치가 입찰 근거가 될 수 없습니다. 1차 필터용 검토 보조 자료입니다.</p>
   </div>
 
-  <!-- 3탭 -->
-  <div class="tabbar d3" id="dtabs" role="tablist" aria-label="물건 상세 섹션">
-    <button class="on" role="tab" aria-selected="true" data-tab="pane-auction">경매정보</button>
-    <button role="tab" aria-selected="false" data-tab="pane-value">시세·수익</button>
-    <button role="tab" aria-selected="false" data-tab="pane-site">현장·기타</button>
+  <!-- ── 존 4: 미디어 행 — 실물 사진 | 위치 지도 (같은 높이) ── -->
+  <div class="dmedia">
+    {% if photos %}
+    <div class="dphoto">
+      {% if photos|length > 1 %}<span class="cnt">📷 {{ photos|length }}</span>{% endif %}
+      <div class="dphoto-track">
+        {% for p in photos %}<img src="{{ p }}" alt="물건 사진 {{ loop.index }}" width="800" height="600" decoding="async" loading="{{ 'eager' if loop.first else 'lazy' }}">{% endfor %}
+      </div>
+      {% if photos|length > 1 %}
+      <button type="button" class="dphoto-nav prev" aria-label="이전 사진" hidden>‹</button>
+      <button type="button" class="dphoto-nav next" aria-label="다음 사진">›</button>
+      <div class="dphoto-dots">{% for p in photos %}<i class="{{ 'on' if loop.first }}"></i>{% endfor %}</div>
+      {% endif %}
+    </div>
+    {% else %}
+    <div class="dphoto-empty" role="note">📷 등록된 물건 사진이 없습니다 <span>(법원 미제공이거나 아직 수집 전)</span></div>
+    {% endif %}
+    <div class="dmapcard">
+      {% if coord %}
+      <div class="dmap" id="dmap"
+           data-lat="{{ coord[0] }}" data-lon="{{ coord[1] }}"
+           data-name="{{ (s.apt_name or s.property_type)|e }}"
+           role="application" aria-label="{{ (s.apt_name or s.property_type)|e }} 위치 지도"></div>
+      {% else %}
+      <div class="dmap-empty" role="note">📍 법원 공고에 좌표가 없어 지도를 바로 표시할 수 없습니다.
+        <span>아래 버튼으로 주소를 검색해 위치를 확인하세요.</span></div>
+      {% endif %}
+      <div class="dmap-bar">
+        <div class="dmap-addr">{{ s.address }}</div>
+        <div class="dmap-acts">
+          {% if coord %}
+          <a class="dmap-btn primary" href="https://map.kakao.com/link/roadview/{{ coord[0] }},{{ coord[1] }}" target="_blank" rel="noopener">🛣 로드뷰</a>
+          <a class="dmap-btn" href="https://map.kakao.com/link/map/{{ (s.apt_name or s.property_type)|urlencode }},{{ coord[0] }},{{ coord[1] }}" target="_blank" rel="noopener">카카오맵 ↗</a>
+          <a class="dmap-btn" href="https://map.kakao.com/link/to/{{ (s.apt_name or s.property_type)|urlencode }},{{ coord[0] }},{{ coord[1] }}" target="_blank" rel="noopener">길찾기</a>
+          {% else %}
+          <a class="dmap-btn primary" href="https://map.kakao.com/link/search/{{ s.address|urlencode }}" target="_blank" rel="noopener">주소로 위치·로드뷰 검색 ↗</a>
+          {% endif %}
+        </div>
+      </div>
+    </div>
   </div>
 
-  <!-- ══════ 탭 1: 경매정보 (권리·기일·감정요항) ══════ -->
+  <!-- ══════ 컬럼 A: 경매정보 (권리·기일·감정요항) — 탭 제거, 상시 노출 ══════ -->
   <div class="dpane" id="pane-auction">
+    <span class="dcol-label"><span class="n">①</span>권리 분석<span class="d">명세서 → 적정성 → 기일</span></span>
     {% if rights %}
     <!-- 법원 매각물건명세서 요지 -->
     <div class="dstep-head"><span class="dstep-num{% if rights.has_risk_text %} risk{% else %} ok{% endif %}">§</span>
@@ -200,22 +343,11 @@
     </div>
     {% endif %}
 
-    {% if rights and rights.appraisal_notes %}
-    <!-- 감정 요항 -->
-    <div class="dstep-head"><span class="dstep-num">評</span>
-      <h2>감정 요항 <span class="sub">· 감정평가서 발췌</span></h2></div>
-    <div class="dpanel">
-      {% for n in rights.appraisal_notes %}
-      <div class="drow" style="align-items:flex-start">
-        <span class="k" style="font-weight:600;min-width:84px;flex:0 0 auto">{{ n.label }}</span>
-        <span class="v" style="font-size:14px;color:var(--ink-700);white-space:pre-line;text-align:left">{{ n.text | deent }}</span></div>
-      {% endfor %}
-    </div>
-    {% endif %}
   </div>
 
-  <!-- ══════ 탭 2: 시세·수익 (차트·차익·세금) ══════ -->
-  <div class="dpane" id="pane-value" hidden>
+  <!-- ══════ 컬럼 B: 시세·수익 (차트·KB) ══════ -->
+  <div class="dpane" id="pane-value">
+    <span class="dcol-label"><span class="n">②</span>시세 검증<span class="d">실거래 추이 → KB·호가</span></span>
     {% if chart.band_now or chart.trades or chart.hist %}
     <!-- 가격-시간 차트 -->
     <div class="dstep-head"><span class="dstep-num">📈</span>
@@ -228,21 +360,23 @@
           {% if chart.trades %}<span class="sep">·</span>실거래 {{ chart.trades|length }}건{% endif %}
         </div>
         <div class="ptc-range" role="tablist" aria-label="차트 기간">
-          <button data-r="2y" aria-pressed="true">최근 2년</button>
-          <button data-r="all" aria-pressed="false">전체(맥락)</button>
+          <button data-r="1y" aria-pressed="false">1년</button>
+          <button data-r="3y" aria-pressed="true">3년</button>
+          <button data-r="5y" aria-pressed="false">5년</button>
+          <button data-r="all" aria-pressed="false">전체</button>
         </div>
       </div>
       <div class="chartwrap"><svg class="ptc-svg" viewBox="0 0 760 400" role="img"
         aria-label="가격-시간 차트: 실거래 체결·호가·시세밴드·유찰 저감·감정가/취득원가 기준선"></svg>
         <div class="ptc-tt" hidden></div></div>
       <div class="ptc-legend">
-        <span><i class="sw trade"></i>실거래 체결</span>
-        {% if chart.hist %}<span><i class="sw hist"></i>과거 실거래(맥락)</span>{% endif %}
-        {% if chart.asks %}<span><i class="sw ask"></i>호가 · 체결가 아님</span>{% endif %}
-        <span><i class="sw band"></i>실거래 시세밴드</span>
+        <span><i class="sw bandhi"></i>시세 상한</span>
+        <span><i class="sw bandlo"></i>시세 하한</span>
+        <span><i class="sw trade"></i>실거래가</span>
+        {% if chart.hist %}<span><i class="sw hist"></i>과거 실거래</span>{% endif %}
+        {% if chart.asks %}<span><i class="sw ask"></i>호가</span>{% endif %}
         <span><i class="sw minbid"></i>유찰 저감</span>
-        {% if chart.gain %}<span><i class="sw gainsw"></i>차익{% if badge and badge.assumed %} (인수금 반영){% endif %}</span>{% endif %}
-        {% if chart.assumed_neg %}<span style="color:var(--risk);font-weight:600">⚠ 인수금 {{ won(badge.assumed) }} 반영 시 차익 없음(음수)</span>{% endif %}
+        {% if chart.assumed_neg %}<span style="color:var(--risk);font-weight:600">⚠ 인수금 {{ won(badge.assumed) }} 반영 시 차익 없음</span>{% endif %}
       </div>
     </div>
     {% elif s.grade == '미지원유형' %}
@@ -273,6 +407,11 @@
     </div>
     {% endif %}
 
+  </div>
+
+  <!-- ══════ 컬럼 C: 수익 계산 (차익·세금) ══════ -->
+  <div class="dpane" id="pane-profit">
+    <span class="dcol-label"><span class="n">③</span>수익 계산<span class="d">차익 산출 → 세금 → 순차익</span></span>
     <!-- 차익 계산 근거 -->
     <div class="dstep-head"><span class="dstep-num">1</span>
       <h2>예상 차익 산출 <span class="sub">· 차익 근거(객관)</span></h2></div>
@@ -325,22 +464,28 @@
     </div>
   </div>
 
-  <!-- ══════ 탭 3: 현장·기타 ══════ -->
-  <div class="dpane" id="pane-site" hidden>
-    <div class="dstep-head"><span class="dstep-num">📍</span>
-      <h2>실물 확인 <span class="sub">· 현장·지도</span></h2></div>
-    <div class="dpanel" style="padding:var(--sp-5)">
-      <a href="https://map.kakao.com/link/search/{{ s.address }}" target="_blank" rel="noopener" style="font-size:15px;font-weight:600">카카오맵에서 위치·로드뷰 보기 →</a>
-      <p style="margin:10px 0 0;font-size:13px;color:var(--ink-500);line-height:1.7">외관·노후도는 로드뷰와 현장 방문으로 확인하세요. 준공연도·위반건축물은 건축물대장 API 활성화 시 자동 표시됩니다.</p>
-    </div>
-    <div class="dstep-head"><span class="dstep-num">📄</span>
-      <h2>공시자료 <span class="sub">· 법원 원문</span></h2></div>
-    <div class="dpanel" style="padding:var(--sp-5)">
-      <p style="margin:0;font-size:13px;color:var(--ink-600);line-height:1.9">매각물건명세서·현황조사서·감정평가서·등기부등본은 <a href="https://www.courtauction.go.kr" target="_blank" rel="noopener">법원경매정보(courtauction.go.kr)</a>에서 사건번호 <b>{{ s.case_no }}</b>({{ s.court }})로 원문을 확인하세요. 입찰 전 등기부등본은 반드시 최신본으로 재확인.</p>
+  <!-- ── 존 6: 감정 요항 — 전폭 참고자료(2단) ── -->
+  {% if rights and rights.appraisal_notes %}
+  <div class="dnotes-zone">
+    <div class="dstep-head"><span class="dstep-num">評</span>
+      <h2>감정 요항 <span class="sub">· 감정평가서 발췌 — 참고자료</span></h2></div>
+    <div class="dpanel">
+      <div class="dnotes-cols">
+      {% for n in rights.appraisal_notes %}
+      <div class="drow" style="align-items:flex-start">
+        <span class="k" style="font-weight:600;min-width:84px;flex:0 0 auto">{{ n.label }}</span>
+        <span class="v" style="font-size:13.5px;color:var(--ink-600);white-space:pre-line;text-align:left">{{ n.text | deent }}</span></div>
+      {% endfor %}
+      </div>
     </div>
   </div>
+  {% endif %}
 
-  <p class="foot" style="color:var(--ink-400)"><b>보수 가격 기준 차익 = 검증 하한가 − (최저입찰가 + 취득세)</b>. 검증 하한가는 같은 단지·같은 평형 실거래 밴드(이상치 제외)의 하한이며, 밴드가 없는 물건은 기준 시세 차익으로 폴백합니다. 취득 시점 표면차익이며 명도비·수리비·권리 인수금액·미납관리비 등 변동비용과 양도세·보유세는 <b>제외</b>돼 있습니다. 검토 보조 도구이며 전문가(법무사 등) 상담을 대체하지 않습니다.</p>
+  <!-- ── 존 7: 공시자료·면책 푸터 ── -->
+  <div class="dfootzone">
+    <p class="foot" style="color:var(--ink-500)">📄 <b>법원 원문</b> — 매각물건명세서·현황조사서·감정평가서·등기부등본은 <a href="https://www.courtauction.go.kr" target="_blank" rel="noopener">법원경매정보(courtauction.go.kr)</a>에서 사건번호 <b>{{ s.case_no }}</b>({{ s.court }})로 확인하세요. 입찰 전 등기부등본은 반드시 최신본으로 재확인. 지도·핀은 법원 공고 좌표(KATEC→WGS84 변환) 기준의 <b>근사 위치</b>이며, 정확한 동·호 위치와 외관·노후도는 로드뷰·현장 방문으로 확인하세요.</p>
+    <p class="foot" style="color:var(--ink-400)"><b>보수 가격 기준 차익 = 검증 하한가 − (최저입찰가 + 취득세)</b>. 검증 하한가는 같은 단지·같은 평형 실거래 밴드(이상치 제외)의 하한이며, 밴드가 없는 물건은 기준 시세 차익으로 폴백합니다. 취득 시점 표면차익이며 명도비·수리비·권리 인수금액·미납관리비 등 변동비용과 양도세·보유세는 <b>제외</b>돼 있습니다. 검토 보조 도구이며 전문가(법무사 등) 상담을 대체하지 않습니다.</p>
+  </div>
 
   <!-- 스티키 하단바 -->
   <div class="dbottom">
@@ -354,18 +499,8 @@
 </div>
 
 <script>
-/* 탭(3패널 전환) + 사진 도트 */
+/* 사진 도트 + 좌우 넘김 (탭은 맥시멀 대시보드 개편으로 제거 — 2026-07-19) */
 (function(){
-  var tabs=document.getElementById('dtabs');
-  if(tabs){ var panes={};
-    document.querySelectorAll('.dpane').forEach(function(p){ panes[p.id]=p; });
-    tabs.addEventListener('click',function(e){ var b=e.target.closest('button'); if(!b)return;
-      var id=b.dataset.tab;
-      tabs.querySelectorAll('button').forEach(function(x){ var on=x===b;
-        x.classList.toggle('on',on); x.setAttribute('aria-selected',on?'true':'false'); });
-      for(var k in panes) panes[k].hidden=(k!==id);
-    });
-  }
   var track=document.querySelector('.dphoto-track'), dots=document.querySelectorAll('.dphoto-dots i');
   var navPrev=document.querySelector('.dphoto-nav.prev'), navNext=document.querySelector('.dphoto-nav.next');
   if(track){
@@ -418,6 +553,34 @@
 </script>
 
 <script>
+/* 인라인 지도 — Leaflet(OSM). 탭 제거로 항상 노출 → 로드 즉시 초기화. */
+(function(){
+  var el=document.getElementById('dmap');
+  if(!el || typeof L==='undefined') return;
+  var map=null, hintTimer=null;
+  function showHint(){ el.classList.add('show-hint'); clearTimeout(hintTimer);
+    hintTimer=setTimeout(function(){ el.classList.remove('show-hint'); },1400); }
+  function init(){
+    if(map){ map.invalidateSize(); return; }
+    var lat=parseFloat(el.dataset.lat), lon=parseFloat(el.dataset.lon);
+    if(isNaN(lat)||isNaN(lon)) return;
+    map=L.map(el,{scrollWheelZoom:false,zoomControl:true}).setView([lat,lon],16);
+    L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png',{maxZoom:19,attribution:'&copy; OpenStreetMap'}).addTo(map);
+    L.marker([lat,lon]).addTo(map).bindPopup('<b>'+(el.dataset.name||'물건 위치')+'</b>').openPopup();
+    // 페이지 스크롤 방해 방지: 지도 클릭(포커스) 후에만 휠 확대. 그 전 휠 시도엔 안내만.
+    var hint=document.createElement('div'); hint.className='dmap-hint'; hint.textContent='지도를 클릭하면 스크롤로 확대할 수 있어요';
+    el.appendChild(hint);
+    el.addEventListener('wheel',function(){ if(!map.scrollWheelZoom.enabled()) showHint(); },{passive:true});
+    map.on('click',function(){ map.scrollWheelZoom.enable(); el.classList.remove('show-hint'); });
+    map.on('mouseout',function(){ map.scrollWheelZoom.disable(); });
+  }
+  init();
+  // 데스크톱↔모바일 전환 시 컬럼 폭이 바뀌므로 타일 재계산
+  var rT=null; window.addEventListener('resize',function(){ clearTimeout(rT); rT=setTimeout(function(){ if(map) map.invalidateSize(); },200); });
+})();
+</script>
+
+<script>
 /* 가격-시간 차트 렌더러 — 서버 pricechart 데이터(#ptc-data)를 SVG로 그린다. */
 (function(){
   var host=document.getElementById('ptc'); if(!host) return;
@@ -427,8 +590,10 @@
       cwrap=host.querySelector('.chartwrap');
   if(!svg) return;
   var NS='http://www.w3.org/2000/svg';
-  var VB=760, VH=400, L=48, R=628, Tp=16, Bp=352;   // L: 좌측 y축 가격 라벨 공간
-  var rangeMode='2y', PTS=[], RLABS=[], D0, D1, PLO, PHI;
+  var VB=760, VH=400, L=48, R=712, Tp=16, Bp=352;   // 우측 상시 라벨 없음(네이버식) — 라인끝 마커 여백만
+  var YEARS={'1y':1,'3y':3,'5y':5};                 // 기간 버튼(네이버식 1/3/5/전체)
+  var UP='#e8574f', DN='#3f74e0', TR='#8b46c9';     // 시세 상한/하한/실거래 — 네이버 컬러 문법
+  var rangeMode='3y', PTS=[], D0, D1, PLO, PHI;
 
   function toMs(s){ if(!s) return null; s=String(s);
     if(s.length>=10) return new Date(s.slice(0,10)+'T00:00:00').getTime();
@@ -451,37 +616,44 @@
 
   function setScales(){
     var ad=allDates(); var t1=Math.max.apply(null, ad.length?ad:[Date.now()]);
-    if(rangeMode==='2y'){ D1=t1; D0=t1 - 2*365.25*24*3600*1000; }
+    if(rangeMode!=='all'){ D1=t1; D0=t1 - (YEARS[rangeMode]||2)*365.25*24*3600*1000; }
     else { D0=Math.min.apply(null, ad.length?ad:[t1]); D1=t1; }
     var pr=[]; if(lv.appraisal)pr.push(lv.appraisal); if(lv.minbid)pr.push(lv.minbid); if(lv.cost)pr.push(lv.cost);
     if(C.band_now){ pr.push(C.band_now.lo); pr.push(C.band_now.hi); }
     function within(ms){ return ms!=null && ms>=D0-1; }
     (C.trades||[]).forEach(function(p){ if(within(toMs(p.ym))) pr.push(p.price); });
-    (C.hist||[]).forEach(function(p){ if(rangeMode==='all' && within(toMs(p.ym))) pr.push(p.price); });
+    (C.hist||[]).forEach(function(p){ if(within(toMs(p.ym))) pr.push(p.price); });
     (C.asks||[]).forEach(function(p){ if(within(toMs(p.date))) pr.push(p.price); });
     var lo=Math.min.apply(null,pr), hi=Math.max.apply(null,pr), pad=(hi-lo)*0.06||hi*0.05||1;
     PLO=lo-pad; PHI=hi+pad;
   }
   function X(ms){ return L+(ms-D0)/(D1-D0)*(R-L); }
   function Y(p){ return Tp+(PHI-p)/(PHI-PLO)*(Bp-Tp); }
-  function rlab(g,p,name,price,color,bold){ RLABS.push({ty:Y(p),n:name,pr:price,c:color,b:bold}); }
-  function drawLabels(g){
-    if(!RLABS.length) return;
-    RLABS.sort(function(a,b){ return a.ty-b.ty; });
-    var GAP=22, y=Tp+4;
-    RLABS.forEach(function(L){ L.y=Math.max(L.ty, y); y=L.y+GAP; });
-    var over=RLABS[RLABS.length-1].y-(Bp-2);
-    if(over>0) RLABS.forEach(function(L){ L.y-=over; });
-    RLABS.forEach(function(L){
-      if(Math.abs(L.y-L.ty)>7) g.appendChild(el('line',{x1:R+1,y1:L.ty,x2:R+7,y2:L.y-3,stroke:L.c,'stroke-width':.8,opacity:.5}));
-      txt(g,R+9,L.y-3,L.n,L.c,10.5,L.b?800:600); txt(g,R+9,L.y+9,L.pr,L.c,11,800);
-    });
-  }
+  /* 네이버식(2026-07-19): 우측 상시 라벨 없음 — 값은 호버 흰 카드로. 월 단위 조회 헬퍼. */
+  var ENVS=(C.band_env||[]).slice().sort(function(a,b){ return a.ym<b.ym?-1:1; });
+  function envAt(ms){ var e=null;
+    for(var i=0;i<ENVS.length;i++){ var t=toMs(ENVS[i].ym); if(t!=null&&t<=ms) e=ENVS[i]; else break; }
+    return e || (C.band_now?{hi:C.band_now.hi,lo:C.band_now.lo}:null); }
+  function stepAt(ms){ var p=null; (C.step||[]).forEach(function(s){ var t=toMs(s.date);
+    if(t!=null&&t<=ms) p=s.price; }); return p; }
+  function monthTrades(ms){ var d=new Date(ms),
+      key=d.getFullYear()+'-'+('0'+(d.getMonth()+1)).slice(-2), out=[];
+    (C.trades||[]).concat(C.hist||[]).forEach(function(p){
+      if(String(p.ym).slice(0,7)===key) out.push(p.price); });
+    return out; }
 
   function draw(){
-    setScales(); while(svg.firstChild) svg.removeChild(svg.firstChild); PTS=[]; RLABS=[];
+    setScales(); while(svg.firstChild) svg.removeChild(svg.firstChild); PTS=[];
     var g=el('g'); svg.appendChild(g);
     var vis=function(ms){ return ms!=null && ms>=D0-1 && ms<=D1+1; };
+
+    // 연도별 세로 줄무늬(짝수 연도 옅게) — 네이버식 시간 리듬
+    (function(){ var y0=new Date(D0).getFullYear(), y1=new Date(D1).getFullYear();
+      for(var y=y0;y<=y1;y++){ if(y%2) continue;
+        var a=Math.max(D0,new Date(y,0,1).getTime()), b=Math.min(D1,new Date(y+1,0,1).getTime());
+        if(b<=a) continue;
+        g.appendChild(el('rect',{x:X(a),y:Tp,width:X(b)-X(a),height:Bp-Tp,fill:'var(--surface-sunken,#f6f7f9)',opacity:.55})); }
+    })();
 
     // Y축 — 가격 눈금(좌측). PLO~PHI 를 5구간으로 나눠 옅은 그리드 + 억 단위 라벨.
     (function(){ var N=5, span=PHI-PLO; if(span<=0) return;
@@ -491,69 +663,59 @@
         txt(g,L-6,yy+3,wonS(pv),'var(--ink-400)',9.5,600,'end'); }
     })();
 
-    // 시세밴드(롤링)
+    // 시세밴드 — 네이버 문법: 면 채우기 대신 상한(빨강)/하한(파랑) 계단 스텝라인 2개
     var env=(C.band_env||[]).filter(function(e){ return vis(toMs(e.ym)); });
+    function stepPath(key){ var d='';
+      env.forEach(function(e,i){ var x=X(toMs(e.ym)).toFixed(1), y=Y(e[key]).toFixed(1);
+        d+= i? ' H'+x+' V'+y : 'M'+x+','+y; });
+      return d+' H'+R; }
+    var endHi=null, endLo=null;
     if(env.length>=1){
-      var d='M', i;
-      for(i=0;i<env.length;i++){ d+=(i?'L':'')+X(toMs(env[i].ym)).toFixed(1)+','+Y(env[i].hi).toFixed(1)+' '; }
-      d+='L'+R+','+Y(env[env.length-1].hi).toFixed(1)+' L'+R+','+Y(env[env.length-1].lo).toFixed(1)+' ';
-      for(i=env.length-1;i>=0;i--){ d+='L'+X(toMs(env[i].ym)).toFixed(1)+','+Y(env[i].lo).toFixed(1)+' '; }
-      d+='Z';
-      g.appendChild(el('path',{d:d,fill:'var(--band-fill,rgba(37,99,235,.09))',stroke:'var(--band-line,#9db8ef)','stroke-width':1,'stroke-linejoin':'round'}));
+      g.appendChild(el('path',{d:stepPath('hi'),fill:'none',stroke:UP,'stroke-width':2,'stroke-linejoin':'round'}));
+      g.appendChild(el('path',{d:stepPath('lo'),fill:'none',stroke:DN,'stroke-width':2,'stroke-linejoin':'round'}));
+      endHi=Y(env[env.length-1].hi); endLo=Y(env[env.length-1].lo);
     } else if(C.band_now){
-      var bh=Y(C.band_now.hi), bl=Y(C.band_now.lo), th=Math.max(4,bl-bh), by=(bh+bl)/2-th/2;
-      g.appendChild(el('rect',{x:L,y:by,width:R-L,height:th,
-        fill:'var(--band-fill,rgba(37,99,235,.12))',stroke:'var(--band-line,#9db8ef)','stroke-width':1,rx:2}));
+      g.appendChild(el('line',{x1:L,y1:Y(C.band_now.hi),x2:R,y2:Y(C.band_now.hi),stroke:UP,'stroke-width':2}));
+      g.appendChild(el('line',{x1:L,y1:Y(C.band_now.lo),x2:R,y2:Y(C.band_now.lo),stroke:DN,'stroke-width':2}));
+      endHi=Y(C.band_now.hi); endLo=Y(C.band_now.lo);
     }
-    if(C.band_now){
-      if(wonS(C.band_now.hi)===wonS(C.band_now.lo))
-        rlab(g,(C.band_now.hi+C.band_now.lo)/2,'현재 시세',wonS(C.band_now.lo),'var(--ink-800)',true);
-      else { rlab(g,C.band_now.hi,'시세 상한',wonS(C.band_now.hi),'var(--ink-600)',false);
-        rlab(g,C.band_now.lo,'검증 하한',wonS(C.band_now.lo),'var(--ink-800)',true); }
-    }
+    // 라인끝 마커(네이버식) — 상한 = 빨강 고리, 하한 = 파랑 점
+    if(endHi!=null) g.appendChild(el('circle',{cx:R,cy:endHi,r:3.5,fill:'var(--surface,#fff)',stroke:UP,'stroke-width':2}));
+    if(endLo!=null) g.appendChild(el('circle',{cx:R,cy:endLo,r:3.5,fill:DN,stroke:'var(--surface,#fff)','stroke-width':1.5}));
 
-    // 감정가 / 취득원가 기준선
-    if(lv.appraisal){ g.appendChild(el('line',{x1:L,y1:Y(lv.appraisal),x2:R,y2:Y(lv.appraisal),stroke:'var(--ink-300)','stroke-width':1.5,'stroke-dasharray':'2 3'}));
-      rlab(g,lv.appraisal,'감정가',wonS(lv.appraisal),'var(--ink-500)',false); }
-    if(lv.cost){ g.appendChild(el('line',{x1:L,y1:Y(lv.cost),x2:R,y2:Y(lv.cost),stroke:'var(--gain)','stroke-width':1.2,'stroke-dasharray':'2 3',opacity:.7}));
-      rlab(g,lv.cost,'취득원가',wonS(lv.cost),'var(--gain-strong)',true); }
+    // 감정가 / 취득원가 기준선 — 라벨은 좌측 인라인(우측 스택 해소)
+    if(lv.appraisal){ var ya=Y(lv.appraisal);
+      g.appendChild(el('line',{x1:L,y1:ya,x2:R,y2:ya,stroke:'var(--ink-300)','stroke-width':1.2,'stroke-dasharray':'2 3'}));
+      txt(g,L+8,ya-5,'감정가 '+wonS(lv.appraisal),'var(--ink-400)',9.5,700); }
+    if(lv.cost){ var yc=Y(lv.cost), flip=lv.appraisal&&Math.abs(Y(lv.appraisal)-yc)<16;
+      g.appendChild(el('line',{x1:L,y1:yc,x2:R,y2:yc,stroke:'var(--gain)','stroke-width':1.2,'stroke-dasharray':'2 3',opacity:.7}));
+      txt(g,L+8,flip?yc+13:yc-5,'취득원가 '+wonS(lv.cost),'var(--gain-strong)',9.5,700); }
+    // (구 '차익 괄호'는 제거 — KPI 밴드가 이미 차익을 크게 보여줌. 차트는 시세 흐름에 집중.)
 
-    // 차익 괄호
-    if(C.gain){ var bx=R+1, y1=Y(C.gain.cost), y2=Y(C.gain.band_lo);
-      g.appendChild(el('path',{d:'M'+(bx+5)+','+y1+' L'+bx+','+y1+' L'+bx+','+y2+' L'+(bx+5)+','+y2,fill:'none',stroke:'var(--gain)','stroke-width':1.5}));
-      RLABS.push({ty:(y1+y2)/2,n:'차익',pr:'+'+wonS(C.gain.amount),c:'var(--gain-strong)',b:true}); }
-
-    // 유찰 저감(드롭 마커)
+    // 유찰 저감 — 경매가 궤적(검정 계단·저채도) + 현재가 강조. 빨강은 시세 상한선에 양보(네이버 문법).
     var step=(C.step||[]).filter(function(s){ return vis(toMs(s.date)); });
     var realSteps=false; if(step.length>1){ var ds={}; step.forEach(function(s){ds[s.date]=1;}); realSteps=Object.keys(ds).length>1; }
     if(step.length){
       var cur=step[step.length-1], curX=X(toMs(cur.date));
       if(realSteps){
-        for(var k=1;k<step.length;k++){ var xx=X(toMs(step[k].date));
-          g.appendChild(el('line',{x1:xx,y1:Y(step[k-1].price),x2:xx,y2:Y(step[k].price),stroke:'var(--ink-500)','stroke-width':2,'stroke-dasharray':'2 3'}));
-          var cut=Math.round((1-step[k].price/step[k-1].price)*100);
-          if(cut>0) txt(g,xx-6,(Y(step[k-1].price)+Y(step[k].price))/2+3,'−'+cut+'%','var(--caution)',10,800,'end'); }
-        step.forEach(function(s,idx){ var xx=X(toMs(s.date)), last=idx===step.length-1;
-          g.appendChild(el('line',{x1:xx-11,y1:Y(s.price),x2:xx+11,y2:Y(s.price),stroke:'var(--ink-700)','stroke-width':3,'stroke-linecap':'round'}));
-          g.appendChild(el('circle',{cx:xx,cy:Y(s.price),r:2.5,fill:'var(--ink-700)'}));
-          if(!last && s.label){ var prevX=idx>0?X(toMs(step[idx-1].date)):xx-999,
-              tight=Math.abs(xx-prevX)<34;
-            txt(g,xx,Y(s.price)-8, tight? s.label : s.label+' '+wonS(s.price),'var(--ink-600)',9.5,700,'middle'); } });
+        var sd='M'+X(toMs(step[0].date)).toFixed(1)+','+Y(step[0].price).toFixed(1);
+        for(var k=1;k<step.length;k++){ sd+=' H'+X(toMs(step[k].date)).toFixed(1)+' V'+Y(step[k].price).toFixed(1); }
+        g.appendChild(el('path',{d:sd,fill:'none',stroke:'var(--ink-700)','stroke-width':1.4,'stroke-dasharray':'4 3',opacity:.55,'stroke-linejoin':'round'}));
+        // 낙폭 % 라벨은 제거(네이버 미니멀리즘) — KPI −30% 뱃지·호버 카드 '유찰 최저가'가 대신함.
       }
-      g.appendChild(el('circle',{cx:curX,cy:Y(cur.price),r:5.5,fill:'var(--risk)',stroke:'var(--surface)','stroke-width':2.5}));
-      PTS.push({cx:curX,cy:Y(cur.price),t:'현재 유찰가',cls:'min',hl:'var(--risk)',ms:toMs(cur.date),p:cur.price,verb:'현재 최저입찰가',sub:'유찰 '+({{ s.fail_count }})+'회'});
+      g.appendChild(el('circle',{cx:curX,cy:Y(cur.price),r:5.5,fill:'var(--ink-800)',stroke:'var(--surface)','stroke-width':2.5}));
+      PTS.push({cx:curX,cy:Y(cur.price),t:'현재 유찰가',cls:'min',hl:'var(--ink-800)',ms:toMs(cur.date),p:cur.price,verb:'현재 최저입찰가',sub:'유찰 '+({{ s.fail_count }})+'회'});
     }
-    if(lv.minbid) rlab(g,lv.minbid,'현재 유찰가',wonS(lv.minbid),'var(--risk-strong)',true);
 
-    // 과거 실거래(맥락) — 전체 모드에서만
-    if(rangeMode==='all') (C.hist||[]).forEach(function(p){ var ms=toMs(p.ym); if(!vis(ms))return;
-      g.appendChild(el('circle',{cx:X(ms),cy:Y(p.price),r:3,fill:'var(--ink-400)'}));
+    // 과거 실거래(맥락) — 기간 창 안이면 항상
+    (C.hist||[]).forEach(function(p){ var ms=toMs(p.ym); if(!vis(ms))return;
+      g.appendChild(el('circle',{cx:X(ms),cy:Y(p.price),r:2.8,fill:'var(--ink-300)'}));
       PTS.push({cx:X(ms),cy:Y(p.price),t:'과거 실거래',cls:'hist',hl:'var(--ink-500)',ms:ms,p:p.price,verb:'체결',sub:'맥락(밴드 제외)'}); });
 
-    // 실거래 체결
+    // 실거래 체결 — 보라 점(네이버 문법)
     (C.trades||[]).forEach(function(p){ var ms=toMs(p.ym); if(!vis(ms))return;
-      g.appendChild(el('circle',{cx:X(ms),cy:Y(p.price),r:4,fill:'var(--brand)',stroke:'var(--surface)','stroke-width':1.5}));
-      PTS.push({cx:X(ms),cy:Y(p.price),t:'실거래 체결',cls:'trade',hl:'var(--brand)',ms:ms,p:p.price,verb:'체결',sub:'밴드 산정 대상'}); });
+      g.appendChild(el('circle',{cx:X(ms),cy:Y(p.price),r:3.6,fill:TR,'fill-opacity':.85,stroke:'var(--surface)','stroke-width':1.2}));
+      PTS.push({cx:X(ms),cy:Y(p.price),t:'실거래 체결',cls:'trade',hl:TR,ms:ms,p:p.price,verb:'체결',sub:'밴드 산정 대상'}); });
 
     // 호가
     (C.asks||[]).forEach(function(a){ var ms=toMs(a.date); if(ms==null||!vis(ms))return; var cx=X(ms),cy=Y(a.price);
@@ -570,8 +732,6 @@
       g.appendChild(el('path',{d:'M'+(sx-4)+','+(Bp+23)+' L'+(sx+4)+','+(Bp+23)+' L'+sx+','+(Bp+28)+' Z',fill:'var(--risk)'}));
       txt(g,sx,Bp+39,'매각기일','var(--risk-strong)',9.5,700,'middle'); }
 
-    drawLabels(g);
-
     var cross=el('line',{id:'ptc-cross',y1:Tp,y2:Bp,stroke:'var(--ink-400)','stroke-width':1,'stroke-dasharray':'3 3',opacity:0});
     var hi=el('circle',{id:'ptc-hi',r:0,fill:'none','stroke-width':2,opacity:0});
     g.appendChild(cross); g.appendChild(hi);
@@ -585,15 +745,28 @@
     var near=null,best=13; PTS.forEach(function(pt){ var dd=Math.hypot(sx-pt.cx,sy-pt.cy); if(dd<best){best=dd;near=pt;} });
     cross.setAttribute('x1',sx); cross.setAttribute('x2',sx); cross.setAttribute('opacity',1);
     var cw=cwrap.getBoundingClientRect();
-    tt.hidden=false;
+    tt.hidden=false; tt.className='ptc-tt';
+    // 네이버식 월 카드 — 그 시점의 시세 최고/최저·실거래·유찰가를 한 카드로.
+    var ms=near?near.ms:(D0+(sx-L)/(R-L)*(D1-D0));
+    var d=new Date(ms), head=d.getFullYear()+'년 '+(d.getMonth()+1)+'월';
+    var e=envAt(ms), mt=monthTrades(ms), sp=stepAt(ms), rows='';
     if(near){ hi.setAttribute('cx',near.cx); hi.setAttribute('cy',near.cy); hi.setAttribute('r',8);
       hi.setAttribute('stroke',near.hl); hi.setAttribute('opacity',.95);
-      tt.className='ptc-tt '+near.cls;
-      tt.innerHTML='<div class="tp">'+won(near.p)+'</div><div class="td">'+fmtYMD(near.ms)+' · '+near.verb+'</div><div class="tg">'+near.t+(near.sub?' · '+near.sub:'')+'</div>';
-    } else { hi.setAttribute('opacity',0); tt.className='ptc-tt';
-      var ms=D0+(sx-L)/(R-L)*(D1-D0), pr=PHI-(sy-Tp)/(Bp-Tp)*(PHI-PLO);
-      tt.innerHTML='<div class="tp">약 '+won(Math.round(pr/1e6)*1e6)+'</div><div class="td">'+fmtYMD(ms)+' 기준선</div>';
+      head=fmtYMD(near.ms);
+      rows+='<div class="tr"><span class="n" style="color:'+near.hl+'">'+near.t+'</span><span class="w">'+won(near.p)+'</span></div>';
+    } else { hi.setAttribute('opacity',0); }
+    if(e){
+      rows+='<div class="tr"><span class="n" style="color:'+UP+'">시세 최고</span><span class="w">'+won(e.hi)+'</span></div>';
+      rows+='<div class="tr"><span class="n" style="color:'+DN+'">시세 최저</span><span class="w">'+won(e.lo)+'</span></div>';
     }
+    if(!(near&&near.cls==='trade')){
+      var avgTxt='0건';
+      if(mt.length){ var s=0; mt.forEach(function(v){s+=v;}); avgTxt=won(s/mt.length)+' · '+mt.length+'건'; }
+      rows+='<div class="tr"><span class="n" style="color:'+TR+'">실거래가</span><span class="w">'+avgTxt+'</span></div>';
+    }
+    if(sp!=null&&!(near&&near.cls==='min'))
+      rows+='<div class="tr"><span class="n" style="color:var(--ink-700)">유찰 최저가</span><span class="w">'+won(sp)+'</span></div>';
+    tt.innerHTML='<div class="th">'+head+'</div>'+rows;
     tt.style.left=(clientX-cw.left)+'px'; tt.style.top=(clientY-cw.top)+'px';
   }
   svg.addEventListener('mousemove',function(e){ moveAt(e.clientX, e.clientY); });

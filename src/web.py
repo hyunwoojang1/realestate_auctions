@@ -700,8 +700,18 @@ def create_app() -> Flask:
         chart = pricechart.build_timechart(
             s, s.market_comps, rights.schedule if rights else None, ask_points,
             assumed=(badge.assumed if badge else 0))
+        # 현장 탭 인라인 지도용 좌표(KATEC→WGS84 캐시). 없으면 None → 템플릿이 주소검색 폴백.
+        from . import coords  # noqa: PLC0415
+        coord = None
+        try:
+            pt = coords.lookup(coords.load_coord_cache(), s.uid, s.case_no, court=s.court)
+            if pt:
+                coord = [pt[0], pt[1]]  # [lat, lon]
+        except Exception as e:  # noqa: BLE001 — 좌표 실패는 지도 폴백, 페이지는 정상
+            logger.warning("좌표 조회 실패(%s %s): %s", s.court, s.case_no, e)
         return render_template(
             "detail.html", s=s, listing=listing, chart=chart, rights=rights, badge=badge,
+            coord=coord, days_until=query.days_until,
             priority=priority,
             meter=report.gap_meter_html(s, askings=ask_points), won=report.won, pct=report.pct,
             gated=gated, gate_reason=", ".join(gate_reasons),
