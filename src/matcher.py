@@ -46,6 +46,10 @@ EST_VS_APPRAISAL_MAX = 2.5
 # 왜곡 폭이 크므로 상·하한을 좁게. 감정가의 1.5배 초과(신축 부풀림)·0.6배 미만(구축 끌어내림) 무효.
 FALLBACK_EST_MAX = 1.5
 FALLBACK_EST_MIN = 0.6
+# 확정단지(same_complex) 하한(밤샘검수 2026-07-21): 네이버 match_conf가 상가·지하유닛을 이름
+# 다른 소형 주거유닛에 오매칭하면 '확정'이라도 est가 감정가의 0.1배로 붕괴한다(용인역북 실측
+# est/감정 0.106). 확정단지는 신뢰도 높아 극단 오매칭만 차단(폴백 0.6보다 관대한 0.35).
+SAME_COMPLEX_EST_MIN = 0.35
 
 
 @dataclass(frozen=True)
@@ -411,11 +415,15 @@ def estimate_from_complex_trades(listing: AuctionListing,
         if basis < _band_min_basis():
             continue   # 이 창으로는 표본 부족 — 다음 창으로 확장
         est = int(round(statistics.median(trimmed)))
-        # 감정가 교차검증 — 확정 단지 comps라도 상한 가드는 유지(안전망).
-        if listing.appraisal_price > 0 and est / listing.appraisal_price > EST_VS_APPRAISAL_MAX:
-            logger.warning("감정가 괴리(확정단지, %s): est %s vs 감정 %s — 시세 무효화",
-                           listing.case_no, est, listing.appraisal_price)
-            return MarketEstimate(None, matched_count, SCOPE_APPRAISAL_MISMATCH, basis=basis), 1.0
+        # 감정가 교차검증 — 확정 단지 comps라도 상한(2.5배) + 하한(0.35배) 가드 유지(안전망).
+        # 하한: 네이버가 상가·지하를 소형 주거유닛에 오매칭하면 est가 감정가의 0.1배로 붕괴 →
+        # '확정단지'라도 극단 저비율은 오매칭 신호로 무효화(밤샘검수 2026-07-21).
+        if listing.appraisal_price > 0:
+            ratio = est / listing.appraisal_price
+            if ratio > EST_VS_APPRAISAL_MAX or ratio < SAME_COMPLEX_EST_MIN:
+                logger.warning("감정가 괴리(확정단지, %s): est %s vs 감정 %s (배율 %.3f) — 시세 무효화",
+                               listing.case_no, est, listing.appraisal_price, ratio)
+                return MarketEstimate(None, matched_count, SCOPE_APPRAISAL_MISMATCH, basis=basis), 1.0
         band_low = int(round(min(trimmed)))
         comps = tuple((_int_to_ym(m), p) for m, p in pts[:COMPS_CAP])
         if mult < 1.0:

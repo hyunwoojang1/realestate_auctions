@@ -31,12 +31,28 @@ class NaverClient:
     def __init__(self, min_delay: float = 2.0, max_delay: float = 4.0,
                  refresh_every: int = 80, verbose: bool = True):
         from playwright.sync_api import sync_playwright  # noqa: PLC0415 — 크롤 시에만 필요
+        self._sync_playwright = sync_playwright
         self.min_delay, self.max_delay = min_delay, max_delay
         self.refresh_every = refresh_every
         self.verbose = verbose
         self.n = self.calls = 0
         self._pw = sync_playwright().start()
         self._launch()
+
+    def _hard_restart(self):
+        """드라이버(node) 연결이 죽으면(절전·순단) 브라우저만 재생성해선 못 살아난다 —
+        (실측 2026-07-20: 절전으로 'Connection closed while reading from the driver' 후
+        _launch가 죽은 드라이버를 붙잡고 무한 대기·크롤 정지). playwright 인스턴스를 통째로
+        정지·재시작해 드라이버부터 새로 띄운다. 각 정리 단계는 죽은 핸들에서 멈추지 않게 무시."""
+        self._log("  [naver] ⚠ 드라이버 재시작(playwright 인스턴스 교체)")
+        for closer in (lambda: self._browser.close(), lambda: self._pw.stop()):
+            try:
+                closer()
+            except Exception:  # noqa: BLE001 — 죽은 핸들 정리 실패는 무시
+                pass
+        self._pw = self._sync_playwright().start()
+        self._launch()
+        self.n = 0
 
     def _log(self, *a):
         if self.verbose:
@@ -89,11 +105,23 @@ class NaverClient:
                 self._log(f"  [naver] evaluate 오류({type(e).__name__}: {str(e)[:60]}) — "
                           f"세션 재생성 후 재시도({attempt + 1}/3)")
                 time.sleep(random.uniform(5, 12))
+                # 드라이버 연결이 끊긴 경우(절전·순단)엔 _refresh(브라우저만 재생성)로는 못 살아나
+                # 무한 대기하므로, 드라이버 죽음 신호면 playwright 인스턴스를 통째로 교체한다.
+                emsg = str(e).lower()
+                driver_dead = ("driver" in emsg or "connection closed" in emsg
+                               or "target closed" in emsg or "browser has been closed" in emsg)
                 try:
-                    self._refresh()
+                    if driver_dead:
+                        self._hard_restart()
+                    else:
+                        self._refresh()
                 except Exception as e2:  # noqa: BLE001 — 재생성조차 실패 = 네트워크 다운 의심
-                    self._log(f"  [naver] 세션 재생성 실패({type(e2).__name__}) — 30s 대기 후 재시도")
+                    self._log(f"  [naver] 세션 재생성 실패({type(e2).__name__}) — 30s 대기 후 하드 재시작")
                     time.sleep(30)
+                    try:
+                        self._hard_restart()
+                    except Exception as e3:  # noqa: BLE001 — 그래도 실패면 다음 attempt로
+                        self._log(f"  [naver] 하드 재시작 실패({type(e3).__name__})")
                 continue
             self.calls += 1
             self.n += 1

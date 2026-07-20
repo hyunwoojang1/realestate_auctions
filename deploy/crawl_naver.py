@@ -163,8 +163,8 @@ def backfill_real(args) -> int:
     if not total:
         return 0
     cache = Cache()
-    mn = float(os.environ.get("AUCTION_NAVER_MIN", "1.5"))
-    mx = float(os.environ.get("AUCTION_NAVER_MAX", "3.0"))
+    mn = float(os.environ.get("AUCTION_NAVER_MIN", "1.0"))
+    mx = float(os.environ.get("AUCTION_NAVER_MAX", "2.2"))
     # 실거래 페이지 캡(2026-07-19 속도튜닝): 80p는 대단지에서 쌍당 ~90콜 → 45h ETA 실측.
     # 25p(~250행)면 최근 5~10년 확보 — 창 계층화(최대 60개월)·차트에 충분, 옛 꼬리만 포기.
     real_cap = int(os.environ.get("AUCTION_NAVER_REAL_PAGES", "25"))
@@ -248,8 +248,8 @@ def main(argv=None) -> int:
         return 0
 
     cache = Cache()
-    mn = float(os.environ.get("AUCTION_NAVER_MIN", "1.5"))
-    mx = float(os.environ.get("AUCTION_NAVER_MAX", "3.0"))
+    mn = float(os.environ.get("AUCTION_NAVER_MIN", "1.0"))
+    mx = float(os.environ.get("AUCTION_NAVER_MAX", "2.2"))
     nc = NaverClient(min_delay=mn, max_delay=mx)
     now = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
     stat = {"matched_kb": 0, "matched_ask": 0, "no_kb": 0, "no_match": 0, "no_coord": 0}

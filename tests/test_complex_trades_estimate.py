@@ -72,6 +72,29 @@ def test_appraisal_guard_on_complex_trades():
     assert m.scope == SCOPE_APPRAISAL_MISMATCH
 
 
+def test_appraisal_lower_guard_on_complex_trades():
+    """(밤샘검수 2026-07-21) 확정 comps라도 est가 감정가의 0.35배 미만이면 오매칭 신호로 무효화.
+    네이버가 상가·지하유닛을 소형 주거유닛에 오매칭해 est가 감정가의 0.1배로 붕괴한 실사고 방어."""
+    # 감정가 3.53억인데 실거래가 0.4억대(다른 소형 유닛 오매칭) → 비율 ~0.11 → 무효화
+    rows = [_row("20260304", 40_000_000), _row("20251001", 41_000_000),
+            _row("20250801", 39_000_000), _row("20250601", 40_500_000),
+            _row("20250401", 40_000_000)]
+    m, mult = estimate_from_complex_trades(LST, rows)
+    assert m.est is None
+    assert m.scope == SCOPE_APPRAISAL_MISMATCH
+
+
+def test_appraisal_lower_guard_allows_legit_discount():
+    """하한 0.35 위의 정상 저가(감정가 0.5~0.8배)는 무효화하지 않는다 — 과도 무효화 방지."""
+    # 감정가 3.53억, 실거래 2.0억대(비율 ~0.6) → 정상 통과
+    rows = [_row("20260304", 210_000_000), _row("20251001", 205_000_000),
+            _row("20250801", 208_000_000), _row("20250601", 212_000_000),
+            _row("20250401", 207_000_000)]
+    m, mult = estimate_from_complex_trades(LST, rows)
+    assert m.est is not None
+    assert m.scope == SCOPE_SAME_COMPLEX_SAME_AREA
+
+
 def test_unsupported_type_skipped():
     villa = dataclasses.replace(LST, property_type="다세대")
     m, _ = estimate_from_complex_trades(villa, [_row("20260304", 280_000_000)])

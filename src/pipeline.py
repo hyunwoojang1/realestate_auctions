@@ -254,7 +254,7 @@ def load_live_trades(listings: list[AuctionListing], api_key: str,
         #    국토부는 anti-bot 없어 병렬 안전(courtauction과 다름). 동시성=AUCTION_MOLIT_WORKERS.
         if to_fetch:
             from concurrent.futures import ThreadPoolExecutor, as_completed  # noqa: PLC0415
-            workers = max(1, int(os.environ.get("AUCTION_MOLIT_WORKERS", "8")))
+            workers = max(1, int(os.environ.get("AUCTION_MOLIT_WORKERS", "12")))
 
             def _fetch_one(t):
                 k, lawd, y, ex_ = t
