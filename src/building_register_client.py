@@ -36,7 +36,8 @@ __all__ = [
     "parse_building_titles_xml",
 ]
 
-BLD_TITLE_ENDPOINT = "https://apis.data.go.kr/1613000/BldRgstService_v2/getBrTitleInfo"
+# (2026-07-20 실측) BldRgstService_v2는 500(구 엔드포인트) — 건축HUB 이관 후 BldRgstHubService가 정상.
+BLD_TITLE_ENDPOINT = "https://apis.data.go.kr/1613000/BldRgstHubService/getBrTitleInfo"
 
 # 위반건축물 여부 태그(코드/텍스트 혼용 대응). 값 '1'/'Y'/'위반' 계열이면 위반.
 _VIOL_YN = ("violYn", "위반건축물", "violationYn")

@@ -311,6 +311,7 @@
       <div class="dmap" id="dmap"
            data-lat="{{ coord[0] }}" data-lon="{{ coord[1] }}"
            data-name="{{ (s.apt_name or s.property_type)|e }}"
+           data-vw-key="{{ vworld_key or '' }}"
            role="application" aria-label="{{ (s.apt_name or s.property_type)|e }} 위치 지도"></div>
       {% else %}
       <div class="dmap-empty" role="note">📍 법원 공고에 좌표가 없어 지도를 바로 표시할 수 없습니다.
@@ -467,6 +468,31 @@
     </div>
     {% endif %}
 
+    {% if bldg %}
+    <!-- 건축물대장 — 노후도·위반건축물(건축HUB 표제부) -->
+    <div class="dstep-head"><span class="dstep-num">🏗</span>
+      <h2>건축물대장 <span class="sub">· 표제부{% if bldg.dong_count > 1 %} {{ bldg.dong_count }}개동{% endif %}</span></h2></div>
+    <div class="dpanel">
+      {% if bldg.is_violation %}
+      <div class="dbanner risk"><b>⚠ 위반건축물</b> — 대장에 위반 표기가 있습니다. 이행강제금·대출 제한
+        가능성이 있어 원문 확인이 필요합니다.{% if bldg.violation_content %} <span style="font-weight:500">({{ bldg.violation_content }})</span>{% endif %}</div>
+      {% endif %}
+      {% if bldg.approved %}
+      <div class="drow"><span class="k">사용승인(준공)</span><span class="v" style="font-size:14px">{{ bldg.approved }}{% if bldg.age_years is not none %} · <b>{{ bldg.age_years }}년차</b>{% endif %}</span></div>
+      {% endif %}
+      {% if bldg.main_purpose %}
+      <div class="drow"><span class="k">주용도</span><span class="v" style="font-size:14px">{{ bldg.main_purpose }}</span></div>
+      {% endif %}
+      {% if bldg.ground_floors %}
+      <div class="drow"><span class="k">규모</span><span class="v" style="font-size:14px">지상 {{ bldg.ground_floors }}층{% if bldg.underground_floors %} / 지하 {{ bldg.underground_floors }}층{% endif %}</span></div>
+      {% endif %}
+      {% if not bldg.is_violation %}
+      <div class="drow"><span class="k">위반건축물</span><span class="v" style="font-size:14px;color:var(--gain)">해당 없음</span></div>
+      {% endif %}
+      <div class="dnote">출처: 건축HUB 건축물대장 표제부(주동 기준). 위반 여부는 필지 내 전체 동 기준.</div>
+    </div>
+    {% endif %}
+
   </div>
 
   <!-- ══════ 아래: 판단 · 참고 (매수 적정성 | 감정 요항) ══════ -->
@@ -607,20 +633,32 @@
 </script>
 
 <script>
-/* 인라인 지도 — Leaflet(OSM). 탭 제거로 항상 노출 → 로드 즉시 초기화. */
+/* 인라인 지도 — Leaflet. VWorld(국토부 한글지도 — 지하철·학교 라벨 내장) 우선, 오류 시 OSM 폴백. */
 (function(){
   var el=document.getElementById('dmap');
   if(!el || typeof L==='undefined') return;
   var map=null, hintTimer=null;
   function showHint(){ el.classList.add('show-hint'); clearTimeout(hintTimer);
     hintTimer=setTimeout(function(){ el.classList.remove('show-hint'); },1400); }
+  function osmLayer(){ return L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png',
+    {maxZoom:19,attribution:'&copy; OpenStreetMap'}); }
   function init(){
     if(map){ map.invalidateSize(); return; }
     var lat=parseFloat(el.dataset.lat), lon=parseFloat(el.dataset.lon);
     if(isNaN(lat)||isNaN(lon)) return;
     map=L.map(el,{scrollWheelZoom:false,zoomControl:true}).setView([lat,lon],16);
-    L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png',{maxZoom:19,attribution:'&copy; OpenStreetMap'}).addTo(map);
-    L.marker([lat,lon]).addTo(map).bindPopup('<b>'+(el.dataset.name||'물건 위치')+'</b>').openPopup();
+    var key=(el.dataset.vwKey||'').trim(), base;
+    if(key){
+      // VWorld WMTS — 경로 순서가 {z}/{y}/{x}임에 주의. 타일 연속 실패(키 도메인 제한 등)면 OSM 폴백.
+      base=L.tileLayer('https://api.vworld.kr/req/wmts/1.0.0/'+key+'/Base/{z}/{y}/{x}.png',
+        {minZoom:6,maxZoom:19,attribution:'&copy; VWorld · 국토교통부'});
+      var errs=0;
+      base.on('tileerror',function(){ if(++errs===3 && map){ map.removeLayer(base); osmLayer().addTo(map); } });
+    } else { base=osmLayer(); }
+    base.addTo(map);
+    // 팝업은 DOM 노드(textContent) — 물건명에 마크업이 섞여도 실행되지 않게(감사 2026-07-20 #8).
+    var pop=document.createElement('b'); pop.textContent=el.dataset.name||'물건 위치';
+    L.marker([lat,lon]).addTo(map).bindPopup(pop).openPopup();
     // 페이지 스크롤 방해 방지: 지도 클릭(포커스) 후에만 휠 확대. 그 전 휠 시도엔 안내만.
     var hint=document.createElement('div'); hint.className='dmap-hint'; hint.textContent='지도를 클릭하면 스크롤로 확대할 수 있어요';
     el.appendChild(hint);

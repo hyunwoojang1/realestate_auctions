@@ -709,9 +709,18 @@ def create_app() -> Flask:
                 coord = [pt[0], pt[1]]  # [lat, lon]
         except Exception as e:  # noqa: BLE001 — 좌표 실패는 지도 폴백, 페이지는 정상
             logger.warning("좌표 조회 실패(%s %s): %s", s.court, s.case_no, e)
+        # (E 배선 2026-07-20) 건축물대장 요약 — 준공연도(노후도)·위반건축물 리스크.
+        # 키 미설정·실패는 None → 카드 미표시(페이지 정상). 건물형 유형만 조회
+        # (감사 2026-07-20: 토지·임야 상세에서 무의미한 외부 2콜 차단).
+        from . import building_info  # noqa: PLC0415
+        _BLDG_TYPES = ("아파트", "오피스텔", "연립", "다세대", "단독", "다가구", "근린주택", "빌라")
+        bldg = None
+        if any(t in (s.property_type or "") for t in _BLDG_TYPES):
+            bldg = building_info.get_building_summary(s.address)
         return render_template(
             "detail.html", s=s, listing=listing, chart=chart, rights=rights, badge=badge,
             coord=coord, days_until=query.days_until,
+            bldg=bldg, vworld_key=os.environ.get("VWORLD_API_KEY", "").strip(),
             priority=priority,
             meter=report.gap_meter_html(s, askings=ask_points), won=report.won, pct=report.pct,
             gated=gated, gate_reason=", ".join(gate_reasons),
