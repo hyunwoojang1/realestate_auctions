@@ -38,9 +38,50 @@ SPECIAL_RIGHT_KEYWORDS: dict[str, tuple[str, ...]] = {
     "분묘기지권": ("분묘기지권", "분묘 기지권", "분묘"),
     "대지권미등기": ("대지권미등기", "대지권 미등기", "대지권 없음", "대지권미등기임"),
     "위반건축물": ("위반건축물", "위반 건축물", "무허가", "제시외 건물"),
+    # (감사 2026-07-20) 소유권/인수 위험인데 사전 누락으로 배지=clean 오판하던 3종.
+    # 실 DB: 가등기 24·가처분 10·토지별도등기 39건이 배지·게이트에 안 잡히고 있었음.
+    "가등기": ("소유권이전청구권가등기", "소유권이전청구권 가등기", "가등기"),
+    "가처분": ("가처분",),
+    "토지별도등기": ("토지별도등기", "토지 별도등기", "별도등기"),
 }
 # 지분 표기 "2분의 1"·"3분의2" — 숫자 사이의 '분의'만 지분 신호(‘부분의’ 오탐 차단).
 _SHARE_RE = re.compile(r"\d+\s*분의\s*\d+")
+
+# (감사 2026-07-20 C2) 특수권리 '부존재' 문맥 — 키워드와 **같은 절**에 이 표현이 있으면 위험이
+# 아니라 부존재 명시다. 법원 명세서는 유치권/법정지상권이 없을 때도 "신고 없음"·"성립 여지 없음"
+# 으로 명시하는 경우가 흔한데, 종전엔 키워드 출현만으로 유치권(fatal)→하드게이트 '위험'에 직행해
+# 정상 물건을 영구 배제했다. 절 단위로 부존재 표현이 붙은 절만 배제한다(다른 절의 진짜 신고는 보존).
+_SPECIAL_NEGATIONS = (
+    "신고 없", "신고된 바 없", "미신고", "설정된 바 없", "설정되어 있지 않",
+    "성립 여지 없", "성립여지 없", "성립여지없", "성립되지 않", "성립하지 않",
+    "존재하지 않", "존재하지않", "해당사항 없", "해당 없", "해당없",
+    "없음", "없다", "없슴", "없는 것으로",
+)
+
+
+def _appears_unnegated(variant: str, blob: str) -> bool:
+    """variant 가 부존재 문맥이 아닌 절에 한 번이라도 나오면 True(부존재 명시 절은 제외)."""
+    for clause in re.split(r"[.\n;·]", blob):
+        if variant in clause and not any(neg in clause for neg in _SPECIAL_NEGATIONS):
+            return True
+    return False
+
+
+# (감사 2026-07-20 C1 보강) 명세서 표준 항목 안내문(모든 명세서에 법정 서식으로 인쇄되는 헤더)은
+# 특정 권리의 '존재' 신고가 아니라 항목 설명이다. 여기 예시로 나열되는 '가처분/가등기/지상권'을
+# 실제 권리로 오탐하면 전 물건이 가처분 보유로 오판된다(대항력 _BOILERPLATE와 동일한 함정).
+#  - "2. 등기된 부동산에 관한 권리 또는 가처분으로서 매각으로 그 효력이 소멸되지 아니하는 것"
+#  - "3. 매각에 따라 설정된 것으로 보는 지상권의 개요"
+_SPECIAL_BOILERPLATE_RE = re.compile(r"등기된\s*부동산에\s*관한\s*권리.*?소멸되지\s*아니하는\s*것")
+_SPECIAL_BOILERPLATE = ("매각에 따라 설정된 것으로 보는 지상권의 개요",)
+
+
+def _strip_special_boilerplate(blob: str) -> str:
+    """특수권리 검출 전, 표준 항목 안내문을 제거해 오탐(전 물건 가처분 오판)을 막는다."""
+    out = _SPECIAL_BOILERPLATE_RE.sub("", blob or "")
+    for bp in _SPECIAL_BOILERPLATE:
+        out = out.replace(bp, "")
+    return out
 
 
 def detect_special_rights(*texts: str) -> list[str]:
@@ -49,10 +90,11 @@ def detect_special_rights(*texts: str) -> list[str]:
     '해당사항 없음' 같은 부정 문맥은 라벨별로 판정하지 않는다(오탐보다 미탐이 위험하므로
     키워드 출현 자체를 위험 신호로 본다 — 보수적).
     """
-    blob = "\n".join(t for t in texts if t)
+    blob = _strip_special_boilerplate("\n".join(t for t in texts if t))
     found: list[str] = []
     for label, variants in SPECIAL_RIGHT_KEYWORDS.items():
-        if any(v in blob for v in variants):
+        # (감사 2026-07-20 C2) 부존재 문맥 절은 제외 — '유치권 신고 없음'을 위험으로 오탐하던 것 수정.
+        if any(_appears_unnegated(v, blob) for v in variants):
             found.append(label)
         elif label == "지분" and _SHARE_RE.search(blob):
             found.append(label)
@@ -98,6 +140,10 @@ _OPPOSABLE_PHRASES = (
     "인수되는 경우가 발생",
     "매수인에게 인수",
     "매수인 인수",
+    # (감사 2026-07-20 H5) '인수' 대신 '부담'으로 쓴 명세서 변형 — 대항력 -30점 페널티 누락 방지.
+    "매수인이 부담",
+    "매수인에게 부담",
+    "매수인 부담",
     "미배당 잔액은 매수인 인수",
     "배당받지 못한 잔액이 매수인에게 인수",
     # 실측 보강(2026-07-10, 대구 2025타경669 매각물건명세서 원문): 조사('이')·표현 변형.
@@ -140,7 +186,10 @@ def _strip_negated_clauses(text: str) -> str:
     문서 전체를 버리면 안 된다(미탐 방지).
     """
     out = []
-    for clause in re.split(r"[.\n;·]", text or ""):
+    # (감사 2026-07-20 C4) 콤마도 절 구분자에 포함 — "김철수는 인수하지 아니하고, 이영희는 매수인에게
+    # 인수됨"처럼 한 문장에 인수-해소와 진짜 인수가 콤마로 이어진 다중임차인 명세서에서, 콤마가 없으면
+    # 부정절이 인수절까지 통째로 먹어 인수신호를 미탐하던 것 수정(주석 목표를 실제로 달성).
+    for clause in re.split(r"[.\n;·,，]", text or ""):
         if any(neg in clause for neg in _OPPOSABLE_NEGATIONS):
             continue
         out.append(clause)

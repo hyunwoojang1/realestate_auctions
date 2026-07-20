@@ -39,6 +39,8 @@ param(
     [string]$Ym = "",
     [string]$DbPath = "",
     [switch]$SkipNaver,        # 네이버 증분 단계 건너뛰기(안티밴 사고 시)
+    [switch]$SkipRights,       # 권리(물건상세) 크롤 건너뛰기(안티밴 사고 시)
+    [int]$RightsLimit = 300,   # 권리 크롤 물건 수 상한(일일캡 500 내, 보수차익 우선순 상위부터)
     [int]$NaverStaleDays = 14, # 네이버 실거래 증분 신선도 기준(일). 이보다 오래된 쌍만 재수집
     [int]$MaxPages = 120       # courtauction 시도당 페이지 상한(1p=40건). 25→120(2026-07-20):
                                # 현금 10억 확장으로 대형 시도가 4,515행(113p)까지 실측 — 120p로 전수.
@@ -99,6 +101,19 @@ try {
         & $Python -m deploy.crawl_naver --backfill-real --incremental --stale-days $NaverStaleDays 2>&1 | Tee-Object -FilePath $LogPath -Append
     } else {
         "--- 네이버 증분 건너뜀(-SkipNaver) ---" | Tee-Object -FilePath $LogPath -Append
+    }
+
+    # --- 권리 크롤(물건상세 매각물건명세서 요지) — 신규 물건이 '권리미확인'으로 영영 남는 것 방지 ---
+    #     (감사 2026-07-20 F1) 종전 일일 새로고침엔 권리 크롤이 아예 없어, 신규 courtauction 물건의
+    #     인수권리·대항력·기일이 수동 실행 전엔 절대 안 채워졌다(전국 24개 법원 통째 미크롤의 원인).
+    #     run.py **앞**에 두어 같은 사이클의 채점(apply_rights_from_rows)이 갓 크롤한 권리를 반영한다.
+    #     상위 N건(보수차익 우선), 일일캡·킬스위치(COURTAUCTION_STOP)는 CourtAuctionClient가 관리.
+    #     실패해도 채점을 막지 않는다. -SkipRights 로 건너뜀(안티밴 사고 시).
+    if (-not $SkipRights) {
+        "--- 권리 크롤(물건상세, 상위 $RightsLimit건) ---" | Tee-Object -FilePath $LogPath -Append
+        & $Python -m deploy.crawl_rights --db $DbPath --limit $RightsLimit 2>&1 | Tee-Object -FilePath $LogPath -Append
+    } else {
+        "--- 권리 크롤 건너뜀(-SkipRights) ---" | Tee-Object -FilePath $LogPath -Append
     }
 
     # --- 메인 채점(courtauction 크롤 + 국토부 시세 + 네이버 실거래 주입 + Supabase) ---

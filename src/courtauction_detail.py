@@ -175,7 +175,9 @@ class CaseRights:
 #   그 판정의 근거(날짜 비교)를 투명하게 보여주고, 날짜가 판정과 어긋나는 모순건을 검출한다.
 # ---------------------------------------------------------------------------
 _DATE_RE = re.compile(r"(\d{4})\s*[.\-년]\s*(\d{1,2})\s*[.\-월]\s*(\d{1,2})")
-_MOVEIN_RE = re.compile(r"전입\s*일?\s*자?\s*[:\-]?\s*"
+# (감사 2026-07-20 C3) 법원 표준 라벨은 "전입신고일자" — 종전 정규식은 '전입' 뒤 '일/자'만 허용해
+# '신고'가 끼면 미매치 → 대항력 근거분석이 실데이터에서 사실상 무력화됐다. '신고'·'세대' 변형 허용.
+_MOVEIN_RE = re.compile(r"전입\s*(?:신고)?\s*(?:세대|일)?\s*자?\s*[:\-]?\s*"
                         r"(\d{4}\s*[.\-년]\s*\d{1,2}\s*[.\-월]\s*\d{1,2})")
 # 말소기준권리 유형 — 앞선 것이 말소기준(담보물권·압류류·경매개시).
 _SENIOR_TYPES = ("근저당권", "근저당", "저당권", "전세권", "담보가등기",
@@ -299,6 +301,7 @@ def summarize(rights: CaseRights) -> RightsBadge:
     보증금액을 파싱해 assumed 로 반영(랭킹 차감 가능하게).
     """
     from .courtauction_rights import (  # noqa: PLC0415 — 순환 import 회피(지연)
+        _strip_negated_clauses,
         detect_assumed_amount,
         detect_deposit_amount,
         detect_special_rights,
@@ -315,7 +318,13 @@ def summarize(rights: CaseRights) -> RightsBadge:
     if (_SHARE_SALE_RE.search(f"{rights.remark}\n{rights.surviving_rights}\n{rights.lien_note}")
             and "지분매각" not in special):
         special.append("지분매각")
-    burden = (opposable or assumed > 0 or bool(special) or rights.has_risk_text or jeonse)
+    # (감사 2026-07-20 M1) has_risk_text(원문 실질텍스트 존재)를 그대로 burden 근거로 쓰면
+    # '임차권등기(다만 말소동의 확약서 제출됨)'처럼 **소멸 예정** 권리도 burden으로 오판돼 실제로는
+    # clean인 물건이 차익추천서 빠졌다(실측 86건). 부정절(말소동의·인수하지 아니 등)을 제거한 뒤에도
+    # 실질 텍스트가 남을 때만 위험으로 본다 — opposable/assumed/special은 이미 부정절 인식하므로 정합.
+    unresolved_text = (is_substantive(_strip_negated_clauses(rights.surviving_rights))
+                       or is_substantive(_strip_negated_clauses(rights.lien_note)))
+    burden = (opposable or assumed > 0 or bool(special) or unresolved_text or jeonse)
     # (#9) 인수 부담인데 금액 미상(+α)이면 명세서 원문의 보증금액을 보수 추정으로 채택 —
     # 임차권 미소멸(보증금 잔액 인수) 물건이 무차감으로 랭킹 상위를 점하지 않게 한다.
     if burden and assumed <= 0:

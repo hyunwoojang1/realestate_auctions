@@ -65,7 +65,9 @@ def rights_score(listing: AuctionListing) -> float:
     ratio = listing.assumed_amount / listing.min_bid_price if listing.min_bid_price else 1.0
     score = 100.0
     score -= ratio * 100
-    score -= sum(CONFIG.special_penalty.get(s, CONFIG.special_penalty_default) for s in listing.special_rights)
+    # (감사 2026-07-20 L1) set()로 중복 라벨 방어 — 특수권리는 종류당 1회만 감점해야 하는데
+    # 상류가 dedup 안 하면 동일 라벨 이중감점(예: ['가등기','가등기']→ -50)이 되는 잠재 취약.
+    score -= sum(CONFIG.special_penalty.get(s, CONFIG.special_penalty_default) for s in set(listing.special_rights))
     if listing.tenant_opposable:
         score -= CONFIG.tenant_opposable_penalty
     score -= CONFIG.occupant_penalty.get(listing.occupant_type, CONFIG.occupant_penalty_default)

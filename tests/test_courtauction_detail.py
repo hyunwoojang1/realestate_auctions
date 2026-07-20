@@ -328,3 +328,14 @@ def test_priority_no_basis():
     from src.courtauction_detail import analyze_priority
     a = analyze_priority(CaseRights(surviving_rights="임차권등기 있음", senior_lien=""))
     assert a.verdict == "no_basis"
+
+
+def test_priority_movein_label_with_singo():
+    """C3: 법원 표준 라벨 '전입신고일자'도 전입일로 인식(종전 미매치로 근거분석 무력화되던 것 수정)."""
+    from src.courtauction_detail import _MOVEIN_RE, analyze_priority
+    assert _MOVEIN_RE.search("전입신고일자 2020.05.02") is not None
+    assert _MOVEIN_RE.search("전입일자 2020.05.02") is not None  # 무회귀
+    r = CaseRights(surviving_rights="임차권(전입신고일자 2019.1.1.) 매수인이 인수함",
+                   senior_lien="2020.1.1. 근저당권")
+    a = analyze_priority(r)
+    assert a.movein_date == "2019-01-01" and a.verdict == "confirmed_opposable"

@@ -97,6 +97,57 @@ def test_detect_special_rights_dedup_and_order():
     assert out == ["유치권", "지분"]          # 중복 제거 + 정의 순서
 
 
+# ---- 감사 2026-07-20 오판 수정 회귀 테스트 -------------------------------
+def test_special_rights_detects_gadeungi_gacheobun_byeoldodeungi():
+    # C1: 가등기·가처분·토지별도등기가 사전에 없어 배지=clean 오판하던 것 수정
+    assert "가등기" in detect_special_rights("선순위 소유권이전청구권가등기 있음. 낙찰로 소멸되지 않음.")
+    assert "가처분" in detect_special_rights("소유권 관련 가처분 등기 있음.")
+    assert "토지별도등기" in detect_special_rights("토지별도등기 있음(대지권 관련).")
+
+
+def test_new_special_labels_in_config():
+    # 새 라벨도 페널티 사전 키에 있어야 스코어에 반영됨(무배선 방지)
+    from src.config import CONFIG
+    for label in ("가등기", "가처분", "토지별도등기"):
+        assert label in CONFIG.special_penalty, label
+
+
+def test_special_rights_ignores_nonexistence_context():
+    # C2: '유치권 신고 없음'·'성립 여지 없음'을 위험으로 오탐→하드게이트 직행하던 것 수정
+    assert detect_special_rights("유치권 신고 없음. 법정지상권 성립 여지 없음.") == []
+    # 진짜 신고는 여전히 잡는다(무회귀) — 다른 절의 부존재 표현에 영향받지 않음
+    assert "유치권" in detect_special_rights("유치권 신고 있음(공사대금). 법정지상권 성립 여지 없음.")
+
+
+def test_tenant_opposable_comma_mixed_clause():
+    # C4: 한 문장에 인수-해소와 진짜 인수가 콤마로 섞이면 인수신호를 통째로 삼키던 것 수정
+    txt = "김철수는 배당으로 전액 충당되어 인수하지 아니하고, 이영희는 대항력 있는 임차인으로 매수인에게 인수됨."
+    assert detect_tenant_opposable(txt) is True
+
+
+def test_tenant_opposable_budam_phrasing():
+    # H5: '인수' 대신 '부담' 표현을 쓴 명세서에서 대항력 미탐하던 것 수정
+    assert detect_tenant_opposable("배당받지 못한 보증금은 매수인이 부담함.") is True
+
+
+def test_summarize_extinguished_lease_is_clean():
+    # M1(감사 2026-07-20): '임차권등기(다만 말소동의 확약서 제출됨)' = 소멸 예정 → burden 아님(clean).
+    # has_risk_text 단독으로 burden 오판해 clean 물건이 차익추천서 빠지던 것 수정.
+    from src.courtauction_detail import CaseRights, summarize
+    cr = CaseRights(surviving_rights="을구 순위 10번 주택임차권등기(다만 서울보증보험 주식회사의 말소동의 확약서가 제출됨)")
+    b = summarize(cr)
+    assert b.status == "clean", (b.status, b.special, b.assumed)
+    # 진짜 인수 문구는 여전히 burden(무회귀)
+    cr2 = CaseRights(surviving_rights="을구 5번 임차권 보증금 100,000,000원 매수인이 인수함")
+    assert summarize(cr2).status == "burden"
+
+
+def test_senior_jeonse_label_penalty_wired():
+    # L2: 선순위전세권 라벨이 페널티 사전에 명시돼 default(10) 침묵폴백을 안 타는지
+    from src.config import CONFIG
+    assert CONFIG.special_penalty.get("선순위전세권") == 20
+
+
 def test_detect_occupant_priority():
     assert detect_occupant_type("임차인이 점유하며 소유자도 일부 점유") == "임차인"
     assert detect_occupant_type("다수 점유, 임차인 여럿") == "다수점유"

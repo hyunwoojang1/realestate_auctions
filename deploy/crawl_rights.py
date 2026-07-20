@@ -18,7 +18,7 @@ import sys
 from datetime import datetime, timedelta, timezone
 
 from deploy.migrate_to_supabase import _load_env
-from src import photo, photo_store, store, store_rest
+from src import casesearch, photo, photo_store, store, store_rest
 from src.courtauction_client import CourtAuctionBlocked, CourtAuctionClient, CourtAuctionError
 from src.courtauction_detail import extract_photos, normalize
 
@@ -106,6 +106,8 @@ def main(argv=None) -> int:
 
     client = CourtAuctionClient()
     ok, fail, skipped_empty, photo_n = 0, 0, 0, 0
+    mismatch = 0          # (C6) 응답 사건번호 불일치로 스킵한 건(오사건 저장 차단)
+    blocked = False       # (C5) 차단/상한 신호로 중단됐는지 — exit code 승격용
     batch: list[dict] = []
     now = datetime.now(_KST).strftime("%Y-%m-%d %H:%M:%S")
     # 사진은 용량 때문에 '시세추정 가능' 물건에만 저장(사용자가 여는 물건 ≈ 평가 가능한 것).
@@ -122,6 +124,21 @@ def main(argv=None) -> int:
             except CourtAuctionError as e:
                 fail += 1
                 print(f"  [{i}/{len(targets)}] {t['case_no']} 실패: {e}")
+                continue
+            # (C6) 응답이 요청한 사건번호와 일치하는지 대조 — 서버 캐시 이상/경합으로 다른 사건
+            # 응답이 와도 그대로 저장하면 '엉뚱한 사건의 권리'가 적재되고 재크롤 대상에서도 빠져
+            # 진짜 권리가 영구 유실된다. 표기차(공백/하이픈/'타경')로 인한 **오거부를 막기 위해**
+            # casesearch.parse_case_query 로 (연도,일련) canonical 환원 후 비교 — 둘 다 파싱돼
+            # **확실히 다를 때만** 스킵한다(파싱 실패 시엔 저장 강행: 미탐<오거부).
+            resp_raw = str((dma.get("csBaseInfo") or {}).get("userCsNo") or "")
+            resp_q = casesearch.parse_case_query(resp_raw)
+            want_q = casesearch.parse_case_query(str(t["case_no"] or ""))
+            resp_c = resp_q.canonical if resp_q else None
+            want_c = want_q.canonical if want_q else None
+            if resp_c and want_c and resp_c != want_c:
+                mismatch += 1
+                print(f"  [{i}/{len(targets)}] {t['case_no']} 응답 사건번호 불일치"
+                      f"(resp={resp_raw!r}) — 스킵(오사건 저장 차단)")
                 continue
             cr = normalize(dma, court=t["court"], case_no=t["case_no"],
                            item_no=t["item_no"], fetched_at=now)
@@ -155,6 +172,7 @@ def main(argv=None) -> int:
                 print(f"  [{i}/{len(targets)}] 적재 누적 {ok}건 (실패 {fail}·빈응답 {skipped_empty})")
                 batch = []
     except CourtAuctionBlocked as e:
+        blocked = True   # (C5) 차단은 성공으로 위장하면 안 됨 — 아래에서 exit code 비0으로 승격
         print(f"[!] 차단/상한 신호로 중단(수집분은 저장됨): {e}", file=sys.stderr)
     finally:
         # (재검증 감사 idx18) 마지막 타깃이 실패/스킵이어도 잔여 batch 는 반드시 저장 —
@@ -166,8 +184,28 @@ def main(argv=None) -> int:
     total = conn.execute("SELECT COUNT(*) FROM listing_rights").fetchone()[0]
     photos_total = conn.execute("SELECT COUNT(*) FROM listing_photos").fetchone()[0]
     print(f"[+] listing_rights 총 {total}건 · 사진 이번 {photo_n}장(누적 {photos_total}장)")
+    if mismatch:
+        print(f"[!] 응답 사건번호 불일치로 스킵 {mismatch}건(오사건 저장 차단됨).", file=sys.stderr)
 
-    if not args.no_cloud and store_rest.enabled():
+    # (C5) exit code 종합 — 스케줄러가 '부분 중단'을 '완전 성공'과 구분하게 한다.
+    #  0=정상, 2=차단/상한으로 중단, 3=처리대상 중 실패율 과다(시스템적 실패 의심).
+    exit_code = 0
+    if blocked:
+        exit_code = 2
+    elif targets and fail / len(targets) > 0.5:
+        print(f"[!] 실패율 과다({fail}/{len(targets)}) — 스키마 변경/차단 의심. 비정상 종료로 알림.",
+              file=sys.stderr)
+        exit_code = 3
+
+    if args.no_cloud or not store_rest.enabled():
+        # (C5) 미러링을 건너뛰는 이유를 명시 — 서빙(Supabase)이 조용히 정체되는 침묵 실패 방지.
+        if not args.no_cloud:
+            print("[!] Supabase 미러링 비활성(store_rest 환경변수 미설정) — 로컬만 갱신됨. "
+                  "서빙 데이터는 이번 크롤이 반영되지 않았다.", file=sys.stderr)
+        conn.close()
+        return exit_code
+
+    if store_rest.enabled():
         # 품질 게이트: 전 배치 PASS 여야 서빙 반영(틀린 권리 요지가 조용히 상세 페이지에
         # 노출되는 것을 차단). FAIL 이면 로컬엔 남기되 미러는 건너뛴다.
         from src import data_gates  # noqa: PLC0415
@@ -191,7 +229,7 @@ def main(argv=None) -> int:
         except Exception as e:  # noqa: BLE001 — 사진 테이블 미배포/실패는 조용히 skip
             print(f"[!] Supabase 사진 미러링 skip(테이블 미배포?): {e}", file=sys.stderr)
     conn.close()
-    return 0
+    return exit_code
 
 
 if __name__ == "__main__":

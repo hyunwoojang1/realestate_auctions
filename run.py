@@ -250,6 +250,19 @@ def main(argv=None) -> int:
                     except Exception as e:  # noqa: BLE001
                         if not args.json:
                             print(f"  ⚠ 클라우드 고아 정리 skip(RPC 미배포?): {e}")
+                # (감사 2026-07-20 H1) naver KB시세/호가 미러 — 종전 upsert_naver 호출자가 없어
+                # 로컬만 갱신되고 프로덕션(Vercel)의 KB시세 계층이 정체됐다(로컬 4754 vs 클라우드 2351).
+                # scored 발행과 같은 지점에서 매 새로고침마다 함께 밀어 로컬↔클라우드 시세를 일치시킨다.
+                # 병합 upsert라 full/merge 양쪽에서 안전. 실패해도 로컬·scored 미러는 안 깨진다.
+                try:
+                    naver_rows = store.load_all_naver(conn)
+                    if naver_rows:
+                        nn = store_rest.upsert_naver(naver_rows)
+                        if not args.json:
+                            print(f"  ☁ Supabase naver 시세 미러링: {nn}건")
+                except Exception as e:  # noqa: BLE001 — naver 미러 실패는 scored 미러를 안 깬다
+                    if not args.json:
+                        print(f"  ⚠ naver 시세 미러 skip(테이블 미배포?): {e}")
             except Exception as e:  # noqa: BLE001 — 클라우드 실패는 로컬 새로고침을 깨지 않음
                 if not args.json:
                     print(f"  ⚠ Supabase 미러링 실패(로컬은 정상 적재됨): {e}")

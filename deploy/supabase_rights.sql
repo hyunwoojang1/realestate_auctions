@@ -40,7 +40,11 @@ create table if not exists public.auction_listing_photos (
     case_no    text not null,
     item_no    text not null default '',
     seq        integer not null default 0,
-    thumb_b64  text not null,
+    -- (감사 2026-07-20) Storage 모드에선 thumb_b64는 빈값이고 photo_url에 URL이 저장된다.
+    -- 종전 SQL은 thumb_b64 not null + photo_url 누락이라, 이 SQL로 재구축 시 사진 미러가 400으로
+    -- 통째 죽었다(라이브엔 photo_url 있고 thumb_b64는 nullable로 운영 중). 라이브와 일치시킨다.
+    thumb_b64  text default '',
+    photo_url  text not null default '',
     fetched_at text not null default '',
     primary key (court, case_no, item_no, seq)
 );
@@ -57,12 +61,16 @@ create table if not exists public.auction_naver_prices (
     complex_name text default '',
     area_no      text default '',
     match_conf   text default '',
-    kb_low       integer,               -- 하한가(원)
-    kb_avg       integer,               -- 일반가(원) = KB '시세'
-    kb_high      integer,               -- 상한가(원)
-    lease_avg    integer,               -- 전세 일반가(원)
-    ask_min      integer,               -- 호가 최저(원)
-    ask_max      integer,               -- 호가 최고(원)
+    -- (감사 2026-07-20) 가격은 bigint 필수 — 서울 고가물건은 21.4억(int32 max) 초과라 integer면
+    -- upsert 시 22003 out-of-range로 미러 전량 실패했다(라이브는 ALTER로 bigint 전환 완료).
+    kb_low       bigint,                -- 하한가(원)
+    kb_avg       bigint,                -- 일반가(원) = KB '시세'
+    kb_high      bigint,                -- 상한가(원)
+    lease_avg    bigint,                -- 전세 일반가(원)
+    lease_low    bigint,                -- 전세 하한가(원) (2026-07-19 추가 — 라이브엔 있으나 SQL 누락됐던 것)
+    lease_high   bigint,                -- 전세 상한가(원)
+    ask_min      bigint,                -- 호가 최저(원)
+    ask_max      bigint,                -- 호가 최고(원)
     ask_count    integer default 0,
     base_ymd     text default '',
     fetched_at   text not null default '',
