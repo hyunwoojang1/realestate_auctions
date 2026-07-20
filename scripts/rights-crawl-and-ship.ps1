@@ -31,8 +31,10 @@ function Log($m) {
     $line = "{0}  {1}" -f (Get-Date -Format "HH:mm:ss"), $m
     $line | Tee-Object -FilePath $LogPath -Append
 }
-function RunPy($pyargs) {   # .venv python 실행, exit code 반환
-    & $Python @pyargs 2>&1 | Tee-Object -FilePath $LogPath -Append
+function RunPy($pyargs) {   # .venv python 실행, exit code만 반환(출력은 로그로, 반환값 오염 금지)
+    # (버그수정 2026-07-21) 종전엔 Tee 통과출력이 함수 반환값에 섞여 배열이 돼 -ne 0 검사가 항상
+    # 참(FAIL)이 됐다(618 passed인데 pytest FAIL 오판). Out-Null로 통과출력을 버려 exit code만 반환.
+    & $Python @pyargs 2>&1 | Tee-Object -FilePath $LogPath -Append | Out-Null
     return $LASTEXITCODE
 }
 function Count($table) {
