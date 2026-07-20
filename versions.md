@@ -1,5 +1,20 @@
 # versions.md — auction-arbitrage 루프 작업 로그 (append-only, 최신순)
 
+## 2026-07-20 23:08 KST — ⏰ 권리 크롤 4시간 후 자동실행 예약(사전검수→크롤→사후검수→푸시·배포)
+- **요청**: 리스트 크롤 종료 후 그 물건 기준 권리 크롤. 크롤 **전후 감사·검수 게이트**. 통과 시에만
+  푸시·배포. 4시간 후 자동 진행. → Windows 예약작업(프로젝트 기존 패턴).
+- **신규 `harness/RIGHTS_CRAWL_RUNBOOK.md`**: 절차·게이트·롤백·한계 문서화(Default-FAIL 원칙).
+- **신규 `scripts/rights-crawl-and-ship.ps1`**: Phase0 리스트크롤종료확인 → Phase1 사전검수(pytest·ruff·
+  data_gates·카운트, FAIL시 크롤 중단) → Phase2 crawl_rights --limit 500 → Phase3 사후검수(rights델타>0·
+  data_gates·pytest·exit0, FAIL시 배포 차단) → Phase4 git push + deploy_prod.sh(Git Bash 자동탐색).
+  결과=`harness/RIGHTS_CRAWL_REPORT.md` + `evidence/rights-crawl-<ts>.log`. UTF-8 BOM(한글 보존), 파싱 OK.
+- **예약작업 `AuctionArbitrage-RightsCrawl-Once`**: 1회성 트리거 **2026-07-21 03:08 KST**(등록 Ready,
+  다음실행 03:08:08 확인). AllowStartIfOnBatteries·StartWhenAvailable·3h 상한.
+- **한계(정직)**: 무인 실행의 '감사'는 결정론적 검수(테스트·게이트·카운트·exit)뿐 — 다관점 LLM 리뷰어
+  감사는 세션 필요(로그/리포트로 사후 재검토). 현황조사서(P4)는 별건, 이번 크롤은 명세서 요지까지.
+- ⚠️ 03:08 크롤과 기존 05:30 일일새로고침(F1로 crawl_rights 포함됨)이 같은 밤에 겹침 — 하룻밤 court
+  부하 증가(문제 시 -SkipRights 또는 예약 취소). 배포는 커밋된 main만 나가므로 안전.
+
 ## 2026-07-20 19:45 KST — ☁️ 적재경로(크롤→로컬→Supabase→Vercel) 감사 + H1/F1/스키마 수정
 - **H1 완전 해결·라이브 검증**(`run.py`): naver KB시세/호가가 클라우드로 안 올라가던 것(upsert_naver
   호출자 0개) → run.py scored 미러 옆에 `store_rest.upsert_naver` 배선. **진짜 원인 추가발견**: 클라우드
