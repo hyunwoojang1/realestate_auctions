@@ -31,7 +31,7 @@
 param(
     [string]$Time = "05:30",
     [string]$TaskName = "AuctionArbitrage-DailyRefresh",
-    [long]$Cash = 500000000
+    [long]$Cash = 1000000000
 )
 
 $ErrorActionPreference = "Stop"
