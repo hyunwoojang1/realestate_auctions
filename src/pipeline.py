@@ -72,20 +72,33 @@ def load_courtauction_auctions(cash_won: int | None = None, sido_cd: str = "",
     return listings
 
 
+# (감사 2026-07-20 CRITICAL) 직전 load_courtauction_nationwide 실행이 중간 차단으로
+# '부분 수집'이었는지 신호. run.py가 True를 보면 전량 교체(replace_all)를 병합(upsert)으로
+# 강등한다 — 부분 스냅샷 전량교체는 미수집 시도 물건·권리를 로컬·클라우드에서 삭제한다.
+NATIONWIDE_PARTIAL = False
+
+
 def load_courtauction_nationwide(cash_won: int | None = None, appraisal_buffer: float = 3.0,
                                  max_pages_per_sido: int = 10, client=None,
                                  sidos: list[str] | None = None) -> list:
     """전국 17개 시도를 샤딩 수집 → CourtAuctionRecord 리스트(docid 기준 중복제거).
 
     한 client를 공유해 일일상한·지터·세션이 시도 전체에 누적 적용된다(밴 회피).
-    중간에 차단(CourtAuctionBlocked) 시 그때까지 모은 부분결과를 반환하고 중단한다.
+    중간에 차단(CourtAuctionBlocked) 시 그때까지 모은 부분결과를 반환하고 중단한다
+    (모듈 플래그 NATIONWIDE_PARTIAL=True — 호출부가 전량교체를 강등해야 함).
     시도별로 페이지를 나눠 '1→700 순차순회' 봇 패턴을 피하고 구간을 작게 유지한다.
     """
+    global NATIONWIDE_PARTIAL
     from .courtauction_client import CourtAuctionBlocked, CourtAuctionClient  # noqa: PLC0415
     from .courtauction_fields import SIDO_CODES  # noqa: PLC0415
 
-    c = client or CourtAuctionClient()
     codes = sidos if sidos is not None else list(SIDO_CODES)
+    # (감사 2026-07-20 CRITICAL) 요청예산 불변식 복원 — max_pages 상향(25→80) 시 기본
+    # daily_cap 500으로는 중간 차단(부분수집)이 데이터 의존적으로 발생한다. 예산을
+    # '시도수 × (페이지+워밍업) + 재시도 여유'로 산출해 상한이 페이지 캡보다 먼저 끊지 않게 한다.
+    budget = max(500, len(codes) * (max_pages_per_sido + 2) + 100)
+    c = client or CourtAuctionClient(daily_cap=budget)
+    NATIONWIDE_PARTIAL = False
     merged: dict[str, object] = {}
     for i, sd in enumerate(codes):
         try:
@@ -95,6 +108,7 @@ def load_courtauction_nationwide(cash_won: int | None = None, appraisal_buffer: 
         except CourtAuctionBlocked as e:
             logger.warning("시도 %s(%s)에서 중단(%s) — 부분수집 %d건 반환",
                            sd, SIDO_CODES.get(sd, ""), e, len(merged))
+            NATIONWIDE_PARTIAL = True
             break
         for r in recs:
             # T1: doc_id 없을 때 case_no 단일 폴백은 같은 사건의 다른 물건번호를 삼킨다 → 복합키.
@@ -363,6 +377,7 @@ def run(use_live: bool = False, deal_ymd: str | None = None,
     """
     from .matcher import estimate_from_complex_trades  # noqa: PLC0415
     from .matcher import SCOPE_APPRAISAL_MISMATCH  # noqa: PLC0415
+    from . import molit_bridge  # noqa: PLC0415
 
     listings = auctions if auctions is not None else load_sample_auctions()
 
@@ -377,6 +392,14 @@ def run(use_live: bool = False, deal_ymd: str | None = None,
     else:
         trade_pool = load_sample_trades()
 
+    # (감사 2026-07-19 H5) 국토부 병렬 하이브리드 브리지 — 확정쌍의 과거 이력을 지문으로
+    # 국토부 aptNm 그룹 대응을 확정하고, 네이버가 아직 못 본 최근 거래만 메모리 보충한다
+    # (순차 크롤 신선도 의존 완화). 지문 미달이면 보충 0건 = 종전 동작과 동일.
+    bridge = None
+    n_bridge_l = n_bridge_rows = 0
+    if real_trades_lookup is not None and trade_pool and molit_bridge.enabled():
+        bridge = molit_bridge.BridgeIndex(trade_pool)
+
     scored: list[ScoredListing] = []
     n_naver = n_widened = 0
     for lst in listings:
@@ -384,6 +407,12 @@ def run(use_live: bool = False, deal_ymd: str | None = None,
         mult = 1.0
         if real_trades_lookup is not None:
             rows = real_trades_lookup(lst)
+            if rows and bridge is not None:
+                extra = bridge.topup(lst, rows)
+                if extra:
+                    rows = list(rows) + extra
+                    n_bridge_l += 1
+                    n_bridge_rows += len(extra)
             if rows:
                 nm, nmult = estimate_from_complex_trades(lst, rows)
                 if nm.est is not None:
@@ -403,6 +432,8 @@ def run(use_live: bool = False, deal_ymd: str | None = None,
         scored.append(s)
     if n_naver:
         logger.info("네이버 확정 실거래 추정: %d건 (창 확장 %d건)", n_naver, n_widened)
+    if n_bridge_l:
+        logger.info("국토부 브리지 보충: %d물건 +%d건(지문 확정분만)", n_bridge_l, n_bridge_rows)
 
     scored.sort(key=lambda s: (s.arb_score is None, -(s.arb_score or 0)))
     return scored

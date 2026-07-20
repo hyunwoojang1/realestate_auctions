@@ -39,7 +39,11 @@ param(
     [string]$Ym = "",
     [string]$DbPath = "",
     [switch]$SkipNaver,        # 네이버 증분 단계 건너뛰기(안티밴 사고 시)
-    [int]$NaverStaleDays = 14  # 네이버 실거래 증분 신선도 기준(일). 이보다 오래된 쌍만 재수집
+    [int]$NaverStaleDays = 14, # 네이버 실거래 증분 신선도 기준(일). 이보다 오래된 쌍만 재수집
+    [int]$MaxPages = 120       # courtauction 시도당 페이지 상한(1p=40건). 25→120(2026-07-20):
+                               # 현금 10억 확장으로 대형 시도가 4,515행(113p)까지 실측 — 120p로 전수.
+                               # totalCnt 도달 시 조기종료라 실제 요청수는 필요분만 쓴다.
+                               # 요청예산은 pipeline이 시도수×(페이지+2)+100으로 자동 산출(부분수집 방지).
 )
 
 $ErrorActionPreference = "Stop"
@@ -61,7 +65,8 @@ $env:PYTHONUTF8 = "1"
 $env:AUCTION_DB = $DbPath
 
 # --- run.py 인자 구성 ---
-$runArgs = @("run.py", "--source", "courtauction", "--db", $DbPath, "--cash", "$Cash")
+$runArgs = @("run.py", "--source", "courtauction", "--db", $DbPath, "--cash", "$Cash",
+             "--max-pages", "$MaxPages")
 
 # 물건 소스: 캐시(재크롤X) vs 전국 실크롤. --live/--ym는 국토부 시세라 둘 다에 적용(독립).
 if ($FromCache) { $runArgs += "--from-cache" } else { $runArgs += "--nationwide" }

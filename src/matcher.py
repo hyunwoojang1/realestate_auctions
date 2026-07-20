@@ -258,7 +258,9 @@ def match_trades(listing: AuctionListing, trades: list[Trade]) -> list[Trade]:
 
 RECENCY_WINDOW_MONTHS = 12   # 최근 N개월 거래만 사용(오래된 거래는 시세 신선도↓)
 TRIM_MIN_SAMPLES = 4         # 표본 4건 이상이면 상·하단 이상치 1건씩 트림
-COMPS_CAP = 60               # 차트용 개별 실거래 점 최대 보관수(최신순) — 저장·렌더 비용 상한
+COMPS_CAP = 240              # 차트용 개별 실거래 점 최대 보관수(최신순) — 저장·렌더 비용 상한.
+                             # 60→240(2026-07-20): 장기 실거래(19년치) 잘림 58쌍 해소.
+                             # 페이로드 영향: 행당 최대 +3.8KB(비압축), gzip 후 상세페이지 +1KB 미만.
 
 
 def _ym_to_int(ym: str) -> int | None:

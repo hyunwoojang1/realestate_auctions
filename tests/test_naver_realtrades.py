@@ -125,6 +125,37 @@ def test_upsert_complex_preserve_on_empty(conn):
     assert row["household_count"] == 182
 
 
+def test_upsert_complex_zero_counts_update(conn):
+    """MEDIUM2 회귀 방지 — 페치 성공한 0(전량 매도)은 반영되고 high-water-mark가 사라진다."""
+    detail1 = {"complexDetail": {"complexNo": "24958", "complexName": "진천태왕아너스1단지",
+                                 "totalHouseholdCount": 182,
+                                 "dealCount": 3, "leaseCount": 2, "rentCount": 1}}
+    ov1 = {"minPrice": 25000, "maxPrice": 31000}
+    ns.upsert_complex(conn, detail1, "t1", overview=ov1)
+    # 재크롤: 매물 전량 소진 — 키는 전달됐고 값이 0
+    detail2 = {"complexDetail": {"complexNo": "24958", "complexName": "진천태왕아너스1단지",
+                                 "dealCount": 0, "leaseCount": 0, "rentCount": 0}}
+    ov2 = {"minPrice": 0, "maxPrice": 0}
+    ns.upsert_complex(conn, detail2, "t2", overview=ov2)
+    row = conn.execute("SELECT * FROM naver_complexes WHERE complex_no='24958'").fetchone()
+    assert row["deal_count"] == 0              # ★ 옛값 3이 남지 않음(핵심)
+    assert row["lease_count"] == 0 and row["rent_count"] == 0
+    assert row["min_price"] == 0 and row["max_price"] == 0
+    assert row["fetched_at"] == "t2"           # 전값이 0이어도 신선도는 갱신
+    assert row["household_count"] == 182       # 정적 메타는 결측 보존 유지
+
+
+def test_upsert_complex_missing_keys_preserve_counts(conn):
+    """MEDIUM2 짝 — 키 자체가 없으면(파싱실패·부분응답) 동적 컬럼도 보존된다."""
+    detail1 = {"complexDetail": {"complexNo": "24958", "dealCount": 3}}
+    ns.upsert_complex(conn, detail1, "t1", overview={"minPrice": 25000})
+    detail2 = {"complexDetail": {"complexNo": "24958", "complexName": "진천태왕아너스1단지"}}
+    ns.upsert_complex(conn, detail2, "t2", overview=None)   # dealCount·minPrice 키 부재
+    row = conn.execute("SELECT * FROM naver_complexes WHERE complex_no='24958'").fetchone()
+    assert row["deal_count"] == 3              # 결측 → 보존
+    assert row["min_price"] == 250_000_000
+
+
 def test_upsert_kb_history(conn):
     prices = [
         {"baseYearMonthDay": "20260713", "dealAveragePrice": 28500,

@@ -104,11 +104,18 @@ def main(argv=None) -> int:
         base_cache = args.cache or cc.DEFAULT_CACHE
         cache_path = f"{base_cache}.dryrun.json" if args.from_cache else base_cache
         diff = cc.diff_records(records, cc.load_cache(cache_path))
-        cc.save_cache(records, cache_path)
-        # 라이브 수집분은 full-record 캐시에도 저장 → 이후 --from-cache 오프라인 dry-run이
-        # fixture가 아니라 '마지막 실제 수집분'을 재생한다. dry-run은 이 캐시를 덮지 않는다.
-        if not args.from_cache:
-            cc.save_full_records(records)
+        # (감사 2026-07-20 CRITICAL) 부분 수집(전국 크롤 중간 차단)이면 캐시를 덮지 않는다 —
+        # 부분 스냅샷이 캐시를 오염시키면 --from-cache 복구 경로까지 반쪽이 된다.
+        partial_crawl = args.nationwide and pipeline.NATIONWIDE_PARTIAL
+        if partial_crawl:
+            print("  ⚠ 부분 수집(요청상한 차단) — 캐시 스냅샷·full-record 덮어쓰기 스킵",
+                  file=sys.stderr)
+        else:
+            cc.save_cache(records, cache_path)
+            # 라이브 수집분은 full-record 캐시에도 저장 → 이후 --from-cache 오프라인 dry-run이
+            # fixture가 아니라 '마지막 실제 수집분'을 재생한다. dry-run은 이 캐시를 덮지 않는다.
+            if not args.from_cache:
+                cc.save_full_records(records)
         if not args.json:
             print(f"  courtauction 수집 {len(records)}건 — {diff.summary} (캐시 {cache_path})")
 
@@ -184,6 +191,13 @@ def main(argv=None) -> int:
                   f"(좌표없음 {cstats['no_coord']}·검증탈락 {cstats['bbox_reject']})")
     # 풀스냅샷(전국 실크롤 또는 캐시 전량, 라이브 시세)은 전량 교체로 만료매물 제거. 그 외는 병합.
     full_snapshot = args.nationwide or args.from_cache
+    # (감사 2026-07-20 CRITICAL) 부분 수집이면 전량 교체 강등 — 미수집 시도 물건·권리가
+    # 로컬·클라우드에서 삭제되는 사고 방지. 병합(upsert) 경로로 떨어뜨린다(고아 정리도 스킵됨).
+    if (args.source == "courtauction" and args.nationwide
+            and pipeline.NATIONWIDE_PARTIAL and full_snapshot):
+        print("  ⛔ 부분 수집(전국 크롤 중간 차단) — 전량 교체 대신 병합 저장(클라우드도 병합만).",
+              file=sys.stderr)
+        full_snapshot = False
     if args.source == "courtauction" and use_live and full_snapshot and not scored:
         # 수집 0건(전 샤드 차단·전량 파싱 실패 등)에 전량 교체를 돌리면 서빙 DB가 통째로 비워지고,
         # 빈 테이블은 data_gates 를 위반 0건으로 통과해 클라우드까지 전파된다. 빈 스냅샷은 '만료'가

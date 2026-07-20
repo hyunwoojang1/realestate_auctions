@@ -293,6 +293,20 @@ def _i(v, scale: int = 1) -> int:
         return 0
 
 
+def _i_opt(v, scale: int = 1) -> int | None:
+    """키 없음/파싱불가 → None(보존 신호). 값이 있으면 int — 0도 유효값.
+
+    (감사 2026-07-20 MEDIUM2) _i는 결측과 진짜 0을 구분 못해 매물수·호가가
+    high-water-mark로 굳는다. 동적 컬럼은 이 파서로 결측(None)만 보존한다.
+    """
+    if v is None:
+        return None
+    try:
+        return int(float(v)) * scale
+    except (TypeError, ValueError):
+        return None
+
+
 def _f(v) -> float:
     try:
         return float(v)
@@ -317,12 +331,20 @@ def _lease_rate_str(v) -> str:
     return "" if f == 0 else (f"{f:.2f}" if f < 1 else f"{f:.0f}%")
 
 
+# 동적 컬럼 — 매물수·호가·전세가율. 크롤마다 오르내리는 값이라 0/''도 유효한 현재값이다.
+_DYNAMIC_COLS = {"deal_count", "lease_count", "rent_count",
+                 "lease_per_deal_rate", "min_price", "max_price"}
+
+
 def upsert_complex(conn: sqlite3.Connection, detail: dict, fetched_at: str,
                    overview: dict | None = None) -> str | None:
     """complex_detail 응답(complexDetail 서브객체) + (선택) overview → naver_complexes 1행.
 
     (감사 2026-07-19 H1) **빈값 덮어쓰기 금지**: detail/overview가 비어(재파싱·일시실패) 들어와도
-    기존 행의 채워진 값을 0/''로 파괴하지 않는다. 각 컬럼은 신규값이 유효할 때만 갱신(COALESCE-NULLIF).
+    기존 행의 채워진 값을 파괴하지 않는다.
+    (감사 2026-07-20 MEDIUM2) 보존 판정은 값이 아니라 **소스 키 존재 여부** 기준 — 동적 컬럼
+    (_DYNAMIC_COLS)은 페치가 값을 실제 전달했으면 0/''도 갱신한다(high-water-mark 제거).
+    정적 메타(세대수·준공일 등)는 0=결측 의미라 종전 값-기반 보존을 유지한다.
     """
     cd = (detail or {}).get("complexDetail") or detail or {}
     cno = str(cd.get("complexNo") or "").strip()
@@ -344,25 +366,31 @@ def upsert_complex(conn: sqlite3.Connection, detail: dict, fetched_at: str,
         "construction_company": cd.get("constructionCompanyName") or "",
         "heat_method": str(cd.get("heatMethodTypeCode") or ""),
         "heat_fuel": str(cd.get("heatFuelTypeCode") or ""),
-        "deal_count": _i(cd.get("dealCount")),
-        "lease_count": _i(cd.get("leaseCount")),
-        "rent_count": _i(cd.get("rentCount")),
-        "lease_per_deal_rate": _lease_rate_str(ov.get("leasePerDealRate")),
-        "min_price": _i(ov.get("minPrice"), MANWON),
-        "max_price": _i(ov.get("maxPrice"), MANWON),
+        # 동적 컬럼(매물수·호가) — 결측(None)만 보존, 페치 성공한 0은 유효값으로 반영.
+        "deal_count": _i_opt(cd.get("dealCount")),
+        "lease_count": _i_opt(cd.get("leaseCount")),
+        "rent_count": _i_opt(cd.get("rentCount")),
+        # 전세가율은 0=무데이터 정의(_lease_rate_str) — ''는 결측 신호(None)로 승격해 기존값 보존.
+        "lease_per_deal_rate": ((_lease_rate_str(ov["leasePerDealRate"]) or None)
+                                if "leasePerDealRate" in ov else None),
+        "min_price": _i_opt(ov.get("minPrice"), MANWON),
+        "max_price": _i_opt(ov.get("maxPrice"), MANWON),
         "latitude": _f(cd.get("latitude")),
         "longitude": _f(cd.get("longitude")),
     }
     if not exists:
-        cols = ["complex_no", *vals.keys(), "fetched_at"]
+        ins = {k: v for k, v in vals.items() if v is not None}
+        cols = ["complex_no", *ins.keys(), "fetched_at"]
         conn.execute(f"INSERT INTO naver_complexes ({','.join(cols)}) "
                      f"VALUES ({','.join('?' * len(cols))})",
-                     (cno, *vals.values(), fetched_at))
+                     (cno, *ins.values(), fetched_at))
     else:
-        # 유효값(0/'' 아님)만 갱신 — 빈값은 기존값 보존.
+        # 정적 메타: 유효값(0/'' 아님)만 갱신(H1 빈값 덮어쓰기 금지 유지).
+        # 동적 컬럼: 소스 키가 실제 전달된 경우(None 아님)만 갱신 — 0/''도 유효(MEDIUM2).
         sets, args = [], []
         for k, v in vals.items():
-            if v not in (0, 0.0, ""):
+            ok = (v is not None) if k in _DYNAMIC_COLS else (v not in (None, 0, 0.0, ""))
+            if ok:
                 sets.append(f"{k}=?")
                 args.append(v)
         if sets:

@@ -1,5 +1,72 @@
 # versions.md — auction-arbitrage 루프 작업 로그 (append-only, 최신순)
 
+## 2026-07-20 11:35 KST — 🛡️ 오늘 작업분 27에이전트 적대검증 → 확정 결함 일괄 수정
+- 방식: 4렌즈(데이터정확·침묵실패·보안·계약정합) 발견 → 발견별 반박 검증(총 27에이전트).
+- **CRITICAL(수정)**: `-MaxPages 80`이 요청예산 불변식(17×25=425≤500) 파괴 — daily_cap 500을
+  중간에 치면 부분수집이 **전량교체로 들어가 미수집 시도 물건·권리를 로컬·클라우드에서 삭제**.
+  수정 3중: ①`pipeline.load_courtauction_nationwide`가 예산을 `시도수×(페이지+2)+100`으로 산출해
+  client(daily_cap)에 주입 ②차단 시 `NATIONWIDE_PARTIAL` 플래그 → run.py가 전량교체를 **병합
+  (upsert)으로 강등**(고아정리·클라우드 전량교체 스킵) ③부분수집 시 캐시 스냅샷 덮어쓰기 스킵.
+- **HIGH(수정)**: 브리지 그룹키에 동(洞) 누락 — 같은 시군구 동명이단지 병합 주입(재현 est −46%).
+  그룹키 (kind,이름,**dong**,면적)으로 분리 — 타단지는 경쟁자로 남아 WINNER_MARGIN 게이트 실효.
+- **MEDIUM(수정)**: ①브리지 취소 재주입(닫힌달 영구캐시) — 보충을 **열린 2개월로 한정**(cutoff
+  pool_max-1) ②렌더 최악 14s(스칼라 타임아웃=connect+read 각각) — (connect,read) 튜플로 ~8.5s
+  ③VWorld 200+ERROR 침묵 — 경고 로그+실패 시 캐시 안 함(일시 장애 영구화 방지) ④bldg 무조건
+  호출 — 건물형 유형만 조회 게이트.
+- **LOW(수정)**: 전세가율 0→'' 덮어쓰기(0=무데이터 정의 존중, ''→None 보존) · 층0 비대칭 중복
+  주입 방어 · 예외 로그 키 레닥션 · .gitignore에 *.log(키 노출 로그 우발 스테이징 방지).
+- 기각(반박 성공): 브리지 provenance 계약(12개월창 산술적 불가), 툴팁 XSS(sub는 dead property),
+  parse_jibun 오파싱(도달 불가 — PNU가 항상 우선), COMPS_CAP·refresh-daily는 안전 확인.
+- 잔여(기록만): naver_complexes INSERT시 결측→DEFAULT 0(UPDATE부터 구분됨, 스키마 변경 필요라 보류),
+  VWorld 키 HTML 노출(타일 키의 구조적 특성 — **VWorld 콘솔에서 도메인 제한 설정 권장**, 사용자 몫),
+  타일 1~2장 산발 실패 시 회색 타일(3연속 임계 미달, 영향 미미).
+- 테스트: 동명이단지·층0 중복 2건 추가 — **전체 578 passed, 1 skipped**.
+
+## 2026-07-20 11:45 KST — 🗺️ 상세 지도 VWorld 한글타일 + 건축물대장 패널 (배포 전 사용자 확인 대기)
+- 지도: OSM → **VWorld Base WMTS**(국토부 한글지도) 스왑 — `detail.html` 지도 JS.
+  키는 서버(`web.py` vworld_key)→`data-vw-key`, 타일 3연속 오류 시 **OSM 자동 폴백**.
+  로컬 실측: 한글 지명 + 학교·POI 라벨 렌더 확인(별도 POI 마커 없이 타일이 입지정보 제공).
+  덤: 감사 미수정 #8(지도팝업 XSS) 해소 — bindPopup을 DOM 노드(textContent)로.
+- 건축물대장: `src/building_info.py` 신설 — 주소→VWorld 지오코더(**level4LC가 19자리 PNU**로
+  옴을 실측, 법정동10+산1+본번4+부번4 파싱)→건축HUB 표제부→요약(주동 기준, 위반은 필지 내 any).
+  ⚠ 구 엔드포인트 `BldRgstService_v2`는 500 — **`BldRgstHubService`로 교체**(키 활성 실측).
+  `web.py` 상세 라우트 배선 + `detail.html` #col-nums에 패널(준공연월·연식·주용도·규모·위반).
+  실패·키부재·산지·도로명-only 주소는 카드 미표시(페이지 정상). 프로세스 캐시(실패 포함).
+  실측: 실주소 6건 중 4건 성공(도로명-only 1·data.go.kr 타임아웃 1), 보성청록타운 1998.12·28년차.
+- 타임아웃 보수화: VWorld 2.5s + 표제부 4.5s(Vercel 함수 10s 제한 안).
+- 테스트: tests/test_building_info.py 7건(지번 파싱·요약 규칙). 비포/애프터:
+  `경매-비포애프터\상세_VWorld지도_건축물대장_보성청록타운.png` — **배포는 사용자 확인 후**.
+- 미완(배포 시 필수): Vercel env에 VWORLD_API_KEY·VWORLD_DOMAIN·MOLIT_API_KEY 추가해야 프로덕션 작동.
+- (거래량 히스토그램은 사용자 결정으로 **취소** — 점 밀도=거래량, 호버 카드가 월 건수 표시 중.)
+
+## 2026-07-20 11:10 KST — 🌉 감사 H5: 국토부 병렬 하이브리드 1단계(지문 브리지) 구현
+- 문제(H5): 네이버 실거래 크롤은 안티밴으로 절대 순차 → 쌍 수에 시간 선형 비례(확장 상한).
+- 설계: **지문(fingerprint) 브리지** `src/molit_bridge.py` — 네이버 확정쌍의 과거 이력
+  (월·가격·층 정확일치)을 지문으로 국토부 aptNm 그룹과의 대응을 확정(이름 퍼지매칭 완전 우회),
+  병렬로 이미 수집하는 국토부 풀에서 "네이버가 아직 못 본 최근 거래"만 메모리 보충(채점 1회용,
+  naver_store 무기록). 신선도 의존을 국토부(병렬)로 옮기는 H5 취지의 안전한 1단계.
+- 보수 게이트: 정확일치 ≥3건 + 창내 커버리지 ≥60% + 압도적 유일승자(2위×2 이상) + 해제 제외 +
+  보충은 네이버 최신월 이후·최근 4개월·물건당 20건 상한. 미달=보충 0건(종전 동작 동일).
+  `AUCTION_MOLIT_BRIDGE=0` 완전 비활성.
+- 배선: `pipeline.run` — real_trades_lookup 결과에 topup 합류 후 estimate_from_complex_trades.
+  scope/est_source 불변(게이트·미러 정합 유지). 로그: "국토부 브리지 보충: N물건 +M건".
+- 테스트: tests/test_molit_bridge.py 8건(주입·중복방지·지문미달·커버리지·모호성·해제/타지역 제외·
+  env·파이프라인 통합). **전체 스위트 569 passed, 1 skipped**(종전 559+신규 10).
+- 다음: 오늘 10억 2회전 크롤에 투입 → 표본검수에서 브리지 보충 로그 확인.
+
+## 2026-07-20 10:55 KST — 🔧 감사 잔여 2건 수정: MEDIUM2 0값 high-water-mark + comps 캡 60→240
+- 배경: 내일(7/21) 05:30 노트북 OFF 예정 → 오늘 수동 10억 크롤 전에 데이터 품질 수정 선행.
+- (MEDIUM2) `src/naver_store.py upsert_complex`: 보존 판정을 값 기반(`v not in (0,0.0,"")`)에서
+  **소스 키 존재 기반**으로 분리 — 동적 컬럼(_DYNAMIC_COLS: deal/lease/rent_count·min/max_price·
+  전세가율)은 페치가 값을 전달했으면 0/''도 갱신(_i_opt 신설, 전량매도=매물0 반영), 결측(None)만
+  보존. 정적 메타(세대수·준공일)는 종전 H1 값-기반 보존 유지. fetched_at도 전값 0일 때 갱신됨.
+- (comps 캡) `src/matcher.py COMPS_CAP` 60→**240** — 장기 실거래(19년치) 잘림 58쌍 해소.
+  페이로드: 행당 최대 +3.8KB(비압축)·gzip 후 상세 +1KB 미만, /api/listings 최대 ~4배(허용 판단).
+  캡 소비처 2곳(_pack_comps·estimate_from_complex_trades) 모두 상수 공유라 상수만 변경.
+- 테스트: test_upsert_complex_zero_counts_update + test_upsert_complex_missing_keys_preserve_counts
+  신설, 기존 H1 보존 테스트 그린 유지. pytest naver_realtrades+matcher **37 PASS**.
+- 다음: 국토부 병렬 하이브리드(H5) → 오늘 2회전 크롤(신규 10억 물건 당일 매칭).
+
 ## 2026-07-20 01:34 KST — 🕰️ 장기 실거래 본 재채점 실행·프로덕션 반영(코드 변경 없음)
 - 사용자: "타 세션 장기 수집 끝났으니 진행" → 실측: 백필 상태판 **완료**(184쌍·실거래 9,576행·
   실패 0, 01:23)·크롤 프로세스 종료. 타 세션 코드는 아직 미커밋(워킹트리)이므로 코드는 안 건드리고
