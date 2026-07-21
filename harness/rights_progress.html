@@ -1,0 +1,41 @@
+<!doctype html><html lang="ko"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta http-equiv="refresh" content="60">
+<title>권리 크롤 진행률</title>
+<style>
+:root{--bg:#0f1720;--card:#18222e;--ink:#e6edf3;--sub:#8899a6;--accent:#3fb950;--track:#22303c;--warn:#e3b341}
+*{box-sizing:border-box}
+body{margin:0;font-family:'Pretendard',-apple-system,'Segoe UI',sans-serif;background:var(--bg);color:var(--ink);
+ display:flex;min-height:100vh;align-items:center;justify-content:center;padding:24px}
+.wrap{width:100%;max-width:640px}
+h1{font-size:15px;font-weight:600;color:var(--sub);letter-spacing:.02em;margin:0 0 20px;text-transform:uppercase}
+.big{font-size:76px;font-weight:800;line-height:1;letter-spacing:-.02em;margin:0}
+.big span{font-size:32px;color:var(--sub);font-weight:600}
+.track{height:16px;border-radius:99px;background:var(--track);overflow:hidden;margin:22px 0 8px}
+.fill{height:100%;border-radius:99px;background:linear-gradient(90deg,#2ea043,#3fb950);width:69.9%;
+ transition:width .6s ease}
+.subline{color:var(--sub);font-size:14px;margin:0 0 28px}
+.grid{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+.card{background:var(--card);border-radius:14px;padding:16px 18px}
+.card .k{color:var(--sub);font-size:12px;margin:0 0 6px}
+.card .v{font-size:24px;font-weight:700;margin:0}
+.foot{color:var(--sub);font-size:12px;margin-top:24px;display:flex;justify-content:space-between;align-items:center}
+.dot{display:inline-block;width:8px;height:8px;border-radius:50%;background:var(--accent);margin-right:6px;
+ animation:pulse 1.6s infinite}
+@keyframes pulse{0%,100%{opacity:1}50%{opacity:.3}}
+</style></head><body><div class="wrap">
+<h1>부동산 경매 · 권리 크롤 진행률</h1>
+<p class="big">69.9<span>%</span></p>
+<div class="track"><div class="fill"></div></div>
+<p class="subline">크롤가능 물건 <b style="color:var(--ink)">15,509</b>건 중 <b style="color:var(--accent)">10,848</b>건 권리 확인 완료</p>
+<div class="grid">
+  <div class="card"><p class="k">완료</p><p class="v" style="color:var(--accent)">10,848</p></div>
+  <div class="card"><p class="k">남은 물건</p><p class="v">4,661</p></div>
+  <div class="card"><p class="k">처리 속도</p><p class="v">계산 중…</p></div>
+  <div class="card"><p class="k">예상 완료(ETA)</p><p class="v" style="font-size:16px">계산 중…</p></div>
+</div>
+<div class="foot">
+  <span><span class="dot"></span>진행 중 · listing_rights 10,848행 · scored 15,509</span>
+  <span>갱신 2026-07-22 07:10:06 KST · 60초 자동새로고침</span>
+</div>
+</div></body></html>

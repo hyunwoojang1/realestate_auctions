@@ -835,6 +835,7 @@ table.params{border-collapse:collapse;width:100%;font-size:var(--t-data);backgro
     {%- set p = request.path if request else '/' -%}
     <nav class="nav" id="navMenu">
       <a href="/"{% if p == '/' %} class="on"{% endif %}>매물</a>
+      <a href="/find"{% if p.startswith('/find') %} class="on"{% endif %}>사건검색</a>
       <a href="/map"{% if p.startswith('/map') %} class="on"{% endif %}>지도</a>
       <a href="/calendar"{% if p.startswith('/calendar') %} class="on"{% endif %}>일정</a>
       <a href="/watchlist"{% if p.startswith('/watchlist') %} class="on"{% endif %}>관심</a>

@@ -1,0 +1,132 @@
+{% extends "base.html" %}
+{% block title %}사건번호 검색{% endblock %}
+
+{% block content %}
+<a class="back" href="/">← 목록</a>
+
+{# ── 검색 폼(모든 단계 공통) ── #}
+<form class="hsearch" method="get" action="/find" style="margin-top:12px">
+  <h1>사건번호로 찾기</h1>
+  <p class="sub">친구가 보낸 사건번호를 그대로 넣어도 돼요 — <b>2025-101763</b>, <b>2025타경101763</b> 모두 인식합니다.</p>
+  <div class="hs-name">
+    <label for="q">사건번호</label>
+    <div class="hs-name-row">
+      <input id="q" name="q" type="search" value="{{ raw|e }}" placeholder="예: 2025-101763" autofocus>
+    </div>
+  </div>
+  <div class="hs-row">
+    <div class="hs-f">
+      <label for="court">법원 <span style="text-transform:none;font-weight:500">(우리 목록에 없을 때만 필요)</span></label>
+      <select id="court" name="court">
+        <option value="">— 법원 선택(선택) —</option>
+        {% for c in courts %}
+        <option value="{{ c }}" {% if c == court_sel %}selected{% endif %}>{{ c }}</option>
+        {% endfor %}
+      </select>
+    </div>
+    <button class="hs-go" type="submit">검색</button>
+  </div>
+  <p class="covnote" style="margin-top:14px">
+    <b>1단계</b> 우리 큐레이션(10억↓·현매물)에서 먼저 찾고 <span class="sep">·</span>
+    <b>2단계</b> 없으면 대법원에서 직접 공식정보를 가져옵니다(법원 선택 필요).
+  </p>
+</form>
+
+{# ── 상태별 안내 ── #}
+{% if stage == 'unparsed' %}
+<div class="note-box n-warn">사건번호를 인식하지 못했어요. 숫자를 확인해 주세요 (예: <b>2025-101763</b>).</div>
+
+{% elif stage == 'need_year' %}
+<div class="note-box n-warn">접수 <b>연도</b>가 필요합니다. 사건번호 <b class="mono">…타경{{ query.serial }}</b> 앞에 연도를 붙여 주세요
+(예: <b>2025-{{ query.serial }}</b>). 연도를 모르면 우리 큐레이션 목록에서만 찾을 수 있어요.</div>
+
+{% elif stage == 'need_court' %}
+<div class="note-box n-warn">우리 큐레이션 목록엔 <b class="mono">{{ query.canonical }}</b>이(가) 없어요.
+대법원에서 직접 조회하려면 <b>관할 법원</b>을 위 드롭다운에서 선택하고 다시 검색해 주세요
+(사건번호만으로는 어느 법원인지 특정할 수 없습니다).</div>
+
+{% elif stage == 'error' %}
+<div class="note-box n-risk">{{ message }}</div>
+
+{% elif stage == 'local_multi' %}
+<div class="note-box n-ok">우리 큐레이션에서 <b>{{ matches|length }}건</b> 찾았어요. 확인할 물건을 선택하세요.</div>
+<div class="tablewrap" style="margin-top:12px"><div class="scrollx">
+<table class="params">
+<thead><tr><th scope="col">사건번호</th><th scope="col">물건</th><th scope="col">유형</th>
+<th scope="col">건물명 / 소재지</th><th class="num" scope="col">최저입찰가</th><th scope="col">관할법원</th><th></th></tr></thead>
+<tbody>
+{% for s in matches %}
+<tr>
+  <td class="mono">{{ s.case_no }}</td>
+  <td class="num">{{ s.item_no or '—' }}</td>
+  <td>{{ s.property_type }}</td>
+  <td>{{ s.apt_name or '—' }}<div class="addr">{{ s.address }}</div></td>
+  <td class="num">{{ won(s.min_bid_price) }}</td>
+  <td style="font-size:var(--t-note)">{{ s.court or '—' }}</td>
+  <td><a class="go" href="/property/{{ s.case_no }}{% if s.item_no %}?item={{ s.item_no }}{% endif %}">보기 →</a></td>
+</tr>
+{% endfor %}
+</tbody>
+</table>
+</div></div>
+
+{% elif stage == 'live' %}
+<div class="note-box n-warn" style="border-left-color:var(--brand);background:var(--brand-weak);color:var(--brand-ink)">
+  <b>대법원 직접 조회</b> — 이 사건은 우리 큐레이션(10억↓·현매물)에 없어 공식 사건정보만 가져왔습니다.
+  주소·전용면적은 상세응답에 없어 <b>차익(시세 대비) 채점은 제공되지 않습니다</b> — 야간 수집에 걸린 물건만 차익을 계산합니다.
+</div>
+
+<div class="dtitle" style="margin-top:16px">
+  <div class="hd">
+    <h1>{{ view.court }}</h1>
+    <span class="case mono">{{ view.case_no }}{% if view.court_dept %} · {{ view.court_dept }}{% endif %}</span>
+  </div>
+</div>
+
+<div class="cards">
+  <div class="card">
+    <h2>가격 (기일 이력 기준)</h2>
+    <div class="kv"><span class="k">감정가(최초 최저가)</span><span class="v">{% if view.appraisal_price %}{{ won(view.appraisal_price) }}{% else %}—{% endif %}</span></div>
+    <div class="kv"><span class="k">현 최저입찰가</span><span class="v">{% if view.min_bid_price %}{{ won(view.min_bid_price) }}{% else %}—{% endif %}</span></div>
+    <div class="kv"><span class="k">유찰 횟수</span><span class="v">{{ view.fail_count }}회</span></div>
+    <div class="kv"><span class="k">청구금액</span><span class="v">{% if view.claim_amt %}{{ won(view.claim_amt) }}{% else %}—{% endif %}</span></div>
+    {% if view.demand_end %}<div class="kv"><span class="k">배당요구종기</span><span class="v">{{ view.demand_end }}</span></div>{% endif %}
+  </div>
+
+  <div class="card">
+    <h2>권리 요지 (매각물건명세서)</h2>
+    {% if view.surviving_rights %}<div class="kv"><span class="k">인수권리</span><span class="v" style="text-align:right;max-width:60%">{{ view.surviving_rights }}</span></div>{% endif %}
+    {% if view.senior_lien %}<div class="kv"><span class="k">최선순위 설정</span><span class="v" style="text-align:right;max-width:60%">{{ view.senior_lien }}</span></div>{% endif %}
+    {% if view.lien_note %}<div class="kv"><span class="k">유치권 등</span><span class="v" style="text-align:right;max-width:60%">{{ view.lien_note }}</span></div>{% endif %}
+    {% if not view.surviving_rights and not view.senior_lien and not view.lien_note %}
+    <p class="page-sub" style="margin:4px 0">표시할 권리 요지가 없습니다(빈 명세서이거나 미기재).</p>
+    {% endif %}
+    {% if view.remark %}<div class="kv"><span class="k">비고</span><span class="v" style="text-align:right;max-width:60%">{{ view.remark }}</span></div>{% endif %}
+  </div>
+</div>
+
+{% if view.schedule %}
+<div class="tablewrap" style="margin-top:16px"><div class="scrollx">
+<table class="params">
+<thead><tr><th scope="col">기일</th><th scope="col">종류</th><th scope="col">결과</th><th class="num" scope="col">최저매각가격</th></tr></thead>
+<tbody>
+{% for e in view.schedule %}
+<tr><td class="mono">{{ e.ymd }}</td><td>{{ e.kind }}</td><td>{{ e.result }}</td>
+<td class="num">{% if e.price %}{{ won(e.price) }}{% else %}—{% endif %}</td></tr>
+{% endfor %}
+</tbody>
+</table>
+</div></div>
+{% endif %}
+
+{% if view.appraisal_notes %}
+<div class="card" style="margin-top:16px">
+  <h2>감정 요항</h2>
+  {% for n in view.appraisal_notes %}
+  <div class="kv"><span class="k">{{ n.label }}</span><span class="v" style="text-align:right;max-width:70%;font-weight:500">{{ n.text }}</span></div>
+  {% endfor %}
+</div>
+{% endif %}
+
+{% endif %}
+{% endblock %}
