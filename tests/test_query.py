@@ -150,6 +150,25 @@ def test_sort_by_profit_desc():
     assert profits == sorted(profits, reverse=True)
 
 
+def test_sort_by_profit_asc_includes_negatives():
+    """(사용자 2026-07-21) 차익 낮은순 — 손해(마이너스 차익)까지 오름차순으로 노출."""
+    a = _sl(case_no="A", profit_low=-50_000_000, rights_verified=True)
+    b = _sl(case_no="B", profit_low=30_000_000, rights_verified=True)
+    c = _sl(case_no="C", profit_low=-10_000_000, rights_verified=True)
+    out = query.sort_items([b, a, c], "profit_asc")
+    assert [s.case_no for s in out] == ["A", "C", "B"]   # -5천 < -1천 < +3천만
+
+
+def test_score_sort_demotes_unverified_trap():
+    """(사용자 2026-07-21) 점수순 — 권리 미확인(인수금 0 가정 함정)은 점수가 높아도
+    권리 확정 물건보다 아래로 강등(맨 위 함정 차단)."""
+    trap = _sl(case_no="TRAP", arb_score=95.0, rights_verified=False)
+    ok = _sl(case_no="OK", arb_score=60.0, rights_verified=True)
+    out = query.sort_items([trap, ok], "score")
+    assert out[0].case_no == "OK"       # 낮은 점수라도 권리 확정본이 위
+    assert out[-1].case_no == "TRAP"
+
+
 def test_positive_only_subtracts_burden_and_drops_uncertain():
     a = _sl(case_no="clean_pos", profit_low=200_000_000)          # 인수 없음 +2억 → 통과
     b = _sl(case_no="burden_neg", profit_low=100_000_000)         # +1억이나 인수 3억 → 제외

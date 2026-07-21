@@ -42,12 +42,14 @@ def test_clean_listing_scores_high():
 
 
 def test_unverified_rights_never_gets_top_grade():
-    """권리 미검증(라이브 크롤 등) 물건은 갭이 아무리 커도 '차익 유력'이 아니라 '권리미확인'."""
+    """권리 미검증 물건은 갭이 커도 '권리미확인' 등급 + (사용자 2026-07-21) 점수 자체가 없다.
+    인수금액 0 가정으로 부풀린 함정이 점수순 상위로 뜨는 것을 차단(arb_score=None)."""
     lst = _base(min_bid_price=397_000_000, occupant_type="공실", rights_verified=False)
     s = score.score_listing(lst, est_market_price=630_000_000, matched_trades=3)
-    assert s.arb_score is not None and s.arb_score >= 80   # 점수는 참고로 계산됨
-    assert s.grade == "권리미확인"                          # 허위 안전신호 금지
+    assert s.arb_score is None                # 점수 없음 — 함정 방어
+    assert s.grade == "권리미확인"             # 허위 안전신호 금지
     assert s.rights_verified is False
+    assert s.expected_profit is not None      # 차익 자체는 적재(차익순 정렬용)
 
 
 def test_min_comps_gate_blocks_thin_market():

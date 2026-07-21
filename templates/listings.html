@@ -139,6 +139,8 @@
     <select id="srt" name="sort" onchange="this.form.submit()">
       <option value="score"{% if filters.sort == 'score' %} selected{% endif %}>점수 높은순</option>
       <option value="score_asc"{% if filters.sort == 'score_asc' %} selected{% endif %}>점수 낮은순</option>
+      <option value="profit"{% if filters.sort == 'profit' %} selected{% endif %}>차익 높은순</option>
+      <option value="profit_asc"{% if filters.sort == 'profit_asc' %} selected{% endif %}>차익 낮은순(손해 포함)</option>
       <option value="recent"{% if filters.sort == 'recent' %} selected{% endif %}>매각기일 최신순</option>
       <option value="old"{% if filters.sort == 'old' %} selected{% endif %}>매각기일 오래된순</option>
     </select>

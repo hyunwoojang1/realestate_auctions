@@ -200,6 +200,12 @@ def score_listing(listing: AuctionListing, est_market_price: int | None, matched
         band_basis=band_basis, matched_trades=matched_trades,
         apply_scope_sample_gates=True)
 
+    # (사용자 2026-07-21) 권리 미확인 = 인수금액을 0으로 가정한 상태 → 차익·점수를 신뢰할 수 없다.
+    # arb_score를 None(점수 없음)으로 둬서 점수정렬 상위로 뜨지 않게 한다(함정 방어).
+    # grade는 '권리미확인'으로 라벨은 유지(정보량), profit_low는 보존(차익순 정렬용 적재).
+    if not listing.rights_verified and not gated:
+        arb = None
+
     return ScoredListing(
         case_no=listing.case_no, apt_name=listing.apt_name, address=listing.address,
         property_type=listing.property_type, area_m2=listing.area_m2,
@@ -280,6 +286,9 @@ def _apply_market_price(s: ScoredListing, naver: dict, price: int, price_low: in
     # gap_rate=None: 옛 폴백은 p_low만 검사했다(price_low≤price라 수학적으론 동치지만 명시적으로 보존).
     grade = derive_grade(arb, gated=gated, rights_verified=s.rights_verified,
                          gap_rate=None, p_low=p_low, apply_scope_sample_gates=False)
+    # (사용자 2026-07-21) 권리 미확인은 서빙 폴백에서도 '점수 없음'으로 — 채점층과 동일 규칙.
+    if not s.rights_verified and not gated:
+        arb = None
     return dataclasses.replace(
         s, est_market_price=price, market_band_low=price_low, market_band_high=price_high,
         expected_profit=price - cost, profit_low=p_low, profit_high=price_high - cost,

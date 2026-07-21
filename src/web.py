@@ -387,6 +387,13 @@ def create_app() -> Flask:
         items = query.sort_items(items, sort, burden_of=burden,
                                  uncertain_of=_uncertain_of(badges))
 
+        # (사용자 2026-07-21) 기본/추천 뷰에선 손해(효과차익 = 보수차익 − 인수금 ≤ 0) 물건을 숨긴다.
+        # '차익 낮은순'(profit_asc) 정렬을 명시적으로 고르거나 전체탐색(all=1)·이름검색(q)일 때만
+        # 노출한다(데이터엔 그대로 적재 — 뷰에서만 필터). 손해 물건도 정렬로 찾을 수 있게.
+        if sort != "profit_asc" and not all_mode and not q:
+            items = [s for s in items
+                     if (query.decision_profit(s) or 0) - burden(s) > 0]
+
         # 모드: 전체 탐색 / 검색·칩 결과 / (필터 없음) 엄선 추천
         if all_mode:
             mode = "all"

@@ -10,7 +10,7 @@ import datetime as _dt
 from .models import ScoredListing
 from .region import matches_region, sido_of
 
-SORT_KEYS = ("profit", "gap", "score", "score_asc", "recent", "old")
+SORT_KEYS = ("profit", "profit_asc", "gap", "score", "score_asc", "recent", "old")
 DEFAULT_SORT = "profit"
 
 # 검색 우선 홈(2026-07): 기본 화면은 '평가 가능한' 물건만 — 시세 추정치가 있는 것.
@@ -193,21 +193,31 @@ def sort_items(items: list[ScoredListing], key: str = DEFAULT_SORT,
     물건은 별도 하위 티어로 강등 — 유찰 다회·임차권 미소멸 물건이 검증 clean 물건 위에
     무차감으로 랭크되던 문제 해소('−α' 표시와 정합).
     """
+    def _eff(s):
+        p = decision_profit(s)
+        return None if p is None else p - (burden_of(s) if burden_of else 0)
+
     if key == "gap":
         return sorted(items, key=lambda s: (s.gap_rate is None, -(s.gap_rate or 0)))
     if key == "score":
-        return sorted(items, key=lambda s: (s.arb_score is None, -(s.arb_score or 0)))
+        # (사용자 2026-07-21) 권리 미확인 물건은 '점수 없음'으로 취급 — 인수금액을 0으로 가정한
+        # 함정(유찰 다회·대항력 임차인)이 갭 큰 arb_score로 최상위에 뜨는 것 차단. 권리 확정된
+        # 물건만 점수순 상위. (채점층이 arb_score=None으로 굳혀도 정합, 여기선 저장 플래그로 즉효.)
+        return sorted(items, key=lambda s: (
+            s.arb_score is None or not s.rights_verified, -(s.arb_score or 0)))
     if key == "score_asc":   # 점수 낮은순
         return sorted(items, key=lambda s: (s.arb_score is None, (s.arb_score or 0)))
+    if key == "profit_asc":  # 차익 낮은순 — 손해(마이너스 차익) 물건까지 오름차순 노출
+        return sorted(items, key=lambda s: (_eff(s) is None, (_eff(s) or 0)))
     if key == "recent":      # 매각기일 최신(늦은)순
         return sorted(items, key=lambda s: s.sale_date or "", reverse=True)
     if key == "old":         # 매각기일 오래된(빠른)순
         return sorted(items, key=lambda s: s.sale_date or "9999-99-99")
 
-    def _eff(s):
-        p = decision_profit(s)
-        return None if p is None else p - (burden_of(s) if burden_of else 0)
+    # 기본(profit): 검증 비교군 → 인수 불확실/권리미확인 강등 → 유효 차익 내림차순.
+    # (사용자 2026-07-21) 권리 미확인도 불확실 티어로 강등 — 미상 인수금(0 가정)으로 부풀린
+    # 차익이 검증 물건 위로 올라오지 않게(무조건 treat).
     return sorted(items, key=lambda s: (
         scope_tier(s),
-        1 if (uncertain_of and uncertain_of(s)) else 0,
+        1 if ((uncertain_of and uncertain_of(s)) or not s.rights_verified) else 0,
         -(_eff(s) or 0)))
