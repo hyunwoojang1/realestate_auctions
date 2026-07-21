@@ -125,6 +125,12 @@ def main(argv=None) -> int:
                 fail += 1
                 print(f"  [{i}/{len(targets)}] {t['case_no']} 실패: {e}")
                 continue
+            except Exception as e:  # noqa: BLE001 — (버그수정 2026-07-21) 개별 물건의 네트워크 리셋
+                # (ConnectionReset 10054 등)이 _warm_session 등 retry-미포함 경로에서 안 잡혀 크롤
+                # 전체를 크래시시키던 것. 한 물건 실패는 건너뛰고 계속(크래시<미탐<완주). 차단은 위에서 처리.
+                fail += 1
+                print(f"  [{i}/{len(targets)}] {t['case_no']} 네트워크/기타 실패(스킵): {type(e).__name__}")
+                continue
             # (C6) 응답이 요청한 사건번호와 일치하는지 대조 — 서버 캐시 이상/경합으로 다른 사건
             # 응답이 와도 그대로 저장하면 '엉뚱한 사건의 권리'가 적재되고 재크롤 대상에서도 빠져
             # 진짜 권리가 영구 유실된다. 표기차(공백/하이픈/'타경')로 인한 **오거부를 막기 위해**
@@ -154,19 +160,25 @@ def main(argv=None) -> int:
             # Storage 가능하면 업로드→URL 저장(DB 경량), 아니면 base64 폴백(로컬 개발).
             key = (t["court"], t["case_no"], str(t["item_no"] or ""))
             if key in estimable:
-                jpegs = [j for r in extract_photos(dma, cap=PHOTO_CAP)
-                         if (j := photo.thumbnail_jpeg(r))]
-                if jpegs and _use_storage:
-                    urls = [u for s, j in enumerate(jpegs)
-                            if (u := photo_store.upload_photo(j, *key, s))]
-                    if urls:
-                        store.save_photo_urls(conn, *key, urls, fetched_at=now)
-                        photo_n += len(urls)
-                elif jpegs:
-                    import base64 as _b64  # noqa: PLC0415
-                    thumbs = [_b64.b64encode(j).decode("ascii") for j in jpegs]
-                    store.save_photos(conn, *key, thumbs, fetched_at=now)
-                    photo_n += len(thumbs)
+                # (버그수정 2026-07-21) 사진 업로드/저장 실패(Supabase Storage 연결 리셋 등)가 크롤
+                # 전체를 크래시시키던 것 — 사진은 부수 기능이라 실패해도 권리 크롤은 계속돼야 한다.
+                # 권리(batch)는 이미 append됐으므로 사진만 건너뛴다.
+                try:
+                    jpegs = [j for r in extract_photos(dma, cap=PHOTO_CAP)
+                             if (j := photo.thumbnail_jpeg(r))]
+                    if jpegs and _use_storage:
+                        urls = [u for s, j in enumerate(jpegs)
+                                if (u := photo_store.upload_photo(j, *key, s))]
+                        if urls:
+                            store.save_photo_urls(conn, *key, urls, fetched_at=now)
+                            photo_n += len(urls)
+                    elif jpegs:
+                        import base64 as _b64  # noqa: PLC0415
+                        thumbs = [_b64.b64encode(j).decode("ascii") for j in jpegs]
+                        store.save_photos(conn, *key, thumbs, fetched_at=now)
+                        photo_n += len(thumbs)
+                except Exception as e:  # noqa: BLE001 — 사진 실패는 권리 크롤을 막지 않음
+                    print(f"  [{i}/{len(targets)}] {t['case_no']} 사진 처리 실패(무시): {type(e).__name__}")
             if i % 10 == 0:
                 store.save_rights(conn, batch)
                 print(f"  [{i}/{len(targets)}] 적재 누적 {ok}건 (실패 {fail}·빈응답 {skipped_empty})")

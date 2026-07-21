@@ -1,5 +1,20 @@
 # versions.md — auction-arbitrage 루프 작업 로그 (append-only, 최신순)
 
+## 2026-07-21 10:30 KST — 🐛 권리크롤 크래시 2종 수정 + 수동 권리크롤 262건(감사 전후 통과)
+- **수동 권리크롤 실행**(사용자 요청, 네트워크 불안정 아침): 크롤 전 감사(pytest 620·data_gates 9 PASS)
+  → crawl_rights --limit 500 → 크롤 후 감사(data_gates PASS·pytest 620·표본 실데이터 확인).
+  **listing_rights 3380→3642(+262 실크롤)**, Supabase 미러 3642건 완료(프로덕션 반영).
+- **크래시 버그 2종 수정**(`deploy/crawl_rights.py`) — 이 환경 네트워크가 연결을 계속 강제리셋
+  (ConnectionReset 10054)하며 드러남:
+  - ① **사진 업로드 실패가 크롤 전체 크래시**: Supabase Storage 업로드 ConnectionReset이 안 잡혀
+    죽던 것 → 사진 블록 try/except(사진은 부수기능, 실패해도 권리크롤 계속).
+  - ② **개별 물건 네트워크 리셋이 크롤 크래시**: `_warm_session` 등 retry-미포함 경로의 ConnectionError가
+    per-item except(CourtAuctionError만 잡음)를 통과해 죽던 것 → `except Exception` 추가(한 물건 실패는
+    스킵하고 계속, 차단신호는 위에서 즉시중단 유지). 크래시<미탐<완주 원칙.
+- **⚠️ 03:08 예약 오케스트레이터**: 앞서 RunPy exit-code 오판 버그로 크롤 안 하고 중단했던 것 수정 완료
+  (별도 커밋). 이후 daily(05:30)는 실패(HRESULT), 그래서 수동 실행.
+- 검증: syntax·ruff·pytest 620 통과. 남은 미크롤은 다음 daily(F1)가 이어감.
+
 ## 2026-07-21 03:30 KST — 🔍 밤샘 크롤후검수: 확정단지 감정가 하한 게이트 추가(오매칭 방어)
 - 배경: 10억 크롤 완료(백필 1,270쌍·실거래 73,061행, 재채점 14,564건 미러) 후 스냅샷
   (data/backup/auction_postcrawl_20260721.db) 대상 검수·성과·데이터감사 3-에이전트 워크플로.
