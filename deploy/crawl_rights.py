@@ -86,6 +86,13 @@ def main(argv=None) -> int:
                     help="--estimable 이어받기 무시하고 사진 있는 물건도 전량 재크롤")
     ap.add_argument("--refresh", action="store_true", help="이미 있는 물건도 재크롤")
     ap.add_argument("--no-cloud", action="store_true", help="Supabase 미러링 생략")
+    ap.add_argument("--cap", type=int, default=None,
+                    help="일일 요청 상한 오버라이드(기본 500=안티밴 서킷). 대량 백필 시 상향. "
+                         "403/위장차단 감지는 이 값과 무관하게 항상 즉시 중단(우회 아님).")
+    ap.add_argument("--min-interval", type=float, default=None,
+                    help="요청 간 최소 지연(초). 기본 3.0. 낮추면 빠르지만 밴 위험↑(단일IP 유지, 프록시 금지).")
+    ap.add_argument("--max-interval", type=float, default=None,
+                    help="요청 간 최대 지연(초). 기본 8.0.")
     args = ap.parse_args(argv)
     _load_env()
 
@@ -104,7 +111,14 @@ def main(argv=None) -> int:
     if not targets:
         return 0
 
-    client = CourtAuctionClient()
+    client_kw = {}
+    if args.cap:
+        client_kw["daily_cap"] = args.cap
+    if args.min_interval is not None:
+        client_kw["min_interval"] = args.min_interval
+    if args.max_interval is not None:
+        client_kw["max_interval"] = args.max_interval
+    client = CourtAuctionClient(**client_kw)
     ok, fail, skipped_empty, photo_n = 0, 0, 0, 0
     mismatch = 0          # (C6) 응답 사건번호 불일치로 스킵한 건(오사건 저장 차단)
     blocked = False       # (C5) 차단/상한 신호로 중단됐는지 — exit code 승격용
