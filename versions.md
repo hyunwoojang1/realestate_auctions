@@ -1,5 +1,19 @@
 # versions.md — auction-arbitrage 루프 작업 로그 (append-only, 최신순)
 
+## 2026-07-22 19:40 KST — 🔒 C1 완결: 실명 PII 마스킹+백필+재미러(프로덕션 유출 차단) + 무료정보 격차 확인
+- **무료정보/표출화 확인(사용자 요청, 삼환 유료사이트 대비)**: 표출화 **안 됨**. ★발견=`mulBigo`(물건
+  특이사항)는 법원 무료 목록에 있고 우리가 이미 raw_json에 크롤하는데 파싱·표출 안 함 — raw 37528중
+  73%(27530)에 특이사항, **그중 1583건에 "대항력" 문구**(추가크롤0으로 대항력 신호 확보 가능). 삼환은
+  mulBigo 빈칸이라 현황조사서 필요. 격차: 관련사건·채권자·낙찰가율(selectAroundDspslGds)·문건송달 없음.
+  ⚠️**삼환 scored=stale 실물**: grade="차익 유력"·rights_verified=1인데 요지 빈칸=권리미확인이어야(재채점 필요).
+- **C1 완결(커밋 7cf2225)**: senior_lien·appraisal_notes·convAddr 실명 마스킹. mask_personal_names에
+  근저당권자/가압류권자/채권자 역할 추가 + **법인 접미사 가드**(은행·카드·캐피탈·주식회사 보존) +
+  name-first 오탐가드(소유자/소유권 제외) + 역할-성명 구분자 요구(조사 오탐 제거). 회귀 6종, pytest 647.
+- **백필+재미러**: backfill_pii_mask.py로 **로컬 453행 교정(senior 47+appraisal 406), 잔여 실명 0 실측**.
+  마스킹 11020행 **Supabase 재미러 완료 → 프로덕션 listing_rights 유출 차단**. --check=CI 가드(마스커 정렬).
+- 다음: B1(H4 any()→전부존재)·E1(커버리지플로어)→A(재채점·재미러=삼환 stale·L2 해소)→mulBigo 파싱.
+
+
 ## 2026-07-22 18:10 KST — 🧭 Layer-1⊕Layer-2 QA 종합 + 크롤링 코드 보완계획(docs/crawler_qa_remediation.md)
 - Layer-2(타 세션, 결론≠실제 QA) 2건 수신: L2-P1 목록/홈/API/CSV가 상세와 정면모순(초록추천 vs ⛔미확인,
   홈 31/60 경고칩0+양수차익), L2-P2 스테일 미러(강등 100건이 프로덕션서 확신등급+차익 최대2.49억, 응암푸르지오).
