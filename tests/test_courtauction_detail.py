@@ -163,6 +163,23 @@ def test_no_assumption_phrase_not_opposable():
     assert detect_tenant_opposable(txt) is False
 
 
+def test_mulbigo_opposable_variants_flagged():
+    """(2026-07-22) 목록 비고(mulBigo) 변형 — '대항력 여지 있는 임대차'·'대항력 있는 주택임차권
+    승계인'은 대항력으로 잡아야 한다(진짜 미탐이었음)."""
+    from src.courtauction_rights import detect_tenant_opposable
+    assert detect_tenant_opposable("대항력 여지 있는 임대차 있음") is True
+    assert detect_tenant_opposable("대항력 있는 주택임차권 승계인 있음") is True
+
+
+def test_mulbigo_waiver_not_opposable():
+    """반대: '대항력 포기조건 매각'·'대항력을 포기하며'는 임차인이 대항력을 포기한 것(안전) —
+    대항력으로 오탐하면 안 된다(mulBigo 1409건 중 대다수가 포기케이스)."""
+    from src.courtauction_rights import detect_tenant_opposable
+    assert detect_tenant_opposable("대항력 포기조건 매각") is False
+    assert detect_tenant_opposable(
+        "주택도시보증공사: 우선변제권만 주장하고 대항력을 포기하며 배당") is False
+
+
 def test_release_consent_not_opposable():
     """idx10 HIGH: 임차권등기라도 말소 동의·대항력 포기 문맥이면 opposable 아님."""
     from src.courtauction_rights import detect_tenant_opposable
