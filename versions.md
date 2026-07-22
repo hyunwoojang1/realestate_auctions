@@ -1,5 +1,22 @@
 # versions.md — auction-arbitrage 루프 작업 로그 (append-only, 최신순)
 
+## 2026-07-22 10:30 KST — ⚡ 건축물대장 '빠른' 배치 캐시(느린 courtauction 크롤과 분리) + 서빙 캐시화
+- 배경: 상용 경매사이트 비교 중, 건축물대장 카드가 **이미 서빙에 배선돼 있었으나**(web.py
+  get_building_summary 라이브 호출 + detail.html 렌더) **페이지뷰마다 VWorld+대장 3초 외부호출**을
+  했고, scored 주소가 **도로명이면 지번변환 실패→카드 미표시**였다. 이걸 개선.
+- **분리 원칙**: 정부 OpenAPI(BldRgstHubService+VWorld)는 병렬·무밴이라 courtauction 권리크롤(직렬·
+  밴위험)에 얹지 않고 **별도 빠른 배치**로 돌린다. 신규 `deploy/enrich_building.py`(ThreadPool
+  병렬, 실측 30건 7.3초) → `listing_building` 테이블 upsert. building_info 캐시로 같은 건물 중복 제거.
+- **서빙 캐시화**: web.py property_detail 이 이제 `store.load_building`(로컬)/`store_rest.fetch_building`
+  (프로덕션 Supabase) **캐시 우선**, 미스 시에만 라이브 폴백 → 페이지뷰 3초 외부호출 제거·쿼터 내성.
+  키 제거 상태 로컬 렌더로 캐시→표시 검증(2025타경508008: 사용승인2012.01·14년차·공동주택·지상10층).
+- 저장/미러: `store.py` listing_building DDL·save/load/done_keys, `store_rest.py`
+  upsert_building/fetch_building, Supabase `auction_listing_building` 테이블 생성(Management API 201).
+- ⚠️ 한계(검증됨): **도로명-only 주소 ~23%**는 VWorld parcel NOT_FOUND(road는 좌표만·PNU無)라
+  여전히 카드 미표시 → juso.go.kr 지번변환 연동이 후속과제(별도 키 필요=사용자). raw_json은 물건당
+  4MB라 지번 재구성 비현실적.
+- 상태: pytest 622 passed. enrich --all 백그라운드 진행 중, 완료 후 Supabase 미러+배포 예정.
+
 ## 2026-07-22 07:45 KST — 🕷️ 권리 크롤 tail 밤샘 진행 + 정기 새로고침 일시중지 + Supabase 반영
 - 배경: `--all` 권리 크롤을 밤새 모니터링 루프(/loop 5m)로 감시. 크롤가능 물건 대비 권리 완료
   49%→84.9%까지 전진. 남은 tail은 서버에 **명세서 빈 물건**(빈 명세서→스킵, 저장 안 함=거짓

@@ -800,7 +800,25 @@ def create_app() -> Flask:
         _BLDG_TYPES = ("아파트", "오피스텔", "연립", "다세대", "단독", "다가구", "근린주택", "빌라")
         bldg = None
         if any(t in (s.property_type or "") for t in _BLDG_TYPES):
-            bldg = building_info.get_building_summary(s.address)
+            # (2026-07-22) 배치 precompute 캐시(listing_building) 우선 — 페이지뷰마다 VWorld+대장
+            # 라이브 3초 왕복을 없애고 쿼터 소진에도 견딘다. 캐시 미스/미ok면 라이브 폴백(그리고
+            # deploy/enrich_building 배치가 다음 회차에 채운다).
+            brow = None
+            try:
+                if db_path:
+                    bconn = store.connect(db_path)
+                    try:
+                        brow = store.load_building(bconn, s.court, s.case_no, s.item_no)
+                    finally:
+                        bconn.close()
+                elif store_rest.enabled() and hasattr(store_rest, "fetch_building"):
+                    brow = store_rest.fetch_building(s.court, s.case_no, s.item_no)
+            except Exception as e:  # noqa: BLE001 — 캐시 실패는 라이브 폴백
+                logger.warning("건축물대장 캐시 조회 실패(%s %s): %s", s.court, s.case_no, e)
+            if brow and brow.get("status") == "ok":
+                bldg = brow
+            else:
+                bldg = building_info.get_building_summary(s.address)
         return render_template(
             "detail.html", s=s, listing=listing, chart=chart, rights=rights, badge=badge,
             coord=coord, days_until=query.days_until,

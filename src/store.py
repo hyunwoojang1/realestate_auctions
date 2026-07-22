@@ -127,6 +127,33 @@ _NAVER_COLS = ["court", "case_no", "item_no", "status", "complex_no", "complex_n
                "ask_min", "ask_max", "ask_count", "lease_low", "lease_high",
                "base_ymd", "fetched_at"]
 
+# 건축물대장 요약(물건별) — 정부 OpenAPI(BldRgstHubService) 기반. courtauction 상세 크롤과
+# 무관한 '빠른 병렬 enrichment'(deploy/enrich_building)가 채운다. status: ok | no_addr | no_bld | error
+DDL_BUILDING = """
+CREATE TABLE IF NOT EXISTS listing_building (
+    court TEXT NOT NULL DEFAULT '',
+    case_no TEXT NOT NULL,
+    item_no TEXT NOT NULL DEFAULT '',
+    status TEXT NOT NULL DEFAULT '',
+    approved TEXT DEFAULT '',          -- 사용승인 YYYY.MM
+    age_years INTEGER,                 -- 연식(년)
+    main_purpose TEXT DEFAULT '',      -- 주용도(공동주택 등)
+    ground_floors INTEGER,             -- 지상 층수
+    underground_floors INTEGER,        -- 지하 층수
+    total_area_m2 REAL,                -- 연면적(㎡)
+    is_violation INTEGER DEFAULT 0,    -- 위반건축물 여부(0/1)
+    violation_content TEXT DEFAULT '',
+    dong_count INTEGER,                -- 동수
+    jibun_addr TEXT DEFAULT '',        -- 조회에 쓴 지번주소
+    fetched_at TEXT NOT NULL DEFAULT '',
+    PRIMARY KEY (court, case_no, item_no)
+);
+"""
+
+_BUILDING_COLS = ["court", "case_no", "item_no", "status", "approved", "age_years",
+                  "main_purpose", "ground_floors", "underground_floors", "total_area_m2",
+                  "is_violation", "violation_content", "dong_count", "jibun_addr", "fetched_at"]
+
 _COLS = [
     "case_no", "apt_name", "address", "property_type", "area_m2",
     "appraisal_price", "min_bid_price", "fail_count", "sale_date",
@@ -162,6 +189,7 @@ def connect(db_path: str = "auction.db") -> sqlite3.Connection:
     conn.execute(DDL_RIGHTS)
     conn.execute(DDL_PHOTOS)
     conn.execute(DDL_NAVER)
+    conn.execute(DDL_BUILDING)
     conn.execute(f"PRAGMA user_version={SCHEMA_VERSION}")
     return conn
 
@@ -208,6 +236,61 @@ def load_naver_price(conn: sqlite3.Connection, court: str, case_no: str, item_no
 def load_all_naver(conn: sqlite3.Connection) -> list[dict]:
     """naver_prices 전량(서빙 조인용). (court,case_no,item_no) 복합키로 맵 구성해 쓴다."""
     return [dict(r) for r in conn.execute("SELECT * FROM naver_prices")]
+
+
+# ── 건축물대장 요약(정부 OpenAPI 기반 빠른 enrichment) ──────────────────────────
+# 실패로 저장된 status — --retry-failed 시 재조회 대상.
+BUILDING_FAILED_STATUS = ("no_addr", "no_bld", "error", "")
+
+
+def save_building(conn: sqlite3.Connection, row: dict) -> None:
+    """건축물대장 요약 1건 upsert(물건당 1행)."""
+    vals = [row.get(c) for c in _BUILDING_COLS]
+    ph = ",".join("?" * len(_BUILDING_COLS))
+    with conn:
+        conn.execute(
+            f"INSERT OR REPLACE INTO listing_building ({','.join(_BUILDING_COLS)}) "
+            f"VALUES ({ph})", vals)
+
+
+def building_done_keys(conn: sqlite3.Connection, include_failed: bool = True) -> set:
+    """이미 처리한 (court,case_no,item_no) — 이어받기용. include_failed=False 면
+    실패 status 행을 '미처리'로 취급해 재시도 대상이 되게 한다(naver_done_keys와 동일 규약)."""
+    has = conn.execute(
+        "SELECT 1 FROM sqlite_master WHERE type='table' AND name='listing_building'"
+    ).fetchone()
+    if not has:
+        return set()
+    sql = "SELECT court, case_no, item_no FROM listing_building"
+    params: tuple = ()
+    if not include_failed:
+        ph = ",".join("?" * len(BUILDING_FAILED_STATUS))
+        sql += f" WHERE status NOT IN ({ph})"
+        params = BUILDING_FAILED_STATUS
+    return {(r["court"], r["case_no"], r["item_no"]) for r in conn.execute(sql, params)}
+
+
+def load_building(conn: sqlite3.Connection, court: str, case_no: str,
+                  item_no: str) -> dict | None:
+    has = conn.execute(
+        "SELECT 1 FROM sqlite_master WHERE type='table' AND name='listing_building'"
+    ).fetchone()
+    if not has:
+        return None
+    r = conn.execute(
+        "SELECT * FROM listing_building WHERE court=? AND case_no=? AND item_no=?",
+        (court, case_no, item_no)).fetchone()
+    return dict(r) if r else None
+
+
+def load_all_building(conn: sqlite3.Connection) -> list[dict]:
+    """listing_building 전량(서빙 조인용). 테이블 없으면 빈 리스트."""
+    has = conn.execute(
+        "SELECT 1 FROM sqlite_master WHERE type='table' AND name='listing_building'"
+    ).fetchone()
+    if not has:
+        return []
+    return [dict(r) for r in conn.execute("SELECT * FROM listing_building")]
 
 
 def load_all_rights(conn: sqlite3.Connection) -> list[dict]:

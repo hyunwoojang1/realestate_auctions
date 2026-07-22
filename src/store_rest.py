@@ -51,6 +51,8 @@ RIGHTS_TABLE = os.environ.get("SUPABASE_RIGHTS_TABLE", "auction_listing_rights")
 PHOTOS_TABLE = os.environ.get("SUPABASE_PHOTOS_TABLE", "auction_listing_photos")
 # 네이버 KB시세·호가 매핑 미러 테이블 — 목록 배지·상세 차익 클라우드 서빙용.
 NAVER_TABLE = os.environ.get("SUPABASE_NAVER_TABLE", "auction_naver_prices")
+# 건축물대장 요약 미러 테이블 — 상세 건축물대장 카드 클라우드 서빙용(라이브 외부호출 대체).
+BUILDING_TABLE = os.environ.get("SUPABASE_BUILDING_TABLE", "auction_listing_building")
 
 
 def enabled() -> bool:
@@ -309,6 +311,28 @@ def prune_rights() -> int:
     _rights_cache["rows"] = None
     body = r.json()
     return int(body) if isinstance(body, int) else int(body or 0)
+
+
+def upsert_building(rows: list[dict]) -> int:
+    """건축물대장 요약(listing_building 행 dict) 병합 미러."""
+    url, key, _ = _cfg()
+    return _post_upsert(url, key, BUILDING_TABLE, rows)
+
+
+def fetch_building(court: str, case_no: str, item_no: str = "") -> dict | None:
+    """단건 건축물대장 요약 조회(클라우드 서빙). 테이블 미배포/실패는 None(라이브 폴백)."""
+    url, key, _ = _cfg()
+    try:
+        r = requests.get(_endpoint(url, BUILDING_TABLE), headers=_headers(key),
+                         params={"select": "*", "court": f"eq.{court}",
+                                 "case_no": f"eq.{case_no}",
+                                 "item_no": f"eq.{item_no or ''}", "limit": 1},
+                         timeout=15)
+        r.raise_for_status()
+        rows = r.json()
+        return rows[0] if rows else None
+    except Exception:  # noqa: BLE001 — 미배포/네트워크 실패는 라이브 폴백
+        return None
 
 
 def fetch_rights(court: str, case_no: str, item_no: str = "") -> dict | None:

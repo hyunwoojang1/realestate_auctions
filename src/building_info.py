@@ -46,18 +46,13 @@ def parse_jibun(address: str) -> tuple[str, str] | None:
     return bun, ji
 
 
-def _resolve_parcel(address: str, vworld_key: str) -> tuple[str, str, str] | None:
-    """VWorld 주소 API(getcoord, type=parcel) → (법정동코드10, bun4, ji4).
-
-    level4LC는 실측(2026-07-20) 결과 **19자리 PNU**(법정동10+대지구분1+본번4+부번4)로 온다.
-    산지(구분 '2')는 표제부 platGbCd 미지원이라 None(v1 제외). 10자리만 오면 지번은
-    parse_jibun 폴백을 쓰도록 bun/ji를 빈 값으로 돌려준다.
-    """
+def _vworld_coord(address: str, vworld_key: str, type_: str) -> dict | None:
+    """VWorld getcoord 1회 호출. status OK면 response dict, 아니면 None(경고 로그만)."""
     import requests  # noqa: PLC0415
 
     params = {
         "service": "address", "request": "getcoord", "version": "2.0",
-        "crs": "epsg:4326", "format": "json", "type": "parcel",
+        "crs": "epsg:4326", "format": "json", "type": type_,
         "refine": "true", "simple": "false",
         "address": address, "key": vworld_key,
     }
@@ -68,10 +63,23 @@ def _resolve_parcel(address: str, vworld_key: str) -> tuple[str, str, str] | Non
     r.raise_for_status()
     res = (r.json() or {}).get("response") or {}
     if res.get("status") != "OK":
-        # (감사 2026-07-20) VWorld는 키 회수·쿼터 소진도 HTTP 200 + status ERROR로 온다 —
-        # 침묵하면 운영자가 전면 장애를 모른다. 상태·에러코드만 남긴다(키는 params라 비노출).
-        logger.warning("VWorld 주소해석 실패(status=%s, error=%s): %s",
+        # (감사 2026-07-20) VWorld는 키 회수·쿼터 소진도 HTTP 200 + status ERROR로 온다.
+        logger.warning("VWorld 주소해석 실패(type=%s status=%s error=%s): %s", type_,
                        res.get("status"), (res.get("error") or {}).get("code"), address[:40])
+        return None
+    return res
+
+
+def _resolve_parcel(address: str, vworld_key: str) -> tuple[str, str, str] | None:
+    """VWorld 주소 API(getcoord, type=parcel) → (법정동코드10, bun4, ji4).
+
+    level4LC는 실측 **19자리 PNU**(법정동10+대지구분1+본번4+부번4). 산지(구분 '2')는 표제부
+    platGbCd 미지원이라 None. 10자리만 오면 parse_jibun 폴백을 쓰도록 bun/ji 빈 값.
+    status not OK 면 RuntimeError(결과 캐시 방지). ⚠ type=road 는 좌표만 주고 지번 PNU(level4LC)를
+    비워 보내므로 건축물대장 조회엔 무용 — 도로명-only 주소(~23%)는 별도 지번변환(juso 등) 후속과제.
+    """
+    res = _vworld_coord(address, vworld_key, "parcel")
+    if res is None:
         raise RuntimeError("vworld status not OK")   # 실패로 승격 — 결과 캐시 방지
     lc = ((res.get("refined") or {}).get("structure") or {}).get("level4LC") or ""
     if not lc.isdigit() or len(lc) < 10:
