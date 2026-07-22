@@ -1,5 +1,27 @@
 # versions.md — auction-arbitrage 루프 작업 로그 (append-only, 최신순)
 
+## 2026-07-22 11:30 KST — 🚨 대항력 임차인 false-negative 수정(자유란 빈 요지 초록 오표시 차단)
+- **발단(실사용 제보)**: 부산 삼환아파트 `2022타경3289` 을 우리 사이트가 "최대인수 발견안됨 ·
+  대항력 임차인 발견안됨"(초록 추천)으로 표시 → 친구의 **유료 경매사이트는 대항력 임차인 있음**.
+  DB 원본 확인: `surviving_rights(인수되는권리)=null · lien_note=null · remark=null`, 오직
+  `senior_lien=2002.4.23 근저당권`·`spec_write_ymd` 만 존재.
+- **근본원인 2중**: ① 대항력 판정을 자유기술란 **문구매칭**에만 의존(`detect_tenant_opposable`은
+  날짜 비교 안 함) ② 그 자유란이 전부 비어도 `is_empty`가 `spec_write_ymd|senior_lien`만 있으면
+  False → `rights_verified=True` → **초록 확정**으로 오표시. 라이브 재크롤로 확인: 우리가 쓰는 상세
+  엔드포인트 **PGJ151F01 응답에 임차인 전입일/보증금 표가 아예 없음**(임차인 명세는 별도 e-문서
+  `dspslGdsSpcfcEcdocId`). 즉 이 물건군은 대항력 판정 **원재료 자체가 없다**.
+- **규모 실측**: `listing_rights` 11,020건 중 **2,123건(19%)**이 자유란 3칸 전부 빈칸인데 초록으로
+  나가던 false-negative 후보.
+- **수정(B-1 안전게이트)**: `CaseRights.opposability_assessable`(surviving_rights|lien_note|remark
+  중 하나라도 실체 텍스트) 추가. 게이트 3곳(`web.py` 리스트배지·상세, `pipeline.apply_rights_from_rows`
+  랭킹)을 `is_empty or not opposability_assessable`로 강화 → 근거 없는 물건은 초록 대신 **'권리미확인'
+  경로**(점수없음·추천제외·⛔게이트, 기존 안전경로 재사용)로 폴백. 상세·리스트·랭킹 동일 기준.
+- 검증: 삼환 케이스 opposability_assessable=False→미표시 확인. 회귀 flip 2,123건(19%)=전부 오표시였음.
+  회귀 테스트 2종 추가(test_courtauction_detail: blank_freetext/remark_only). **pytest 통과**.
+- ⚠️ **미완(B-2, 후속 필수)**: 진짜 대항력 판정(임차인 전입일 vs 말소기준일 날짜비교)을 하려면
+  임차인 명세 e-문서/별도 엔드포인트를 **신규 캡처**해야 함(Playwright XHR 리버스 필요). 현 수정은
+  "거짓 초록 → 정직한 모름"까지만. 유료사이트 동급 판정은 B-2에서.
+
 ## 2026-07-22 10:30 KST — ⚡ 건축물대장 '빠른' 배치 캐시(느린 courtauction 크롤과 분리) + 서빙 캐시화
 - 배경: 상용 경매사이트 비교 중, 건축물대장 카드가 **이미 서빙에 배선돼 있었으나**(web.py
   get_building_summary 라이브 호출 + detail.html 렌더) **페이지뷰마다 VWorld+대장 3초 외부호출**을

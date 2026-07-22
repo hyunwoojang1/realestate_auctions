@@ -89,6 +89,31 @@ def test_summarize_burden_with_amount():
     assert b.status == "burden" and b.assumed == 80_000_000 and not b.amount_unknown
 
 
+def test_blank_freetext_not_opposability_assessable():
+    """대항력 false-negative 회귀(2026-07-22, 부산 2022타경3289 삼환아파트):
+    자유기술란(인수권리·유치권·비고)이 전부 비고 말소기준만 있으면 대항력 판정 근거가
+    없다 → opposability_assessable=False 여야 '대항력 임차인 발견 안 됨' 초록 오표시를 막는다.
+    종전엔 spec_write_ymd/senior_lien 만으로 is_empty=False → verified→초록으로 새던 버그."""
+    cr = CaseRights(
+        court="부산서부지원", case_no="2022타경3289", item_no="1",
+        surviving_rights="", lien_note="", remark="",
+        senior_lien="2002. 4. 23. 근저당권", spec_write_ymd="2026-04-06",
+    )
+    assert cr.is_empty is False                    # 말소기준·작성일 있어 '완전 빈'은 아님
+    assert cr.opposability_assessable is False      # 그러나 대항력 판정 근거는 없음 → '모름'
+
+
+def test_remark_only_is_opposability_assessable():
+    """비고(remark)에만 실체 텍스트가 있어도 대항력 판정 근거는 있는 것 — assessable=True."""
+    cr = CaseRights(
+        court="X", case_no="1", item_no="1",
+        surviving_rights="", lien_note="",
+        remark="대항력 있는 임차인 있음. 배당 부족분은 매수인 인수.",
+        senior_lien="", spec_write_ymd="",
+    )
+    assert cr.opposability_assessable is True
+
+
 def test_opposable_detected_on_real_phrase():
     """실측 미탐 회귀(2026-07-10): '매수인이 인수함'(조사)·'대항할 수 있는' 변형이
     기존 phrase 목록에 없어 False 로 판정되던 버그 — 반드시 True."""

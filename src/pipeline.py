@@ -342,7 +342,10 @@ def apply_rights_from_rows(listings: list[AuctionListing],
             out.append(lst)          # 미크롤 → 권리미확인 유지
             continue
         cr = CaseRights.from_row(row)
-        if cr.is_empty:
+        # (2026-07-22) 자유기술란(인수권리·유치권·비고) 전부 빈 요지도 대항력 판정근거 0 →
+        # rights_verified=False('모름') 유지. 종전엔 말소기준만 있으면 verified→초록 추천으로
+        # 대항력 임차인을 놓쳤다(삼환 2022타경3289: 세 칸 null인데 추천). 랭킹·상세 동일 기준.
+        if cr.is_empty or not cr.opposability_assessable:
             stats["empty"] += 1
             out.append(lst)          # 빈 요지 = 판정근거 0 → '없음'이 아니라 '모름'
             continue

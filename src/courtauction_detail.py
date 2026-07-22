@@ -149,6 +149,23 @@ class CaseRights:
         return not (self.spec_write_ymd or self.senior_lien.strip()
                     or self.surviving_rights.strip() or self.lien_note.strip())
 
+    @property
+    def opposability_assessable(self) -> bool:
+        """대항력/인수 임차인을 판정할 **근거 텍스트**가 하나라도 있는지.
+
+        (2026-07-22 대항력 false-negative 수정) 우리가 쓰는 물건상세 엔드포인트(PGJ151F01)는
+        임차인 전입일/보증금 표를 담지 않는다 — 대항력 신호는 오직 자유기술란
+        (surviving_rights=인수되는 권리 / lien_note=유치권 등 / remark=비고)에만 들어온다.
+        이 세 칸이 전부 비면(실 DB의 19%) 대항력 여부를 **판정할 근거가 아예 없다**.
+        그런데 spec_write_ymd·senior_lien(말소기준)만 있으면 is_empty=False 라서 종전엔
+        rights_verified=True → '대항력 임차인 발견 안 됨' 초록으로 오표시됐다(부산 2022타경3289
+        삼환아파트: 세 칸 전부 null인데 초록 추천 → 실제론 대항력 임차인 존재).
+        근거 텍스트가 없으면 '없음'이 아니라 '모름'으로 남겨 오판을 막는다(보수 원칙과 정합).
+        """
+        return bool((self.surviving_rights or "").strip()
+                    or (self.lien_note or "").strip()
+                    or (self.remark or "").strip())
+
     def to_row(self) -> dict:
         d = asdict(self)
         d["schedule"] = json.dumps(self.schedule, ensure_ascii=False)
