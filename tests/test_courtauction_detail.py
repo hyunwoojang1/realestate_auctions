@@ -280,14 +280,28 @@ def test_h1_identical_line_copy_counted_once():
 
 
 def test_h4_schema_drift_canary():
-    """H4(2026-07-22): 값이 null(정상)인 것과 필드명 자체가 사라진 것(드리프트)을 구분."""
+    """H4(2026-07-22): 값이 null(정상)인 것과 필드명 자체가 사라진 것(드리프트)을 구분.
+    (B1 수정) 핵심키 3개가 '전부' 있어야 정상 — 하나만 개명돼도 드리프트로 잡아야 한다."""
     from src.courtauction_detail import detail_schema_drift
-    ok = {"csBaseInfo": {}, "dspslGdsDxdyInfo": {"ndstrcRghCtt": None,
-                                                 "tprtyRnkHypthcStngDts": "2002. 4. 23. 근저당권"}}
-    assert detail_schema_drift(ok) == ""                           # 키 존재(값 null이어도) = 정상
+    ok = {"csBaseInfo": {}, "dspslGdsDxdyInfo": {
+        "ndstrcRghCtt": None, "tprtyRnkHypthcStngDts": "2002. 4. 23. 근저당권",
+        "sprfcExstcDts": None}}                                    # 3키 전부 존재(값 null 무관)
+    assert detail_schema_drift(ok) == ""                           # 정상
     assert "섹션 없음" in detail_schema_drift({"csBaseInfo": {}})   # 요지 섹션 자체 없음
-    assert detail_schema_drift({"dspslGdsDxdyInfo": {"someRenamedField": "x"}})   # 핵심 필드명 전무
     assert detail_schema_drift("not a dict")                       # dma_result 아님
+
+
+def test_h4_single_key_rename_is_drift():
+    """B1 CRITICAL: 최고위험 필드 ndstrcRghCtt '하나만' 개명돼도(나머지 2키 정상) 드리프트로 잡아야
+    한다. 종전 any()는 이걸 무경보→인수부담 물건이 조용히 clean으로 새던 침묵실패."""
+    from src.courtauction_detail import detail_schema_drift
+    only_one_renamed = {"dspslGdsDxdyInfo": {
+        "ndstrcRghCttV2": "임차보증금 인수",                        # 개명됨
+        "tprtyRnkHypthcStngDts": "2020.1.1.근저당", "sprfcExstcDts": None}}
+    reason = detail_schema_drift(only_one_renamed)
+    assert reason and "ndstrcRghCtt" in reason                     # 사라진 키명을 짚어야
+    # 3키 전부 개명 → 당연히 드리프트
+    assert detail_schema_drift({"dspslGdsDxdyInfo": {"a": 1, "b": 2}})
 
 
 def test_empty_case_rights_is_empty():

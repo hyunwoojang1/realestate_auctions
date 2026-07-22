@@ -489,16 +489,22 @@ def detail_schema_drift(dma_result: dict) -> str:
     """물건상세 응답의 스키마 드리프트 사유(있으면). 정상이면 ''.
 
     - dspslGdsDxdyInfo(명세서 요지) 섹션 자체가 없음 → 드리프트.
-    - 섹션은 있으나 인수권리·최선순위·유치권 **핵심 필드명이 모두 사라짐** → 드리프트.
+    - 섹션은 있으나 인수권리·최선순위·유치권 핵심 필드 중 **하나라도** 이름이 사라짐 → 드리프트.
     크롤러가 이 사유를 집계해 드리프트율이 높으면 '스키마 변경/차단'으로 비정상 종료(exit code).
+
+    ⚠️ (B1 수정 2026-07-22) 종전엔 any()라 핵심키 3개 중 '하나만 남아도' 정상 판정했다 — 법원이
+    최고위험 필드 ndstrcRghCtt(인수되는 권리) '하나만' 개명해도 무경보로, 인수부담 물건이 조용히
+    surviving_rights='' → clean(거짓 안전)으로 저장됐다(QA CRITICAL). **핵심키는 전부 존재해야**
+    정상으로 본다(값이 null인 것은 정상 — 키 존재 여부만 본다). 정상 응답엔 3키가 모두 나온다(실측 삼환).
     """
     if not isinstance(dma_result, dict):
         return "dma_result 아님"
     gds = dma_result.get("dspslGdsDxdyInfo")
     if not isinstance(gds, dict):
         return "dspslGdsDxdyInfo(명세서 요지) 섹션 없음"
-    if not any(k in gds for k in _DETAIL_CORE_KEYS):
-        return "명세서 요지 핵심 필드명 전무(ndstrcRghCtt/tprtyRnkHypthcStngDts/sprfcExstcDts)"
+    missing = [k for k in _DETAIL_CORE_KEYS if k not in gds]
+    if missing:
+        return f"명세서 요지 핵심 필드 소멸: {', '.join(missing)}"
     return ""
 
 

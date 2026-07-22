@@ -15,6 +15,7 @@
 from __future__ import annotations
 
 import argparse
+import os
 import sys
 from pathlib import Path
 
@@ -198,6 +199,17 @@ def main(argv=None) -> int:
         print("  ⛔ 부분 수집(전국 크롤 중간 차단) — 전량 교체 대신 병합 저장(클라우드도 병합만).",
               file=sys.stderr)
         full_snapshot = False
+    # (E1 2026-07-22 QA CRITICAL) 카운트 기반 커버리지 플로어 — 차단 없이 '정상 HTTP지만 부실한'
+    # 샤드(빈/짧은 응답)가 전량교체+prune으로 밴예산 들여 모은 백로그를 파괴하는 것 방지. 이번 수집이
+    # 기존 scored 대비 FLOOR(기본 0.8) 미만이면 만료가 아니라 수집부실로 보고 병합 강등(prune 스킵).
+    # NATIONWIDE_PARTIAL(차단)과 0건(아래)은 별도 처리하므로, 여기선 '차단은 없었는데 수만 급감'을 잡는다.
+    if args.source == "courtauction" and use_live and full_snapshot and scored:
+        _prior = conn.execute("SELECT COUNT(*) FROM scored_listings").fetchone()[0]
+        _floor = float(os.environ.get("AUCTION_COVERAGE_FLOOR", "0.8"))
+        if _prior and len(scored) < _prior * _floor:
+            print(f"  ⛔ 커버리지 플로어 미달(수집 {len(scored)} < 기존 {_prior}×{_floor:.0%}) — "
+                  f"전량교체 대신 병합(백로그 보존). 부실 크롤 의심.", file=sys.stderr)
+            full_snapshot = False
     if args.source == "courtauction" and use_live and full_snapshot and not scored:
         # 수집 0건(전 샤드 차단·전량 파싱 실패 등)에 전량 교체를 돌리면 서빙 DB가 통째로 비워지고,
         # 빈 테이블은 data_gates 를 위반 0건으로 통과해 클라우드까지 전파된다. 빈 스냅샷은 '만료'가
