@@ -1,5 +1,18 @@
 # versions.md — auction-arbitrage 루프 작업 로그 (append-only, 최신순)
 
+## 2026-07-22 18:10 KST — 🧭 Layer-1⊕Layer-2 QA 종합 + 크롤링 코드 보완계획(docs/crawler_qa_remediation.md)
+- Layer-2(타 세션, 결론≠실제 QA) 2건 수신: L2-P1 목록/홈/API/CSV가 상세와 정면모순(초록추천 vs ⛔미확인,
+  홈 31/60 경고칩0+양수차익), L2-P2 스테일 미러(강등 100건이 프로덕션서 확신등급+차익 최대2.49억, 응암푸르지오).
+  타 세션이 오버액션 3건은 라이브 반증으로 기각(basis=0 33건 등).
+- **종합 통찰**: L2 2건은 "프로덕션 Supabase 미러가 현행 엔진보다 낡음" 하나로 수렴 → **재채점→재미러**가
+  동시 해소. 단 Layer-1 C1(PII)·C3(커버리지플로어) 선행 없이는 재미러가 실명유출·백로그파괴를 키움.
+- 보완계획 6단계(파일단위): C(PII 마스킹+백필: courtauction_detail.py:543/:526-532, 법인토큰·오탐가드,
+  data_gates BLOCK) → B1(H4 any()→전부존재 :500)·E1(replace_all 커버리지플로어 pipeline.py:111/run.py:197)
+  → A(안전 재채점·재미러 = L2-P1·P2 해소 + 목록 서브타임 가드) → D(요청예산 영속·_targets dedup·refresh
+  종료코드·스케줄러) → E2·E3·F(prune photos/naver·save_tenants ipcheck가드·building 센티널·pgj15B 골든).
+- 아직 미구현(설계·종합 단계). 다음=우선순위대로 코드 수정(C부터).
+
+
 ## 2026-07-22 17:30 KST — 🧪 Layer-1 크롤러 QA 설계(5세대×5트랙 진화형, 26에이전트) + CRITICAL 4건 발견
 - 역할: Layer-1(크롤러 수집 파이프라인 자체 품질) QA 설계. Layer-2(결론 정확성)는 다른 세션.
 - Workflow(crawler-qa-l1-evolve): 5트랙(정확성·완전성·침묵실패·멱등무결성·밴안전신선도)×5세대 진화
