@@ -11,9 +11,9 @@
   - ScoredListing.assumed_amount 필드+DDL+_COLS+마이그레이션(v7→v8, 레거시 0), score_listing·
     _apply_market_price(서빙폴백) 양쪽 차감. 정렬키(profit_low) 기준 sort 테스트 3종 갱신 + 함정/
     대조 회귀 2종. **pytest 641 통과**·ruff 클린. 커밋 785f590.
-  - ⚠️**배포 전 필수**: `deploy/supabase_rights.sql`의 `auction_scored_listings.assumed_amount`
-    ALTER를 Supabase SQL Editor에서 **선행 실행**(없으면 클라우드 서빙 400). Management API 직접
-    실행은 Cloudflare 1010(Python UA 차단)로 실패 → 대시보드 수동 실행 권장.
+  - ✅**Supabase 컬럼 추가 완료**: `auction_scored_listings.assumed_amount`(bigint default 0)를
+    Management API로 실행 완료(HTTP 201, information_schema 검증됨). 최초 1010(Cloudflare, Python UA
+    차단)은 **브라우저 UA로 재요청해 해결** — 배포 전 수동 SQL 불필요. supabase_rights.sql에도 ALTER 기록.
 - **빈틈2**: 게이트 입력인 대항력 판정이 문구매칭이라 미탐 가능 → B-2(전입일 날짜판정)가 메움(실크롤 대기).
 
 ## 2026-07-22 15:10 KST — 🛡️ H1 인수액 과소산정 + H4 스키마 드리프트 카나리(권리 파서 백로그)
