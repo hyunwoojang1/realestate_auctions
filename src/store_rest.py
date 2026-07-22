@@ -361,7 +361,11 @@ def fetch_tenants(court: str, case_no: str, item_no: str = "") -> list[dict]:
 
     (2026-07-22) 대항력 실판정 원천. Supabase 테이블·미러 파이프라인은 실크롤로 데이터가
     쌓인 뒤 도입하므로, 그전까지 프로덕션은 이 함수가 [] 를 반환해 기존 서빙을 깨지 않는다.
+    ★게이트: 임차인 미러가 준비되기 전에는 SUPABASE_TENANTS_ENABLED 미설정이라 REST 호출 없이
+    즉시 [] — 지금 코드를 배포해도 프로덕션 상세 페이지에 추가 왕복·동작 변화가 전혀 없다.
     """
+    if os.environ.get("SUPABASE_TENANTS_ENABLED") != "1":
+        return []
     try:
         url, key, _ = _cfg()
         r = requests.get(_endpoint(url, TENANTS_TABLE), headers=_headers(key),
