@@ -329,6 +329,21 @@ def _curst_deposit_won(s: str) -> int:
     return _korean_won(t)
 
 
+def curst_has_context(data: dict) -> bool:
+    """현황조사서 응답이 '유효 조회'인지 — ipcheck=true(서버가 세션 사건 컨텍스트를 확인)이고 errors 없음.
+
+    (E3 2026-07-22 QA HIGH) case_curst_survey 는 case_detail 선행이 없거나 소프트차단이면 200이지만
+    {ipcheck:false} 빈 응답을 준다. 이걸 parse_curst_survey 가 []로 반환하는데, 이를 '임차인 없음'으로
+    간주해 save_tenants([]) 하면 **기존 임차인을 전량 삭제**(거짓 '없음' 확정)한다. False면 저장·삭제
+    금지(기존 보존). ipcheck=true + 빈 리스트만 진짜 '임차인 없음'이다."""
+    if not isinstance(data, dict) or data.get("errors"):
+        return False
+    if data.get("ipcheck"):
+        return True
+    res = data.get("result")
+    return bool(isinstance(res, dict) and res.get("ipcheck"))
+
+
 def parse_curst_survey(data: dict) -> list[dict]:
     """현황조사서 응답 dict → 임차인 레코드 리스트(PII 제외).
 

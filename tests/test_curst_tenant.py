@@ -9,6 +9,7 @@ from __future__ import annotations
 from src.courtauction_detail import (
     CaseRights,
     analyze_priority,
+    curst_has_context,
     opposable_deposit,
     parse_curst_survey,
     tenant_moveins,
@@ -121,6 +122,31 @@ def test_empty_or_no_ipcheck_survey_yields_no_tenants():
     assert parse_curst_survey({"ipcheck": False}) == []
     assert parse_curst_survey({}) == []
     assert parse_curst_survey({"dlt_ordTsLserLtn": []}) == []
+
+
+def test_e3_curst_has_context_distinguishes_softblock_from_empty():
+    """E3(2026-07-22): ipcheck=false/errors(소프트차단)와 ipcheck=true+빈(진짜 임차인없음)을 구분 —
+    전자를 '없음'으로 오인해 save_tenants([]) 하면 기존 임차인을 전량 삭제한다."""
+    assert curst_has_context({"ipcheck": False}) is False          # 소프트차단 → 저장금지
+    assert curst_has_context({"errors": ["x"], "ipcheck": True}) is False  # 에러 → 저장금지
+    assert curst_has_context({}) is False
+    assert curst_has_context({"ipcheck": True, "dlt_ordTsLserLtn": []}) is True   # 진짜 임차인없음
+    assert curst_has_context({"result": {"ipcheck": True}}) is True  # result 하위 ipcheck도 인정
+
+
+def test_e3_softblock_does_not_delete_existing_tenants(tmp_path):
+    """E3 통합: ipcheck=false면 저장·삭제를 건너뛰어 기존 임차인이 보존돼야 한다."""
+    from src import store
+    conn = store.connect(str(tmp_path / "t.db"))
+    recs = parse_curst_survey(TENANT_SURVEY)
+    store.save_tenants(conn, "X", "1", "1", recs, fetched_at="2026-07-22")
+    assert len(store.load_tenants(conn, "X", "1", "1")) == 1
+    # 소프트차단 응답 — curst_has_context=False라 크롤러는 save를 호출하지 않는다(기존 보존).
+    softblock = {"ipcheck": False}
+    if curst_has_context(softblock):                       # False → 이 블록 미실행이 정답
+        store.save_tenants(conn, "X", "1", "1", parse_curst_survey(softblock), fetched_at="x")
+    assert len(store.load_tenants(conn, "X", "1", "1")) == 1   # 삭제 안 됨
+    conn.close()
 
 
 def test_store_tenants_roundtrip(tmp_path):

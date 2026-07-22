@@ -25,6 +25,47 @@ def _scored(case_no: str, arb: float = 80.0) -> ScoredListing:
     )
 
 
+def test_request_budget_persists_across_clients(tmp_path):
+    """D1(2026-07-22): 일일 요청 예산이 클라이언트(프로세스) 간 파일로 공유돼 생성자 리셋을 막는다.
+    종전엔 _request_count가 생성자마다 0 → daily_cap이 프로세스마다 새로 시작(하루 6119콜 실측)."""
+    from src.courtauction_client import CourtAuctionClient
+    bf = str(tmp_path / "budget.json")
+    c1 = CourtAuctionClient(daily_cap=5, budget_file=bf)
+    for _ in range(3):                        # 요청 3회 시뮬(네트워크 없이 카운터+영속만)
+        c1._request_count += 1
+        c1._save_budget()
+    c2 = CourtAuctionClient(daily_cap=5, budget_file=bf)   # 새 프로세스
+    assert c2._request_count == 3             # 파일에서 당일 누적 이어받음
+    c2._request_count = 5
+    c2._save_budget()
+    assert CourtAuctionClient(daily_cap=5, budget_file=bf)._request_count == 5   # 상한 도달분 이어받음
+
+
+def test_request_budget_disabled_when_no_file():
+    """budget_file=None(테스트/비영속)은 항상 0에서 시작하고 저장은 no-op."""
+    from src.courtauction_client import CourtAuctionClient
+    c = CourtAuctionClient(budget_file=None)
+    assert c._request_count == 0
+    c._save_budget()                          # 예외 없이 no-op
+
+
+def test_targets_dedup_fanout():
+    """D2(2026-07-22): raw_listings 다-docid 팬아웃(같은 사건 여러 raw행)이 _targets를 중복시키지
+    않아야 한다 — 종전엔 refresh 시 같은 사건에 최대 52배 상세요청이 나가 밴예산을 낭비했다."""
+    from deploy.crawl_rights import _targets
+    conn = store.connect(":memory:")
+    store.upsert(conn, [_scored("2025타경1")])
+    for i in range(3):                        # 같은 (court,case_no,item_no)에 raw 3행(재크롤 이력)
+        conn.execute(
+            "INSERT INTO raw_listings (uid, doc_id, court, case_no, item_no, raw_json, fetched_at) "
+            "VALUES (?,?,?,?,?,?,?)",
+            (f"uid{i}", f"doc{i}", "", "2025타경1", "", json.dumps({"boCd": "B0001"}), "2026-07-22"))
+    conn.commit()
+    t = _targets(conn, None, refresh=True)
+    keys = [(x["court"], x["case_no"], x["item_no"]) for x in t]
+    assert len(t) == 1 and len(keys) == len(set(keys))   # 3 raw행 → 타깃 1건
+
+
 # ── ① 수집 0건이 서빙 DB를 지우지 않음 ──
 def test_replace_all_empty_preserves_existing():
     """크롤 0건(전 샤드 차단/전량 파싱 실패)에 전량 교체를 돌려도 기존 매물이 보존된다."""

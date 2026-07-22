@@ -19,8 +19,14 @@ from datetime import datetime, timedelta, timezone
 
 from deploy.migrate_to_supabase import _load_env
 from src import casesearch, photo, photo_store, store, store_rest
-from src.courtauction_client import CourtAuctionBlocked, CourtAuctionClient, CourtAuctionError
+from src.courtauction_client import (
+    BUDGET_FILE,
+    CourtAuctionBlocked,
+    CourtAuctionClient,
+    CourtAuctionError,
+)
 from src.courtauction_detail import (
+    curst_has_context,
     detail_schema_drift,
     extract_photos,
     normalize,
@@ -55,11 +61,17 @@ def _targets(conn, limit: int | None, refresh: bool,
     ).fetchall()
     out = []
     done = set()
+    # (D2 2026-07-22 QA HIGH) JOIN(scored⋈raw) 은 raw_listings 다-docid(재크롤·이력) 때문에 같은
+    # (court,case_no,item_no)에 여러 행을 낸다(실측 raw 37528 vs distinct 26286). 중복제거 없이는
+    # 같은 사건에 최대 52배 상세요청이 나가 밴 예산(500/일)을 낭비하고 커버리지가 정체된다.
+    seen: set = set()
     if not refresh:
         done = {(x["court"], x["case_no"], x["item_no"])
                 for x in conn.execute("SELECT court, case_no, item_no FROM listing_rights")}
     for r in rows:
         key_norm = (r["court"], r["case_no"], str(r["item_no"] or ""))
+        if key_norm in seen:                 # 이미 이 사건을 타깃에 넣음(팬아웃 중복) — 스킵
+            continue
         if (r["court"], r["case_no"], r["item_no"]) in done:
             continue
         if estimable_only is not None and key_norm not in estimable_only:
@@ -71,7 +83,8 @@ def _targets(conn, limit: int | None, refresh: bool,
         except json.JSONDecodeError:
             bo = ""
         if not bo:
-            continue
+            continue                         # boCd 없는 raw 행 — 같은 키의 다른 행이 채울 수 있게 seen 미표시
+        seen.add(key_norm)
         out.append({"court": r["court"], "case_no": r["case_no"], "item_no": r["item_no"],
                     "bo_cd": bo, "fail": r["fail_count"] or 0, "p": r["p"]})
     # 우선순위: 보수차익 양수 먼저(값 큰 순) → 그 외는 유찰 많은 순
@@ -116,7 +129,9 @@ def main(argv=None) -> int:
     if not targets:
         return 0
 
-    client_kw = {}
+    # (D1 2026-07-22) 권리 크롤은 차단/실패로 자주 재시작되는데, 종전엔 재시작마다 daily_cap이 0에서
+    # 새로 시작해 하루 6119콜(상한 12배)이 나갔다. 당일 요청수를 파일에 영속해 재시작이 예산을 이어받게.
+    client_kw = {"budget_file": BUDGET_FILE}
     if args.cap:
         client_kw["daily_cap"] = args.cap
     if args.min_interval is not None:
@@ -192,10 +207,16 @@ def main(argv=None) -> int:
             if crawl_tenants:
                 try:
                     survey = client.case_curst_survey(t["bo_cd"], t["case_no"])
-                    tenants = parse_curst_survey(survey)
-                    store.save_tenants(conn, t["court"], t["case_no"], t["item_no"],
-                                       tenants, fetched_at=now)
-                    tenant_n += sum(1 for x in tenants if x.get("is_tenant_like"))
+                    # (E3) ipcheck=false/errors = 소프트차단·컨텍스트없음 → '임차인 없음'이 아니다.
+                    # 확정(ipcheck=true)일 때만 저장한다 — 빈 리스트로 save하면 기존 임차인 전량삭제.
+                    if curst_has_context(survey):
+                        tenants = parse_curst_survey(survey)
+                        store.save_tenants(conn, t["court"], t["case_no"], t["item_no"],
+                                           tenants, fetched_at=now)
+                        tenant_n += sum(1 for x in tenants if x.get("is_tenant_like"))
+                    else:
+                        print(f"  [{i}/{len(targets)}] {t['case_no']} 현황조사서 미확정"
+                              f"(ipcheck=false) — 임차인 저장 스킵(기존 보존)", file=sys.stderr)
                 except CourtAuctionBlocked:
                     raise  # 차단은 전체 중단(우회 금지)
                 except Exception as e:  # noqa: BLE001 — 현황조사서 실패는 권리 크롤을 막지 않음

@@ -51,6 +51,9 @@ DETAIL_URL = f"{BASE}/pgj/pgj15B/selectAuctnCsSrchRslt.on"
 # ★제약: 같은 세션에서 DETAIL_URL(case_detail)을 선행해야 응답이 온다 — 선행 없이 호출하면
 # 200이지만 {ipcheck:false} 빈 응답(서버가 사건 컨텍스트를 세션에서 확인). 타 세션 라이브검증 완료.
 CURST_URL = f"{BASE}/pgj/pgj15B/selectCurstExmndc.on"
+# (D1) 당일 요청 예산 공유 파일 — 프로덕션 크롤이 이 경로로 budget_file 을 켜서 목록·권리 크롤이
+# 같은 일일 상한을 공유한다(프로세스 재시작·병렬 실행이 밴 상한을 우회하지 못하게).
+BUDGET_FILE = ".courtauction_budget.json"
 
 # 브라우저 위장 헤더(실측상 필수 6종 + 보강). requests 기본 UA는 즉시 봇 차단됨.
 _UA = ("Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 "
@@ -169,10 +172,43 @@ class CourtAuctionClient:
     backoff_cap: float = 120.0
     timeout: int = 30
     stop_file: str | None = "COURTAUCTION_STOP"   # 존재하면 즉시 중단(kill-switch). 전용 파일명(루프의 AGENT_STOP과 분리)
+    # (D1 2026-07-22 QA CRITICAL) 일일 요청수를 날짜별로 디스크에 영속 — 종전엔 _request_count가
+    # 생성자마다 0으로 리셋돼 daily_cap이 프로세스마다 새로 시작, 실제 하루 6119콜(상한 12배)이
+    # 단일 IP로 나갔다. 목록크롤·권리크롤·재시작이 같은 파일로 **당일 예산을 공유**한다(정부사이트 밴 방지).
+    # 기본 None=비영속(테스트·단발 조회는 상태 공유 안 함). 프로덕션 크롤(pipeline·crawl_rights)이
+    # BUDGET_FILE 을 명시로 켠다. 켜야 프로세스 간 당일 예산 공유가 작동.
+    budget_file: str | None = None
     session: object = None             # requests.Session (None이면 lazy 생성)
     _request_count: int = field(default=0, init=False)
     _client_ip: str = field(default="", init=False)
     _last_request_ts: float = field(default=0.0, init=False)
+
+    def __post_init__(self):
+        # 당일 누적 요청수를 이어받아 시작(프로세스 간 공유). 파일 없음/타일자면 0.
+        self._request_count = self._load_budget()
+
+    # --- 일일 요청 예산(영속) ---
+    @staticmethod
+    def _today() -> str:
+        return time.strftime("%Y-%m-%d", time.localtime())
+
+    def _load_budget(self) -> int:
+        if not self.budget_file:
+            return 0
+        try:
+            d = json.loads(Path(self.budget_file).read_text(encoding="utf-8"))
+            return int(d.get("count", 0)) if d.get("date") == self._today() else 0
+        except Exception:  # noqa: BLE001 — 파일 없음/손상은 0에서 시작(영속 실패가 크롤을 막지 않음)
+            return 0
+
+    def _save_budget(self) -> None:
+        if not self.budget_file:
+            return
+        try:
+            Path(self.budget_file).write_text(
+                json.dumps({"date": self._today(), "count": self._request_count}), encoding="utf-8")
+        except Exception:  # noqa: BLE001 — 영속 실패는 인스턴스 카운트로 폴백(크롤 계속)
+            pass
 
     # --- 세션/IP ---
     def _ensure_session(self):
@@ -244,9 +280,10 @@ class CourtAuctionClient:
         while True:
             attempt += 1
             if self._request_count >= self.daily_cap:
-                raise CourtAuctionBlocked(f"요청 상한({self.daily_cap}, 인스턴스 누적) 도달 — 중단")
+                raise CourtAuctionBlocked(f"요청 상한({self.daily_cap}, 당일 누적) 도달 — 중단")
             self._last_request_ts = time.monotonic()
             self._request_count += 1
+            self._save_budget()   # (D1) 요청마다 당일 누적을 영속 — 재시작·타 프로세스가 이어받음
             try:
                 resp = s.post(url, headers=_POST_HEADERS, data=payload,
                               timeout=self.timeout, allow_redirects=False)

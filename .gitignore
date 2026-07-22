@@ -46,3 +46,4 @@ data/naver_cache.json
 *.log
 migrate_status.html
 scripts/_ui_xml/
+.courtauction_budget.json
