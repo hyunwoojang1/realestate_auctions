@@ -1,0 +1,2948 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+    PGJ111M01.xml(홈페이지 메인페이지 파일) 화면 XML
+
+    ============= ============ ==========================
+     Date          Author       Description
+    ============= ============ ==========================
+     2022.07.22.   나해준       [NELS]최초 생성
+     2026.07.07.   김기석       [26A-PGJ-0030] 임차인통지서 QR코드를 통한 볍원경매정보 서비스 제공
+    ============= ============ ==========================
+-->
+<html xmlns="http://www.w3.org/1999/xhtml"
+    xmlns:ev="http://www.w3.org/2001/xml-events"
+    xmlns:w2="http://www.inswave.com/websquare" xmlns:xf="http://www.w3.org/2002/xforms">
+    <head meta_screenName="메인컨텐츠">
+        <title>법원경매정보</title>
+        <w2:type>DEFAULT</w2:type>
+        <w2:buildDate/>
+        <xf:model>
+            <xf:instance>
+                <data xmlns="" />
+            </xf:instance>
+            <w2:dataCollection baseNode="map">
+                <w2:dataList baseNode="list" repeatNode="map" id="dlt_ntcMtrPouUpItemList" saveRemovedData="true">
+                    <w2:columnInfo>
+                        <w2:column id="cortAuctnNtcEtcDvsCd" name="법원경매공지기타구분코드" dataType="" length=""></w2:column>
+                        <w2:column id="cortAuctnNtcMtrSeq" name="법원경매공지사항순번" dataType="" length=""></w2:column>
+                        <w2:column id="cortAuctnNtcEtcDtlDvsCd" name="법원경매공지기타상세구분코드" dataType="" length=""></w2:column>
+                        <w2:column id="cortAuctnRletDvsCd" name="법원경매공지사항형식구분코드" dataType="" length=""></w2:column>
+                        <w2:column id="ntatcTitlNm" name="게시물제목명" dataType="" length=""></w2:column>
+                        <w2:column id="ntatcCtxtCtt" name="게시물본문내용" dataType="" length=""></w2:column>
+                    </w2:columnInfo>
+                </w2:dataList>
+                <w2:dataMap baseNode="map" id="dma_srchNo">
+                    <w2:keyInfo>
+                        <w2:key id="srchNo" name="파라미터" dataType="text"></w2:key>
+                    </w2:keyInfo>
+                </w2:dataMap>
+                <w2:dataMap baseNode="map" id="dma_nonData">
+                    <w2:keyInfo>
+                        <w2:key id="key1" name="name1" dataType="text"></w2:key>
+                    </w2:keyInfo>
+                </w2:dataMap>
+            </w2:dataCollection>
+            <w2:workflowCollection></w2:workflowCollection>
+            <xf:submission id="sbm_selectNtcMtrPouUpItem" ref="data:json,dma_srchNo"
+                target='data:json,{"id":"dlt_ntcMtrPouUpItemList","key":"data.dlt_ntcMtrPouUpItemList"}'
+                action="/pgj/pgj111/selectNtcMtrPouUpItemList.on" method="post" mediatype="application/json" encoding="UTF-8" instance=""
+                replace="" errorHandler="" customHandler="" mode="asynchronous" processMsg="" ev:submit=""
+                ev:submitdone="scwin.sbm_selectNtcMtrPouUpItem_submitdone" ev:submiterror="" abortTrigger="">
+            </xf:submission>
+            <xf:submission id="sbm_selectMainInfo" ref="data:json,dma_nonData" target="" action="/pgj/pgj111/selectRletYrDspslStats.on" method="post"
+                mediatype="application/json" encoding="UTF-8" instance="" replace="" errorHandler="" customHandler="" mode="asynchronous"
+                processMsg="" ev:submit="" ev:submitdone="scwin.sbm_selectMainInfo_submitdone" ev:submiterror="" abortTrigger="">
+            </xf:submission>
+        </xf:model>
+        <script type="text/javascript" lazy="false"><![CDATA[/*최상단 선언 */
+scwin.isMain = function () {
+    return true;
+}
+
+scwin.pgmId = 'PGJ111M01'
+// 오늘 날짜
+scwin.nowDate = WebSquare.date.getCurrentServerDate();
+// 금주 경매일정 전역변수
+scwin.rletPbanc = ''  // 부동산 일반공고
+scwin.rletCrrctPbanc = '' // 부동산 정정공고
+scwin.rletRtrcnPbanc = '' // 부동산 취소공고
+scwin.mvprpGnrlPbanc = '' // 동산 일반공고
+scwin.mvprpErlyPbanc = '' // 동산 조기공고
+
+scwin.rletPbancCnt = 1; // 부동산 일반공고 리로드 횟수
+scwin.rletCrrctPbancCnt = 1 // 부동산 정정공고 리로드 횟수
+scwin.rletRtrcnPbancCnt = 1 // 부동산 취소공고 리로드 횟수
+scwin.mvprpGnrlPbancCnt = 1 // 동산 일반공고 리로드 횟수
+scwin.mvprpErlyPbancCnt = 1 // 동산 조기공고 리로드 횟수
+
+// 빠른(신속)검색 부동산,동산 검색 flag
+scwin.rpdtSrchBtnFlag = '01';
+
+
+WebSquare.startAppalQ
+
+
+/**
+ * 메인페이지 onload
+ *
+ * ============= ============ ==========================
+ *  Date          Author       Description
+ * ============= ============ ==========================
+ *  2022.07.22.   나해준       [NELS]최초 생성
+ * ============= ============ ==========================
+ */
+scwin.onpageload = function () {
+    /* TO-DO */
+    const userId = 'system';
+    scglblo.setScUserId(userId); /* 유저id 등록 */
+    scscrno.setScPgmId(scwin.pgmId); /* 화면id 등록 */
+    // 경매 왼쪽아래 배너
+    gpr_serviceGuide.hide(); // 안내서비스
+    grp_auctnVt.hide(); // 투표하기
+    //메인 slider+
+    $('.slider_wrap .slider_list a.resi').attr('data-slide-index', '0');
+    $('.slider_wrap .slider_list a.car').attr('data-slide-index', '1');
+    $('.slider_wrap .slider_list a.comm').attr('data-slide-index', '2');
+    $('.slider_wrap .slider_list a.land').attr('data-slide-index', '3');
+    $('.slider_wrap .slider_list a.indust').attr('data-slide-index', '4');
+    $('.slider_wrap .slider_list a.forest').attr('data-slide-index', '5');
+
+    $('.main_slider').bxSlider({
+        mode: 'fade',
+        auto: true,
+        stopAutoOnClick: true,
+        pagerCustom: '.slider_list'
+    });
+
+    // 공지사항 slider
+    $('.notice_wrap .notice_list').bxSlider({
+        mode: 'horizontal',
+        touchEnabled: false, //크롬에서 bxSilder는 오류가 몇개발생해서 해당 옵션을 추가해줘야 이벤트 발생
+        auto: false,
+        speed: 150,
+        pager: false,
+        // slideWidth: 350,
+        maxSlides: 1,
+        moveSlides: 1,
+        onSliderLoad:function(){ /* 웹접근성 bx슬라이더 function추가 */
+            $(".bx-clone").find("a").prop("tabIndex","-1");
+        },
+        onSlideAfter:function(){ /* 웹접근성 bx슬라이더 function추가 */
+            $('.notice_wrap .notice_list').children("li").each(function(){
+                if ($(this).attr("aria-hidden") == "false") {
+                    $(this).find("a").attr("tabIndex",0);
+                } else {
+                    $(this).find("a").attr("tabIndex",1);
+                }
+            })
+        }
+    });
+
+    /* 웹접근성 Enter이벤트를 추가하기 위한 로직 */
+    const aDiv = document.querySelectorAll('.mainbox .info_list');
+    aDiv.forEach(el=>{
+        const aTags = el.querySelectorAll('a');
+        aTags.forEach(a=>{
+            a.addEventListener('keydown',function(e){
+                let key = e.key;
+                if (key == 'Enter' || key == 1) {
+                    let id = this.id;
+
+                    if(id == "mf_anc_pvsnSrvc"){
+                        scwin.grp_pvsnSrvc_onclick();
+                    } else if(id == "mf_anc_sitUtilGdnc"){
+                        setTimeout(()=>{
+                            scwin.grp_sitUtilGdncBtn_onclick()
+                        },100)
+                    } else if(id == "mf_anc_mvprpExecInf"){
+                        scwin.grp_mvprpExecInfBtn_onclick();
+                    } else {
+                        scwin.grp_pvsnSrvc_onclick();
+                    }
+                }
+            });
+        });
+    });
+
+
+    // 금주경매 "일정 없음" hide
+    tbx_rletGnrlNone.hide();
+    //빠른물건 검색을 위해 부동산만 오픈
+    sbx_mvprpRpdtCortLst.hide();
+    grp_mvprpRpdtSrch.hide();
+    //빠른물건검색 콤보박스 셋팅
+    pgjUtil.bindSelectBox(pgjUtil.getCortOfcLst('B'), sbx_rletRpdtCortLst, false); // 법원 리스트
+    sbx_rletRpdtCortLst.setSelectedIndex(1);
+    pgjUtil.bindSelectBox(pgjUtil.getCortOfcLst('O'), sbx_mvprpRpdtCortLst, false);
+    sbx_mvprpRpdtCortLst.setSelectedIndex(1);
+    pgjUtil.bindSelectBox(pgjUtil.getAdongSdLst('Y', 'B', 'FB'), sbx_rletRpdtSdLst, false); // 시/도 리스트
+    pgjUtil.bindSelectBox(pgjUtil.getAdongSdLst('Y', 'O', 'FB'), sbx_mvprpRpdtSdLst, false);
+    pgjUtil.bindSelectBox(pgjUtil.getRnConsonantLst(), sbx_rletRpdtConsonant, false); // 자음모음 리스트
+    sbx_rletRpdtConsonant.setSelectedIndex(0);
+    pgjUtil.bindSelectBox(pgjUtil.getRnConsonantLst(), sbx_mvprpRpdtConsonant, false);
+    sbx_mvprpRpdtConsonant.setSelectedIndex(0);
+
+    // 소재지 시/도
+    com.executeSubmission(sbm_selectMainInfo);
+
+};
+
+/* 웹접근성 bx슬라이더 수정 */
+// $('.notice_wrap .notice_list a').focusin(function(){
+//  noticSlider.stopAuto();
+// })
+
+scwin.onpageunload = function () {
+
+};
+
+
+/**
+ * 공지사항 open팝업 method 실행
+ *
+ * ============= ============ ==========================
+ *  Date          Author       Description
+ * ============= ============ ==========================
+ *  2022.07.22.   나해준       [NELS]최초 생성
+ * ============= ============ ==========================
+ */
+scwin.openNtcMtrPouUp = function (list) {
+    if (list.length > 0) {
+        /* 팝업창 여러개 일때 위치 조정 */
+        var num = 100;
+        var num2 = 100;
+        let idNum = 0
+        for (let i = 0; i < list.length; i++) {
+            let cookieTemp = pgjUtil.getCookie(list[i].cortAuctnNtcMtrSeq)
+            if (!(cookieTemp != null && cookieTemp == "Y")) {//현재 해당 공지사항 쿠키key값이 존재하지않은경우,팝업창 오픈
+                /* 공지사항 open팝업 method 실행 */
+                scwin.ntcMtrPopUp(idNum, list[i], num, num2);
+                num -= 50;
+                num2 -= 50;
+                idNum++
+            }
+        }
+    }
+}
+
+
+
+/**
+ * 공지사항 open팝업 method
+ *
+ * ============= ============ ==========================
+ *  Date          Author       Description
+ * ============= ============ ==========================
+ *  2022.07.22.   나해준       [NELS]최초 생성
+ * ============= ============ ==========================
+ */
+scwin.ntcMtrPopUp = function (idNum, item, num, num2) {
+    let modalFlag = false
+    if (item.cortAuctnRletDvsCd === '0005803') modalFlag = true
+    /********* Popup Settings *********/
+    var winW = window.innerWidth;
+    var winH = window.innerHeight;
+
+    /* small popup size */
+    var popupW = 700;
+    var popupH = 600;
+
+    var popupX = (winW / 2) - (popupW / 2) - num2;
+    var popupY = (winH / 2) - (popupH / 2) - num;
+
+    /**
+     * 공지사항 openPopUp option설정
+     */
+    var options = {
+        id: "ntcMtrPopUp" + idNum,
+        type: "wframePopup",
+        popupName: "공지사항",
+        top: popupY,
+        left: popupX,
+        width: popupW,
+        height: popupH,
+        modal: modalFlag
+    };
+
+    /* 공지사항 팝업창이 오픈될때 같이 가져갈 paramether 변수 선언 */
+    obj = {};
+    /* 공지사항 팝업창에서 closePopUp시 실행시킬 callback 함수 */
+    obj.callbackFn = "scwin.callbackFn";
+    /* 공지사항 팝업창이 오픈될때 같이 가져갈 paramether */
+    paramObj = {};
+    paramObj.ntcEtcDtlDvsCd = item.cortAuctnNtcEtcDtlDvsCd
+    paramObj.ntcEtcDvsCd = item.cortAuctnNtcEtcDvsCd
+    paramObj.ntcMtrSeq = item.cortAuctnNtcMtrSeq
+    paramObj.pstgBgngYmd = item.pstgBgngYmd
+    obj.paramObj = paramObj;
+    /* 공지사항 팝업창 open  */
+    com.win.openPopup("/pgj/ui/pgj100/PGJ111P08.xml", options, obj);
+};
+
+
+/**
+ * 공지사항 팝업창에서 상세보기 눌렀을 경우 발생될 callback함수
+ *
+ * ============= ============ ==========================
+ *  Date          Author       Description
+ * ============= ============ ==========================
+ *  2022.07.22.   나해준       [NELS]최초 생성
+ * ============= ============ ==========================
+ */
+scwin.callbackFn = function (dataObj) {
+
+    /**
+     * 상세 페이지로 이동할 url 및 parameter
+     */
+    var path = "/pgj/ui/pgj100/PGJ141M02.xml";
+    var moveData = {
+        "cortAuctnNtcMtrSeq": dataObj.cortAuctnNtcMtrSeq
+    };
+
+
+    /**
+     * $p.url options 설정
+     */
+    var options = {};
+    options.spa = false;
+    options.param = moveData;
+
+    /**
+     * moveData를 가지고 상세페이지로 이동
+     */
+    $p.url(path, options);
+
+};
+
+/**
+ * main에서 사용할 데이터 조회후 맞게 셋팅
+ *
+ * ============= ============ ==========================
+ *  Date          Author       Description
+ * ============= ============ ==========================
+ *  2023.09.19.   나해준       [NELS]최초 생성
+ *  2026.07.07    김기석       [26A-PGJ-0030] 임차인통지서 QR코드를 통한 볍원경매정보 서비스 제공
+ * ============= ============ ==========================
+ */
+scwin.sbm_selectMainInfo_submitdone = function ({ responseJSON: { data, status } }) {
+    if (status === 200) {
+        const result = data.result;
+        const nwstVtInfo = result.nwstVtInfo; // 가장 최근투표
+        const nwstNtcMtr = result.nwstNtcMtr // 최근공지사항 상위 3건
+        const popNtcMtr = result.popNtcMtr // 팝어용으로 등록된 공지사항
+        const gdsKnd = result.gdsKnd //용도별 물건정보
+        let mjrtyGds = result.mjrtyItrtGds // 다수관심물건
+        console.log("mjrtyGds ===>",mjrtyGds)
+        console.log("result ===>",result)
+        scwin.rletPbanc = scwin.weekAuctnScdleRletEvent(result.rletPbanc || '')  // 부동산 일반공고
+        scwin.rletCrrctPbanc = scwin.weekAuctnScdleRletEvent(result.rletCrrctPbanc || '') // 부동산 정정공고
+        scwin.rletRtrcnPbanc = scwin.weekAuctnScdleRletEvent(result.rletRtrcnPbanc || '') // 부동산 취소공고
+        scwin.mvprpGnrlPbanc = scwin.weekAuctnScdleMvprpEvent(result.mvprpGnrlPbanc || '') // 동산 일반공고
+        scwin.mvprpErlyPbanc = scwin.weekAuctnScdleMvprpEvent(result.mvprpErlyPbanc || '') // 동산 조기공고
+        //팝업용 공지사항
+        scwin.openNtcMtrPouUp(popNtcMtr)
+        // 투표하기
+        if (!scutilo.isEmpty(nwstVtInfo)) {
+            grp_auctnVt.show(""); // 투표하기
+            anc_auctnVtCtt.setValue(nwstVtInfo.qstnCtt);
+        } else {
+            gpr_serviceGuide.show(""); // 안내서비스
+        }
+
+        // 메인화면 매각율
+        let dspslRate = scutilo.isEmpty(result.dspslRate.rate) ? 0.0 : result.dspslRate.rate;
+
+        let year = scwin.nowDate.substring(0, 4);
+        let mm = scwin.nowDate.substring(4, 6);
+        spn_gdsRate.setValue(dspslRate)
+        tbx_mainTitleDate.setValue(`${year}년 ${mm}월 매각가율`);
+
+        // 금주 경매일정 공고 (부동산 일반공고 최초)
+        if (scwin.rletPbanc.length > 0) {
+            gen_rletGnrl.removeAll();
+            scwin.rletPbanc[0].forEach((r, i) => {
+                gen_rletGnrl.insertChild(i);
+                gen_rletGnrl.getChild(i, 'spn_rletGnrlCortTitle').setValue(r.get('cortTitle'));
+                if (r.get('disableFlag') !== '02') {
+                    gen_rletGnrl.getChild(i, 'anc_rletGnrlDxdyTitle').setValue(r.get('dxdyTitle'));
+                    gen_rletGnrl.getChild(i, 'anc_rletGnrlDxdyTitle').setUserData("grpNum", 0);
+                    gen_rletGnrl.getChild(i, 'anc_rletGnrlDxdyTitle').setUserData("idx", i);
+                    $("#mf_gen_rletGnrl_"+i+"_spn_rletGnrlDxdyTitle").hide();
+                } else {
+                    gen_rletGnrl.getChild(i, 'spn_rletGnrlDxdyTitle').setValue(r.get('dxdyTitle'));
+                    $("#mf_gen_rletGnrl_"+i+"_anc_rletGnrlDxdyTitle").hide();
+                }
+                gen_rletGnrl.getChild(i, 'spn_rletGnrlBidDvsTitle').setValue(r.get('bidDvsNm'));
+            })
+        } else {
+            tbx_rletGnrlNone.show("");
+        }
+        // 금주 경매 리로드 이벤트 추가
+        if (scwin.rletPbanc.length > 1) {
+            document.getElementById($p.getComponentById('btn_rletGnrlReload').id) /* 부동산 일반 공고 */
+                .addEventListener('click', () => { scwin.pbncRletReload(scwin.rletPbanc, 'gen_rletGnrl', 'spn_rletGnrlCortTitle', 'anc_rletGnrlDxdyTitle', 'spn_rletGnrlBidDvsTitle') })
+        } else {
+            btn_rletGnrlReload.setDisabled(true)
+        }
+        // 금주 경매 웹접근성 처리
+        // /* 웹접근성 TODO */
+        // let tac = document.getElementById($p.getComponentById("tabControl2").id)
+        // tac.querySelector('ul').querySelectorAll('li').forEach( (r,i)=>{
+        //     if ( i == 0) {
+        //      r.querySelector('a').title = "선택됨"
+        //     } else {
+        //      r.querySelector('a').title = "";
+        //     }
+        //     r.querySelector('a').setAttribute('role','button')
+        // })
+        // let tac = document.getElementById($p.getComponentById("tabControl1").id)
+        // tac.querySelector('ul').querySelectorAll('li').forEach( (r,i)=>{
+        //     if ( i == 0) {
+        //      r.querySelector('a').title = "선택됨"
+        //     } else {
+        //      r.querySelector('a').title = "";
+        //     }
+        //     r.querySelector('a').setAttribute('role','button')
+        // })
+        // let tac = document.getElementById($p.getComponentById("tabControl3").id)
+        // tac.querySelector('ul').querySelectorAll('li').forEach( (r,i)=>{
+        //     if ( i == 0) {
+        //      r.querySelector('a').title = "선택됨"
+        //     } else {
+        //      r.querySelector('a').title = "";
+        //     }
+        //     r.querySelector('a').setAttribute('role','button')
+        // })
+
+
+
+        //  좌측 공지사항
+        nwstNtcMtr.forEach((r, i) => {
+            let seq = i + 1
+            $p.getComponentById(`anc_sideNtcMtr_${seq}`).setValue(r.ntatcTitlNm);
+            $p.getComponentById(`anc_sideNtcMtr_${seq}`).setUserData('etcDvsCd', r.cortAuctnNtcEtcDvsCd);
+            $p.getComponentById(`anc_sideNtcMtr_${seq}`).setUserData('ntcSeq', r.cortAuctnNtcMtrSeq);
+            $p.getComponentById(`tbx_sideNtcMtrDate_${seq}`).setValue(scdateo.getFmtDate(r.pstgBgngYmd, '.'));
+        })
+
+        // 용도별 검색
+        gdsKnd.forEach((r, i) => {
+            let seq = i
+            $p.getComponentById(`anc_usgGdsInf_${seq}`).setValue(r.dspslGdsNm);
+            document.getElementById($p.getComponentById(`anc_usgGdsInf_${seq}`).id).addEventListener('click', () => {
+                scwin.moveUsgSrch(r.emlScrnCtt)
+            })
+        })
+        if (mjrtyGds.length > 0) {
+            let cnt = 1 // 로컬 테스트용
+            for (let i = 0; i < 3; i++) {
+                $p.getComponentById(`tbx_mjrtyItrtGdsTitle_${i}`).setValue(mjrtyGds[i].dspslUsgNm) // 용도명
+
+                /* 이미지 클릭 이벤트 */
+                document.getElementById($p.getComponentById(`grp_wrapTag_${i}`).id).setAttribute("href","#")
+                document.getElementById($p.getComponentById(`grp_wrapTag_${i}`).id).addEventListener('click', () => {
+                 scwin.showPicPopUp(mjrtyGds[i])
+                })
+                document.getElementById($p.getComponentById(`grp_wrapTag_${i}`).id).addEventListener('keyup', () => {
+                 if (e.code === 'Enter') scwin.showPicPopUp(mjrtyGds[i])
+                })
+                /* 주소 클릭, 엔터 이벤트 */
+                $p.getComponentById(`tbx_mjrtyItrtGdsAddr_${i}`).setValue(mjrtyGds[i].printSt) // 물건 장소
+                document.getElementById($p.getComponentById(`tbx_mjrtyItrtGdsAddr_${i}`).id).addEventListener('click', () => {
+                 scwin.moveGdsDtlScrn(mjrtyGds[i])
+                })
+                document.getElementById($p.getComponentById(`tbx_mjrtyItrtGdsAddr_${i}`).id).addEventListener('keyup', () => {
+                 if (e.code === 'Enter') scwin.moveGdsDtlScrn(mjrtyGds[i])
+                })
+                /* 최저매각가격 이벤트 */
+                $p.getComponentById(`spn_mjrtyItrtGdsLwsAmt_${i}`).setValue(`${scutilo.getCommaFmt(mjrtyGds[i].minmaePrice)} 원`) //최저매각가격
+                document.getElementById($p.getComponentById(`spn_mjrtyItrtGdsLwsAmt_${i}`).id).addEventListener('click', () => {
+                 scwin.moveGdsDtlScrn(mjrtyGds[i])
+                })
+                document.getElementById($p.getComponentById(`spn_mjrtyItrtGdsLwsAmt_${i}`).id).addEventListener('keyup', () => {
+                 if (e.code === 'Enter') scwin.moveGdsDtlScrn(mjrtyGds[i])
+                })
+                /* 감정평각금액 이벤트 */
+                $p.getComponentById(`spn_mjrtyItrtGdsAeeAmt_${i}`).setValue(`${scutilo.getCommaFmt(mjrtyGds[i].gamevalAmt)} 원`) //감정평가금액
+                document.getElementById($p.getComponentById(`spn_mjrtyItrtGdsAeeAmt_${i}`).id).addEventListener('click', () => {
+                 scwin.moveGdsDtlScrn(mjrtyGds[i])
+                })
+                document.getElementById($p.getComponentById(`spn_mjrtyItrtGdsAeeAmt_${i}`).id).addEventListener('keyup', () => {
+                 if (e.code === 'Enter') scwin.moveGdsDtlScrn(mjrtyGds[i])
+                })
+                /* TO-DO 데이터 파일 경로 수정해야함 /pgj/ 붙어야함 */
+                let imgPath = (mjrtyGds[i].phtoInfo ?. picFile) ? `data:image/png;base64,${mjrtyGds[i].phtoInfo ?. picFile}`
+                             : `/pgj/cm/images/sample/inter_sample${cnt}.png` // 개발서버용 TO-BE
+                $p.getComponentById(`img_mjrtyItrtGdsImg_${i}`).setSrc(imgPath) // 이미지경로
+
+                //[26A-PGJ-0000] 웹접근성(openWAX) 점검 수정
+                document.getElementById($p.getComponentById(`img_mjrtyItrtGdsImg_${i}`).id).setAttribute("alt","다수 관심물건 " + mjrtyGds[i].dspslUsgNm);
+
+                cnt++ // 로컬용, 개발 더미처리용(테스트)
+            }
+        }
+        /* 웹접근성 "금주경매 의미없는 a태그 삭제" */
+        const tapId = $p.getComponentById('tabControl2').id
+        const docNode = document.getElementById(tapId);
+        const nodeLst = docNode.querySelectorAll('.w2tabcontrol_contents')
+        nodeLst.forEach(r=>{
+            let childNode = r.querySelector('.w2tabcontrol_bridge')
+            if (childNode) r.removeChild(childNode)
+        })
+    }
+};
+
+/**
+ *
+ * 해당 다수관심 물건클릭시 상세화면으로 이동
+ *
+ * ============= ============ ==========================
+ *  Date          Author       Description
+ * ============= ============ ==========================
+ *  2023.09.26.   나해준       [NELS]최초 생성
+ * ============= ============ ==========================
+ *
+ */
+scwin.moveGdsDtlScrn = function (item) {
+    const gds = item
+
+    const param = {
+        pgmId: scwin.pgmId,
+        scNo: gds.saNo,
+        cortOfcCd: gds.boCd,
+        dspslGdsSeq: gds.maemulSer,
+        prevInfo: 'none',
+        srchInfo: {
+            sideDvsCd: '2',
+            menuNm: '다수관심물건'
+        }
+    }
+    pgjUtil.openGdsDtl(param);
+}
+
+/**
+ *
+ * 다수관심물건 전체조회
+ *
+ * ============= ============ ==========================
+ *  Date          Author       Description
+ * ============= ============ ==========================
+ *  2023.09.26.   나해준       [NELS]최초 생성
+ * ============= ============ ==========================
+ */
+scwin.trigger1_onclick = function (e) {
+    com.storage.set("PGJ156M01", "srchId", "PGJ111M01")
+    $p.url("/pgj/ui/pgj100/PGJ155M00.xml");
+};
+
+
+/**
+ *
+ * main화면 플래시 부분 클릭시 해당 용도 조건으로 물건 검색
+ *
+ * ============= ============ ==========================
+ *  Date          Author       Description
+ * ============= ============ ==========================
+ *  2023.09.19.   나해준       [NELS]최초 생성
+ * ============= ============ ==========================
+ */
+scwin.mainMoveIcon = function (dvsFlag) {
+    const flag = dvsFlag;
+    let param = {};
+    let srchInfo = '';
+    param.pgmId = 'mainUsg';
+    param.scNo = 'none';
+    param.cortOfcCd = 'none';
+    param.dspslGdsSeq = 'none';
+    param.prevInfo = 'none';
+    // AS-IS 코드값으로 사용
+    switch (flag) {
+        case '01': // 주거용 건물
+            srchInfo = {
+                cortAuctnSrchCondCd: '0004601',
+                lclDspslGdsLstUsgCd : '20000',
+                mclDspslGdsLstUsgCd : '20100',
+                sclDspslGdsLstUsgCd : ''
+            }
+            break;
+        case '02': // 상가용 건물
+            srchInfo = {
+                cortAuctnSrchCondCd: '0004601',
+                lclDspslGdsLstUsgCd: '20000',
+                mclDspslGdsLstUsgCd: '21100',
+                sclDspslGdsLstUsgCd: ''
+            }
+            break;
+        case '03': // 자동차
+            srchInfo = {
+                cortAuctnSrchCondCd: '0004603',
+                lclDspslGdsLstUsgCd: '30000',
+                mclDspslGdsLstUsgCd: '30100',
+                sclDspslGdsLstUsgCd: '',
+                menuNm : '자동차·중기검색'
+            }
+            param.pgmId = 'mainUsgCar'
+            break;
+        case '04': // 산업용 건물
+            srchInfo = {
+                cortAuctnSrchCondCd: '0004601',
+                lclDspslGdsLstUsgCd: '20000',
+                mclDspslGdsLstUsgCd: '22100',
+                sclDspslGdsLstUsgCd: ''
+            }
+            break;
+        case '05': // 토지
+            srchInfo = {
+                cortAuctnSrchCondCd: '0004601',
+                lclDspslGdsLstUsgCd: '10000',
+                mclDspslGdsLstUsgCd: '10100',
+                sclDspslGdsLstUsgCd: ''
+            }
+            break;
+        case '06': // 임야
+            srchInfo = {
+                cortAuctnSrchCondCd: '0004601',
+                lclDspslGdsLstUsgCd: '10000',
+                mclDspslGdsLstUsgCd: '10100',
+                sclDspslGdsLstUsgCd: '10105'
+            }
+            break;
+    }
+    param.srchInfo = srchInfo
+    pgjUtil.openGdsDtl(param);
+}
+
+/**
+ *
+ * 메인화면 로그인 버튼클릭시 로그인
+ *
+ * ============= ============ ==========================
+ *  Date          Author       Description
+ * ============= ============ ==========================
+ *  2023.09.20.   나해준       [NELS]최초 생성
+ * ============= ============ ==========================
+ */
+scwin.mainLoginEvent = function () {
+    wfm_header.getWindow().scwin.btnLogin_onclick()
+}
+
+/* 메인화면 회원Id / 비밀번호 페이지 이동 이벤트 */
+scwin.mainFindMemberPageMoveEvent = function(e) {
+    wfm_header.getWindow().scwin.btnFindMember_onclick()
+};
+/* 메인화면 회원가입 페이지 이동 이벤트 */
+scwin.mainJoinMemberPageMoveEvent = function(e) {
+    wfm_header.getWindow().scwin.btnJoinMember_onclick()
+};
+/* 메인화면 회원정보수정 페이지 이동 이벤트 */
+scwin.mainEditMemberPageMoveEvent = function(e) {
+    wfm_header.getWindow().scwin.btnEditMember_onclick()
+};
+
+/**
+ *
+ * 메인화면 로그아웃 버튼클릭시 로그아웃
+ *
+ * ============= ============ ==========================
+ *  Date          Author       Description
+ * ============= ============ ==========================
+ *  2023.12.07.   나해준       [NELS]최초 생성
+ * ============= ============ ==========================
+ */
+scwin.btn_mainLogout_onclick = function (e) {
+    wfm_header.getWindow().scwin.btnLogout_onclick()
+};
+
+
+// ============ 금주의 경매일정 관련 메서드 ============
+
+/**
+ *
+ *  부동산 탭 이동시 금주 경매 셋팅
+ *  (alwaysDraw를 이용해 화면 리로드시 전부 렌더링 시키고 작업하려 했으나
+ *  프로젝트 특성상 비동기가 원칙이라 탭 전체가 리로드 되는 시간이랑 맞지 않아 탭이동할때
+ *  마다 해당 탭을 랜더링 시키는 방식으로 바꿈)
+ *
+ * ============= ============ ==========================
+ *  Date          Author       Description
+ * ============= ============ ==========================
+ *  2023.09.20.   나해준       [NELS]최초 생성
+ * ============= ============ ==========================
+ */
+scwin.tabControl1_onchange = function (tabID, idx, userTabID) {
+    const levelDiv = document.querySelectorAll('.schd_tab_type2');
+    levelDiv.forEach(el=>{
+        const aTags = el.querySelectorAll('a');
+        aTags.forEach(a=>{
+            a.title = ""
+        });
+    });
+
+    const flag = idx
+    switch (flag) {
+        case 0:
+            if (scwin.rletPbanc.length > 0) { // 부동산 일반공고
+                gen_rletGnrl.removeAll();
+                scwin.rletPbanc[0].forEach((r, i) => {
+                    gen_rletGnrl.insertChild(i);
+                    gen_rletGnrl.getChild(i, 'spn_rletGnrlCortTitle').setValue(r.get('cortTitle'));
+                    if (r.get('disableFlag') !== '02') {
+                        gen_rletGnrl.getChild(i, 'anc_rletGnrlDxdyTitle').setValue(r.get('dxdyTitle'));
+                        gen_rletGnrl.getChild(i, 'anc_rletGnrlDxdyTitle').setUserData("grpNum", 0);
+                        gen_rletGnrl.getChild(i, 'anc_rletGnrlDxdyTitle').setUserData("idx", i);
+                        $("#mf_gen_rletGnrl_"+i+"_spn_rletGnrlDxdyTitle").hide();
+                    } else {
+                        gen_rletGnrl.getChild(i, 'spn_rletGnrlDxdyTitle').setValue(r.get('dxdyTitle'));
+                        $("#mf_gen_rletGnrl_"+i+"_anc_rletGnrlDxdyTitle").hide();
+                    }
+                    gen_rletGnrl.getChild(i, 'spn_rletGnrlBidDvsTitle').setValue(r.get('bidDvsNm'));
+                })
+            } else {
+                tbx_rletGnrlNone.show("");
+                btn_rletGnrlReload.hide();
+            }
+            break;
+        case 1:
+            tbx_rletCrrctNone.hide();
+            if (scwin.rletCrrctPbanc.length > 0) { // 부동산 정정공고
+                document.getElementById($p.getComponentById('btn_rletCrrctReload').id) /* 부동산 정정 공고 */
+                .addEventListener('click', () => { scwin.pbncRletReload(scwin.rletCrrctPbanc, 'gen_rletCrrct', 'spn_rletCrrctCortTitle', 'anc_rletCrrctDxdyTitle', 'spn_rletCrrctBidDvsTitle') })
+
+                if (scwin.rletCrrctPbanc.length === 1) btn_rletCrrctReload.setDisabled(true);
+                gen_rletCrrct.removeAll();
+                scwin.rletCrrctPbanc[0].forEach((r, i) => {
+                    gen_rletCrrct.insertChild(i);
+                    gen_rletCrrct.getChild(i, 'spn_rletCrrctCortTitle').setValue(r.get('cortTitle'));
+                    if (r.get('disableFlag') !== '02') {
+                        gen_rletCrrct.getChild(i, 'anc_rletCrrctDxdyTitle').setValue(r.get('dxdyTitle'));
+                        gen_rletCrrct.getChild(i, 'anc_rletCrrctDxdyTitle').setUserData("grpNum", 0);
+                        gen_rletCrrct.getChild(i, 'anc_rletCrrctDxdyTitle').setUserData("idx", i);
+                        $("#mf_gen_rletCrrct_"+i+"_spn_rletCrrctDxdyTitle").hide();
+                    } else {
+                        gen_rletCrrct.getChild(i, 'spn_rletCrrctDxdyTitle').setValue(r.get('dxdyTitle'));
+                        $("#mf_gen_rletCrrct_"+i+"_anc_rletCrrctDxdyTitle").hide();
+                    }
+                    gen_rletCrrct.getChild(i, 'spn_rletCrrctBidDvsTitle').setValue(r.get('bidDvsNm'));
+                })
+            } else {
+                tbx_rletCrrctNone.show("");
+                btn_rletCrrctReload.hide();
+            }
+            break;
+        case 2:
+            tbx_rletRtrcnNone.hide();
+            if (scwin.rletRtrcnPbanc.length > 0) { // 부동산 정정공고
+                document.getElementById($p.getComponentById('btn_rletRtrcnReload').id) /* 부동산 취소 공고 */
+                .addEventListener('click', () => { scwin.pbncRletReload(scwin.rletRtrcnPbanc, 'gen_rletRtrcn', 'spn_rletRtrcnCortTitle', 'anc_rletRtrcnDxdyTitle', 'anc_rletRtrcnBidDvsTitle') })
+                if (scwin.rletRtrcnPbanc.length === 1) btn_rletRtrcnReload.setDisabled(true);
+                gen_rletRtrcn.removeAll();
+                scwin.rletRtrcnPbanc[0].forEach((r, i) => {
+                    gen_rletRtrcn.insertChild(i);
+                    gen_rletRtrcn.getChild(i, 'spn_rletRtrcnCortTitle').setValue(r.get('cortTitle'));
+                    if (r.get('disableFlag') !== '02') {
+                        gen_rletRtrcn.getChild(i, 'anc_rletRtrcnDxdyTitle').setValue(r.get('dxdyTitle'));
+                        gen_rletRtrcn.getChild(i, 'anc_rletRtrcnDxdyTitle').setUserData("grpNum", 0);
+                        gen_rletRtrcn.getChild(i, 'anc_rletRtrcnDxdyTitle').setUserData("idx", i);
+                        $("#mf_gen_rletRtrcn_"+i+"_spn_rletRtrcnDxdyTitle").hide();
+                    } else {
+                        gen_rletRtrcn.getChild(i, 'spn_rletRtrcnDxdyTitle').setValue(r.get('dxdyTitle'));
+                        $("#mf_gen_rletRtrcn_"+i+"_anc_rletRtrcnDxdyTitle").hide();
+                    }
+                    gen_rletRtrcn.getChild(i, 'anc_rletRtrcnBidDvsTitle').setValue(r.get('bidDvsNm'));
+                })
+            } else {
+                tbx_rletRtrcnNone.show("");
+                btn_rletRtrcnReload.hide();
+            }
+            break;
+    }
+    let tabNode = $p.getComponentById(tabID)
+    tabNode.querySelector('a').title = '선택됨'
+};
+
+/**
+ *
+ *  큰탭 이동시 금주 경매 셋팅 (동산)
+ *  (alwaysDraw를 이용해 화면 리로드시 전부 렌더링 시키고 작업하려 했으나
+ *  프로젝트 특성상 비동기가 원칙이라 탭 전체가 리로드 되는 시간이랑 맞지 않아 탭이동할때
+ *  마다 해당 탭을 랜더링 시키는 방식으로 바꿈)
+ *
+ * ============= ============ ==========================
+ *  Date          Author       Description
+ * ============= ============ ==========================
+ *  2023.09.21.   나해준       [NELS]최초 생성
+ * ============= ============ ==========================
+ */
+scwin.tabControl2_onchange = function (tabID, idx, userTabID) {
+    const levelDiv = document.querySelectorAll('.schd_tab_type1');
+    levelDiv.forEach(el=>{
+        const aTags = el.querySelectorAll('a');
+        aTags.forEach(a=>{
+            a.title = ""
+        });
+    });
+    // TODO 테스트 데이터
+    // scwin.mvprpGnrlPbanc = [[{"cortOfcCd" : "O000210"
+    //                         ,"cortOfcNm" : "서울중앙지방법원"
+    //                         ,"cortSptNm" : "서울중앙지방법원"
+    //                         ,"cortAuctnPbancTypCd" : "000341"
+    //                         ,"jdbnCd" : "4"
+    //                         ,"dxdyYmd" : "20241104"
+    //                         ,"notifyTypeCnt" : "3"
+    //                         ,"jinhangCnt" : "3"
+    //                         ,"cortAuctnMainScrnDvsCd" : "0010406"
+    //                         ,"cortTitle" : "서울중앙지방법원"
+    //                         ,"toTalCntTitle" : "0건"
+    //                         ,"progCntTitle" : "(진행0건)"
+    //                         ,"disableFlag" : "02"},
+
+    //                         { "cortOfcCd" : "O000210"
+    //                         ,"cortOfcNm" : "서울중앙지방법원"
+    //                         ,"cortSptNm" : "서울중앙지방법원"
+    //                         ,"cortAuctnPbancTypCd" : "000341"
+    //                         ,"jdbnCd" : "4"
+    //                         ,"dxdyYmd" : "20241104"
+    //                         ,"notifyTypeCnt" : "2"
+    //                         ,"jinhangCnt" : "2"
+    //                         ,"cortAuctnMainScrnDvsCd" : "0010406"
+    //                         ,"cortTitle" : "서울중앙지방법원"
+    //                         ,"toTalCntTitle" : "2건"
+    //                         ,"progCntTitle" : "(진행2건)"
+    //                         ,"disableFlag" : "01"},
+
+    //                         {"cortOfcCd" : "O000210"
+    //                         ,"cortOfcNm" : "서울중앙지방법원"
+    //                         ,"cortSptNm" : "서울중앙지방법원"
+    //                         ,"cortAuctnPbancTypCd" : "000341"
+    //                         ,"jdbnCd" : "4"
+    //                         ,"dxdyYmd" : "20241104"
+    //                         ,"notifyTypeCnt" : "1"
+    //                         ,"jinhangCnt" : "1"
+    //                         ,"cortAuctnMainScrnDvsCd" : "0010406"
+    //                         ,"cortTitle" : "서울중앙지방법원"
+    //                         ,"toTalCntTitle" : "0건"
+    //                         ,"progCntTitle" : "(진행0건)"
+    //                         ,"disableFlag" : "02"},
+
+    //                         {"cortOfcCd" : "O000212"
+    //                         ,"cortOfcNm" : "서울남부지방법원"
+    //                         ,"cortSptNm" : "서울남부지방법원"
+    //                         ,"cortAuctnPbancTypCd" : "000341"
+    //                         ,"jdbnCd" : "4"
+    //                         ,"dxdyYmd" : "20241104"
+    //                         ,"notifyTypeCnt" : "1"
+    //                         ,"jinhangCnt" : "1"
+    //                         ,"cortAuctnMainScrnDvsCd" : "0010406"
+    //                         ,"cortTitle" : "서울남부지방법원"
+    //                         ,"toTalCntTitle" : "1건"
+    //                         ,"progCntTitle" : "(진행1건)"
+    //                         ,"disableFlag" : "01"}]]
+    //TO-DO 테스트 데이터
+    if (idx === 1) {
+        if (scwin.mvprpGnrlPbanc.length > 0) { // 동산 일반공고
+            document.getElementById($p.getComponentById('btn_mvprpGnrlReload').id) /* 동산 일반 공고 */
+                .addEventListener('click', () => { scwin.pbncMvprpReload(scwin.mvprpGnrlPbanc, 'gen_mvprpGnrl', 'spn_mvprpGnrlCortTitle', 'anc_mvprpGnrlDxdyTitle', 'spn_mvprpGnrlBidDvsTitle') })
+            tbx_mvprpGnrlNone.hide();
+            if (scwin.mvprpGnrlPbanc.length === 1) btn_mvprpGnrlReload.setDisabled(true);
+            gen_mvprpGnrl.removeAll();
+            scwin.mvprpGnrlPbanc[0].forEach((r,i)=>{
+                gen_mvprpGnrl.insertChild(i);
+                gen_mvprpGnrl.getChild(i, 'spn_mvprpGnrlCortTitle').setValue(r.get('cortTitle'));
+                if (r.get("getdisableFlag") !== '02') {
+                    gen_mvprpGnrl.getChild(i, 'anc_mvprpGnrlDxdyTitle').setValue(r.get("toTalCntTitle"));
+                    gen_mvprpGnrl.getChild(i, 'spn_mvprpGnrlBidDvsTitle').setValue(r.get("progCntTitle"));
+                    gen_mvprpGnrl.getChild(i, 'anc_mvprpGnrlDxdyTitle').setUserData("grpNum", 0);
+                    gen_mvprpGnrl.getChild(i, 'anc_mvprpGnrlDxdyTitle').setUserData("idx", i);
+                    gen_mvprpGnrl.getChild(i, 'spn_mvprpGnrlDxdyTitle').hide();
+                    gen_mvprpGnrl.getChild(i, 'anc_mvprpGnrlDxdyTitle').show("");
+                } else {
+                    gen_mvprpGnrl.getChild(i, 'spn_mvprpGnrlDxdyTitle').show("");
+                    gen_mvprpGnrl.getChild(i, 'spn_mvprpGnrlDxdyTitle').setValue(r.get("toTalCntTitle"));
+                    gen_mvprpGnrl.getChild(i, 'spn_mvprpGnrlBidDvsTitle').setValue('(완료)');
+                    gen_mvprpGnrl.getChild(i, 'anc_mvprpGnrlDxdyTitle').hide();
+                }
+            })
+        } else {
+            tbx_mvprpGnrlNone.show("");
+            btn_mvprpGnrlReload.hide();
+        }
+    }
+
+    let tabNode = $p.getComponentById(tabID)
+    tabNode.querySelector('a').title = '선택됨'
+};
+
+/**
+ *
+ *  금주 경매 셋팅 (동산)
+ *  일반 - 조기 탭 눌렀을때 이벤트
+ *
+ * ============= ============ ==========================
+ *  Date          Author       Description
+ * ============= ============ ==========================
+ *  2024.07.20.   나해준       [NELS]최초 생성
+ * ============= ============ ==========================
+ */
+scwin.tabControl3_onchange = function (tabID, idx, userTabID) {
+    const levelDiv = document.querySelectorAll('.schd_tab_type2');
+    levelDiv.forEach(el=>{
+        const aTags = el.querySelectorAll('a');
+        aTags.forEach(a=>{
+            a.title = ""
+        });
+    });
+    if (idx === 1) {
+        if (scwin.mvprpErlyPbanc.length > 0) { // 부동산 조기공고
+            document.getElementById($p.getComponentById('btn_mvprpErlyReload').id) /* 동산 조기 공고 */
+                .addEventListener('click', () => { scwin.pbncMvprpReload(scwin.mvprpErlyPbanc, 'gen_mvprpErly', 'spn_mvprpErlyCortTitle', 'anc_mvprpErlyDxdyTitle', 'spn_mvprpErlyBidDvsTitle') })
+
+            tbx_mvprpErlyNone.hide();
+            if (scwin.mvprpErlyPbanc.length === 1) btn_mvprpErlyReload.setDisabled(true);
+            gen_mvprpErly.removeAll();
+            scwin.mvprpErlyPbanc[0].forEach((r, i) => {
+                gen_mvprpErly.insertChild(i);
+                gen_mvprpErly.getChild(i, 'spn_mvprpErlyCortTitle').setValue(r.get('cortTitle'));
+                if (r.get('disableFlag') !== '02') {
+                    gen_mvprpErly.getChild(i, 'anc_mvprpErlyDxdyTitle').setValue(r.get('toTalCntTitle'));
+                    gen_mvprpErly.getChild(i, 'spn_mvprpErlyBidDvsTitle').setValue(r.get('progCntTitle'));
+                    gen_mvprpErly.getChild(i, 'anc_mvprpErlyDxdyTitle').setUserData("grpNum", 0);
+                    gen_mvprpErly.getChild(i, 'anc_mvprpErlyDxdyTitle').setUserData("idx", i);
+                    gen_mvprpErly.getChild(i, 'spn_mvprpErlyDxdyTitle').hide();
+                } else {
+                    gen_mvprpErly.getChild(i, 'spn_mvprpErlyDxdyTitle').setValue(r.get('dxdyTitle'));
+                    gen_mvprpErly.getChild(i, 'anc_mvprpErlyDxdyTitle').hide();
+                }
+            })
+        } else {
+            tbx_mvprpErlyNone.show("");
+            btn_mvprpErlyReload.hide();
+        }
+    }
+    let tabNode = $p.getComponentById(tabID)
+    tabNode.querySelector('a').title = '선택됨'
+};
+
+/**
+ *
+ * 금주의 경매일정 부동산 5개씩 리로드 하는 이벤트
+ *
+ * ============= ============ ==========================
+ *  Date          Author       Description
+ * ============= ============ ==========================
+ *  2023.09.20.   나해준       [NELS]최초 생성
+ * ============= ============ ==========================
+ */
+scwin.pbncRletReload = function (item, genId, cortTitle, dxdyTitle, bidDvsTitle) {
+
+    let flag = cortTitle
+    let cnt = 0;
+    let gen = $p.getComponentById(`${genId}`);
+    switch (flag) {
+        case 'spn_rletGnrlCortTitle': //부동산 일반 공고
+            cnt = scwin.rletPbancCnt;
+            break;
+        case 'spn_rletCrrctCortTitle': //부동산 정정 공고
+            cnt = scwin.rletCrrctPbancCnt;
+            break;
+        case 'spn_rletRtrcnCortTitle': //부동산 취소 공고
+            cnt = scwin.rletRtrcnPbancCnt;
+            break;
+    }
+    if (cnt === 1) {
+        gen.removeAll();
+        item[cnt].forEach((r, i) => {
+            gen.insertChild(i);
+            gen.getChild(i, cortTitle).setValue(r.get('cortTitle'));
+            gen.getChild(i, dxdyTitle).setValue(r.get('dxdyTitle'));
+            gen.getChild(i, dxdyTitle).setUserData("grpNum", cnt);
+            gen.getChild(i, dxdyTitle).setUserData("idx", i);
+            gen.getChild(i, bidDvsTitle).setValue(r.get('bidDvsNm'));
+            if (r.get('disableFlag') === '02') gen.getChild(i, dxdyTitle).setDisabled(true)
+        })
+        if (flag === 'spn_rletGnrlCortTitle') scwin.rletPbancCnt++
+        if (flag === 'spn_rletCrrctCortTitle') scwin.rletCrrctPbancCnt++
+        if (flag === 'spn_rletRtrcnCortTitle') scwin.rletRtrcnPbancCnt++
+    } else {
+        if (cnt < item.length) {
+            gen.removeAll();
+            item[cnt].forEach((r, i) => {
+                gen.insertChild(i);
+                gen.getChild(i, cortTitle).setValue(r.get('cortTitle'));
+                gen.getChild(i, dxdyTitle).setValue(r.get('dxdyTitle'));
+                gen.getChild(i, dxdyTitle).setUserData("grpNum", cnt);
+                gen.getChild(i, dxdyTitle).setUserData("idx", i);
+                gen.getChild(i, bidDvsTitle).setValue(r.get('bidDvsNm'));
+                if (r.get('disableFlag') === '02') gen.getChild(i, dxdyTitle).setDisabled(true)
+            })
+            if (flag === 'spn_rletGnrlCortTitle') scwin.rletPbancCnt++
+            if (flag === 'spn_rletCrrctCortTitle') scwin.rletCrrctPbancCnt++
+            if (flag === 'spn_rletRtrcnCortTitle') scwin.rletRtrcnPbancCnt++
+        } else {
+            gen.removeAll();
+            item[0].forEach((r, i) => {
+                gen.insertChild(i);
+                gen.getChild(i, cortTitle).setValue(r.get('cortTitle'));
+                gen.getChild(i, dxdyTitle).setValue(r.get('dxdyTitle'));
+                gen.getChild(i, dxdyTitle).setUserData("grpNum", "0");
+                gen.getChild(i, dxdyTitle).setUserData("idx", i);
+                gen.getChild(i, bidDvsTitle).setValue(r.get('bidDvsNm'));
+                if (r.get('disableFlag') === '02') gen.getChild(i, dxdyTitle).setDisabled(true)
+            })
+            if (flag === 'spn_rletGnrlCortTitle') scwin.rletPbancCnt = 1
+            if (flag === 'spn_rletCrrctCortTitle') scwin.rletCrrctPbancCnt = 1
+            if (flag === 'spn_rletRtrcnCortTitle') scwin.rletRtrcnPbancCnt = 1
+        }
+    }
+}
+
+/**
+ *
+ * 금주의 동산 5개씩 리로드 하는 이벤트
+ *
+ * ============= ============ ==========================
+ *  Date          Author       Description
+ * ============= ============ ==========================
+ *  2023.09.20.   나해준       [NELS]최초 생성
+ * ============= ============ ==========================
+ */
+scwin.pbncMvprpReload = function (item, genId, cortTitle, toTalCntTitle, progCntTitle) {
+    let flag = cortTitle
+    let cnt = 0;
+    const gen = $p.getComponentById(`${genId}`)
+    switch (flag) {
+        case 'spn_mvprpGnrlCortTitle': //동산 일반 공고
+            cnt = scwin.mvprpGnrlPbancCnt;
+            break;
+        case 'spn_mvprpErlyCortTitle': //동산 조기 공고
+            cnt = scwin.mvprpErlyPbancCnt;
+            break;
+    }
+    if (cnt === 1) {
+        gen.removeAll();
+        item[cnt].forEach((r, i) => {
+            gen.insertChild(i);
+            gen.getChild(i, cortTitle).setValue(r.get('cortTitle'));
+            gen.getChild(i, toTalCntTitle).setValue(r.get('toTalCntTitle'));
+            gen.getChild(i, toTalCntTitle).setUserData("grpNum", cnt);
+            gen.getChild(i, toTalCntTitle).setUserData("idx", i);
+            gen.getChild(i, progCntTitle).setValue(r.get('progCntTitle'));
+            if (r.get('disableFlag') === '02') {
+                gen.getChild(i, cortTitle).setDisabled(true)
+                gen.getChild(i, toTalCntTitle).setDisabled(true)
+                gen.getChild(i, progCntTitle).setDisabled(true)
+            }
+        })
+        if (flag === 'spn_mvprpGnrlCortTitle') {
+            scwin.mvprpGnrlPbancCnt++
+        } else {
+            scwin.mvprpErlyPbancCnt++
+        }
+    } else {
+        if (cnt < item.length) {
+            gen.removeAll();
+            item[cnt].forEach((r, i) => {
+                gen.insertChild(i);
+                gen.getChild(i, cortTitle).setValue(r.get('cortTitle'));
+                gen.getChild(i, toTalCntTitle).setValue(r.get('toTalCntTitle'));
+                gen.getChild(i, toTalCntTitle).setUserData("grpNum", cnt);
+                gen.getChild(i, toTalCntTitle).setUserData("idx", i);
+                gen.getChild(i, progCntTitle).setValue(r.get('progCntTitle'));
+                if (r.get('disableFlag') === '02') {
+                    gen.getChild(i, cortTitle).setDisabled(true)
+                    gen.getChild(i, toTalCntTitle).setDisabled(true)
+                    gen.getChild(i, progCntTitle).setDisabled(true)
+                }
+            })
+            if (flag === 'spn_mvprpGnrlCortTitle') {
+                scwin.mvprpGnrlPbancCnt++
+            } else {
+                scwin.mvprpErlyPbancCnt++
+            }
+        } else {
+            gen.removeAll();
+            item[0].forEach((r, i) => {
+                gen.insertChild(i);
+                gen.getChild(i, cortTitle).setValue(r.get('cortTitle'));
+                gen.getChild(i, toTalCntTitle).setValue(r.get('toTalCntTitle'));
+                gen.getChild(i, toTalCntTitle).setUserData("grpNum", "0");
+                gen.getChild(i, toTalCntTitle).setUserData("idx", i);
+                gen.getChild(i, progCntTitle).setValue(r.get('progCntTitle'));
+                if (r.get('disableFlag') === '02') {
+                    gen.getChild(i, cortTitle).setDisabled(true)
+                    gen.getChild(i, toTalCntTitle).setDisabled(true)
+                    gen.getChild(i, progCntTitle).setDisabled(true)
+                }
+            })
+            if (flag === 'spn_mvprpGnrlCortTitle') {
+                scwin.mvprpGnrlPbancCnt = 1;
+            } else {
+                scwin.mvprpErlyPbancCnt = 1;
+            }
+        }
+    }
+}
+
+/**
+ * 금주 경매일정 부동산 일정 데이터의 맞게 셋팅
+ *
+ * ============= ============ ==========================
+ *  Date          Author       Description
+ * ============= ============ ==========================
+ *  2023.09.19.   나해준       [NELS]최초 생성
+ * ============= ============ ==========================
+ */
+scwin.weekAuctnScdleRletEvent = function (item) {
+    let mapLst = new Array();
+    let lst = item
+    if (lst.length > 0) {
+        lst.forEach((r, i) => {
+            const orgData = Object.entries(r); // entri로 꺼내사
+            let itmMap = new Map([...orgData]); // 스프레드 연산자로 합치기
+            let customCortNm = scutilo.isEmpty(r.cortSptNm) ? '' : r.cortSptNm.replaceAll("지방법원", "").replaceAll("지원", "")
+            let jdbnNm = scutilo.isEmpty(r.cortAuctnJdbnNm) ? '' : r.cortAuctnJdbnNm.replaceAll("경매", "")
+            let dspslDxdyYmd = !scutilo.isEmpty(r.dspslDxdyYmd) ? `${r.dspslDxdyYmd.substring(4, 6)}.${r.dspslDxdyYmd.substring(6, 8)}` : '';
+            let bidBgngYmd = !scutilo.isEmpty(r.bidBgngYmd) ? `${r.bidBgngYmd.substring(4, 6)}.${r.bidBgngYmd.substring(6, 8)}` : '';
+            let cortTitle = `${customCortNm} ${jdbnNm}` // 법원명
+            let dxdyTitle = r.bidDvsCd === `000331` ? dspslDxdyYmd : bidBgngYmd // 매각기일
+            let bidDvsNm = '' // 입찰구분명
+            let disableFlag = '01';
+            if ((r.bidDvsCd === '000331' && Number(scwin.nowDate) <= Number(r.dspslDxdyYmd))
+                || (r.bidDvsCd === '000332' && Number(scwin.nowDate) <= Number(r.bidBgngYmd))) {
+                bidDvsNm = r.bidDvsCd === '000331' ? `(기일)` : `(기간)`
+            } else {
+                bidDvsNm = `(완료)`
+                disableFlag = '02';
+            }
+            /* 운영 시나리오 테스트로 인한 TODO */
+            if (r.dspslDxdyYmd == '20240719') {
+                bidDvsNm = r.bidDvsCd === '000331' ? `(기일)` : `(기간)`
+                disableFlag = '01';
+            }
+            itmMap.set('cortTitle', cortTitle)
+            itmMap.set('bidDvsNm', bidDvsNm)
+            itmMap.set('dxdyTitle', dxdyTitle)
+            itmMap.set('disableFlag', disableFlag)
+            mapLst.push(itmMap)
+        })
+        // 빈 배열 생성
+        let result = new Array();
+        for (let i = 0; i < mapLst.length; i += 5) {
+            let tempArray;
+            // slice() 메서드를 사용하여 특정 길이만큼 배열을 분리함
+            tempArray = mapLst.slice(i, i + 5);
+            // 빈 배열에 특정 길이만큼 분리된 배열을 추가
+            result.push(tempArray);
+        }
+        return result;
+    } else {
+        return '';
+    }
+}
+
+/**
+ *
+ * 금주 경매일정 동산 일정 데이터의 맞게 셋팅
+ *
+ * ============= ============ ==========================
+ *  Date          Author       Description
+ * ============= ============ ==========================
+ *  2023.09.21.   나해준       [NELS]최초 생성
+ * ============= ============ ==========================
+ */
+scwin.weekAuctnScdleMvprpEvent = function (item) {
+    let mapLst = new Array();
+    const lst = item
+    if (lst.length > 0) {
+        lst.forEach(r => {
+            const orgData = Object.entries(r); // entri로 꺼내사
+            let itmMap = new Map([...orgData]); // 스프레드 연산자로 합치기
+            let cortTitle = r.cortSptNm.replace("지방법원","").replace("지원","")
+            let toTalCntTitle = `${r.notifyTypeCnt}건`
+            let progCntTitle = 0
+            let disableFlag = '01'
+            if (r.jinhangCnt !== '0') {
+                progCntTitle = `(진행${r.jinhangCnt}건)`;
+            } else {
+                progCntTitle = '(완료)'
+                disableFlag = '02'
+            }
+            itmMap.set('cortTitle', cortTitle)
+            itmMap.set('toTalCntTitle', toTalCntTitle)
+            itmMap.set('progCntTitle', progCntTitle)
+            itmMap.set('disableFlag', disableFlag)
+            mapLst.push(itmMap);
+        })
+        // 빈 배열 생성
+        let result = new Array();
+        for (let i = 0; i < mapLst.length; i += 5) {
+            let tempArray;
+            // slice() 메서드를 사용하여 특정 길이만큼 배열을 분리함
+            tempArray = mapLst.slice(i, i + 5);
+            // 빈 배열에 특정 길이만큼 분리된 배열을 추가
+            result.push(tempArray);
+        }
+        return result;
+    } else {
+        return ''
+    }
+}
+
+// ============ 금주의 경매일정 관련 메서드 끝 ============
+
+/**
+ *
+ * 경매 도우미 검색어 입력 후 검색 버튼 클릭시 해당
+ * 검색어로 경매용어를 검색한다.
+ *
+ * ============= ============ ==========================
+ *  Date          Author       Description
+ * ============= ============ ==========================
+ *  2023.09.22.   나해준       [NELS]최초 생성
+ * ============= ============ ==========================
+ */
+scwin.btn_auctnTrm_onclick = function (e) {
+    const ctt = ibx_auctnTrmCtt.getValue();
+    if (scutilo.isEmpty(ctt)) {
+        scutilo.showMsg(scglblo.MSG.WARN, scutilo.getMsg(pgjmsg.PGJ.W_0002, '검색어'))
+        return
+    } else {
+        com.storage.set("PGJ172M01", "param", ctt);
+        $p.url("/pgj/ui/pgj100/PGJ172M01.xml")
+    }
+};
+
+/**
+ *
+ * 경매 도우미의 예시로 된 단어를 클릭시 해당 단어에 해당 되는
+ * 검색어로 경매용어를 검색한다.
+ *
+ * ============= ============ ==========================
+ *  Date          Author       Description
+ * ============= ============ ==========================
+ *  2023.09.22.   나해준       [NELS]최초 생성
+ * ============= ============ ==========================
+ */
+scwin.auctnTrmExWordSrch = function (dvsCd) {
+    com.storage.set("PGJ172M01", "param", dvsCd);
+    $p.url("/pgj/ui/pgj100/PGJ172M01.xml")
+}
+
+/**
+ *
+ *  공지사항 더보기 클릭시 공지사항 게시판 화면으로 이동
+ *
+ * ============= ============ ==========================
+ *  Date          Author       Description
+ * ============= ============ ==========================
+ *  2023.09.22.   나해준       [NELS]최초 생성
+ * ============= ============ ==========================
+ */
+scwin.btn_ntcMtrExts_onclick = function (e) {
+    $p.url(`/pgj/ui/pgj100/PGJ141M00.xml`);
+};
+
+/**
+ *
+ *  공지사항 타이틀 클릭시 공지사항 상세 화면으로 이동
+ *
+ * ============= ============ ==========================
+ *  Date          Author       Description
+ * ============= ============ ==========================
+ *  2023.09.22.   나해준       [NELS]최초 생성
+ * ============= ============ ==========================
+ */
+scwin.moveNtcMtrDtlEvent = function () {
+    const ntcSeq = $p.getComponentById(this.id).getUserData('ntcSeq');
+    com.storage.set('PGJ141M02', 'ntcSeq', ntcSeq);
+    $p.url('/pgj/ui/pgj100/PGJ141M02.xml')
+}
+
+/**
+ *
+ *  제공서비스 타이틀 클릭시 제공서비스 화면으로 이동
+ *
+ * ============= ============ ==========================
+ *  Date          Author       Description
+ * ============= ============ ==========================
+ *  2023.09.22.   나해준       [NELS]최초 생성
+ * ============= ============ ==========================
+ */
+scwin.grp_pvsnSrvc_onclick = function (flag) {
+    $p.url('/pgj/ui/pgj100/PGJ181M01.xml')
+};
+
+/**
+ *
+ *  제공서비스 타이틀 클릭시 제공서비스 화면으로 이동
+ *
+ * ============= ============ ==========================
+ *  Date          Author       Description
+ * ============= ============ ==========================
+ *  2023.09.22.   나해준       [NELS]최초 생성
+ * ============= ============ ==========================
+ */
+scwin.grp_sitUtilGdncBtn_onclick = function (e) {
+    /* 사이트 이용안내 팝업창이 존재 할 경우 중복으로 생성x */
+    if (pgjUtil.popupDpcnChk("quickPopupSiteUtilGdnc")) {
+
+        /********* Popup Settings *********/
+        var winW = window.innerWidth;
+        var winH = window.innerHeight;
+
+        /* default popup size */
+        var popupW = 1000;
+        var popupH = 850;
+
+        var popupX = (winW/2) - (popupW/2);
+        var popupY = (winH/2) - (popupH/2);
+
+        var options = {
+            id: "quickPopupSiteUtilGdnc",
+            type: "wframePopup",
+            modal: false,
+            popupName: "사이트 이용안내",
+            top:popupY,
+            left:popupX,
+            width:popupW,
+            height:popupH,
+        };
+
+        com.win.openPopup("/pgj/ui/pgj100/PGJ111P05.xml", options);
+    } else {
+        $p.closePopup("quickPopupSiteUtilGdnc");
+    }
+};
+
+/**
+ *
+ *  로그인 세션처리후 세션이 로그인 상태면 '나의동산집행정보'
+ *  없으면 나의동산집행정보 화면으로 이동
+ *
+ * ============= ============ ==========================
+ *  Date          Author       Description
+ * ============= ============ ==========================
+ *  2023.09.22.   나해준       [NELS]최초 생성
+ * ============= ============ ==========================
+ */
+scwin.grp_mvprpExecInfBtn_onclick = function (e) {
+    //TO-DO 로그인 세션처리
+    pgjUtil.loginCheckMoveLoginPage().then(result =>{
+        if(result){
+            $p.url('/pgj/ui/pgj100/PGJ196M01.xml');
+        } else {
+            return;
+        }
+    });
+};
+
+/**
+ *
+ * 하단의 경매절차, 관련법률 메뉴 클릭시 해당 화면으로 이동
+ *
+ * ============= ============ ==========================
+ *  Date          Author       Description
+ * ============= ============ ==========================
+ *  2023.09.22.   나해준       [NELS]최초 생성
+ *  2026.07.07.   김기석       [26A-PGJ-0030] 임차인통지서 QR코드를 통한 볍원경매정보 서비스 제공
+ * ============= ============ ==========================
+ */
+scwin.moveMvprpExecInfMenu = function (pgMId) {
+    const flag = pgMId
+    let path = ''
+    switch (flag) {
+        case 'PGJ171M01': // 부동산경매절차
+            path = `/pgj/ui/pgj100/PGJ171M01.xml`
+            break;
+        case 'PGJ171M02': // 동산경매절차
+            path = `/pgj/ui/pgj100/PGJ171M02.xml`
+            break;
+        case 'PGJ176F01': // 경매비용
+            path = `/pgj/ui/pgj100/PGJ176F01.xml`
+            break;
+        case 'PGJ175M01': //매수신청대리안내
+            path = `/pgj/ui/pgj100/PGJ175M01.xml`
+            break;
+        case 'PGJ177F01': //주택임대차
+            path = `/pgj/ui/pgj100/PGJ177F01.xml`
+            break;
+        case 'PGJ177M01': //상가임대차
+            path = `/pgj/ui/pgj100/PGJ177M01.xml`
+            break;
+        case 'PGJ177M02': //종합법률정보
+            path = `/pgj/ui/pgj100/PGJ177M02.xml`
+            break;
+        case 'PGJ171M03': //임차인(주택/상가) - [26A-PGJ-0030] 메뉴추가
+            path = `/pgj/ui/pgj100/PGJ171M03.xml`
+            break;
+        case 'PGJ173F01': //경매서식 - [26A-PGJ-0030] 메뉴추가
+            path = `/pgj/ui/pgj100/PGJ173F01.xml`
+            break;
+
+    }
+    $p.url(path);
+}
+
+/**
+*
+* 용도별 물건정보에서 해당 용도 클릭시 해당 용도 조건으로
+* 물건을 검색한다.
+*
+* ============= ============ ==========================
+*  Date          Author       Description
+* ============= ============ ==========================
+*  2023.09.26.   나해준       [NELS]최초 생성
+* ============= ============ ==========================
+*/
+scwin.moveUsgSrch = function (dvsCd) {
+    const flag = dvsCd;
+    let param = {};
+    let srchInfo = '';
+    param.pgmId = 'mainUsg';
+    param.scNo = 'none';
+    param.cortOfcCd = 'none';
+    param.dspslGdsSeq = 'none';
+    param.prevInfo = 'none';
+    switch (flag) {
+        case '00': // 물건상세화면 (+) 버튼
+            $p.url(`/pgj/ui/pgj100/PGJ151F00.xml`);
+            break;
+        case '01': // 아파트 (고정)
+            srchInfo = {
+                cortAuctnSrchCondCd: '0004601',
+                lclDspslGdsLstUsgCd : '20000',
+                mclDspslGdsLstUsgCd : '20100',
+                sclDspslGdsLstUsgCd : '20104'
+            }
+            break;
+        case '02': // 빌라 (고정)
+            srchInfo = {
+                cortAuctnSrchCondCd: '0004601',
+                lclDspslGdsLstUsgCd : '20000',
+                mclDspslGdsLstUsgCd : '20100',
+                sclDspslGdsLstUsgCd : '20108'
+            }
+            break;
+        case '03': // 대지 (고정)
+            srchInfo = {
+                cortAuctnSrchCondCd: '0004601',
+                lclDspslGdsLstUsgCd : '10000',
+                mclDspslGdsLstUsgCd : '10100',
+                sclDspslGdsLstUsgCd : '10108'
+            }
+            break;
+        case '10105': // 임야
+            srchInfo = {
+                cortAuctnSrchCondCd: '0004601',
+                lclDspslGdsLstUsgCd : '10000',
+                mclDspslGdsLstUsgCd : '10100',
+                sclDspslGdsLstUsgCd : '10105'
+            }
+            break;
+        case '10101': // 전
+            srchInfo = {
+                cortAuctnSrchCondCd: '0004601',
+                lclDspslGdsLstUsgCd : '10000',
+                mclDspslGdsLstUsgCd : '10100',
+                sclDspslGdsLstUsgCd : '10101'
+            }
+            break;
+        case '10102': // 답
+            srchInfo = {
+                cortAuctnSrchCondCd: '0004601',
+                lclDspslGdsLstUsgCd : '10000',
+                mclDspslGdsLstUsgCd : '10100',
+                sclDspslGdsLstUsgCd : '10102'
+            }
+            break;
+        case '20106': // 다세대주택
+            srchInfo = {
+                cortAuctnSrchCondCd: '0004601',
+                lclDspslGdsLstUsgCd : '20000',
+                mclDspslGdsLstUsgCd : '20100',
+                sclDspslGdsLstUsgCd : '20106'
+            }
+            break;
+        case '21101': // 근린생활시설
+            srchInfo = {
+                cortAuctnSrchCondCd: '0004601',
+                lclDspslGdsLstUsgCd : '20000',
+                mclDspslGdsLstUsgCd : '21100',
+                sclDspslGdsLstUsgCd : '21101'
+            }
+            break;
+        case '10114': // 도로
+            srchInfo = {
+                cortAuctnSrchCondCd: '0004601',
+                lclDspslGdsLstUsgCd : '10000',
+                mclDspslGdsLstUsgCd : '10100',
+                sclDspslGdsLstUsgCd : '10114'
+            }
+            break;
+        case '22101': // 공장
+            srchInfo = {
+                cortAuctnSrchCondCd: '0004601',
+                lclDspslGdsLstUsgCd : '20000',
+                mclDspslGdsLstUsgCd : '22100',
+                sclDspslGdsLstUsgCd : '22101'
+            }
+            break;
+        case '20101': // 단독주택
+            srchInfo = {
+                cortAuctnSrchCondCd: '0004601',
+                lclDspslGdsLstUsgCd : '20000',
+                mclDspslGdsLstUsgCd : '20100',
+                sclDspslGdsLstUsgCd : '20101'
+            }
+            break;
+        case '30101': // 승용차
+            srchInfo = {
+                cortAuctnSrchCondCd: '0004601',
+                lclDspslGdsLstUsgCd : '30000',
+                mclDspslGdsLstUsgCd : '30100',
+                sclDspslGdsLstUsgCd : '30101'
+            }
+            break;
+        case '20102': // 다가구주택
+            srchInfo = {
+                cortAuctnSrchCondCd: '0004601',
+                lclDspslGdsLstUsgCd : '20000',
+                mclDspslGdsLstUsgCd : '20100',
+                sclDspslGdsLstUsgCd : '20102'
+            }
+            break;
+        case '20105': // 연립주택
+            srchInfo = {
+                cortAuctnSrchCondCd: '0004601',
+                lclDspslGdsLstUsgCd : '20000',
+                mclDspslGdsLstUsgCd : '20100',
+                sclDspslGdsLstUsgCd : '20105'
+            }
+            break;
+        case '20106': // 다세대주택
+            srchInfo = {
+                cortAuctnSrchCondCd: '0004601',
+                lclDspslGdsLstUsgCd : '20000',
+                mclDspslGdsLstUsgCd : '20100',
+                sclDspslGdsLstUsgCd : '20106'
+            }
+            break;
+        case '21104': // 판매시설
+            srchInfo = {
+                cortAuctnSrchCondCd: '0004601',
+                lclDspslGdsLstUsgCd : '20000',
+                mclDspslGdsLstUsgCd : '21100',
+                sclDspslGdsLstUsgCd : '21104'
+            }
+            break;
+        case '30101': // 오피스텔
+            srchInfo = {
+                cortAuctnSrchCondCd: '0004601',
+                lclDspslGdsLstUsgCd : '20000',
+                mclDspslGdsLstUsgCd : '20100',
+                sclDspslGdsLstUsgCd : '20110'
+            }
+            break;
+    }
+    param.srchInfo = srchInfo
+    pgjUtil.openGdsDtl(param);
+}
+
+/**
+ *
+ * 다수관심물건에서 사진 클릭시 사진 팝업창 오픈
+ *
+ * ============= ============ ==========================
+ *  Date          Author       Description
+ * ============= ============ ==========================
+ *  2023.09.26.   나해준       [NELS]최초 생성
+ * ============= ============ ==========================
+ */
+scwin.showPicPopUp = function (param) {
+
+    if (pgjUtil.popupDpcnChk('showPicPopUp')) {
+        /********* Popup Settings *********/
+        let winW = window.innerWidth;
+        let winH = window.innerHeight;
+        /* small popup size */
+        /* small popup size */
+        let popupW = 807;
+        let popupH = 767;
+        let popupX = (winW / 2) - (popupW / 2);
+        let popupY = (winH / 2) - (popupH / 2);
+        /**
+         * 공지사항 openPopUp option설정
+         */
+        let options = {
+            id: 'showPicPopUp',
+            type: "wframePopup",
+            popupName: "사진보기",
+            top: popupY,
+            left: popupX,
+            width: popupW,
+            height: popupH,
+            modal: false
+        };
+        obj = {};
+        paramObj = {};
+        paramObj.pgmId = `PGJ111M01`
+        paramObj.cortOfcCd = param.boCd;
+        paramObj.csNo = param.saNo;
+        // 결함처리용 TODO ====================
+        // paramObj.cortOfcCd = 'B000210';
+        // paramObj.csNo = '20240130050425';
+        // TODO =====================
+        obj.paramObj = paramObj;
+        /* 공지사항 팝업창 open  */
+        com.win.openPopup("/pgj/ui/pgj100/PGJ15BP06.xml", options, obj);
+    } else {
+        let item = {
+            pgmId: `PGJ111M01`,
+            cortOfcCd: param.boCd,
+            csNo: param.saNo,
+        }
+        document.body.scrollTop = 0;
+        // 팝업 scope에 접근 하여 콜백함수 호출
+        WebSquare.uiplugin.popup.popupList[0].popupWin.childControlList[0].scope.scwin.mainCallBackFuntion(item)
+    }
+};
+
+/**
+ *
+ * 빠른물건 검색 부동산,동산 이벤트
+ *
+ * ============= ============ ==========================
+ *  Date          Author       Description
+ * ============= ============ ==========================
+ *  2023.09.26.   나해준       [NELS]최초 생성
+ * ============= ============ ==========================
+ */
+scwin.rpdtSrchBtnEvent = function (flag) {
+    if (flag === '01') {
+        btn_rletRpdt.addClass('active')
+        btn_rletRpdt.setTitle("빠른물건검색 부동산 선택");
+        btn_mvprpRpdt.removeClass('active')
+        btn_mvprpRpdt.setTitle("빠른물건검색 동산");
+        scwin.rpdtSrchBtnFlag = '01'
+        sbx_rletRpdtCortLst.show("");
+        grp_rletRpdtSrch.show("");
+        sbx_mvprpRpdtCortLst.hide();
+        grp_mvprpRpdtSrch.hide();
+    } else if (flag === '02') {
+        btn_mvprpRpdt.addClass('active')
+        btn_mvprpRpdt.setTitle("빠른물건검색 동산 선택");
+        btn_rletRpdt.removeClass('active')
+        btn_rletRpdt.setTitle("빠른물건검색 부동산");
+        scwin.rpdtSrchBtnFlag = '02'
+        sbx_mvprpRpdtCortLst.show("");
+        grp_mvprpRpdtSrch.show("");
+        sbx_rletRpdtCortLst.hide();
+        grp_rletRpdtSrch.hide();
+    }
+}
+
+/**
+ *
+ * 빠른물건 부동산 법원 선택시 부동산 시/도 콤보박스 초기화
+ *
+ * ============= ============ ==========================
+ *  Date          Author       Description
+ * ============= ============ ==========================
+ *  2023.09.26.   나해준       [NELS]최초 생성
+ * ============= ============ ==========================
+ */
+scwin.sbx_rletRpdtCortLst_onviewchange = function(info) {
+    sbx_rletRpdtSdLst.removeAll(true)
+    pgjUtil.bindSelectBox(pgjUtil.getAdongSdLst('Y', 'B','FB'), sbx_rletRpdtSdLst, false); // 시/도 리스트
+    sbx_rletRpdtSdLst.setSelectedIndex(0);
+    sbx_rletRpdtSggLst.removeAll(true);
+    sbx_rletRpdtEmdLst.removeAll(true);
+};
+
+
+/**
+ *
+ * 빠른물건 동산 법원 선택시 동산 시/도 콤보박스 초기화
+ *
+ * ============= ============ ==========================
+ *  Date          Author       Description
+ * ============= ============ ==========================
+ *  2023.09.26.   나해준       [NELS]최초 생성
+ * ============= ============ ==========================
+ */
+scwin.sbx_mvprpRpdtCortLst_onchange = function (info) {
+    sbx_mvprpRpdtSdLst.removeAll(true);
+    pgjUtil.bindSelectBox(pgjUtil.getAdongSdLst('Y', 'O','FB'), sbx_mvprpRpdtSdLst, false);
+    sbx_mvprpRpdtSggLst.removeAll(true);
+    sbx_mvprpRpdtEmdLst.removeAll(true);
+
+};
+
+/**
+ *
+ * 빠른물건 부동산 소재지 시/도 선택시  법원명 콤복박스 초기화 및 시/군/구 리스트 셋팅
+ *
+ * ============= ============ ==========================
+ *  Date          Author       Description
+ * ============= ============ ==========================
+ *  2023.09.26.   나해준       [NELS]최초 생성
+ * ============= ============ ==========================
+ */
+scwin.sbx_rletRpdtSdLst_onviewchange = function(info) {
+    sbx_rletRpdtCortLst.removeAll(true);
+    pgjUtil.bindSelectBox(pgjUtil.getCortOfcLst('B'), sbx_rletRpdtCortLst, false);
+    sbx_rletRpdtCortLst.setSelectedIndex(0);
+    sbx_rletRpdtEmdLst.removeAll(true);
+    if (info.newValue == '') {
+        sbx_rletRpdtSggLst.removeAll(true);
+    }
+    pgjUtil.bindSelectBox(pgjUtil.getAdongSggLst("Y", "B", "FB", info.newValue), sbx_rletRpdtSggLst, true);
+};
+
+
+/**
+ *
+ * 빠른물건 부동산 소재지 시/군/구 선택시  동/도로명 리스트 셋팅
+ * ============= ============ ==========================
+ *  Date          Author       Description
+ * ============= ============ ==========================
+ *  2023.10.10.   나해준       [NELS]최초 생성
+ * ============= ============ ==========================
+ */
+scwin.sbx_rletRpdtSggLst_onchange = function (info) {
+    let temp = sbx_rletRpdtConsonant.getValue().split("_");
+    pgjUtil.bindSelectBox(pgjUtil.getRdnmAddrLst("Y", "B", "FB", sbx_rletRpdtSdLst.getValue(), info.newValue, temp[0], temp[1]), sbx_rletRpdtEmdLst, true)
+};
+
+/**
+ *
+ * 빠른물건 부동산 소재지 자음 선택시  동/도로명 리스트 셋팅
+ * ============= ============ ==========================
+ *  Date          Author       Description
+ * ============= ============ ==========================
+ *  2023.10.10.   나해준       [NELS]최초 생성
+ * ============= ============ ==========================
+ */
+scwin.sbx_rletRpdtConsonant_onchange = function (info) {
+    let temp = info.newValue.split("_");
+    pgjUtil.bindSelectBox(pgjUtil.getRdnmAddrLst("Y", "B", "FB", sbx_rletRpdtSdLst.getValue(), sbx_rletRpdtSggLst.getValue(), temp[0], temp[1]), sbx_rletRpdtEmdLst, true)
+};
+
+
+/**
+ *
+ * 빠른물건 동산 소재지 시,도 선택시  법원명 콤복박스 초기화
+ *
+ * ============= ============ ==========================
+ *  Date          Author       Description
+ * ============= ============ ==========================
+ *  2023.09.26.   나해준       [NELS]최초 생성
+ * ============= ============ ==========================
+ */
+scwin.sbx_mvprpRpdtSdLst_onchange = function (info) {
+    sbx_mvprpRpdtCortLst.removeAll(true);
+    sbx_mvprpRpdtEmdLst.removeAll(true);
+    if (info.newValue == '') {
+        sbx_mvprpRpdtSggLst.removeAll(true);
+    }
+    pgjUtil.bindSelectBox(pgjUtil.getAdongSdLst('Y', 'O','FB'), sbx_mvprpRpdtSdLst, false);
+    pgjUtil.bindSelectBox(pgjUtil.getAdongSggLst("Y", "O", "FB", info.newValue), sbx_mvprpRpdtSggLst, true);
+};
+
+/**
+ *
+ * 빠른물건 동산 소재지 시/군/구 선택시  동/도로명 리 스트 셋팅
+ * ============= ============ ==========================
+ *  Date          Author       Description
+ * ============= ============ ==========================
+ *  2023.10.10.   나해준       [NELS]최초 생성
+ * ============= ============ ==========================
+ */
+scwin.sbx_mvprpRpdtSggLst_onchange = function (info) {
+    let temp = sbx_mvprpRpdtConsonant.getValue().split("_");
+    pgjUtil.bindSelectBox(pgjUtil.getRdnmAddrLst("Y", "O", "FB", sbx_mvprpRpdtSdLst.getValue(), info.newValue, temp[0], temp[1]), sbx_mvprpRpdtEmdLst, true)
+};
+
+/**
+ *
+ * 빠른물건 동산 소재지 자음 선택시  동/도로명 리 스트 셋팅
+ *
+ *
+ * ============= ============ ==========================
+ *  Date          Author       Description
+ * ============= ============ ==========================
+ *  2023.10.10.   나해준       [NELS]최초 생성
+ * ============= ============ ==========================
+ */
+scwin.sbx_mvprpRpdtConsonant_onchange = function (info) {
+    let temp = info.newValue.split("_");
+    pgjUtil.bindSelectBox(pgjUtil.getRdnmAddrLst("Y", "O", "FB", sbx_mvprpRpdtSdLst.getValue(), sbx_mvprpRpdtSggLst.getValue(), temp[0], temp[1]), sbx_mvprpRpdtEmdLst, true)
+};
+
+/**
+ *
+ * 빠른물건 검색버튼 클릭시 빠른물건 검색
+ *
+ *
+ * ============= ============ ==========================
+ *  Date          Author       Description
+ * ============= ============ ==========================
+ *  2023.10.10.   나해준       [NELS]최초 생성
+ * ============= ============ ==========================
+ */
+scwin.btn_quickSearchGds_onclick = function (e) {
+
+    if (scwin.rpdtSrchBtnFlag === '01') {
+        if (scutilo.isEmpty(sbx_rletRpdtCortLst.getValue()) && scutilo.isEmpty(sbx_rletRpdtSdLst.getValue())) {
+            scutilo.showMsg(scglblo.MSG.WARN,"법원을 전체로 선택할 경우 시/도 검색조건을 설정하세요")
+            sbx_rletRpdtSdLst.focus();
+            return false
+        }
+    } else {
+        if (scutilo.isEmpty(sbx_mvprpRpdtCortLst.getValue()) && scutilo.isEmpty(sbx_mvprpRpdtSdLst.getValue())) {
+            scutilo.showMsg(scglblo.MSG.WARN,"법원을 전체로 선택할 경우 시/도 검색조건을 설정하세요")
+            sbx_mvprpRpdtSdLst.focus();
+            return false
+        }
+
+    }
+
+
+    let param = {};
+    param.scNo = 'none';
+    param.cortOfcCd = 'none';
+    param.dspslGdsSeq = 'none';
+    param.prevInfo = 'none';
+    let cortOfcCd = "" //법원사무소
+    let mvprpRletDvsCd = ""// 부동산,동산구분 코드
+    let rprsAdongSdCd =  "" //	부동산지번시도코드
+    let rprsAdongSggCd = "" //	부동산지번시군구코드
+    let rprsAdongEmdCd = ""	// 부동산지번읍면동코드
+    let rdnmSdCd = "" // 부동산 소재지(지번) 시/도
+    let rdnmSggCd = "" // 부동산 소재지(새주소) 시/군/구
+    let rdnmNo = "" // 부동산 소재지(새주소) 도로명
+    let rdDspslPlcAdongSdCd = "" //동산 도로명 시/도 코드
+    let rdDspslPlcAdongSggCd = ""//동산 도로명 시/군/구 코드
+    let rdDspslPlcAdongEmdCd = ""//동산 도로명 코드
+    let mvprpDspslPlcAdongSdCd = "" // 동산 지번 시도
+    let mvprpDspslPlcAdongSggCd = "" // 동산 지번 시군구
+    let mvprpDspslPlcAdongEmdCd = "" // 동산 지번 읍면동
+    let cortAuctnSrchCondCd = "0004601"
+    let cortStDvs = "";
+    if (scwin.rpdtSrchBtnFlag === '01') { // 부동산
+        param.pgmId = 'mainUsg';
+        mvprpRletDvsCd = '00031R'
+        cortAuctnSrchCondCd = '0004601'
+        if ( !scutilo.isEmpty(sbx_rletRpdtCortLst.getValue()) ) {
+            cortStDvs = '1'
+            cortOfcCd = sbx_rletRpdtCortLst.getValue();
+        } else {
+            let rdnmNoTemp1 = sbx_rletRpdtEmdLst.getValue();
+
+            let rdnmNoTemp2 = rdnmNoTemp1.split("|")
+            if (rdnmNoTemp2[1] === 'A') {
+                cortStDvs = '2' //지번 주소
+                rprsAdongSdCd = sbx_rletRpdtSdLst.getValue();
+                rprsAdongSggCd = sbx_rletRpdtSggLst.getValue();
+                rprsAdongEmdCd = rdnmNoTemp2[0]
+            } else if (rdnmNoTemp2[1] === 'R') {
+                cortStDvs = '3' //도로명 주소
+                rdnmSdCd = sbx_rletRpdtSdLst.getValue();
+                rdnmSggCd = sbx_rletRpdtSggLst.getValue();
+                rdnmNo = rdnmNoTemp2[0]
+            } else {
+                cortStDvs = '2' //지번 주소
+                rprsAdongSdCd = sbx_rletRpdtSdLst.getValue();
+                rprsAdongSggCd = sbx_rletRpdtSggLst.getValue();
+            }
+        }
+    } else { //동산 TO-DO 검색결과 화면이 동산 따로만들어야함
+        param.pgmId = "mvprpSrch"
+        mvprpRletDvsCd = '00031M'
+        cortAuctnSrchCondCd = '0004604'
+        if (!scutilo.isEmpty(sbx_mvprpRpdtCortLst.getValue())) {
+            cortStDvs = '1'
+            cortOfcCd = sbx_mvprpRpdtCortLst.getValue();
+        } else {
+            let rdnmNoTemp1 = sbx_mvprpRpdtEmdLst.getValue();
+            let rdnmNoTemp2 = rdnmNoTemp1.split("|")
+            if (rdnmNoTemp2[1] === 'A') {//지번
+                cortStDvs = '2'
+                mvprpDspslPlcAdongSdCd = sbx_mvprpRpdtSdLst.getValue()
+                mvprpDspslPlcAdongSggCd = sbx_mvprpRpdtSggLst.getValue();
+                mvprpDspslPlcAdongEmdCd = rdnmNoTemp2[0]
+
+            } else if(rdnmNoTemp2[1] === 'R') { //도로명
+                cortStDvs = '3'
+                rdDspslPlcAdongSdCd = sbx_mvprpRpdtSdLst.getValue();
+                rdDspslPlcAdongSggCd = sbx_mvprpRpdtSggLst.getValue();
+                rdDspslPlcAdongEmdCd = rdnmNoTemp2[0]
+            } else {
+                cortStDvs = '2'
+                mvprpDspslPlcAdongSdCd = sbx_mvprpRpdtSdLst.getValue()
+                mvprpDspslPlcAdongSggCd = sbx_mvprpRpdtSggLst.getValue();
+            }
+        }
+    }
+    const srchInfo = {
+        cortOfcCd, mvprpRletDvsCd, rdnmSdCd, rdnmSggCd, rdnmNo,
+        rdDspslPlcAdongSdCd, rdDspslPlcAdongSggCd, rdDspslPlcAdongEmdCd
+        , cortAuctnSrchCondCd, cortStDvs,rprsAdongSdCd,rprsAdongSggCd,rprsAdongEmdCd
+        , mvprpDspslPlcAdongSdCd, mvprpDspslPlcAdongSggCd, mvprpDspslPlcAdongEmdCd
+
+    }
+    param.srchInfo = srchInfo
+    pgjUtil.openGdsDtl(param);
+
+};
+
+
+/**
+ *
+ * 즐겨찾기 등록 이벤트
+ * [크롬은 따로 스크립트 기능이없음]
+ *
+ * ============= ============ ==========================
+ *  Date          Author       Description
+ * ============= ============ ==========================
+ *  2023.10.10.   나해준       [NELS]최초 생성
+ * ============= ============ ==========================
+ */
+scwin.bmrkReg = function () {
+    let msg = `${navigator.userAgent.toLowerCase().indexOf('chrome') !== -1 ? 'Ctrl' : 'Cmd'} + D 키를 눌러 즐겨찾기에 등록하실 수 있습니다.`
+    scutilo.showMsg(scglblo.MSG.WARN, msg);
+}
+
+scwin.openAuctnVtPopUp = function () {
+    if (pgjUtil.popupDpcnChk('auctnVtPopUp')) {
+        scwin.auctnVtPopUp();
+    }
+}
+scwin.auctnVtPopUp = function () {
+
+    /********* Popup Settings *********/
+    let winW = window.innerWidth;
+    let winH = window.innerHeight;
+    /* small popup size */
+    /* small popup size */
+    let popupW = 807;
+    let popupH = 767;
+    let popupX = (winW / 2) - (popupW / 2);
+    let popupY = (winH / 2) - (popupH / 2);
+    /**
+     * 투표하기openPopUp option설정
+     */
+    let options = {
+        id: 'auctnVtPopUp',
+        type: "wframePopup",
+        popupName: "투표",
+        top: popupY,
+        left: popupX,
+        width: popupW,
+        height: popupH,
+        modal: false
+    };
+    com.win.openPopup("/pgj/ui/pgj100/PGJ111P09.xml", options);
+
+}
+
+/**
+ *
+ * 금주경매 일정 클릭시 이동하는 이벤트 (부동산 일반공고)
+ *
+ * ============= ============ ==========================
+ *  Date          Author       Description
+ * ============= ============ ==========================
+ *  2024.07.20.   나해준       [NELS]최초 생성
+ * ============= ============ ==========================
+ */
+scwin.anc_rletGnrlDxdyTitle_onclick = function() {
+    const _thisDxdy = $p.getComponentById(this.id);
+    const grpNum = _thisDxdy.getUserData("grpNum");
+    const idx = _thisDxdy.getUserData("idx");
+    const lst = scwin.rletPbanc[grpNum]
+    const orgObj = Object.fromEntries(lst[idx]) // Map 형태를 다시 일반 객체로 변환
+
+    $p.local.setItem('dxdySrchParm', JSON.stringify(orgObj)  );
+    $p.url("/pgj/ui/pgj100/PGJ141M00.xml",{"spa" : false, "replaceHistory" : true,"param":{pgjId : '143M02'}})
+};
+
+/**
+ *
+ * 금주경매 일정 클릭시 이동하는 이벤트 (부동산 정정)
+ *
+ *
+ * ============= ============ ==========================
+ *  Date          Author       Description
+ * ============= ============ ==========================
+ *  2024.07.20.   나해준       [NELS]최초 생성
+ * ============= ============ ==========================
+ */
+scwin.anc_rletCrrctDxdyTitle_onclick = function() {
+    const _thisDxdy = $p.getComponentById(this.id);
+    const grpNum = _thisDxdy.getUserData("grpNum");
+    const idx = _thisDxdy.getUserData("idx");
+    let lst = scwin.rletCrrctPbanc[grpNum]
+    const orgObj = Object.fromEntries(lst[idx]) // Map 형태를 다시 일반 객체로 변환
+
+    $p.local.setItem('dxdySrchParm', JSON.stringify(orgObj)  );
+    $p.url("/pgj/ui/pgj100/PGJ141M00.xml",{"spa" : false, "replaceHistory" : true,"param":{pgjId : '143M03'}})
+};
+
+/**
+ *
+ * 금주경매 일정 클릭시 이동하는 이벤트 (부동산 취소)
+ *
+ *
+ * ============= ============ ==========================
+ *  Date          Author       Description
+ * ============= ============ ==========================
+ *  2024.07.20.   나해준       [NELS]최초 생성
+ * ============= ============ ==========================
+ */
+scwin.anc_rletRtrcnDxdyTitle_onclick = function() {
+    const _thisDxdy = $p.getComponentById(this.id);
+    const grpNum = _thisDxdy.getUserData("grpNum");
+    const idx = _thisDxdy.getUserData("idx");
+    let lst = scwin.rletRtrcnPbanc[grpNum]
+    const orgObj = Object.fromEntries(lst[idx]) // Map 형태를 다시 일반 객체로 변환
+
+    $p.local.setItem('dxdySrchParm', JSON.stringify(orgObj)  );
+    $p.url("/pgj/ui/pgj100/PGJ141M00.xml",{"spa" : false, "replaceHistory" : true,"param":{pgjId : '143M03'}})
+};
+
+
+/**
+ *
+ * 금주경매 일정 클릭시 이동하는 이벤트 (동산 일반)
+ *
+ *
+ * ============= ============ ==========================
+ *  Date          Author       Description
+ * ============= ============ ==========================
+ *  2024.07.20.   나해준       [NELS]최초 생성
+ * ============= ============ ==========================
+ */
+scwin.anc_mvprpGnrlDxdyTitle_onclick = function() {
+
+    const _thisDxdy = $p.getComponentById(this.id);
+    const grpNum = _thisDxdy.getUserData("grpNum");
+    const idx = _thisDxdy.getUserData("idx");
+    let lst = scwin.mvprpGnrlPbanc[grpNum]
+    let orgObj = Object.fromEntries(lst[idx]) // Map 형태를 다시 일반 객체로 변환
+    $p.local.setItem('dxdySrchParm', JSON.stringify(orgObj)  );
+    $p.url("/pgj/ui/pgj100/PGJ141M00.xml",{"spa" : false, "replaceHistory" : true,"param":{pgjId : '144M01'}})
+};
+
+
+
+/**
+ *
+ * 금주경매 일정 클릭시 이동하는 이벤트 (동산 조기)
+ *
+ *
+ * ============= ============ ==========================
+ *  Date          Author       Description
+ * ============= ============ ==========================
+ *  2024.07.20.   나해준       [NELS]최초 생성
+ * ============= ============ ==========================
+ */
+scwin.anc_mvprpErlyDxdyTitle_onclick = function() {
+    const _thisDxdy = $p.getComponentById(this.id);
+    const grpNum = _thisDxdy.getUserData("grpNum");
+    const idx = _thisDxdy.getUserData("idx");
+    let lst = scwin.mvprpErlyPbanc[grpNum]
+    let orgObj = Object.fromEntries(lst[idx]) // Map 형태를 다시 일반 객체로 변환
+
+    $p.local.setItem('dxdySrchParm', JSON.stringify(orgObj)  );
+    $p.url("/pgj/ui/pgj100/PGJ141M00.xml",{"spa" : false, "replaceHistory" : true,"param":{pgjId : '144M01'}})
+};
+
+/**
+ *
+ * 빠른검색 검색 유형별 페이지 이동 이벤트
+ * type : [1] : 물건상세검색
+ *        [2] : 지도검색
+ *        [3] : 자동차,중기검색
+ *        [4] : 사건검색
+ * ============= ============ ==========================
+ *  Date          Author       Description
+ * ============= ============ ==========================
+ *  2024.08.07.   나해준       [NELS]최초 생성
+ * ============= ============ ==========================
+ */
+scwin.fastSrchMoveUrl = function(type) {
+    const flag = type;
+    switch(flag) {
+        case "1" :
+            $p.url("/pgj/ui/pgj100/PGJ151F00.xml")
+            break
+        case "2" :
+            scwin.btnMapInfo_onclick();
+            break
+        case "3" :
+            $p.url("/pgj/ui/pgj100/PGJ154M00.xml")
+            break
+        case "4" :
+            $p.url("/pgj/ui/pgj100/PGJ159M00.xml")
+            break
+    }
+};
+
+/**
+ *
+ * 지도안내문 팝업 호출
+ *
+ * ============= ============ ==========================
+ *  Date          Author       Description
+ * ============= ============ ==========================
+ *  2024.08.07.   나해준       [NELS]최초 생성
+ * ============= ============ ==========================
+ */
+scwin.btnMapInfo_onclick = function() {
+
+    /********* Popup Settings *********/
+    var winW = window.innerWidth;
+    var winH = window.innerHeight;
+
+    /* default popup size */
+    var popupW = 700;
+    var popupH = 450;
+
+    var popupX = (winW/2) - (popupW/2);
+    var popupY = (winH/2) - (popupH/2);
+
+    var options = {
+        id: "popupMapGuide",
+        type: "wframePopup",
+        modal: true,
+        popupName: "지도_안내문",
+        top:popupY,
+        left:popupX,
+        width:popupW,
+        height:popupH,
+    };
+
+    com.win.openPopup("/pgj/ui/pgj100/PGJ152P01.xml", options);
+}
+
+/**
+ *
+ * menu이동 이벤트
+ *
+ * ============= ============ ==========================
+ *  Date          Author       Description
+ * ============= ============ ==========================
+ *  2024.09.26.   나해준       [NELS]최초 생성
+ * ============= ============ ==========================
+ */
+scwin.sbx_oftenUsingMenu_onchange = function(info) {
+    const menuId = info.newValue;
+    switch (menuId) {
+        case 'PGJ155M00_1' :
+            $p.url("/pgj/ui/pgj100/PGJ155M00.xml",{"spa" : false, "replaceHistory" : true,"param":'1'})
+            break;
+        case 'PGJ155M00_2' :
+            $p.url("/pgj/ui/pgj100/PGJ155M00.xml",{"spa" : false, "replaceHistory" : true,"param":'2'})
+            break
+        case 'EditMember' :
+            wfm_header.getWindow().scwin.btnEditMember_onclick()
+            break
+        case 'PGJ141M01' :
+        case 'PGJ142M01' :
+        case 'PGJ143M01' :
+        case 'PGJ144M01' :
+            $p.url("/pgj/ui/pgj100/PGJ141M00.xml",{"spa" : false, "replaceHistory" : true,"param":{pgjId : menuId.slice(3)}})
+            break
+        default : $p.url(`/pgj/ui/pgj100/${menuId}.xml`)
+    }
+
+};
+
+scwin.btn_oftenUsingMenu_onclick = function(e) {
+    $p.url(`/pgj/ui/pgj100/PGJ195M03.xml`)
+};
+
+
+
+]]></script>
+    </head>
+    <body ev:onpageload="scwin.onpageload" ev:onpageunload="scwin.onpageunload">
+        <xf:group class="wrap user" id="" style="">
+            <w2:wframe class="header" id="wfm_header" scope="" src="../common/header.xml" style="" scopeExternal="true"></w2:wframe>
+            <xf:group style="" id="wfm_mainFrame" class="main_container">
+                <xf:group style="" id="" class="slider_wrap">
+                    <xf:group style="" id="" class="above_box">
+                        <xf:group style="" id="" class="inr">
+                            <xf:group class="main_info" id="" style="">
+                                <w2:span class="txt_num" dataType="" id="spn_gdsRate" label="" style=""></w2:span>
+                                <w2:span class="txt_per" id="" label="%" style=""></w2:span>
+                                <w2:textbox id="tbx_mainTitleDate" label="" style=""></w2:textbox>
+                            </xf:group>
+                            <xf:group style="" id="" class="slider_title">
+                                <w2:textbox label="투명한 경매. 튼튼한 미래." style="font-size:36px;font-weight:600;" id=""></w2:textbox>
+                                <w2:textbox id="" label="국민과 함께하는" style="font-size:50px;font-weight:600;"></w2:textbox>
+                                <w2:textbox id="" label="법원경매정보" style=""></w2:textbox>
+                            </xf:group>
+                            <xf:group style="" id="" class="slider_list" tagname="" tabIndex="">
+                                <xf:group style="" id="grp_dwlBld" tagname="a" class="slider_btn resi" tabIndex="0" adaptiveThreshold="" ev:onclick="scwin.mainMoveIcon('01')">
+                                    <w2:span label="주거용건물" style="" id="" class="" userData1=""></w2:span>
+                                </xf:group>
+                                <xf:group id="" style="" tagname="a" tabIndex="0" class="slider_btn car" data-slide-index="1" ev:onclick="scwin.mainMoveIcon('03')">
+                                    <w2:span id="" label="자동차" style=""></w2:span>
+                                </xf:group>
+                                <xf:group id="" style="" tagname="a" class="slider_btn comm" tabIndex="0" ev:onclick="scwin.mainMoveIcon('02')">
+                                    <w2:span id="" label="상가용건물" style=""></w2:span>
+                                </xf:group>
+                                <xf:group id="" style="" tagname="a" tabIndex="0" class="slider_btn land" ev:onclick="scwin.mainMoveIcon('05')">
+                                    <w2:span id="" label="토지" style=""></w2:span>
+                                </xf:group>
+                                <xf:group id="" style="" tagname="a" class="slider_btn indust" tabIndex="0" ev:onclick="scwin.mainMoveIcon('04')">
+                                    <w2:span id="" label="산업용건물" style=""></w2:span>
+                                </xf:group>
+                                <xf:group id="" style="" tagname="a" class="slider_btn forest" tabIndex="0" ev:onclick="scwin.mainMoveIcon('06')">
+                                    <w2:span id="" label="임야" style=""></w2:span>
+                                </xf:group>
+
+                            </xf:group>
+                        </xf:group>
+                    </xf:group>
+
+
+                    <xf:group style="" id="mainSlider" class="main_slider" tagname="ul">
+                        <xf:group style="" id="" tagname="li" class="slider_item resi">
+
+                        </xf:group>
+                        <xf:group id="" style="" tagname="li" class="slider_item car"></xf:group>
+                        <xf:group class="slider_item comm" id="" style="" tagname="li"></xf:group>
+                        <xf:group class="slider_item land" id="" style="" tagname="li"></xf:group>
+                        <xf:group class="slider_item indust" id="" style="" tagname="li"></xf:group>
+                        <xf:group class="slider_item forest" id="" style="" tagname="li"></xf:group>
+                    </xf:group>
+                </xf:group>
+
+
+                <xf:group style="" id="" class="main_top">
+                    <xf:group style="" id="" class="inr">
+                        <xf:group style="" id="" class="main_ly">
+                            <xf:group style="" id="grp_loginBox" class="mainbox col25 t_line login">
+
+                                <xf:group style="" id="" class="box">
+                                    <xf:group style="" id="" class="btns_login">
+                                        <xf:trigger type="button" style="" id="btn_mainLogin" ev:onclick="scwin.mainLoginEvent">
+                                            <xf:label><![CDATA[로그인]]></xf:label>
+                                        </xf:trigger>
+                                        <xf:trigger id="trigger3" style="" type="button" ev:onclick="scwin.mainJoinMemberPageMoveEvent" title="새 창 열림">
+                                            <xf:label><![CDATA[회원가입]]></xf:label>
+                                        </xf:trigger>
+
+                                    </xf:group>
+                                    <xf:group class="btns_idpw" id="" style="\">
+                                        <xf:trigger id="" style="" type="button" ev:onclick="scwin.mainFindMemberPageMoveEvent" title="새 창 열림">
+                                            <xf:label><![CDATA[아이디찾기]]></xf:label>
+                                        </xf:trigger>
+                                        <xf:trigger id="" style="" type="button" ev:onclick="scwin.mainFindMemberPageMoveEvent" title="새 창 열림">
+                                            <xf:label><![CDATA[비밀번호찾기]]></xf:label>
+                                        </xf:trigger>
+                                    </xf:group>
+
+                                    <xf:group style="" id="" class="ac">
+                                        <w2:anchor outerDiv="false" style="" id="" class="bt_favor" ev:onclick="scwin.bmrkReg">
+                                            <xf:label><![CDATA[법원경매 사이트를 즐겨찾기에 추가하기]]></xf:label>
+                                        </w2:anchor>
+                                    </xf:group>
+                                </xf:group>
+                            </xf:group>
+                            <xf:group class="mainbox col25 t_line login" id="grp_logOutBox" style="">
+                                <xf:group class="box" id="" style="">
+                                    <xf:group class="btns_login" id="" style="">
+                                        <xf:trigger ev:onclick="scwin.btn_mainLogout_onclick" id="trigger8"
+                                            style="color:#fff;background:#01998a;width: 100%;border-top-right-radius: 5px 5px;border-bottom-right-radius: 5px 5px;"
+                                            type="button">
+                                            <xf:label><![CDATA[로그아웃]]></xf:label>
+                                        </xf:trigger>
+                                    </xf:group>
+                                    <xf:group class="btns_idpw" id="" style="\">
+                                        <xf:trigger id="" style="" type="button">
+                                            <xf:label><![CDATA[일정관리]]></xf:label>
+                                        </xf:trigger>
+                                        <xf:trigger ev:onclick="scwin.mainEditMemberPageMoveEvent" id="" style="" type="button">
+                                            <xf:label><![CDATA[회원정보수정]]></xf:label>
+                                        </xf:trigger>
+                                    </xf:group>
+                                    <xf:group class="ac" id="" style="">
+                                        <w2:anchor class="bt_favor" ev:onclick="scwin.bmrkReg" id="" outerDiv="false" style="">
+                                            <xf:label><![CDATA[법원경매 사이트를 즐겨찾기에 추가하기]]></xf:label>
+                                        </w2:anchor>
+                                    </xf:group>
+                                    <xf:group class="" id="" style="\"><xf:group id="" class="shbox_btns"><xf:select1 chooseOptionLabel="자주쓰는메뉴" submenuSize="auto" textAlign="left" chooseOption="true" allOption="" title="자주쓰는메뉴" ref="" appearance="minimal" disabledClass="w2selectbox_disabled" disabled="false" style="width:61%;" id="sbx_oftenUsingMenu" renderType="select" class="sel" direction="auto" ev:onchange="scwin.sbx_oftenUsingMenu_onchange">
+                                            <xf:choices></xf:choices>
+                                        </xf:select1><xf:trigger style="" id="btn_oftenUsingMenu" type="button" class="btn_cm bt_sch" ev:onclick="scwin.btn_oftenUsingMenu_onclick">
+                                            <xf:label><![CDATA[설정]]></xf:label>
+                                        </xf:trigger></xf:group></xf:group>
+                                </xf:group>
+                            </xf:group>
+                            <xf:group class="mainbox col5  t_line quick" id="" style="">
+                                <xf:group style="" id="" class="box">
+                                    <xf:group class="title_box" id="" style="">
+
+
+                                        <xf:group style="" id="" class="fl">
+                                            <w2:textbox id="" label="빠른물건 검색" style="" class="main_title" tagname="h3"></w2:textbox>
+                                            <w2:textbox class="txt_ex" id="" label="공고중인 지역만 검색 가능합니다." style=""></w2:textbox>
+                                        </xf:group>
+                                    </xf:group>
+                                    <xf:group class="qk_sch" id="" style="">
+                                        <xf:group style="" id="" class="top">
+                                            <xf:trigger type="button" style="" id="btn_rletRpdt" class="bt_qk active" ev:onclick="scwin.rpdtSrchBtnEvent('01')" disabled="" title="빠른물건검색 부동산 선택">
+                                                <xf:label><![CDATA[부동산]]></xf:label>
+                                            </xf:trigger>
+
+                                            <xf:trigger class="bt_qk" id="btn_mvprpRpdt" style="" type="button" ev:onclick="scwin.rpdtSrchBtnEvent('02')" title="빠른물건검색 동산">
+                                                <xf:label><![CDATA[동산]]></xf:label>
+                                            </xf:trigger>
+
+                                            <w2:textbox tagname="label" for="sbx_rletRpdtCortLst" id="" label="법원선택" class="webblind"></w2:textbox>
+                                            <xf:select1 allOption="" appearance="minimal" chooseOption="true" class="sel mr0" direction="auto" disabled="false" disabledClass="w2selectbox_disabled" id="sbx_rletRpdtCortLst" ref="" renderType="select" style="width:68%;" submenuSize="auto" textAlign="left" chooseOptionLabel="전체" title="법원선택" ev:onviewchange="scwin.sbx_rletRpdtCortLst_onviewchange">
+                                                <xf:choices></xf:choices>
+                                            </xf:select1>
+
+                                            <w2:textbox tagname="label" for="sbx_mvprpRpdtCortLst" id="" label="법원선택" class="webblind"></w2:textbox>
+                                            <xf:select1 allOption="" appearance="minimal" chooseOption="true" class="sel mr0" direction="auto" disabled="false" disabledClass="w2selectbox_disabled" id="sbx_mvprpRpdtCortLst" ref="" renderType="select" style="width:68%;" submenuSize="auto" textAlign="left" chooseOptionLabel="전체" ev:onchange="scwin.sbx_mvprpRpdtCortLst_onchange" title="법원선택">
+                                                <xf:choices></xf:choices>
+                                            </xf:select1>
+                                        </xf:group>
+
+                                        <xf:group style="" id="grp_rletRpdtSrch" class="bottom">
+                                            <w2:textbox tagname="label" for="sbx_rletRpdtSdLst" id="" label="시/도 선택" class="webblind"></w2:textbox>
+                                            <xf:select1 allOption="" appearance="minimal" class="sel" direction="auto" disabled="false" disabledClass="w2selectbox_disabled" id="sbx_rletRpdtSdLst" ref="" renderType="select" style="width:41%;" submenuSize="auto" textAlign="left" chooseOption="true" chooseOptionLabel="시/도" title="시/도 선택" ev:onviewchange="scwin.sbx_rletRpdtSdLst_onviewchange">
+                                                <xf:choices></xf:choices>
+                                            </xf:select1>
+                                            <w2:textbox tagname="label" for="sbx_rletRpdtSggLst" id="" label="시/군/구 선택" class="webblind"></w2:textbox>
+                                            <xf:select1 allOption="" appearance="minimal" class="sel" direction="auto" disabled="false" disabledClass="w2selectbox_disabled" id="sbx_rletRpdtSggLst" ref="" renderType="select" style="width:55%;" submenuSize="auto" textAlign="left" chooseOption="true" chooseOptionLabel="시/군/구" ev:onchange="scwin.sbx_rletRpdtSggLst_onchange" title="시/군/구 선택">
+                                                <xf:choices></xf:choices>
+                                            </xf:select1>
+                                            <w2:textbox tagname="label" for="sbx_rletRpdtConsonant" id="" label="자음 선택" class="webblind"></w2:textbox>
+                                            <xf:select1 allOption="" appearance="minimal" class="sel" direction="auto" disabled="false" disabledClass="w2selectbox_disabled" id="sbx_rletRpdtConsonant" ref="" renderType="select" style="width:20%;" submenuSize="auto" textAlign="left" chooseOption="" ev:onchange="scwin.sbx_rletRpdtConsonant_onchange" title="자음 선택">
+                                                <xf:choices></xf:choices>
+                                            </xf:select1>
+                                            <w2:textbox tagname="label" for="sbx_rletRpdtEmdLst" id="" label="동/도로명 선택" class="webblind"></w2:textbox>
+                                            <xf:select1 allOption="" appearance="minimal" chooseOption="true" class="sel" direction="auto" disabled="false" disabledClass="w2selectbox_disabled" id="sbx_rletRpdtEmdLst" ref="" renderType="select" style="width:76%;" submenuSize="auto" textAlign="left" chooseOptionLabel="동/도로명" title="동/도로명 선택">
+                                                <xf:choices></xf:choices>
+                                            </xf:select1>
+                                        </xf:group>
+                                        <xf:group class="bottom" id="grp_mvprpRpdtSrch" style="">
+                                            <w2:textbox tagname="label" for="sbx_mvprpRpdtSdLst" id="" label="시/도 선택" class="webblind"></w2:textbox>
+                                            <xf:select1 allOption="" appearance="minimal" class="sel" direction="auto" disabled="false" disabledClass="w2selectbox_disabled" id="sbx_mvprpRpdtSdLst" ref="" renderType="select" style="width:41%;" submenuSize="auto" textAlign="left" ev:onchange="scwin.sbx_mvprpRpdtSdLst_onchange" chooseOption="true" chooseOptionLabel="시/도" title="시/도 선택">
+                                                <xf:choices></xf:choices>
+                                            </xf:select1>
+                                            <w2:textbox tagname="label" for="sbx_mvprpRpdtSggLst" id="" label="시/군/구 선택" class="webblind"></w2:textbox>
+                                            <xf:select1 allOption="" appearance="minimal" class="sel" direction="auto" disabled="false" disabledClass="w2selectbox_disabled" id="sbx_mvprpRpdtSggLst" ref="" renderType="select" style="width:55%;" submenuSize="auto" textAlign="left" chooseOption="true" chooseOptionLabel="시/군/구" ev:onchange="scwin.sbx_mvprpRpdtSggLst_onchange" title="시/군/구 선택">
+                                                <xf:choices></xf:choices>
+                                            </xf:select1>
+                                            <w2:textbox tagname="label" for="sbx_mvprpRpdtConsonant" id="" label="자음 선택" class="webblind"></w2:textbox>
+                                            <xf:select1 allOption="" appearance="minimal" chooseOption="" class="sel" direction="auto" disabled="false" disabledClass="w2selectbox_disabled" id="sbx_mvprpRpdtConsonant" ref="" renderType="select" style="width:20%;" submenuSize="auto" textAlign="left" ev:onchange="scwin.sbx_mvprpRpdtConsonant_onchange" title="자음 선택">
+                                                <xf:choices></xf:choices>
+                                            </xf:select1>
+                                            <w2:textbox tagname="label" for="sbx_mvprpRpdtEmdLst" id="" label="동/도로명 선택" class="webblind"></w2:textbox>
+                                            <xf:select1 allOption="" appearance="minimal" class="sel" direction="auto" disabled="false" disabledClass="w2selectbox_disabled" id="sbx_mvprpRpdtEmdLst" ref="" renderType="select" style="width:76%;" submenuSize="auto" textAlign="left" chooseOption="true" chooseOptionLabel="동/도로명">
+                                                <xf:choices></xf:choices>
+                                            </xf:select1>
+                                        </xf:group>
+                                        <xf:trigger type="button" style="" id="btn_quickSearchGds" class="bt_qkSch" ev:onclick="scwin.btn_quickSearchGds_onclick">
+                                            <xf:label><![CDATA[검색하기]]></xf:label>
+                                        </xf:trigger>
+                                    </xf:group>
+                                    <xf:group style="" id="" class="sch_link">
+                                        <w2:anchor outerDiv="false" style="" id="" ev:onclick='scwin.fastSrchMoveUrl("1")'>
+                                            <xf:label><![CDATA[물건상세검색]]></xf:label>
+                                        </w2:anchor>
+                                        <w2:anchor id="" outerDiv="false" style="" ev:onclick='scwin.fastSrchMoveUrl("2")'>
+                                            <xf:label><![CDATA[지도검색]]></xf:label>
+                                        </w2:anchor>
+                                        <w2:anchor id="anchor2" outerDiv="false" style="" ev:onclick='scwin.fastSrchMoveUrl("3")'>
+                                            <xf:label><![CDATA[자동차 중기검색]]></xf:label>
+                                        </w2:anchor>
+                                        <w2:anchor id="" outerDiv="false" style="" ev:onclick='scwin.fastSrchMoveUrl("4")'>
+                                            <xf:label><![CDATA[경매사건검색]]></xf:label>
+                                        </w2:anchor>
+                                    </xf:group>
+
+
+                                </xf:group>
+                            </xf:group>
+                            <xf:group class="mainbox col25 t_line schedule" id="" style="">
+
+                                <xf:group style="" id="" class="box pb0">
+                                    <xf:group class="title_box" id="" style="">
+                                        <w2:textbox id="" label="금주의 경매일정" style="" class="main_title" tagname="h3"></w2:textbox>
+                                    </xf:group>
+
+                                    <w2:tabControl useTabKeyOnly="true" id="tabControl2" useMoveNextTabFocus="false" useConfirmMessage="false" confirmTrueAction="exist" confirmFalseAction="new" alwaysDraw="true" style="" class="schd_tab_type1" ev:onchange="scwin.tabControl2_onchange">
+                                        <w2:tabs disabled="false" style="" id="tabs1" label="부동산"></w2:tabs>
+                                        <w2:tabs disabled="false" style="" id="tabs2" label="동산"></w2:tabs>
+                                        <w2:content alwaysDraw="true" style="" id="content1">
+                                            <w2:tabControl useTabKeyOnly="true" id="tabControl1" useMoveNextTabFocus="false" useConfirmMessage="false" confirmTrueAction="exist" confirmFalseAction="new" alwaysDraw="true" style="" closable="" class="schd_tab_type2" ev:onchange="scwin.tabControl1_onchange">
+                                                <w2:tabs disabled="false" style="" id="tabs3" label="공고"></w2:tabs>
+                                                <w2:tabs disabled="false" style="" id="tabs4" label="정정"></w2:tabs>
+                                                <w2:tabs disabled="false" style="" id="tabs5" label="취하취소"></w2:tabs>
+                                                <w2:content alwaysDraw="false" style="" id="content3">
+                                                    <xf:group style="" id="" class="ar">
+                                                        <xf:trigger style="" id="btn_rletGnrlReload" type="button" title="새로고침" class="btn_cm bt_reload">
+                                                            <xf:label><![CDATA[]]></xf:label>
+                                                        </xf:trigger>
+                                                    </xf:group>
+                                                    <xf:group style="overflow-y: auto;max-height: 250px;" id="" tagname="ul">
+                                                        <w2:generator tagname="ul" style="" id="gen_rletGnrl" class="schd_list">
+                                                            <xf:group tagname="li" style="" id="">
+                                                                <w2:span style="width:50%;" id="spn_rletGnrlCortTitle" label="수원2계" class="tit">
+                                                                </w2:span>
+                                                                <xf:group style="width:25%;" id="" class="ar">
+                                                                    <w2:anchor outerDiv="false" style="" id="anc_rletGnrlDxdyTitle"
+                                                                        ev:onclick="scwin.anc_rletGnrlDxdyTitle_onclick">
+                                                                        <xf:label><![CDATA[5.25]]></xf:label>
+                                                                    </w2:anchor>
+                                                                    <w2:span class="" id="spn_rletGnrlDxdyTitle" label="10.08" style=""></w2:span>
+                                                                </xf:group>
+
+                                                                <xf:group style="width:25%;" id="" class="ar">
+                                                                    <w2:span style="width:90px;" id="spn_rletGnrlBidDvsTitle" label="(기일)" class="">
+                                                                    </w2:span>
+                                                                </xf:group>
+                                                            </xf:group>
+
+                                                        </w2:generator>
+                                                        <w2:textbox class="ac" dataType="" id="tbx_rletGnrlNone" label="일정이 없습니다." style="padding:10px 0;font-size:15px;">
+                                                        </w2:textbox>
+                                                    </xf:group>
+                                                </w2:content>
+                                                <w2:content alwaysDraw="false" style="" id="content4">
+                                                    <xf:group class="ar" id="" style="">
+                                                        <xf:trigger class="btn_cm bt_reload" id="btn_rletCrrctReload" style="" title="새로고침" type="button">
+                                                            <xf:label><![CDATA[]]></xf:label>
+                                                        </xf:trigger>
+                                                    </xf:group>
+                                                    <xf:group class="" id="" style="overflow-y: auto;max-height: 250px;" tagname="ul">
+                                                        <w2:generator class="schd_list" id="gen_rletCrrct" style="" tagname="ul">
+                                                            <xf:group id="" style="" tagname="li">
+                                                                <w2:span class="tit" id="spn_rletCrrctCortTitle" label="수원2계" style="width:50%;">
+                                                                </w2:span>
+                                                                <xf:group class="ar" id="" style="width:25%;">
+                                                                    <w2:anchor id="anc_rletCrrctDxdyTitle" outerDiv="false" style=""
+                                                                        ev:onclick="scwin.anc_rletCrrctDxdyTitle_onclick">
+                                                                        <xf:label><![CDATA[5.25]]></xf:label>
+                                                                    </w2:anchor>
+                                                                    <w2:span class="" id="spn_rletCrrctDxdyTitle" label="10.08" style=""></w2:span>
+                                                                </xf:group>
+                                                                <xf:group class="ar" id="" style="width:25%;">
+                                                                    <w2:span class="" id="spn_rletCrrctBidDvsTitle" label="(기일)" style="width:90px;">
+                                                                    </w2:span>
+                                                                </xf:group>
+                                                            </xf:group>
+                                                        </w2:generator>
+                                                        <w2:textbox class="ac" dataType="" id="tbx_rletCrrctNone" label="일정이 없습니다." style="padding:10px 0;font-size:15px;">
+                                                        </w2:textbox>
+                                                    </xf:group>
+
+                                                </w2:content>
+                                                <w2:content alwaysDraw="false" style="" id="content5">
+                                                    <xf:group class="ar" id="" style="">
+                                                        <xf:trigger class="btn_cm bt_reload" id="btn_rletRtrcnReload" style="" title="새로고침" type="button" ev:onclick="scwin.grp_rletGnrlReload_onclick">
+                                                            <xf:label></xf:label>
+                                                        </xf:trigger>
+                                                    </xf:group>
+                                                    <xf:group class="" id="" style="overflow-y: auto;max-height: 250px;" tagname="ul">
+                                                        <w2:generator class="schd_list" id="gen_rletRtrcn" style="" tagname="ul">
+                                                            <xf:group id="" style="" tagname="li">
+                                                                <w2:span class="tit" id="spn_rletRtrcnCortTitle" label="수원2계" style="width:50%;">
+                                                                </w2:span>
+                                                                <xf:group class="ar" id="" style="width:25%;">
+                                                                    <w2:anchor id="anc_rletRtrcnDxdyTitle" outerDiv="false" style=""
+                                                                        ev:onclick="scwin.anc_rletRtrcnDxdyTitle_onclick">
+                                                                        <xf:label><![CDATA[5.25]]></xf:label>
+                                                                    </w2:anchor>
+                                                                    <w2:span class="" id="spn_rletRtrcnDxdyTitle" label="10.08" style=""></w2:span>
+                                                                </xf:group>
+                                                                <xf:group class="ar" id="" style="width:25%;">
+                                                                    <w2:span class="" id="anc_rletRtrcnBidDvsTitle" label="(기일)" style="width:90px;">
+                                                                    </w2:span>
+                                                                </xf:group>
+                                                            </xf:group>
+                                                        </w2:generator>
+                                                        <w2:textbox class="ac" dataType="" id="tbx_rletRtrcnNone" label="일정이 없습니다." style="padding:10px 0;font-size:15px;">
+                                                        </w2:textbox>
+                                                    </xf:group>
+
+                                                </w2:content>
+                                            </w2:tabControl>
+                                        </w2:content>
+                                        <w2:content alwaysDraw="true" style="" id="content2">
+                                            <w2:tabControl useTabKeyOnly="true" id="tabControl3" useMoveNextTabFocus="false" useConfirmMessage="false" confirmTrueAction="exist" confirmFalseAction="new" alwaysDraw="true" style="" class="schd_tab_type2" ev:onchange="scwin.tabControl3_onchange">
+                                                <w2:tabs disabled="false" style="" id="tabs6" label="일반" class="w50"></w2:tabs>
+                                                <w2:tabs disabled="false" style="" id="tabs7" label="조기" class="w50"></w2:tabs>
+                                                <w2:content alwaysDraw="false" style="" id="content6">
+                                                    <xf:group class="ar" id="" style="">
+                                                        <xf:trigger class="btn_cm bt_reload" id="btn_mvprpGnrlReload" style="" title="새로고침" type="button">
+                                                            <xf:label></xf:label>
+                                                        </xf:trigger>
+                                                    </xf:group>
+                                                    <xf:group class="" id="" style="overflow-y: auto;max-height: 250px;" tagname="ul">
+                                                        <w2:generator class="schd_list" id="gen_mvprpGnrl" style="" tagname="ul">
+                                                            <xf:group id="" style="" tagname="li">
+                                                                <w2:span class="tit" id="spn_mvprpGnrlCortTitle" label="수원2계" style="width:35%;">
+                                                                </w2:span>
+                                                                <xf:group class="ar" id="" style="width:25%;">
+                                                                    <w2:anchor id="anc_mvprpGnrlDxdyTitle" outerDiv="false"
+                                                                        style="margin-right: 37%;"
+                                                                        ev:onclick="scwin.anc_mvprpGnrlDxdyTitle_onclick">
+                                                                        <xf:label><![CDATA[5.25]]></xf:label>
+                                                                    </w2:anchor>
+                                                                    <w2:span class="" id="spn_mvprpGnrlDxdyTitle" label="10.08" style="margin-right: 37%;"></w2:span>
+                                                                </xf:group>
+                                                                <xf:group class="ar" id="" style="width:35%;">
+                                                                    <w2:span class="" id="spn_mvprpGnrlBidDvsTitle" label="(기일)" style="width:40%;">
+                                                                    </w2:span>
+                                                                </xf:group>
+                                                            </xf:group>
+                                                        </w2:generator>
+                                                        <w2:textbox class="ac" dataType="" id="tbx_mvprpGnrlNone" label="일정이 없습니다." style="padding:10px 0;font-size:15px;">
+                                                        </w2:textbox>
+                                                    </xf:group>
+                                                </w2:content>
+                                                <w2:content alwaysDraw="false" style="" id="content7">
+                                                    <xf:group class="ar" id="" style="">
+                                                        <xf:trigger class="btn_cm bt_reload" id="btn_mvprpErlyReload" style="" title="새로고침" type="button">
+                                                            <xf:label></xf:label>
+                                                        </xf:trigger>
+                                                    </xf:group>
+                                                    <xf:group class="" id="" style="overflow-y: auto;max-height: 250px;" tagname="ul">
+                                                        <w2:generator class="schd_list" id="gen_mvprpErly" style="" tagname="ul">
+                                                            <xf:group id="" style="" tagname="li">
+                                                                <w2:span class="tit" id="spn_mvprpErlyCortTitle" label="수원2계" style="width:35%;">
+                                                                </w2:span>
+                                                                <xf:group class="ar" id="" style="width:25%;">
+                                                                    <w2:anchor id="anc_mvprpErlyDxdyTitle" outerDiv="false"
+                                                                        style="margin-right: 37%;"
+                                                                        ev:onclick='scwin.anc_mvprpErlyDxdyTitle_onclick'>
+                                                                        <xf:label><![CDATA[5.25]]></xf:label>
+                                                                    </w2:anchor>
+                                                                    <w2:span class="" id="spn_mvprpErlyDxdyTitle" label="10.08" style="margin-right: 37%;"></w2:span>
+                                                                </xf:group>
+                                                                <xf:group class="ar" id="" style="width:35%;">
+                                                                    <w2:span class="" id="spn_mvprpErlyBidDvsTitle" label="(기일)" style="width:40%;">
+                                                                    </w2:span>
+                                                                </xf:group>
+                                                            </xf:group>
+                                                        </w2:generator>
+                                                        <w2:textbox class="ac" dataType="" id="tbx_mvprpErlyNone" label="일정이 없습니다." style="padding:10px 0;font-size:15px;">
+                                                        </w2:textbox>
+                                                    </xf:group>
+                                                </w2:content>
+                                            </w2:tabControl>
+                                        </w2:content>
+                                    </w2:tabControl>
+                                </xf:group>
+                            </xf:group>
+                            <xf:group class="mainbox col25 t_line notice" id="" style="">
+                                <xf:group class="box" id="grp_slideNtcMtr" style="">
+                                    <xf:group class="title_box" id="" style="">
+                                        <xf:group class="fl" id="" style="">
+                                            <w2:textbox class="main_title" id="" label="공지사항" style="" tagname="h3"></w2:textbox>
+                                        </xf:group>
+                                        <xf:group style="" id="" class="fr">
+                                            <xf:trigger class="btn_cm bt_all" id="btn_ntcMtrExts" style="" title="공지사항 더보기" type="button" ev:onclick="scwin.btn_ntcMtrExts_onclick">
+                                                <xf:label><![CDATA[전체보기]]></xf:label>
+                                            </xf:trigger>
+                                        </xf:group>
+                                    </xf:group>
+
+                                    <xf:group style="" id="" class="notice_wrap">
+                                        <xf:group style="" id="" tagname="ul" class="notice_list">
+                                            <xf:group style="" id="" tagname="li">
+                                                <w2:anchor outerDiv="false" style="width:150px;" id="anc_sideNtcMtr_1" ev:onclick="scwin.moveNtcMtrDtlEvent" escape="false" ref="" href="#">
+                                                    <xf:label><![CDATA[공지사항 상세내용]]></xf:label>
+                                                </w2:anchor>
+                                                <w2:textbox id="tbx_sideNtcMtrDate_1" label="" style="" class="txt_date"></w2:textbox>
+                                            </xf:group>
+                                            <xf:group id="" style="" tagname="li">
+                                                <w2:anchor id="anc_sideNtcMtr_2" outerDiv="false" style="width:150px;" ev:onclick="scwin.moveNtcMtrDtlEvent" escape="false">
+                                                    <xf:label><![CDATA[공지사항 상세내용]]></xf:label>
+                                                </w2:anchor>
+                                                <w2:textbox class="txt_date" id="tbx_sideNtcMtrDate_2" label="" style=""></w2:textbox>
+                                            </xf:group>
+                                            <xf:group id="" style="" tagname="li">
+                                                <w2:anchor id="anc_sideNtcMtr_3" outerDiv="false" style="width:150px;" ev:onclick="scwin.moveNtcMtrDtlEvent" escape="false">
+                                                    <xf:label><![CDATA[공지사항 상세내용]]></xf:label>
+                                                </w2:anchor>
+                                                <w2:textbox class="txt_date" id="tbx_sideNtcMtrDate_3" label="" style=""></w2:textbox>
+                                            </xf:group>
+                                        </xf:group>
+                                    </xf:group>
+                                </xf:group>
+                            </xf:group>
+                            <xf:group class="mainbox col5  t_line use" id="" style="">
+                                <xf:group class="box" id="" style="">
+                                    <xf:group class="title_box" id="" style="">
+                                        <xf:group class="fl" id="" style="">
+                                            <w2:textbox class="main_title" id="" label="용도별 물건정보" style="" tagname="h3"></w2:textbox>
+                                        </xf:group>
+                                        <xf:group class="fr" id="" style="">
+                                            <xf:trigger class="btn_cm bt_all" id="" style="" title="용도별 물건정보 더보기" type="button" ev:onclick="scwin.moveUsgSrch('00')">
+                                                <xf:label><![CDATA[전체보기]]></xf:label>
+                                            </xf:trigger>
+                                        </xf:group>
+                                    </xf:group>
+                                    <xf:group style="" id="" class="use_info" tagname="ul">
+                                        <xf:group style="" id="" text="" tabIndex="" tagname="li">
+                                            <w2:anchor outerDiv="false" style="" id="" ev:onclick="scwin.moveUsgSrch('01')">
+                                                <xf:label><![CDATA[아파트]]></xf:label>
+                                            </w2:anchor>
+                                        </xf:group>
+                                        <xf:group id="" style="" tabIndex="" tagname="li" text="">
+                                            <w2:anchor id="" outerDiv="false" style="" ev:onclick="scwin.moveUsgSrch('02')">
+                                                <xf:label><![CDATA[빌라]]></xf:label>
+                                            </w2:anchor>
+                                        </xf:group>
+                                        <xf:group id="" style="" tabIndex="" tagname="li" text="">
+                                            <w2:anchor id="" outerDiv="false" style="" ev:onclick="scwin.moveUsgSrch('03')">
+                                                <xf:label><![CDATA[대지]]></xf:label>
+                                            </w2:anchor>
+                                        </xf:group>
+                                        <xf:group id="" style="" tabIndex="" tagname="li" text="">
+                                            <w2:anchor id="anc_usgGdsInf_0" outerDiv="false" style="">
+                                                <xf:label><![CDATA[임야]]></xf:label>
+                                            </w2:anchor>
+                                        </xf:group>
+                                        <xf:group id="" style="" tabIndex="" tagname="li" text="">
+                                            <w2:anchor id="anc_usgGdsInf_1" outerDiv="false" style="">
+                                                <xf:label><![CDATA[전]]></xf:label>
+                                            </w2:anchor>
+                                        </xf:group>
+                                        <xf:group id="" style="" tabIndex="" tagname="li" text="">
+                                            <w2:anchor id="anc_usgGdsInf_2" outerDiv="false" style="">
+                                                <xf:label><![CDATA[답]]></xf:label>
+                                            </w2:anchor>
+                                        </xf:group>
+                                        <xf:group id="" style="" tabIndex="" tagname="li" text="">
+                                            <w2:anchor id="anc_usgGdsInf_3" outerDiv="false" style="">
+                                                <xf:label><![CDATA[다세대주택]]></xf:label>
+                                            </w2:anchor>
+                                        </xf:group>
+                                        <xf:group id="" style="" tabIndex="" tagname="li" text="">
+                                            <w2:anchor id="anc_usgGdsInf_4" outerDiv="false" style="">
+                                                <xf:label><![CDATA[근린생활시설]]></xf:label>
+                                            </w2:anchor>
+                                        </xf:group>
+                                        <xf:group id="" style="" tabIndex="" tagname="li" text="">
+                                            <w2:anchor id="anc_usgGdsInf_5" outerDiv="false" style="">
+                                                <xf:label><![CDATA[도로]]></xf:label>
+                                            </w2:anchor>
+                                        </xf:group>
+                                        <xf:group id="" style="" tabIndex="" tagname="li" text="">
+                                            <w2:anchor id="anc_usgGdsInf_6" outerDiv="false" style="">
+                                                <xf:label><![CDATA[공장]]></xf:label>
+                                            </w2:anchor>
+                                        </xf:group>
+                                        <xf:group id="" style="" tabIndex="" tagname="li" text="">
+                                            <w2:anchor id="anc_usgGdsInf_7" outerDiv="false" style="">
+                                                <xf:label><![CDATA[단독주택]]></xf:label>
+                                            </w2:anchor>
+                                        </xf:group>
+                                        <xf:group id="" style="" tabIndex="" tagname="li" text="">
+                                            <w2:anchor id="anc_usgGdsInf_8" outerDiv="false" style="">
+                                                <xf:label><![CDATA[승용차]]></xf:label>
+                                            </w2:anchor>
+                                        </xf:group>
+                                    </xf:group>
+                                </xf:group>
+
+                            </xf:group>
+                            <xf:group class="mainbox col25 t_line help" id="" style="">
+                                <xf:group class="box" id="" style="">
+                                    <xf:group class="title_box" id="" style="">
+                                        <w2:textbox class="main_title" id="" label="경매도우미" style="" tagname="h3"></w2:textbox>
+                                    </xf:group>
+
+
+
+                                    <xf:group style="" id="" class="help">
+                                        <xf:group style="" id="">
+                                            <w2:textbox tagname="label" for="ibx_auctnTrmCtt" id="" label="경매도우미 검색어입력" class="webblind"></w2:textbox>
+                                            <xf:input class="inp" id="ibx_auctnTrmCtt" placeholder="검색어 입력" style="" title="경매도우미 검색"></xf:input>
+                                            <xf:trigger type="button" style="" id="btn_auctnTrm" class="bt_sch" title="경매도우미 검색" ev:onclick="scwin.btn_auctnTrm_onclick">
+                                                <xf:label><![CDATA[경매도우미 검색]]></xf:label>
+                                            </xf:trigger>
+                                        </xf:group>
+                                        <w2:span label="예시" style="" id="span3" class="txt_ex"></w2:span>
+                                        <xf:group style="" id="" class="ex_list">
+                                            <w2:anchor outerDiv="false" style="" id="" title="매각기일 검색 바로가기" ev:onclick="scwin.auctnTrmExWordSrch('매각기일')">
+                                                <xf:label><![CDATA[매각기일]]></xf:label>
+                                            </w2:anchor>
+                                            <w2:anchor id="" outerDiv="false" style="" title="소유권 검색" ev:onclick="scwin.auctnTrmExWordSrch('소유권')">
+                                                <xf:label><![CDATA[소유권]]></xf:label>
+                                            </w2:anchor>
+                                            <w2:anchor id="" outerDiv="false" style="" title="분할채권 검색" ev:onclick="scwin.auctnTrmExWordSrch('분할채권')">
+                                                <xf:label><![CDATA[분할채권]]></xf:label>
+                                            </w2:anchor>
+                                            <w2:anchor id="" outerDiv="false" style="" title="대항력 검색" ev:onclick="scwin.auctnTrmExWordSrch('대항력')">
+                                                <xf:label><![CDATA[대항력]]></xf:label>
+                                            </w2:anchor>
+                                            <w2:anchor id="" outerDiv="false" style="" title="배당요구 검색" ev:onclick="scwin.auctnTrmExWordSrch('배당요구')">
+                                                <xf:label><![CDATA[배당요구]]></xf:label>
+                                            </w2:anchor>
+                                            <w2:anchor id="" outerDiv="false" style="" title="지상권 검색" ev:onclick="scwin.auctnTrmExWordSrch('지상권')">
+                                                <xf:label><![CDATA[지상권]]></xf:label>
+                                            </w2:anchor>
+                                        </xf:group>
+                                    </xf:group>
+                                </xf:group>
+                            </xf:group>
+
+
+                        </xf:group>
+                    </xf:group>
+
+                </xf:group>
+                <xf:group style="" id="" class="main_bottom">
+                    <xf:group style="" id="" class="inr">
+                        <xf:group class="main_ly" id="" style="">
+                            <xf:group class="mainbox col25 bd service" id="gpr_serviceGuide" style="">
+                                <xf:group class="box" id="" style="">
+                                    <xf:group style="" id="" tagname="ul" class="info_list">
+                                        <xf:group class="" id="" style="" tagname="li">
+                                            <xf:group id="anc_pvsnSrvc" style=""
+                                                tagname="a" tabIndex="0" ev:onclick="scwin.grp_pvsnSrvc_onclick">
+                                                <w2:textbox class="tit" id="" label="제공서비스안내" style=""></w2:textbox>
+                                                <w2:textbox id="" label="바르고 투명한 법원경매" style=""></w2:textbox>
+                                            </xf:group>
+                                        </xf:group>
+                                        <xf:group class="" id="" style="" tagname="li">
+                                            <xf:group id="anc_sitUtilGdnc" style=""
+                                                tagname="a" tabIndex="0" ev:onclick="scwin.grp_sitUtilGdncBtn_onclick">
+                                                <w2:textbox class="tit" id="" label="잘~활용하기" style=""></w2:textbox>
+                                                <w2:textbox id="" label="법원경매 100%" style=""></w2:textbox>
+                                            </xf:group>
+                                        </xf:group>
+                                        <xf:group class="" id="" style="" tagname="li">
+                                            <xf:group id="anc_mvprpExecInf" style=""
+                                                tagname="a" tabIndex="0" ev:onclick="scwin.grp_mvprpExecInfBtn_onclick">
+                                                <w2:textbox class="tit" id="" label="나의 동산집행정보" style=""></w2:textbox>
+                                                <w2:textbox id="" label="바르고 투명한 법원경매" style=""></w2:textbox>
+                                            </xf:group>
+                                        </xf:group>
+                                    </xf:group>
+
+                                </xf:group>
+                            </xf:group>
+                            <xf:group class="mainbox col25 bd service" id="grp_auctnVt" style="">
+                                <xf:group class="box" id="" style="">
+                                    <xf:group class="title_box" id="" style="">
+                                        <w2:textbox class="main_title" id="" label=" 법원경매투표" style="" tagname="h3"></w2:textbox>
+                                    </xf:group>
+                                    <xf:group class="help" id="" style="">
+                                        <xf:group class="ex_list" id="" style="height: 150px;padding: 20px;border-radius: 4px;font-size: 18px;font-weight: 500;background: #f0f0f0;">
+                                            <w2:anchor id="anc_auctnVtCtt" outerDiv="false" style="cursor: default;" enableReadOnly="true" escape="false">
+                                                <xf:label><![CDATA[<span class="webblind">법원경매투표 상세내용</span>]]></xf:label>
+                                            </w2:anchor>
+                                        </xf:group>
+
+                                        <xf:group id="" class="info_list" style="position: relative;left: 140px;top: 50px;">
+                                            <xf:trigger type="button" style="" id="" class="bt_qk" title="투표하기" ev:onclick="scwin.openAuctnVtPopUp">
+                                                <xf:label><![CDATA[투표하기]]></xf:label>
+                                            </xf:trigger>
+                                        </xf:group></xf:group>
+                                </xf:group>
+                            </xf:group>
+                            <xf:group class="mainbox col75 interest" id="" style="">
+                                <xf:group class="box" id="" style="padding:0;">
+                                    <xf:group class="title_box" id="" style="">
+                                        <xf:group class="fl" id="" style="">
+                                            <w2:textbox class="main_title" id="" label="다수 관심물건" style="" tabIndex="" tagname="h3"></w2:textbox>
+                                        </xf:group>
+                                        <xf:group class="fr" id="" style="">
+                                            <xf:trigger class="btn_cm bt_all" id="trigger1" style="" title="다수 관심물건 더보기" type="button" ev:onclick="scwin.trigger1_onclick">
+                                                <xf:label><![CDATA[전체보기]]></xf:label>
+                                            </xf:trigger>
+                                        </xf:group>
+                                    </xf:group>
+                                    <xf:group style="" id="" text="" tagname="ul" class="inter_list">
+                                        <xf:group style="" id="" class="" tagname="li" role="button">
+                                            <xf:group style="" id="grp_wrapTag_0" class="img_wrap" tagname="a">
+                                                <xf:image src="" style="" id="img_mjrtyItrtGdsImg_0" alt="다수관심"></xf:image>
+                                            </xf:group>
+                                            <w2:textbox label="" style="" id="tbx_mjrtyItrtGdsTitle_0" class="tit"></w2:textbox>
+                                            <w2:anchor class= "txt_adres" outerDiv="false" id="tbx_mjrtyItrtGdsAddr_0" style="" href="#">
+                                               <xf:label><![CDATA[Insert Text]]></xf:label>
+                                            </w2:anchor>
+                                            <xf:group style="" id="" tagname="ul" class="price_list">
+                                                <xf:group style="" id="" tagname="li">
+                                                    <w2:span label="최저" style="" id="" class="txt_low"></w2:span>
+                                                    <w2:anchor outerDiv="false" id="spn_mjrtyItrtGdsLwsAmt_0" style="" href="#">
+                                                        <xf:label><![CDATA[Insert Text]]></xf:label>
+                                                    </w2:anchor>
+                                                </xf:group>
+                                                <xf:group id="" style="" tagname="li">
+                                                    <w2:span class="txt_app" id="" label="감정" style=""></w2:span>
+                                                    <w2:anchor outerDiv="false" id="spn_mjrtyItrtGdsAeeAmt_0" style="" href="#">
+                                                        <xf:label><![CDATA[Insert Text]]></xf:label>
+                                                    </w2:anchor>
+                                                </xf:group>
+                                            </xf:group>
+                                        </xf:group>
+                                        <xf:group class="" id="" style="" tagname="li" role="button">
+                                            <xf:group id="grp_wrapTag_1" style="" class="img_wrap" tagname="a" href="#">
+                                                <xf:image id="img_mjrtyItrtGdsImg_1" src="" style="">
+                                                </xf:image>
+                                            </xf:group>
+                                            <w2:textbox class="tit" id="tbx_mjrtyItrtGdsTitle_1" label="" style=""></w2:textbox>
+                                            <w2:anchor class= "txt_adres" outerDiv="false" id="tbx_mjrtyItrtGdsAddr_1" style="" href="#">
+                                               <xf:label><![CDATA[Insert Text]]></xf:label>
+                                            </w2:anchor>
+                                            <xf:group style="" id="" tagname="ul" class="price_list">
+                                                <xf:group style="" id="" tagname="li">
+                                                    <w2:span label="최저" style="" id="" class="txt_low"></w2:span>
+                                                    <w2:anchor outerDiv="false" id="spn_mjrtyItrtGdsLwsAmt_1" style="" href="#">
+                                                        <xf:label><![CDATA[Insert Text]]></xf:label>
+                                                    </w2:anchor>
+                                                </xf:group>
+                                                <xf:group id="" style="" tagname="li">
+                                                    <w2:span class="txt_app" id="" label="감정" style=""></w2:span>
+                                                    <w2:anchor outerDiv="false" id="spn_mjrtyItrtGdsAeeAmt_1" style="" href="#">
+                                                        <xf:label><![CDATA[Insert Text]]></xf:label>
+                                                    </w2:anchor>
+                                                </xf:group>
+                                            </xf:group>
+                                        </xf:group>
+                                        <xf:group class="" id="" style="" tagname="li" role="button">
+                                            <xf:group id="grp_wrapTag_2" style="" class="img_wrap" tagname="a" href="#">
+                                                <xf:image id="img_mjrtyItrtGdsImg_2" src="" style="">
+                                                </xf:image>
+                                            </xf:group>
+                                            <w2:textbox class="tit" id="tbx_mjrtyItrtGdsTitle_2" label="" style=""></w2:textbox>
+                                            <w2:anchor class= "txt_adres" outerDiv="false" id="tbx_mjrtyItrtGdsAddr_2" style="" href="#">
+                                               <xf:label><![CDATA[Insert Text]]></xf:label>
+                                            </w2:anchor>
+                                            <xf:group style="" id="" tagname="ul" class="price_list">
+                                                <xf:group style="" id="" tagname="li">
+                                                    <w2:span label="최저" style="" id="" class="txt_low"></w2:span>
+                                                    <w2:anchor outerDiv="false" id="spn_mjrtyItrtGdsLwsAmt_2" style="" href="#">
+                                                        <xf:label><![CDATA[Insert Text]]></xf:label>
+                                                    </w2:anchor>
+                                                </xf:group>
+                                                <xf:group id="" style="" tagname="li">
+                                                    <w2:span class="txt_app" id="" label="감정" style=""></w2:span>
+                                                    <w2:anchor outerDiv="false" id="spn_mjrtyItrtGdsAeeAmt_2" style="" href="#">
+                                                        <xf:label><![CDATA[Insert Text]]></xf:label>
+                                                    </w2:anchor>
+                                                </xf:group>
+                                            </xf:group>
+                                        </xf:group>
+                                    </xf:group>
+                                </xf:group>
+                            </xf:group>
+
+                        </xf:group>
+                        <xf:group class="main_ly" id="" style="">
+                            <xf:group class="mainbox col5 bd know" id="" style="">
+                                <xf:group class="box" id="" style="">
+                                    <xf:group class="title_box" id="" style="">
+                                        <xf:group class="fl" id="" style="">
+                                            <w2:textbox class="main_title" id="" label="경매절차" style="" tabIndex="" tagname="h3"></w2:textbox>
+                                        </xf:group>
+                                    </xf:group>
+                                    <xf:group style="" id="" tagname="ul" class="know_list">
+                                        <xf:group style="" id="" tagname="li">
+                                            <w2:anchor outerDiv="false" style="" id="" ref=""
+                                                ev:onclick="scwin.moveMvprpExecInfMenu('PGJ171M01')">
+                                                <xf:label><![CDATA[부동산경매절차]]></xf:label>
+                                            </w2:anchor>
+                                        </xf:group>
+                                        <xf:group id="" style="" tagname="li">
+                                            <w2:anchor id="" outerDiv="false" style="" ref=""
+                                                ev:onclick="scwin.moveMvprpExecInfMenu('PGJ176F01')">
+                                                <xf:label><![CDATA[경매비용]]></xf:label>
+                                            </w2:anchor>
+                                        </xf:group>
+                                        <xf:group id="" style="" tagname="li">
+                                            <w2:anchor id="" outerDiv="false" style="" ref=""
+                                                ev:onclick="scwin.moveMvprpExecInfMenu('PGJ171M02')">
+                                                <xf:label><![CDATA[동산경매절차]]></xf:label>
+                                            </w2:anchor>
+                                        </xf:group>
+                                        <xf:group id="" style="" tagname="li">
+                                            <w2:anchor id="" outerDiv="false" style="" ref=""
+                                                ev:onclick="scwin.moveMvprpExecInfMenu('PGJ175M01')">
+                                                <xf:label><![CDATA[매수신청대리안내]]></xf:label>
+                                            </w2:anchor>
+                                        </xf:group>
+                                        <xf:group id="" style="" tagname="li">
+                                            <w2:anchor ev:onclick="scwin.moveMvprpExecInfMenu('PGJ171M03')" id="" outerDiv="false" ref=""
+                                                style="">
+                                                <xf:label><![CDATA[임차인(주택/상가)]]></xf:label>
+                                            </w2:anchor>
+                                        </xf:group>
+                                        <xf:group id="" style="" tagname="li">
+                                            <w2:anchor ev:onclick="scwin.moveMvprpExecInfMenu('PGJ173F01')" id="" outerDiv="false" ref=""
+                                                style="">
+                                                <xf:label><![CDATA[경매서식]]></xf:label>
+                                            </w2:anchor>
+                                        </xf:group>
+                                    </xf:group>
+                                </xf:group>
+                            </xf:group>
+                            <xf:group class="mainbox col5 bd know" id="" style="">
+                                <xf:group class="box" id="" style="">
+                                    <xf:group class="title_box" id="" style="">
+                                        <xf:group class="fl" id="" style="">
+                                            <w2:textbox class="main_title" id="" label="관련법률" style="" tabIndex="" tagname="h3"></w2:textbox>
+                                        </xf:group>
+                                    </xf:group>
+                                    <xf:group class="know_list" id="" style="" tagname="ul">
+                                        <xf:group id="" style="" tagname="li">
+                                            <w2:anchor id="" outerDiv="false" style="" ev:onclick="scwin.moveMvprpExecInfMenu('PGJ177F01')">
+                                                <xf:label><![CDATA[주택임대차]]></xf:label>
+                                            </w2:anchor>
+                                        </xf:group>
+                                        <xf:group id="" style="" tagname="li">
+                                            <w2:anchor id="" outerDiv="false" style="" ev:onclick="scwin.moveMvprpExecInfMenu('PGJ177M01')">
+                                                <xf:label><![CDATA[상가임대차]]></xf:label>
+                                            </w2:anchor>
+                                        </xf:group>
+                                        <xf:group id="" style="" tagname="li">
+                                            <w2:anchor id="" outerDiv="false" style="" ev:onclick="scwin.moveMvprpExecInfMenu('PGJ177M02')">
+                                                <xf:label><![CDATA[종합법률정보]]></xf:label>
+                                            </w2:anchor>
+                                        </xf:group>
+                                    </xf:group>
+                                </xf:group>
+                            </xf:group>
+                        </xf:group>
+                    </xf:group>
+                </xf:group>
+
+            </xf:group>
+            <xf:group id="wfm_footer"><w2:wframe src="../common/footer.xml" style="" id="" class="footer"></w2:wframe></xf:group><w2:wframe class="quickmenu" id="" src="../common/quick.xml" style=""></w2:wframe>
+
+            <xf:group class="ar" id="" style="">
+                <xf:trigger class="btn_cm bt_reload" id="" style="" title="새로고침" type="button">
+                    <xf:label></xf:label>
+                </xf:trigger>
+            </xf:group>
+            <xf:group class="" id="" style="overflow-y: auto;max-height: 250px;" tagname="ul">
+                <w2:generator class="schd_list" id="generator1" style="" tagname="ul">
+                    <xf:group id="" style="" tagname="li">
+                        <w2:span class="tit" id="span1" label="수원2계" style="width:50%;"></w2:span>
+                        <xf:group class="ar" id="" style="width:25%;">
+                            <w2:anchor id="anchor1" outerDiv="false" style="">
+                                <xf:label><![CDATA[5.25]]></xf:label>
+                            </w2:anchor>
+                        </xf:group>
+                        <xf:group class="ar" id="" style="width:25%;">
+                            <w2:span class="" id="span2" label="(기일)" style="width:90px;"></w2:span>
+                        </xf:group>
+                    </xf:group>
+                </w2:generator>
+                <w2:textbox class="ac" dataType="" id="textbox3" label="일정이 없습니다." style="padding:10px 0;font-size:15px;"></w2:textbox>
+            </xf:group>
+        </xf:group>
+    </body>
+</html>

@@ -1,0 +1,1239 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+    ============= ============ ==========================
+     Date          Author       Description
+    ============= ============ ==========================
+     2025.12.26.   공태은               [25A-PGJ-0052] 기일별 검색 목록 화면에서 상세 화면에서 목록화면으로 이동시 스크롤바 유지되도록 개선
+     2025.12.26.   공태은               [25A-PGJ-0053] 나의경매 자주쓰는검색 화면에서 페이지 이동시 검색조건이 초기화되는 현상 수정
+    ============= ============ ==========================
+-->
+<html xmlns="http://www.w3.org/1999/xhtml"
+    xmlns:ev="http://www.w3.org/2001/xml-events"
+    xmlns:w2="http://www.inswave.com/websquare" xmlns:xf="http://www.w3.org/2002/xforms">
+    <head meta_screenName="물건상세검색 결과_부동산">
+        <w2:type>DEFAULT</w2:type>
+        <w2:buildDate/>
+        <xf:model>
+            <xf:instance>
+                <data xmlns="" />
+            </xf:instance>
+            <w2:dataCollection baseNode="map">
+            	<w2:dataMap baseNode="map" id="dma_srchGdsDtlSrchInfo">
+            		<w2:keyInfo>
+            			<w2:key id="rletDspslSpcCondCd" name="부동산매각특수조건" dataType="text"></w2:key>
+            			<w2:key id="bidDvsCd" name="입찰구분" dataType="text"></w2:key>
+            			<w2:key id="mvprpRletDvsCd" name="부동산동산구분코드" dataType="text"></w2:key>
+            			<w2:key id="cortAuctnSrchCondCd" name="법원경매검색조건" dataType="text"></w2:key>
+            			<w2:key id="rprsAdongSdCd" name="부동산지번시도코드" dataType="text"></w2:key>
+            			<w2:key id="rprsAdongSggCd" name="부동산지번시군구코드" dataType="text"></w2:key>
+            			<w2:key id="rprsAdongEmdCd" name="부동산지번읍면동코드" dataType="text"></w2:key>
+            			<w2:key id="rdnmSdCd" name="부동산도로명시도코드" dataType="text"></w2:key>
+            			<w2:key id="rdnmSggCd" name="부동산도로명시군구코드" dataType="text"></w2:key>
+            			<w2:key id="rdnmNo" name="부동산도로명" dataType="text"></w2:key>
+            			<w2:key id="mvprpDspslPlcAdongSdCd" name="동산지번시도코드" dataType="text"></w2:key>
+            			<w2:key id="mvprpDspslPlcAdongSggCd" name="동산지번시군구코드" dataType="text"></w2:key>
+            			<w2:key id="mvprpDspslPlcAdongEmdCd" name="동산지번읍면동코드" dataType="text"></w2:key>
+            			<w2:key id="rdDspslPlcAdongSdCd" name="동산도로명시도코드" dataType="text"></w2:key>
+            			<w2:key id="rdDspslPlcAdongSggCd" name="동산도로명시군구코드" dataType="text"></w2:key>
+            			<w2:key id="rdDspslPlcAdongEmdCd" name="동산도로명" dataType="text"></w2:key>
+            			<w2:key id="cortOfcCd" name="법원사무소코드" dataType="text"></w2:key>
+            			<w2:key id="jdbnCd" name="법원사무소부서코드" dataType="text"></w2:key>
+            			<w2:key id="execrOfcDvsCd" name="집행관사무소도구분코드" dataType="text"></w2:key>
+            			<w2:key id="lclDspslGdsLstUsgCd" name="용도대분류코드" dataType="text"></w2:key>
+            			<w2:key id="mclDspslGdsLstUsgCd" name="용도중분류코드" dataType="text"></w2:key>
+            			<w2:key id="sclDspslGdsLstUsgCd" name="용도소분류코드" dataType="text"></w2:key>
+            			<w2:key id="cortAuctnMbrsId" name="회원ID" dataType="text"></w2:key>
+            			<w2:key id="aeeEvlAmtMin" name="감정평가액MIN" dataType="text"></w2:key>
+            			<w2:key id="aeeEvlAmtMax" name="감정평가액MAX" dataType="text"></w2:key>
+            			<w2:key id="lwsDspslPrcRateMin" name="최저매각가율MIN" dataType="text"></w2:key>
+            			<w2:key id="lwsDspslPrcRateMax" name="최저매각가율MAX" dataType="text"></w2:key>
+            			<w2:key id="flbdNcntMin" name="유찰횟수MIN" dataType="text"></w2:key>
+            			<w2:key id="flbdNcntMax" name="유찰횟수MAX" dataType="text"></w2:key>
+            			<w2:key id="objctArDtsMin" name="면적MIN" dataType="text"></w2:key>
+            			<w2:key id="objctArDtsMax" name="면적MAX" dataType="text"></w2:key>
+            			<w2:key id="mvprpArtclKnd" name="동산물품종류" dataType="text"></w2:key>
+            			<w2:key id="maeMokmulNm" name="동산물품명" dataType="text"></w2:key>
+            			<w2:key id="mvprpAtchmPlcTypCd" name="압류장소" dataType="text"></w2:key>
+            			<w2:key id="notifyLoc" name="주소공고중여버" dataType="text"></w2:key>
+            			<w2:key id="lafjOrderBy" name="정렬" dataType="text"></w2:key>
+            			<w2:key id="pgmId" name="화면ID" dataType="text"></w2:key>
+            			<w2:key id="csNo" name="사건번호" dataType="text"></w2:key>
+            			<w2:key id="mvprpCsNo" name="동산사건번호" dataType="text"></w2:key>
+            			<w2:key id="cortStDvs" name="법원/소재지구분코드" dataType="text"></w2:key>
+            			<w2:key id="statNum" name="기본상태설정Flag" dataType="text"></w2:key>
+            			<w2:key id="bidBgngYmd" name="입찰시작일자" dataType="text"></w2:key>
+            			<w2:key id="bidEndYmd" name="입찰종료일자" dataType="text"></w2:key>
+            			<w2:key id="dspslDxdyYmd" name="매각기일" dataType="text"></w2:key>
+            			<w2:key id="fstDspslHm" name="1차매각시분" dataType="text"></w2:key>
+            			<w2:key id="scndDspslHm" name="2차매각시분" dataType="text"></w2:key>
+            			<w2:key id="thrdDspslHm" name="3차매각시분" dataType="text"></w2:key>
+            			<w2:key id="fothDspslHm" name="4차매각시분" dataType="text"></w2:key>
+            			<w2:key id="dspslPlcNm" name="매각장소명" dataType="text"></w2:key>
+            			<w2:key id="lwsDspslPrcMin" name="최저매각각격MIN" dataType="text"></w2:key>
+            			<w2:key id="lwsDspslPrcMax" name="최저매각가격MAX" dataType="text"></w2:key>
+            			<w2:key id="btnMap" name="지도버튼" dataType="text"></w2:key>
+            			<w2:key id="mvrpDspslPlcTyp" name="동산장소유형" dataType="text"></w2:key>
+            			<w2:key id="sideDvsCd" name="사이드구분코드" dataType="text"></w2:key>
+            		</w2:keyInfo>
+            	</w2:dataMap>
+            	<w2:dataMap baseNode="map" id="dma_pageInfo">
+            		<w2:keyInfo>
+            			<w2:key id="pageNo" name="페이지번호" dataType="text"></w2:key>
+            			<w2:key id="pageSize" name="페이지크기" dataType="text"></w2:key>
+            			<w2:key id="bfPageNo" name="이전 페이지 번호" dataType="text"></w2:key>
+            			<w2:key id="startRowNo" name="시작 행번호" dataType="text"></w2:key>
+            			<w2:key id="totalCnt" name="총건수" dataType="text"></w2:key>
+            			<w2:key id="totalYn" name="총건수조회여부" dataType="text"></w2:key>
+            			<w2:key id="groupTotalCount" name="물건수" dataType="text"></w2:key>
+            		</w2:keyInfo>
+            	</w2:dataMap>
+            	<w2:dataList baseNode="list" repeatNode="map" id="dlt_srchResult" saveRemovedData="true">
+            		<w2:columnInfo>
+            			<w2:column id="alias" name="name1" dataType="text"></w2:column>
+            			<w2:column id="boCd" name="name2" dataType="text"></w2:column>
+            			<w2:column id="choigoCnt" name="name3" dataType="text"></w2:column>
+            			<w2:column id="choigoGamevalAmt" name="name4" dataType="text"></w2:column>
+            			<w2:column id="choigoMaeMokmulNm" name="name5" dataType="text"></w2:column>
+            			<w2:column id="docid" name="name6" dataType="text"></w2:column>
+            			<w2:column id="gamevalAmt" name="name7" dataType="text"></w2:column>
+            			<w2:column id="giil" name="name8" dataType="text"></w2:column>
+            			<w2:column id="groupmaemulser" name="name9" dataType="text"></w2:column>
+            			<w2:column id="gwansMulRegCnt" name="name10" dataType="text"></w2:column>
+            			<w2:column id="hh" name="name11" dataType="text"></w2:column>
+            			<w2:column id="hjguDong" name="name12" dataType="text"></w2:column>
+            			<w2:column id="hjguRd" name="name13" dataType="text"></w2:column>
+            			<w2:column id="hjguSido" name="name14" dataType="text"></w2:column>
+            			<w2:column id="hjguSigu" name="name15" dataType="text"></w2:column>
+            			<w2:column id="jiwonNm" name="name16" dataType="text"></w2:column>
+            			<w2:column id="jpDeptCd" name="name17" dataType="text"></w2:column>
+            			<w2:column id="jpDeptNm" name="name18" dataType="text"></w2:column>
+            			<w2:column id="maeMokmulCnt" name="name19" dataType="text"></w2:column>
+            			<w2:column id="maeMokmulNm" name="name20" dataType="text"></w2:column>
+            			<w2:column id="maemulSer" name="name21" dataType="text"></w2:column>
+            			<w2:column id="minmaePrice" name="name22" dataType="text"></w2:column>
+            			<w2:column id="mokmulSer" name="name23" dataType="text"></w2:column>
+            			<w2:column id="mulBigo" name="name24" dataType="text"></w2:column>
+            			<w2:column id="mvMItmCd" name="name25" dataType="text"></w2:column>
+            			<w2:column id="mvSaNo" name="name26" dataType="text"></w2:column>
+            			<w2:column id="mvmPlaceAddrGbncd" name="name27" dataType="text"></w2:column>
+            			<w2:column id="mvmPlaceDetailAddr" name="name28" dataType="text"></w2:column>
+            			<w2:column id="mvmPlaceDongCd" name="name29" dataType="text"></w2:column>
+            			<w2:column id="mvmPlaceRd3Rd4Cd" name="name30" dataType="text"></w2:column>
+            			<w2:column id="mvmPlaceRdCd" name="name31" dataType="text"></w2:column>
+            			<w2:column id="mvmPlaceSidoCd" name="name32" dataType="text"></w2:column>
+            			<w2:column id="mvmPlaceSiguCd" name="name33" dataType="text"></w2:column>
+            			<w2:column id="mvrPlaceTypcd" name="name34" dataType="text"></w2:column>
+            			<w2:column id="notifyTypcd" name="name35" dataType="text"></w2:column>
+            			<w2:column id="printCsNo" name="name36" dataType="text"></w2:column>
+            			<w2:column id="saNo" name="name37" dataType="text"></w2:column>
+            			<w2:column id="tel" name="name38" dataType="text"></w2:column>
+            			<w2:column id="mvprpDtlPlace1" name="name40" dataType="text"></w2:column>
+            			<w2:column id="mvprpDtlPlace2" name="name43" dataType="text"></w2:column>
+            			<w2:column id="notifyTypNm" name="name41" dataType="text"></w2:column>
+            			<w2:column id="mvrPlaceTypcdNm" name="name42" dataType="text"></w2:column>
+
+            			<w2:column id="userJpDeptNm" name="사용자용담당부서" dataType="text"></w2:column>
+            		</w2:columnInfo>
+            	</w2:dataList>
+            </w2:dataCollection>
+            <w2:workflowCollection></w2:workflowCollection>
+            <xf:submission id="sbm_selectGdsDtlSrch" ref='data:json,["dma_pageInfo","dma_srchGdsDtlSrchInfo"]' target='data:json,[{"id":"dma_pageInfo","key":"data.dma_pageInfo"},{"id":"dlt_srchResult","key":"data.dlt_srchResult"}]' action="/pgj/pgjsearch/searchControllerMain.on"
+                method="post" mediatype="application/json" encoding="UTF-8" instance="" replace="" errorHandler="" customHandler=""
+                mode="asynchronous" processMsg="조회중입니다." ev:submit="" ev:submitdone="scwin.sbm_selectGdsDtlSrch_submitdone" ev:submiterror="" abortTrigger="">
+            </xf:submission>
+        </xf:model>
+        <script type="text/javascript" lazy="false"><![CDATA[/* 프로그램ID */
+scwin.pgmId = 'PGJ151M02';
+
+/* 회원id */
+scwin.lgnMbr = '';
+
+/* 검색조건 */
+scwin.param;
+
+/* 페이즈 크기 */
+scwin.pageSize;
+
+/* 이전메뉴정보 */
+scwin.menuNm='';
+scwin.prevPgmId= '';
+scwin.pageNum = '';
+
+/* 헤더정렬 */
+scwin.headers;
+scwin.sortOrder = 0;
+scwin.sortOrderId = "csNo";
+
+/**
+ * onPageLoad시 검색조건 데이터로 상세조회
+ *
+ * ============= ============ ==========================
+ *  Date          Author       Description
+ * ============= ============ ==========================
+ *  2023.03.22.   나해준       [NELS]최초 생성
+ *  2025.12.26.   공태은       [25A-PGJ-0053] 나의경매 자주쓰는검색 화면에서 페이지 이동시 검색조건이 초기화되는 현상 수정
+ * ============= ============ ==========================
+ */
+scwin.onpageload = function() {
+    scwin.param = $p.getParameter("param");
+    scwin.pgmId = scwin.param.srchInfo.pgmId;
+    scwin.prevPgmId = scwin.param.srchInfo.pgmId;
+    scwin.menuNm = scwin.param.srchInfo.menuNm;
+    scwin.pageNum = scwin.param?.prevInfo?.pageNum || 1;
+
+    //자주쓰는검색
+    const sideDvsCd = scwin.param.srchInfo ?. sideDvsCd;
+    let prevMenuNm = '';
+    if (sideDvsCd == "3"){
+        scwin.menuNm = "자주쓰는검색";
+        prevMenuNm = "나의경매";
+        wfm_side.setSrc("../common/sideMenu/side006.xml");
+    }else{
+        scwin.menuNm = "물건상세검색";
+        prevMenuNm = "경매물건";
+    }
+
+    tbx_titleNm.setValue(scwin.menuNm);
+    tbx_prevTitleNm.setValue(prevMenuNm);
+    tbx_subTitleNm.setValue(scwin.menuNm);
+    
+    /* 메뉴 */
+    if(!scutilo.isEmpty(scwin.pgmId)){
+       $p.main().wfm_mainFrame.scope.wfm_side.scope.scwin.menuFocus(scwin.pgmId.slice(0,6));
+    }
+    
+    if (scutilo.isEmpty(pgjUtil.getCookie('pageCnt'))) { //페이지 크기 설정 바꿔야함 TO-DO
+        scwin.pageSize =10;
+        sbx_pageSize.setValue('10');
+    } else {
+        scwin.pageSize = Number(pgjUtil.getCookie('pageCnt'));
+        sbx_pageSize.setValue(pgjUtil.getCookie('pageCnt'));
+    }
+    dma_srchGdsDtlSrchInfo.setJSON(scwin.param.srchInfo);
+    scwin.gdsDtlSrchMain(true, scwin.pageSize);
+};
+
+scwin.onpageunload = function(isFirst,pagaSize) {
+
+};
+
+//웹접근성으로 인한 title제공 수정
+scwin.titleFormatter = function(){
+    return "";
+}
+
+
+/**
+ * 페이지 설정후 데이터 조회
+ *
+ * ============= ============ ==========================
+ *  Date          Author       Description
+ * ============= ============ ==========================
+ *  2023.03.22.   나해준       [NELS]최초 생성
+ * ============= ============ ==========================
+ */
+scwin.gdsDtlSrchMain = function(isFirst,pagaSize) {
+    /* 최초 조회 여부 */
+    if (isFirst) {
+        dma_pageInfo.set("totalYn", "Y");
+    } else {
+        dma_pageInfo.set("totalYn", "N");
+    }
+
+    /* 페이지 사이즈 셋팅 */
+    dma_pageInfo.set("pageNo", scwin.pageNum);
+    dma_pageInfo.set("pageSize", pagaSize);
+    com.executeSubmission(sbm_selectGdsDtlSrch);
+}
+
+/**
+ * 페이지 번호 클릭시 조회
+ *
+ * ============= ============ ==========================
+ *  Date          Author       Description
+ * ============= ============ ==========================
+ *  2023.03.22.   나해준       [NELS]최초 생성
+ * ============= ============ ==========================
+ */
+scwin.pgl_gdsDtlSrchPage_onviewchange = function(info) {
+
+    dma_pageInfo.set( "pageNo" , info.newSelectedIndex );
+    dma_pageInfo.set( "bfPageNo",info.oldSelectedIndex );
+    scwin.pageNum = info.newSelectedIndex;
+    scwin.gdsDtlSrchMain(false, scwin.pageSize);//조회처리
+};
+
+/**
+ * 데이터 조회후 데이터 셋팅
+ *
+ * ============= ============ ==========================
+ *  Date          Author       Description
+ * ============= ============ ==========================
+ *  2023.03.22.   나해준       [NELS]최초 생성
+ *  2025.12.26.   공태은       [25A-PJG-0052] 기일별 검색 목록 화면에서 상세 화면에서 목록화면으로 이동시 스크롤바 유지되도록 개선
+ * ============= ============ ==========================
+ */
+scwin.sbm_selectGdsDtlSrch_submitdone = function(e) {
+
+    const topScroll = scwin.param.srchInfo.srchRowIndex;
+    
+    // 스크롤 위치 정보가 없는 경우 최상단, 있으면 해당하는 위치로 이동
+    if(!scutilo.isEmpty(topScroll)){
+        document.body.scrollTop = topScroll;
+    }else{
+        document.body.scrollTop = 0;
+    }
+    
+const ipcheck = e.responseJSON.data.ipcheck; //로봇탐지
+if(ipcheck){
+    /* 메인상단 검색조건 셋팅 시작 */
+
+    if(dma_pageInfo.get("totalYn") == "Y") {
+        let genCnt = 0;
+        let param = scwin.param.srchInfo;
+        let cortStDvs = param.cortStDvs;
+        if (!scutilo.isEmpty(cortStDvs) && "1" == cortStDvs) {
+            gna_srhcTitle.insertChild(genCnt)
+            gna_srhcTitle.getChild(genCnt, "spn_srchTitle").setValue("법원")
+            if (scutilo.isEmpty(param.cortOfcCd)) {
+                gna_srhcTitle.getChild(genCnt, "spn_srchCtt").setValue("전체")
+            } else {
+                gna_srhcTitle.getChild(genCnt, "spn_srchCtt").setValue(pgjUtil.getCortOfcNm("O",param.cortOfcCd))
+            }
+            genCnt++
+        } else if (!scutilo.isEmpty(cortStDvs) && "2" == cortStDvs) {
+            gna_srhcTitle.insertChild(genCnt)
+            gna_srhcTitle.getChild(genCnt, "spn_srchTitle").setValue("소재지")
+            if (scutilo.isEmpty(param.mvprpDspslPlcAdongSdCd)) {
+                gna_srhcTitle.getChild(genCnt, "spn_srchCtt").setValue("")
+            } else {
+                let stNm =""
+                stNm = pgjUtil.getSdNm(param.mvprpDspslPlcAdongSdCd,"O");
+                if (!scutilo.isEmpty(param.mvprpDspslPlcAdongSggCd)) {
+                    stNm += ` ${pgjUtil.getSggNm(param.mvprpDspslPlcAdongSdCd,param.mvprpDspslPlcAdongSggCd,"O")}`;
+                }
+                if(!scutilo.isEmpty(param.mvprpDspslPlcAdongEmdCd)) {
+                    stNm += ` ${pgjUtil.getEmdNm(param.mvprpDspslPlcAdongSdCd,param.mvprpDspslPlcAdongSggCd,param.mvprpDspslPlcAdongEmdCd,"O")}`
+                }
+                gna_srhcTitle.getChild(genCnt, "spn_srchCtt").setValue(stNm)
+            }
+            genCnt++
+        } else if (!scutilo.isEmpty(cortStDvs) && "3" == cortStDvs) {
+            gna_srhcTitle.insertChild(genCnt)
+            gna_srhcTitle.getChild(genCnt, "spn_srchTitle").setValue("소재지")
+            if (scutilo.isEmpty(param.rdDspslPlcAdongSdCd)) {
+                gna_srhcTitle.getChild(genCnt, "spn_srchCtt").setValue("")
+            } else {
+                let stNm =""
+                stNm = pgjUtil.getSdNm(param.rdDspslPlcAdongSdCd,"R")
+                if (!scutilo.isEmpty(param.rdDspslPlcAdongSggCd)) {
+                    stNm +=` ${pgjUtil.getSggNm(param.rdDspslPlcAdongSdCd,param.rdDspslPlcAdongSggCd,"R")}`
+                }
+                if(!scutilo.isEmpty(param.rdDspslPlcAdongEmdCd)) {
+                    stNm += ` ${pgjUtil.getNewAddrRdNm(param.rdDspslPlcAdongSdCd,param.rdDspslPlcAdongSggCd,param.rdDspslPlcAdongEmdCd,"R")}`
+                }
+                gna_srhcTitle.getChild(genCnt, "spn_srchCtt").setValue(stNm)
+            }
+            genCnt++
+        }
+        if (!scutilo.isEmpty(param.jdbnCd)) { //집행관 사무소 부서
+            gna_srhcTitle.insertChild(genCnt)
+            gna_srhcTitle.getChild(genCnt, "spn_srchTitle").setValue("부서")
+            if (!scutilo.isEmpty(param.cortOfcCd) && param.cortOfcCd == "") {
+                gna_srhcTitle.getChild(genCnt, "spn_srchCtt").setValue("")
+            } else {
+                gna_srhcTitle.getChild(genCnt, "spn_srchCtt").setValue(pgjUtil.getDeptNm(param.cortOfcCd,param.jdbnCd))
+            }
+            genCnt++
+        }
+        //사건번호
+        if (!scutilo.isEmpty(param.csNo)) {
+            gna_srhcTitle.insertChild(genCnt)
+            gna_srhcTitle.getChild(genCnt, "spn_srchTitle").setValue("사건번호")
+            gna_srhcTitle.getChild(genCnt, "spn_srchCtt").setValue(param.mvprpCsNo)
+            genCnt++
+        }
+        //매각기일
+        if (!scutilo.isEmpty(param.dspslDxdyYmd) || (!scutilo.isEmpty(param.bidBgngYmd) && param.bidBgngYmd.length ==8)) {
+            let printDxDy ="";
+            gna_srhcTitle.insertChild(genCnt)
+            gna_srhcTitle.getChild(genCnt, "spn_srchCtt").setValue(param.mvprpCsNo)
+            gna_srhcTitle.getChild(genCnt, "spn_srchTitle").setValue("매각기일");
+            if (!scutilo.isEmpty(param.dspslDxdyYmd)) {
+                printDxDy = scdateo.getFmtDate(param.dspslDxdyYmd,'.');
+                if(!scutilo.isEmpty(param.fstDspslHm)) printDxDy +=` (${scwin.timeFormat(param.fstDspslHm)}`
+                if(!scutilo.isEmpty(param.scndDspslHm)) printDxDy +=`,${scwin.timeFormat(param.scndDspslHm)}`
+                if(!scutilo.isEmpty(param.thrdDspslHm)) printDxDy +=`,${scwin.timeFormat(param.thrdDspslHm)}`
+                if(!scutilo.isEmpty(param.fothDspslHm)) printDxDy +=`,${scwin.timeFormat(param.fothDspslHm)}`
+                if(!scutilo.isEmpty(param.dspslPlcNm)) printDxDy +=`${param.dspslPlcNm})`
+
+            } else {
+                printDxDy = `${scdateo.getFmtDate(param.bidBgngYmd,".")} ~ ${scdateo.getFmtDate(param.bidEndYmd,".")}`
+            }
+            gna_srhcTitle.getChild(genCnt, "spn_srchCtt").setValue(printDxDy)
+            genCnt++
+        }
+        if (!scutilo.isEmpty(param.mvprpArtclKnd)) { //동산 물품종류
+            gna_srhcTitle.insertChild(genCnt)
+            gna_srhcTitle.getChild(genCnt, "spn_srchTitle").setValue("물품종류")
+            let kndNm = pgjUtil.getMyAuctnArtclKndLst().filter(r =>r.code === param.mvprpArtclKnd).map(r=>{
+                return r.name;
+            }) ?. [0]
+            gna_srhcTitle.getChild(genCnt, "spn_srchCtt").setValue(kndNm)
+            genCnt++
+        }
+
+        if (!scutilo.isEmpty(param.maeMokmulNm)) { //동산 물품명
+            gna_srhcTitle.insertChild(genCnt)
+            gna_srhcTitle.getChild(genCnt, "spn_srchTitle").setValue("물품명")
+            gna_srhcTitle.getChild(genCnt, "spn_srchCtt").setValue(param.maeMokmulNm)
+            genCnt++
+        }
+
+        if (!scutilo.isEmpty(param.mvrpDspslPlcTyp)) { //동산 매각장소유형
+            gna_srhcTitle.insertChild(genCnt)
+            gna_srhcTitle.getChild(genCnt, "spn_srchTitle").setValue("매각장소유형")
+            let typNm = pgjUtil.getMvprpDspslPlcTypLst().filter(r =>r.code === param.mvrpDspslPlcTyp).map(r=>{
+                return r.name;
+            }) ?. [0]
+            gna_srhcTitle.getChild(genCnt, "spn_srchCtt").setValue(typNm)
+            genCnt++
+        }
+
+        if (!scutilo.isEmpty(param.aeeEvlAmtMin) || !scutilo.isEmpty(param.aeeEvlAmtMax) ) { //감정평가액 시작
+            gna_srhcTitle.insertChild(genCnt)
+            gna_srhcTitle.getChild(genCnt, "spn_srchTitle").setValue("감정평가액")
+            let aeeEvlAmt =""
+            if (param.aeeEvlAmtMin == param.aeeEvlAmtMax) {
+                if (param.aeeEvlAmtMin.length == 8) {
+                    aeeEvlAmt = `${param.aeeEvlAmtMin.substring(0,1)}천만원`
+                } else if (param.aeeEvlAmtMin.length == 9) {
+                    aeeEvlAmt = `${param.aeeEvlAmtMin.substring(0,1)}억`
+                    if (param.aeeEvlAmtMin.substring(1,2) == "5") {
+                        aeeEvlAmt += `${param.aeeEvlAmtMin.substring(1,2)}천만원`
+                    } else {
+                        aeeEvlAmt += "원";
+                    }
+                } else if (param.aeeEvlAmtMin.length == 10) {
+                    aeeEvlAmt = `${param.aeeEvlAmtMin.substring(0,2)}억원`
+                }
+            } else {//앞 뒤 금액 값이 다른 경우
+                if (!scutilo.isEmpty(param.aeeEvlAmtMin) && param.aeeEvlAmtMin.length == 8) {
+                    aeeEvlAmt = `${param.aeeEvlAmtMin.substring(0,1)}천만원 이상`
+                    if (param.aeeEvlAmtMax !="1000000001" ) aeeEvlAmt += "~"
+                } else if (!scutilo.isEmpty(param.aeeEvlAmtMin) && param.aeeEvlAmtMin.length == 9) {
+                    aeeEvlAmt = `${param.aeeEvlAmtMin.substring(0,1)}억`
+                    if (param.aeeEvlAmtMin.substring(1,2) == "5") {
+                        aeeEvlAmt += `${param.aeeEvlAmtMin.substring(1,2)}천만원 이상`
+                    } else {
+                        aeeEvlAmt += "원 이상";
+                    }
+                    if (param.aeeEvlAmtMax !="1000000001" ) aeeEvlAmt += "~"
+                } else if (!scutilo.isEmpty(param.aeeEvlAmtMin) && param.aeeEvlAmtMin.length == 10) {
+                    aeeEvlAmt = `${param.aeeEvlAmtMin.substring(0,2)}억원 이상`
+                }
+                if (!scutilo.isEmpty(param.aeeEvlAmtMax) && param.aeeEvlAmtMax.length == 8) {
+                    aeeEvlAmt += `${param.aeeEvlAmtMax.substring(0,1)}천만원 이하`
+                } else if (!scutilo.isEmpty(param.aeeEvlAmtMax) && param.aeeEvlAmtMax.length == 9) {
+                    aeeEvlAmt += `${param.aeeEvlAmtMax.substring(0,1)}억`;
+                    if (param.aeeEvlAmtMax.substring(1,2) == "5") {
+                        aeeEvlAmt += `${param.aeeEvlAmtMax.substring(1,2)}천만원 이하`
+                    } else {
+                        aeeEvlAmt += "원 이하";
+                    }
+                } else if (!scutilo.isEmpty(param.aeeEvlAmtMax) && param.aeeEvlAmtMax.length == 10) {
+                    aeeEvlAmt += `${param.aeeEvlAmtMax.substring(0,2)}억원 이하`
+                }
+            }
+            gna_srhcTitle.getChild(genCnt, "spn_srchCtt").setValue(aeeEvlAmt);
+            genCnt++
+        }
+
+        if (!scutilo.isEmpty(param.lwsDspslPrcMin) || !scutilo.isEmpty(param.lwsDspslPrcMax)) {//최저 매가각가격
+            gna_srhcTitle.insertChild(genCnt)
+            gna_srhcTitle.getChild(genCnt, "spn_srchTitle").setValue("최저매각가격")
+            let lwsPrc =""
+            if (param.lwsDspslPrcMin == param.lwsDspslPrcMax) {
+                if (param.lwsDspslPrcMin.length == 8){
+                    lwsPrc = `${param.lwsDspslPrcMin.substring(0,1)}천만원`
+                } else if (param.lwsDspslPrcMin.length == 9) {
+                    lwsPrc = `${param.lwsDspslPrcMin.substring(0,1)}억`;
+                    if (param.lwsDspslPrcMin.substring(1,2) == "5") {
+                        lwsPrc += `${param.lwsDspslPrcMin.substring(1,2)}천만원`
+                    } else {
+                        lwsPrc += "원";
+                    }
+                } else if (param.lwsDspslPrcMin.length == 10) {
+                    lwsPrc = `${param.lwsDspslPrcMin.substring(0,2)}억원`
+                }
+            } else {//앞 뒤 금액 값이 다른 경우
+                if (!scutilo.isEmpty(param.lwsDspslPrcMin) && param.lwsDspslPrcMin.length == 8) {
+                    lwsPrc = `${ param.lwsDspslPrcMin.substring(0,1)}천만원 이상`
+                    if ( param.lwsDspslPrcMax == "1000000001") lwsPrc += "~"
+                } else if (!scutilo.isEmpty(param.lwsDspslPrcMin) && param.lwsDspslPrcMin.length == 9) {
+                    lwsPrc = `${param.lwsDspslPrcMin.substring(0,1)}억`
+                    if (param.lwsDspslPrcMin.substring(1,2) == "5") {
+                        lwsPrc += `${param.lwsDspslPrcMin.substring(1,2)}천만원 이상`;
+                    } else {
+                        lwsPrc += "원 이상";
+                    }
+                    if (param.lwsDspslPrcMax == "1000000001") lwsPrc += "~"
+                }else if (!scutilo.isEmpty(param.lwsDspslPrcMin) && param.lwsDspslPrcMin.length == 10) {
+                    lwsPrc = `${param.lwsDspslPrcMin.substring(0,2)}억원 이상`;
+                }
+                if (!scutilo.isEmpty(param.lwsDspslPrcMax) && param.lwsDspslPrcMax.length == 8){
+                    lwsPrc += `${param.lwsDspslPrcMax.substring(0,1)}천만원 이하`;
+                }else if (!scutilo.isEmpty(param.lwsDspslPrcMax) && param.lwsDspslPrcMax.length == 9){
+                    lwsPrc += `${param.lwsDspslPrcMax.substring(0,1)}억`
+                    if(param.lwsDspslPrcMax.substring(1,2) == "5") {
+                        lwsPrc += `${param.lwsDspslPrcMax.substring(1,2)}천만원 이하`;
+                    }else{
+                        lwsPrc += "원 이하";
+                    }
+                }else if (!scutilo.isEmpty(param.lwsDspslPrcMax) && param.lwsDspslPrcMax.length == 10) {
+                    lwsPrc += `${param.lwsDspslPrcMax.substring(0,2)}억원 이하`;
+                }
+            }
+            gna_srhcTitle.getChild(genCnt, "spn_srchCtt").setValue(lwsPrc);
+            genCnt++
+        }
+        if (!scutilo.isEmpty(dma_pageInfo.get("totalCnt"))) {
+            gna_srhcTitle.insertChild(genCnt)
+            gna_srhcTitle.getChild(genCnt, "spn_srchTitle").setValue(`총 물건수`);
+
+            if (dma_pageInfo.get("totalCnt") !== '0') {
+                gna_srhcTitle.getChild(genCnt, "spn_srchCtt").setValue(`${dma_pageInfo.get("totalCnt")}건`);
+                grp_rletPageInfo.show('');
+            } else {
+                gna_srhcTitle.getChild(genCnt, "spn_srchCtt").setValue(` 0건`);
+                grp_rletPageInfo.hide();
+            }
+        }
+            gna_srhcTitle.getChild(genCnt,"spn_srchBar").setValue("");//검색조건 타이틀 끝
+        }
+
+        //=================================================검색조건 끝
+        const lst = pgjUtil.getMvprpDspslPlcTypLst();
+        for (let i=0; i<dlt_srchResult.getTotalRow(); i++) {
+            let typeNm = ""
+            let cd = dlt_srchResult.getCellData(i, "mvrPlaceTypcd");
+            typeNm = lst.filter(r=> r.code === cd).map(r=>{
+                return r.name
+                }) ?. [0]
+            dlt_srchResult.setCellData(i, 'mvrPlaceTypcdNm', typeNm)
+        }
+
+        //헤더 정렬 아이콘 생성
+        scwin.headers = [
+            { id:"csNo", val:"사건번호"},
+            { id:"aeeEvlAmt", val:"감정평가액"},
+            { id:"pbancLwsDspslPrc", val:"최저매각가격"},
+            { id:"dspslDxdyYmd", val:"매각부서<br>매각기일"}];
+        let sortImage = "";
+        scwin.headers.forEach(t=>{
+            sortImage = "<text>";
+            sortImage += t.val+"</text>";
+            sortImage += `<a href="#" onclick="headerSortSch('${t.id}')"><img src="/pgj/cm/images/contents/ic_sort_up.gif" style="width:12px;margin:5px;" alt="오름" /></a></div>`;
+            if(t.id == "pbancLwsDspslPrc"){
+               sortImage += "<br>(단위:원)";
+            }
+            //정렬인 경우
+            if(scwin.sortOrderId === t.id){
+                if(scwin.sortOrder === 1){
+                    sortImage = sortImage.replaceAll('ic_sort_up', 'ic_sort_up_s');
+                } else if(scwin.sortOrder === -1){
+                    sortImage = sortImage.replaceAll('ic_sort_up', 'ic_sort_down_s');
+                }
+            }
+            grd_gdsDtlSrchResult.setHeaderValue(t.id, sortImage, false);
+        });
+
+        //페이징 처리
+        if(String(dma_pageInfo.get("totalCnt")) !== '0') {
+            grp_rletPageInfo.show("");
+            spn_totalCnt.setValue(dma_pageInfo.get("totalCnt"))
+            scutilo.setPagingInfo(dma_pageInfo,pgl_gdsDtlSrchPage,grd_gdsDtlSrchResult);
+            pgl_gdsDtlSrchPage.setValue(scwin.pageNum);
+        } else {
+            grp_rletPageInfo.hide();
+        }
+    } else {
+        scutilo.showMsg(scglblo.MSG.ERROR,e.responseJSON.message,()=>{
+			$p.url("/pgj/ui/pgj100/PGJ111M01.xml");
+		});
+    }
+
+};
+
+/**
+ * 헤더 정렬
+ *
+ * ============= ============ ==========================
+ *  Date          Author       Description
+ * ============= ============ ==========================
+ *  2024.21.09.   나해준       [NELS]최초 생성
+ * ============= ============ ==========================
+ */
+function headerSortSch(id) {
+    let headerId = id;
+    let lafjOrderBy = "order by ";
+    let sortImage = "";
+
+    //초기화
+    scwin.headers.forEach(t=>{
+        sortImage = grd_gdsDtlSrchResult.getHeaderValue(t.id);
+        sortImage = sortImage.replaceAll('ic_sort_up_s', 'ic_sort_up');
+        sortImage = sortImage.replaceAll('ic_sort_down_s', 'ic_sort_up');
+        grd_gdsDtlSrchResult.setHeaderValue(t.id, sortImage, false);
+    });
+
+    //정렬셋팅
+    sortImage = grd_gdsDtlSrchResult.getHeaderValue(id);
+    if(scwin.sortOrderId === id){
+        if(scwin.sortOrder === 1){
+            lafjOrderBy += String(headerId + " desc");
+            sortImage = sortImage.replaceAll('ic_sort_up', 'ic_sort_down_s');
+            scwin.sortOrder = -1;
+        } else if(scwin.sortOrder === -1){
+            lafjOrderBy += String(headerId + " asc");
+            sortImage = sortImage.replaceAll('ic_sort_up', 'ic_sort_up_s');
+            scwin.sortOrder = 1;
+        } else { //0
+            lafjOrderBy += String(headerId + " asc");
+            sortImage = sortImage.replaceAll('ic_sort_up', 'ic_sort_up_s');
+            scwin.sortOrder = 1;
+        }
+    } else {
+        lafjOrderBy += String(headerId + " asc");
+        sortImage = sortImage.replaceAll('ic_sort_up', 'ic_sort_up_s');
+        scwin.sortOrder = 1;
+        scwin.sortOrderId = id;
+    }
+
+    grd_gdsDtlSrchResult.setHeaderValue(id, sortImage, false);
+    dma_srchGdsDtlSrchInfo.set("lafjOrderBy", lafjOrderBy);
+    scwin.gdsDtlSrchMain(false, scwin.pageSize);//조회처리
+};
+
+/**
+ *
+ * 그리드 주소 Format
+ *
+ * ============= ============ ==========================
+ *  Date          Author       Description
+ * ============= ============ ==========================
+ *  2024.06.21.   나해준       [NELS]최초 생성
+ * ============= ============ ==========================
+ */
+scwin.stFormat = function(data, formattedData, rowIndex, colIndex){
+    return `<div><a href="#" onclick="moveCsDtlPage(${rowIndex})">${data}</a><br><text>${dlt_srchResult.getCellData(rowIndex, "mvprpDtlPlace2")}</text></div>`
+}
+
+/**
+ *
+ * 그리드 비고 Format
+ *
+ * ============= ============ ==========================
+ *  Date          Author       Description
+ * ============= ============ ==========================
+ *  2024.06.21.   나해준       [NELS]최초 생성
+ * ============= ============ ==========================
+ */
+scwin.notifyFormat = function(data, formattedData, rowIndex, colIndex){
+    let node = ""
+    if (data === '000342') node += `<div><span>조기매각</sapn></div>`
+    if (!scutilo.isEmpty(dlt_srchResult.getCellData(rowIndex, 'mulBigo'))) {
+        if (!scutilo.isEmpty(node)) node += '<br/>'
+        node += `<div><button>특이사항</button></div>`
+    }
+    return node;
+}
+
+/**
+ *
+ * 그리드 담당계 이미지 생성하기위한 customFormatter
+ *
+ * ============= ============ ==========================
+ *  Date          Author       Description
+ * ============= ============ ==========================
+ *  2024.09.04.   나해준       [NELS]최초 생성
+ * ============= ============ ==========================
+ *
+ */
+scwin.chargDept = function(data, formattedData, rowIndex, colIndex){
+    //툴팁 id
+    let idNum = "toolText" + rowIndex;
+    let rtnVal = `<div><text id=${idNum}>${data}</text>`;
+    const dxdyYmd = `${scdateo.getFmtDate(dlt_srchResult.getCellData(rowIndex, "giil"), ".")}`;
+    rtnVal += `<br>${dxdyYmd}</div>`;
+    return rtnVal;
+}
+
+/**
+ *
+ * 그리드 담당계 생성하기위한 customFormatter
+ *
+ * ============= ============ ==========================
+ *  Date          Author       Description
+ * ============= ============ ==========================
+ *  2024.09.04.   나해준       [NELS]최초 생성
+ * ============= ============ ==========================
+ *
+ */
+scwin.tooltipFormatter = function(rowIndex, colIndex, label, isOverflow){
+  var txt = "";
+  var _colId = dlt_srchResult.getColumnID(colIndex);
+  if(_colId == "jpDeptNm"){
+    const tel = dlt_srchResult.getCellData(rowIndex, "tel");
+    const giil = `${scdateo.getFmtDate(dlt_srchResult.getCellData(rowIndex, "giil"),".")} ${scwin.timeFormat(dlt_srchResult.getCellData(rowIndex,"hh"))} `;
+    txt =`<div class="toolTipText">
+        <span>·<text class="mr5" style="color:#6798FD; width:16px;">전화번호</text>${tel}</span><br/>
+        <span>·<text class="mr5" style="color:#6798FD; width:16px;">매각기일</text>${giil}</span></div>`;
+  }
+
+  return txt;
+}
+
+
+/**
+ *
+ * 그리드 담당계 툴팁 key 제어하기위한 이벤트(접근성)
+ *
+ * ============= ============ ==========================
+ *  Date          Author       Description
+ * ============= ============ ==========================
+ *  2024.09.04.   나해준       [NELS]최초 생성
+ * ============= ============ ==========================
+ *
+ */
+scwin.grd_gdsDtlSrchResult_onkeydown = function(e) {
+    var _colId = grd_gdsDtlSrchResult.getFocusedColumnID();
+    if(_colId == "jpDeptNm" && e.key == 'Enter'){
+
+        //tooltip 상태값을 구하여 표시하기
+        var tooltip = $(".w2grid_tooltip").css("display");
+
+        //마우스 오버를 못한 경우, 직접 툴팁 이벤트를 실행하여 생성
+         if(tooltip == "undefined" || tooltip == null || tooltip == ""){
+            let rowIndex = dlt_srchResult.getRowPosition();
+            const tel = dlt_srchResult.getCellData(rowIndex, "tel");
+            const giil = `${scdateo.getFmtDate(dlt_srchResult.getCellData(rowIndex, "giil"),".")} ${scwin.timeFormat(dlt_srchResult.getCellData(rowIndex,"hh"))} `;
+            txt =`<div class="toolTipText">
+                <span>·<text class="mr5" style="color:#6798FD; width:16px;">전화번호</text>${tel}</span><br/>
+                <span>·<text class="mr5" style="color:#6798FD; width:16px;">매각기일</text>${giil}</span></div>`;
+
+            //툴팁 좌표 계산해서 표시(wframe: left(732) top(418))
+            const winW = window.innerWidth/2;
+            const winH = window.innerHeight/2;
+            let colIndex = grd_gdsDtlSrchResult.getColumnIndex("jpDeptNm");
+            var top = grd_gdsDtlSrchResult.getPosition("top") + winH;
+            var left = winW + winW/2;
+            grd_gdsDtlSrchResult.showTooltip(left, top, txt);
+
+            $(".w2grid_tooltip").css("display", "none");
+            setTimeout(function(){
+                $(".w2grid_tooltip").css("display", "block");
+            }, 500);
+
+
+        //툴팁 엘리먼트가 생성되고 표시가 안된 경우
+        } else if(tooltip == "none"){
+            setTimeout(function(){
+                $(".w2grid_tooltip").css("display", "block");
+            }, 500);
+
+        //툴팁 엘리먼트가 생성되고 표시가 된 경우
+        } else {
+            $(".w2grid_tooltip").css("display", "none");
+        }
+    }
+};
+
+/**
+ * 쉘 클릭 이벤트
+ *
+ * ============= ============ ==========================
+ *  Date          Author       Description
+ * ============= ============ ==========================
+ *  2022.10.11.   나해준       [NELS]최초 생성
+ * ============= ============ ==========================
+ */
+scwin.grd_gdsDtlSrchResult_oncellclick = function(row,col,colId) {
+    var _colId = grd_gdsDtlSrchResult.getFocusedColumnID();
+    if (_colId == "btnMap") {
+
+        /********* Popup Settings *********/
+        const winW = window.innerWidth;
+        const winH = window.innerHeight;
+
+        /* default popup size */
+        const popupW = winW - 300;
+        const popupH = winH - 100;
+
+        const popupX = (winW/2) - (popupW/2);
+        const popupY = (winH/2) - (popupH/2);
+
+        const options = {
+            id: "gdsMap",
+            type: "browser",
+            popupName: "지도",
+            top:popupY,
+            left:popupX,
+            width:popupW,
+            height:popupH,
+            modal: false
+        };
+
+        paramObj = {};
+        paramObj.pgmId = "PGJ151M02";
+        paramObj.info = {
+            csNo : dlt_srchResult.getCellData(row, 'saNo'),
+            cortOfcCd : dlt_srchResult.getCellData(row, 'boCd'),
+            dspslGdsSeq : dlt_srchResult.getCellData(row, 'maemulSer'),
+            objctSeq : dlt_srchResult.getCellData(row, 'mokmulSer'),
+            cortOfcNm : dlt_srchResult.getCellData(row, 'jiwonNm'),
+        };
+
+        com.win.openPopup("/pgj/ui/pgj100/PGJ152F00.xml",options,paramObj);
+
+    } else if(_colId == "notifyTypcd"){
+        const mulBigo = dlt_srchResult.getCellData(row, 'mulBigo');
+        if(!scutilo.isEmpty(mulBigo)) {
+            scutilo.showMsg("특이사항", mulBigo);
+
+            //특이사항 창크기 조정
+            setTimeout(function(){
+                const el = document.querySelector('.messagebox');
+                const els = el.querySelectorAll('textarea'); //tbx_message
+                const message = els[0];
+                const elId = document.getElementById(el.id);
+                const messageId = document.getElementById(message.id);
+                elId.style.width = '550px';
+                elId.style.height = '350px';
+                messageId.style.height = '90%';
+            }, 10);
+            $("#_modal").css("pointer-events", "none");
+        }
+    }
+};
+
+/**
+ *  이전페이지 이동 버튼 기능
+ *
+ * ============= ============ ==========================
+ *  Date          Author       Description
+ * ============= ============ ==========================
+ *  2022.10.11.   나해준       [NELS]최초 생성
+ * ============= ============ ==========================
+ */
+scwin.btn_prevPage_onclick = function(e) {
+
+    let dtlSrchParam = {
+        prevInfo: {
+            prevPgmId: scwin.prevPgmId
+        },
+        srchInfo: scwin.param.srchInfo
+    }
+
+    if (scwin.pgmId === 'PGJ151F01') {
+        $w.local.setItem('dtlSrchParam', JSON.stringify(dtlSrchParam));
+        $p.url(`/pgj/ui/pgj100/PGJ151F00.xml`);
+    } else if (scwin.pgmId === 'PGJ153M01') {
+        $w.local.setItem('dtlSrchParam', encodeURI(JSON.stringify(dtlSrchParam)));
+        $p.url(`/pgj/ui/pgj100/PGJ153F00.xml`);
+    } else if (scwin.pgmId === 'PGJ195M02') {
+        $p.url("/pgj/ui/pgj100/PGJ195M00.xml");
+    } else if (scwin.pgmId ==='mainUsg') {
+        $p.url(`/pgj/ui/pgj100/PGJ111M01.xml`);
+    }
+};
+
+/**
+ *
+ * 그리드 사건 번호 Format 메서드
+ *
+ * ============= ============ ==========================
+ *  Date          Author       Description
+ * ============= ============ ==========================
+ *  2024.07.03.   나해준       [NELS]최초 생성
+ * ============= ============ ==========================
+ */
+scwin.csNoFormat = function(data, formattedData, rowIndex, colIndex){
+    let csLst = data.split("</br>")
+	let result1 = `<div><a href="#" onclick="moveCsDtlPage(${rowIndex})">${csLst[0]}</a><br>`
+	let result2 = ""
+	if (csLst.length > 1) {
+		csLst.forEach( (r,i) => {
+			if (i != 0 ) result2 += `<text>${r}</text><br>`
+		})
+	}
+    return result1 + `${result2}</div>`;
+}
+
+
+/**
+ *
+ * 물건 상세 페이지 이동
+ *
+ * ============= ============ ==========================
+ *  Date          Author       Description
+ * ============= ============ ==========================
+ *  2024.07.03.   나해준       [NELS]최초 생성
+ *  2025.12.26.   공태은       [25A-PGJ-0052] 기일별 검색 목록 화면에서 상세 화면에서 목록화면으로 이동시 스크롤바 유지되도록 개선
+ *  2025.12.26.   공태은       [25A-PGJ-0053] 나의경매 자주쓰는검색 화면에서 페이지 이동시 검색조건이 초기화되는 현상 수정
+ * ============= ============ ==========================
+ */
+function moveCsDtlPage(index) {
+    const csNo = dlt_srchResult.getCellData(index, 'saNo');
+    const cortOfcCd = dlt_srchResult.getCellData(index, 'boCd');
+    const dspslGdsSeq = dlt_srchResult.getCellData(index, 'maemulSer');
+    const mvSaNo = dlt_srchResult.getCellData(index, 'mvSaNo');
+    const srchInfo = dma_srchGdsDtlSrchInfo.getJSON();
+    
+    //상세 화면으로 이동시 목록화면의 스크롤 위치 정보를 저장
+    const scrollTop = window.pageYOffset || document.documentElement.scrollTop || document.body.scrollTop;
+    srchInfo.srchRowIndex = scrollTop;
+    
+    if(scutilo.isEmpty(srchInfo.sideDvsCd)){
+        srchInfo.sideDvsCd = '2';
+    }
+    
+    srchInfo.menuNm = scwin.menuNm;
+    const pgmId = scwin.pgmId;
+    let obj = {
+        "dataObject": { "type" : "json",
+        "name" : "param",
+        "data" : { csNo
+            , cortOfcCd
+            , dspslGdsSeq
+            , mvSaNo
+            , pgmId
+            , prevInfo: { pageNum: dma_pageInfo.get('pageNo') }
+            , srchInfo}
+        }
+    };
+    $p.main().wfm_mainFrame.setSrc('/pgj/ui/pgj100/PGJ15BM04.xml',obj);
+}
+
+/**
+ * 시간 셋팅 메서드
+ *
+ * ============= ============ ==========================
+ *  Date          Author       Description
+ * ============= ============ ==========================
+ *  2023.03.22.   나해준       [NELS]최초 생성
+ * ============= ============ ==========================
+ */
+scwin.timeFormat = function(time){
+    return scutilo.isEmpty(time) ? "" : time.slice(0,2).concat(":").concat(time.slice(2));
+}
+
+/**
+ * 페이지당 변경시 조회
+ *
+ * ============= ============ ==========================
+ *  Date          Author       Description
+ * ============= ============ ==========================
+ *  2024.11.13.   나해준       [NELS]최초 생성
+ * ============= ============ ==========================
+ */
+scwin.sbx_pageSize_onviewchange = function(info) {
+
+    var cookieFlag = info.newValue;
+	if (cookieFlag == 10) {
+		pgjUtil.setCookie('pageCnt','10')
+	} else if (cookieFlag == 20) {
+		pgjUtil.setCookie('pageCnt','20')
+	} else if (cookieFlag == 30) {
+		pgjUtil.setCookie('pageCnt','30');
+	} else if (cookieFlag == 40) {
+		pgjUtil.setCookie('pageCnt','40');
+	}
+    scwin.pageNum = 1;
+    scwin.pageSize = info.newValue;
+    scwin.gdsDtlSrchMain(true, info.newValue);//조회처리
+};
+
+/**
+ * 프린트 이벤트
+ * ============= ============ ==========================
+ *  Date          Author       Description
+ * ============= ============ ==========================
+ *  2024.06.27.   나해준       [NELS]최초 생성
+ * ============= ============ ==========================
+ */
+scwin.printBtnOnclick = function(e) {
+
+    let paramJSON = {};
+    paramJSON.html = document.getElementById($p.getComponentById('grp_contests').id).innerHTML;
+
+	var dataObject = {
+			type : "json",
+			data : paramJSON,
+			name : "paramObj"
+	};
+
+    /* default popup size */
+    const winW = window.innerWidth;
+    const winH = window.innerHeight;
+    const popupW = 1200;
+    const popupH = 700;
+
+    const popupX = (winW / 2) - (popupW / 2);
+    const popupY = (winH / 2) - (popupH / 2);
+
+	// 팝업의 옵션
+	var options = {
+			id: 'print',					// 팝업ID
+			type: "browserPopup",			// 팝업 타입(wframePopup,browserPopup)
+			width: popupW,				// 팝업 가로사이즈
+			height: popupH,			// 팝업 세로사이즈
+			top: popupY,					// 팝업 top위치
+			left: popupX,				// 팝업 left위치
+			popupName: "인쇄",				// 팝업 Name
+			modal: false,					// 부모창이 안움직임(true)/부모창이 움직임(false)
+			useIFrame: true,
+			dataObject : dataObject
+	};
+
+	$p.openPopup("/pgj/ui/pgj100/PGJPrintContainer.xml", options);
+}]]></script>
+    </head>
+    <body ev:onpageload="scwin.onpageload" ev:onpageunload="scwin.onpageunload">
+        <xf:group class="sub_cotainer" id="" style="">
+            <xf:group class="inr" id="" style="">
+                <w2:wframe class="sidebox" id="wfm_side" src="../common/sideMenu/side002.xml" style=""></w2:wframe>
+                <xf:group class="sub_contents" id="grp_contests" style="">
+                    <xf:group class="pgtbox" id="" style="">
+                        <w2:textbox class="pgt_tit" id="tbx_titleNm" label="물건상세검색" style="" tagname="h2"></w2:textbox>
+                        <xf:group class="clearfix" id="" style="">
+                            <xf:group class="pgt_location" id="" style="" tagname="ul">
+                                <xf:group id="" style="" tagname="li">
+                                    <w2:span id="" label="HOME" style=""></w2:span>
+                                </xf:group>
+                                <xf:group id="" style="" tagname="li">
+                                    <w2:span id="tbx_prevTitleNm" label="경매물건" style=""></w2:span>
+                                </xf:group>
+                                <xf:group id="" style="" tagname="li">
+                                    <w2:span id="tbx_subTitleNm" label="물건상세검색" style=""></w2:span>
+                                </xf:group>
+                            </xf:group>
+                        </xf:group>
+                    </xf:group>
+                    <xf:group class="shbox" id="" style="">
+                        <xf:group class="shbox_inner" id="" style="">
+                            <xf:group class="w2tb" id="" style="width:100%;" tagname="table">
+                                <w2:attributes>
+                                    <w2:summary></w2:summary>
+                                </w2:attributes>
+                                <xf:group tagname="caption"></xf:group>
+                                <xf:group tagname="colgroup">
+                                    <xf:group style="width:100px;" tagname="col"></xf:group>
+                                    <xf:group style="" tagname="col"></xf:group>
+                                    <xf:group style="width:100px;" tagname="col"></xf:group>
+                                    <xf:group style="" tagname="col"></xf:group>
+                                </xf:group>
+                                <xf:group tagname="tr">
+                                    <xf:group class="w2tb_th" style="" tagname="th">
+                                        <w2:attributes>
+                                            <w2:scope>row</w2:scope>
+                                        </w2:attributes>
+                                        <w2:textbox id="" label="검색조건" style=""></w2:textbox>
+                                    </xf:group>
+                                    <xf:group class="w2tb_td" style="" tagname="td">
+                                        <w2:attributes>
+                                            <w2:colspan>3</w2:colspan>
+                                            <w2:rowspan>1</w2:rowspan>
+                                        </w2:attributes>
+                                        <xf:group class="require_list" id="" style="">
+                                            <xf:group id="" style="">
+
+
+
+
+
+
+
+
+                                                <w2:generator style="" id="gna_srhcTitle">
+                                                    <w2:span class="tit" id="spn_srchTitle" label="법원" style=""></w2:span>
+                                                    <w2:span id="spn_srchCtt" label="사건번호 테스트중" style=""></w2:span>
+                                                    <w2:span id="spn_srchBar" label="|" style=""></w2:span>
+                                                </w2:generator>
+                                            </xf:group>
+
+                                        </xf:group>
+                                    </xf:group>
+                                </xf:group>
+                            </xf:group>
+                        </xf:group>
+                    </xf:group>
+                    <w2:gridView summary="부동산 물건 상세검색 목록" preventMultisort=""
+                    	ev:oncellclick="scwin.grd_gdsDtlSrchResult_oncellclick" scrollByColumnAdaptive="false" showSortableImage="false"
+                    	readOnly="true" scrollByColumn="false" keepDefaultColumnWidth="false" sortable="false" defaultCellHeight="20"
+                    	tooltipDisplay="false" fixedColumn="1" dataList="data:dlt_srchResult" style="" tengeMask="" autoFit="allColumn"
+                    	id="grd_gdsDtlSrchResult" visibleRowNum="all" mergeCells="never" class="grdtype8 grdcolor"
+                    	noResultMessage="검색결과가 없습니다." noResultMessageVisibleAlways="true" noResultMessageStyle="display: block; position: relative; color: rgb(56, 61, 65);font-size: 12px;text-align: center;"
+                    	tooltipShowAlways="false" titleAuto="false" titleFormatter="scwin.titleFormatter">
+                    	<w2:caption style="" id="caption1" value="this is a grid caption."></w2:caption>
+                    	<w2:header style="" id="header1">
+                    		<w2:row style="" id="row1">
+                    			<w2:column rowSpan="2" removeBorderStyle="false" width="115" inputType="custom" id="csNo" sortable="false"
+                    				value="사건번호" blockSelect="false" displayMode="label" style="height:40px;">
+                    			</w2:column>
+                    			<w2:column rowSpan="2" removeBorderStyle="false" width="70" inputType="text" id="column5" value="물건번호"
+                    				blockSelect="false" displayMode="label" style="height:40px;">
+                    			</w2:column>
+                    			<w2:column rowSpan="2" colSpan="4" removeBorderStyle="false" width="235" inputType="text"
+                    				style="height:40px;" id="column4" value="매각장소 및 목록내역" blockSelect="false" displayMode="label">
+                    			</w2:column>
+                    			<w2:column rowSpan="2" width="100" inputType="text" style="height:40px;" id="column37" value="매각장소유형"
+                    				displayMode="label">
+                    			</w2:column>
+                    			<w2:column rowSpan="2" removeBorderStyle="false" width="80" inputType="text" id="column2" value="비고"
+                    				blockSelect="false" displayMode="label" style="height:40px;">
+                    			</w2:column>
+                    			<w2:column removeBorderStyle="false" width="110" inputType="custom" id="aeeEvlAmt" sortable="false"
+                    				value="감정평가액" blockSelect="false" displayMode="label" style="height:40px;">
+                    			</w2:column>
+                    			<w2:column width="110" id="dspslDxdyYmd" sortable="false" value="담당부서&lt;br&gt;매각기일" style="height:40px;"
+                    				rowSpan="2" escape="false" displayMode="label" inputType="custom">
+                    			</w2:column>
+                    		</w2:row>
+                    		<w2:row style="" id="row3">
+                    			<w2:column removeBorderStyle="false" width="110" inputType="custom" id="pbancLwsDspslPrc" sortable="false"
+                    				value="최저매각가격&lt;br&gt;(단위:원)" blockSelect="false" displayMode="label">
+                    			</w2:column>
+                    		</w2:row>
+                    	</w2:header>
+                    	<w2:gBody style="" id="gBody1">
+                    		<w2:row style="" id="row2">
+                    			<w2:column rowSpan="2" removeBorderStyle="false" width="130" inputType="text" id="printCsNo"
+                    				escape="false" blockSelect="false" displayMode="label" customFormatter="scwin.csNoFormat" readOnly="true" colMerge="false">
+                    			</w2:column>
+                    			<w2:column rowSpan="2" removeBorderStyle="false" width="80" inputType="text" readOnly="true" id="maemulSer" blockSelect="false" displayMode="label">
+                    			</w2:column>
+                    			<w2:column rowSpan="2" colSpan="3" removeBorderStyle="false" readOnly="true" blockSelect="false"
+                    				displayMode="label" customFormatter="scwin.stFormat" width="200" inputType="text" id="mvprpDtlPlace1" class="al"
+                    				escape="false">
+                    			</w2:column>
+                    			<w2:column rowSpan="2" removeBorderStyle="false" width="65" inputType="button" id="btnMap" class="bt_map"
+                    				blockSelect="false" displayMode="label" value="지도" readOnly="false">
+                    			</w2:column>
+                    			<w2:column rowSpan="2" removeBorderStyle="false" width="89" inputType="text" id="mvrPlaceTypcdNm"
+                    				blockSelect="false" displayMode="label">
+                    			</w2:column>
+                    			<w2:column rowSpan="2" removeBorderStyle="false" width="110" inputType="text" readOnly="true"
+                    				id="notifyTypcd" class="al" escape="false" blockSelect="false" displayMode="label"
+                    				customFormatter="scwin.notifyFormat">
+                    			</w2:column>
+                    			<w2:column removeBorderStyle="false" width="110" colMerge="false" inputType="text" readOnly="true"
+                    				id="gamevalAmt" class="ar" blockSelect="false" displayMode="label"
+                    				displayFormat="##,###,###,###,###,###,###,###,###">
+                    			</w2:column>
+                    			<w2:column width="110" colMerge="false" readOnly="true" id="jpDeptNm" escape="false" rowSpan="2"
+                    				style="height:20px;" displayMode="label" customFormatter="scwin.chargDept">
+                    			</w2:column>
+                    		</w2:row>
+                    		<w2:row style="" id="row4">
+                    			<w2:column removeBorderStyle="false" width="110" colMerge="false" inputType="text" readOnly="true"
+                    				id="minmaePrice" class="ar" blockSelect="false" displayMode="label"
+                    				displayFormat="##,###,###,###,###,###,###,###,###">
+                    			</w2:column>
+                    		</w2:row>
+                    	</w2:gBody>
+                    </w2:gridView>
+                    <xf:group class="count_page" id="grp_rletPageInfo" style="">
+
+                        <xf:group class="gvw_count_group" id="" style="">
+                            <w2:span id="" label="총 물건 수 :" style=""></w2:span>
+                            <w2:span class="count_selected" id="spn_totalCnt" label="0" style=""></w2:span>
+                            <w2:span id="" label="건" style=""></w2:span>
+                        </xf:group>
+                        <w2:pageList class="wq_pglist" displayButtonType="display" displayFormat="#" id="pgl_gdsDtlSrchPage" pageSize="10"
+                            style="" buttonShowType="3" ev:onviewchange="scwin.pgl_gdsDtlSrchPage_onviewchange">
+                        </w2:pageList>
+                        <xf:group class="count_view" id="" style="">
+                            <w2:span class="txt" dataType="" id="" label="페이지당" style=""></w2:span>
+                            <xf:select1 allOption="" appearance="minimal" chooseOption="" class="sel" direction="auto" disabled="false"
+                                disabledClass="w2selectbox_disabled" id="sbx_pageSize" ref="" renderType="select" style="max-width:80px;"
+                                submenuSize="auto" title="페이지당 수 선택" ev:onviewchange="scwin.sbx_pageSize_onviewchange">
+                                <xf:choices>
+                                    <xf:item>
+                                        <xf:label><![CDATA[10]]></xf:label>
+                                        <xf:value><![CDATA[10]]></xf:value>
+                                    </xf:item>
+                                    <xf:item>
+                                        <xf:label><![CDATA[20]]></xf:label>
+                                        <xf:value><![CDATA[20]]></xf:value>
+                                    </xf:item>
+                                    <xf:item>
+                                        <xf:label><![CDATA[30]]></xf:label>
+                                        <xf:value><![CDATA[30]]></xf:value>
+                                    </xf:item>
+                                    <xf:item>
+                                        <xf:label><![CDATA[40]]></xf:label>
+                                        <xf:value><![CDATA[40]]></xf:value>
+                                    </xf:item>
+                                </xf:choices>
+                            </xf:select1>
+                        </xf:group>
+
+                    </xf:group>
+                    <xf:group class="btn_group_w ty1" id="grp_buttonInfo" style="">
+                        <xf:group class="btn_group r_line dsInb " id="" style="">
+                            <xf:trigger class="btn_cm lg bt_print" id="trigger1" style="" type="button" title="인쇄하기 버튼" ev:onclick="scwin.printBtnOnclick">
+                                <xf:label><![CDATA[인쇄하기]]></xf:label>
+                            </xf:trigger>
+                        </xf:group>
+                        <xf:group class="btn_group dsInb " id="" style="">
+                            <xf:trigger class="btn_cm lg" id="btn_prevPage" style="" type="button"
+                                title="이전버튼" ev:onclick="scwin.btn_prevPage_onclick">
+                                <xf:label><![CDATA[이전]]></xf:label>
+                            </xf:trigger>
+                        </xf:group>
+
+                    </xf:group>
+                    <xf:group class="infobox ty_2" id="grp_noticeInfo" style="">
+                        <w2:textbox class="tit" id="" label="유의사항" style=""></w2:textbox>
+                        <xf:group class="info_list" id="" style="" tagname="ul">
+                            <xf:group id="" style="" tagname="li">
+                                <w2:textbox id=""
+                                    label="경매참가를 위해서 각 물건별 매각장소(법원이 아님)를 직접 방문하셔야 하며 물건별로 일괄매각함을 유의하시기 바랍니다."
+                                    style="">
+                                </w2:textbox>
+                            </xf:group>
+                            <xf:group id="" style="" tagname="li">
+                                <w2:textbox id="" label="부동산경매와는 달리, 대금지급과 물건을 인도할 날을 매각기일과 다른 날로 정한 경우를 제외하고는 매각기일에 매각허가와 대금지급, 물건의 인도가 모두 이루어집니다." style="">
+                                </w2:textbox>
+                            </xf:group>
+                            <xf:group id="" style="" tagname="li">
+                                <w2:textbox id="" label="법원경매정보 홈페이지에서 제공되는 동산매각물건정보에 대한 모든 권한은 집행관사무소에 있으며 법원과는 무관함을 유의하시기 바랍니다." style="">
+                                </w2:textbox>
+                            </xf:group>
+                            <xf:group id="" style="" tagname="li">
+                                <w2:textbox id="" label="제공된 정보가 실제 매각물건의 정보와 일치하지 않거나 정보의 제공 이후 중요한 변동사항이 생길 수 있으므로, 매각물건의 내용을 해당 집행관사무소에 문의하신 후 입찰에 참가하시기 바랍니다." style="">
+                                </w2:textbox>
+                            </xf:group>
+                            <xf:group id="" style="" tagname="li">
+                                <w2:textbox id="" label="법원경매정보 홈페이지에서 서비스하는 정보만으로 참여한 입찰과 관련하여 발생하는 문제에 대해서 집행관사무소는 책임을 지지 않습니다." style="">
+                                </w2:textbox>
+                            </xf:group>
+                            <xf:group id="" style="" tagname="li">
+                                <w2:textbox id="" label="과거에 감정된 물건은 물건의 종류와 상관없이 부수적으로 검색됩니다." style="">
+                                </w2:textbox>
+                            </xf:group>
+                        </xf:group>
+
+
+                    </xf:group>
+
+
+
+
+                </xf:group>
+            </xf:group>
+        </xf:group>
+
+    </body>
+</html>

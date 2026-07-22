@@ -22,6 +22,20 @@
   임차인 명세 e-문서/별도 엔드포인트를 **신규 캡처**해야 함(Playwright XHR 리버스 필요). 현 수정은
   "거짓 초록 → 정직한 모름"까지만. 유료사이트 동급 판정은 B-2에서.
 
+## 2026-07-22 12:10 KST — 🎯 건축물대장 도로명 주소 복구(VWorld 역지오코딩) + courtauction 서비스 정찰
+- 문제: enrich_building 1차 실측 결과 실패 8,885/14,324(62%)가 대부분 **도로명 주소**(scored.address가
+  도로명이면 VWorld parcel NOT_FOUND). 아파트 태반이 도로명이라 적중률 38%에 그침.
+- **도로명 복구**: `building_info._reverse_parcel` 추가 — road getcoord로 좌표 얻고 getAddress(PARCEL)로
+  **역지오코딩**해 지번(법정동코드+본번-부번)을 복원. juso.go.kr 별도 키 없이 VWorld만으로 처리.
+  실측: '다대로429번길 20'→다대동 120-10(지상25층), '학감대로49번길 62', '모래내로1길 4'(마포) 복구 확인.
+  `_resolve_parcel`이 parcel 실패 시 이 폴백 1회 시도. pytest 624 passed(신규 케이스 포함).
+- **courtauction 상세 구조 정찰**(WebSquare UI XML 정적 조회 — 데이터 엔드포인트 무작위타격 아님):
+  상세는 라우터(searchControllerMain/pgj15B)+pgmId 구조인데 **pgmId를 바꿔도 응답 동일**(물건상세만).
+  임차인/현황조사(PGJ177F01)·등기부는 **구조화 API 아님 → 문서(pgjComm/000Blob.on PDF) 또는 유료 등기**.
+  발견 서비스: `pgj176/caculateMvprpAuctnCst.on`(경매비용 계산), `pgj173/selectAuctnFrmlLst.on`(기일).
+  ⇒ 현황조사서 임차인은 PDF 파싱 필요(별도 대형 작업), 등기부 전체는 유료. 이번 범위서 제외.
+- 후속: 현재 enrich(구코드·parcel-only) 완료 후 `--retry-failed`로 8,885건 도로명 재조회→대량 복구 예정.
+
 ## 2026-07-22 10:30 KST — ⚡ 건축물대장 '빠른' 배치 캐시(느린 courtauction 크롤과 분리) + 서빙 캐시화
 - 배경: 상용 경매사이트 비교 중, 건축물대장 카드가 **이미 서빙에 배선돼 있었으나**(web.py
   get_building_summary 라이브 호출 + detail.html 렌더) **페이지뷰마다 VWorld+대장 3초 외부호출**을

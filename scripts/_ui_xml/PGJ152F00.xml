@@ -1,0 +1,794 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<html xmlns="http://www.w3.org/1999/xhtml"
+    xmlns:ev="http://www.w3.org/2001/xml-events"
+    xmlns:w2="http://www.inswave.com/websquare" xmlns:xf="http://www.w3.org/2002/xforms">
+    <head meta_screenName="지도검색_물건정보">
+        <title>법원경매정보제공 - 지도검색</title>
+    	<w2:type>DEFAULT</w2:type>
+    	<w2:buildDate />
+    	<xf:model>
+    		<xf:instance>
+    			<data xmlns="" />
+    		</xf:instance>
+    		<w2:dataCollection baseNode="map">
+    			<w2:dataMap baseNode="map" id="dma_createMyPin">
+    				<w2:keyInfo>
+    					<w2:key id="myPin" name="name1" dataType="text"></w2:key>
+    					<w2:key id="selcNum" name="name2" dataType="text"></w2:key>
+    					<w2:key id="xCordi" name="name3" dataType="text"></w2:key>
+    					<w2:key id="yCordi" name="name4" dataType="text"></w2:key>
+    					<w2:key id="mode" name="name5" dataType="text"></w2:key>
+    					<w2:key id="cortAuctnMbrsId" name="회원ID" dataType="text"></w2:key>
+    					<w2:key id="addrGubun" name=" 주소구분코드" dataType="text"></w2:key>
+    				</w2:keyInfo>
+    			</w2:dataMap>
+    			<w2:dataMap baseNode="map" id="dma_srchAroundGds">
+    				<w2:keyInfo>
+    					<w2:key id="myPin" name="name1" dataType="text"></w2:key>
+    					<w2:key id="selcNum" name="name2" dataType="text"></w2:key>
+    					<w2:key id="xCordi" name="X좌표" dataType="text"></w2:key>
+    					<w2:key id="yCordi" name="Y좌표" dataType="text"></w2:key>
+    					<w2:key id="cortAuctnMbrsId" name="회원ID" dataType="text"></w2:key>
+    					<w2:key id="cortAuctnSrchCondCd" name="검색구분코드" dataType="text"></w2:key>
+    					<w2:key id="bmrkSrchSeq" name="즐겨찾기순번" dataType="text"></w2:key>
+    					<w2:key id="mvprpRletDvsCd" name="동산부동산구분코드" dataType="text"></w2:key>
+    					<w2:key id="srchRdus" name="검색반경" dataType="text" encYN="true"></w2:key>
+    				</w2:keyInfo>
+    			</w2:dataMap>
+    		</w2:dataCollection>
+    		<w2:workflowCollection></w2:workflowCollection>
+    		<xf:submission id="sbm_selectCortOfcCdLst" ref='' target='' action="/pgj/pgjComm/selectCortOfcCdLst.on" method="post"
+    			mediatype="application/json" encoding="UTF-8" instance="" replace="" errorHandler="" customHandler="" mode="asynchronous"
+    			processMsg="" ev:submit="" ev:submitdone="scwin.sbm_selectCortOfcCdLst_submitdone" ev:submiterror="" abortTrigger="">
+    		</xf:submission>
+    		<xf:submission id="sbm_insertMyPinItrtArea" ref='data:json,dma_createMyPin' target=''
+    			action="/pgj/pgj152/insertMyPinItrtArea.on" method="post" mediatype="application/json" encoding="UTF-8" instance="" replace=""
+    			errorHandler="" customHandler="" mode="asynchronous" processMsg="" ev:submit=""
+    			ev:submitdone="scwin.sbm_insertMyPinItrtArea_submitdone" ev:submiterror="" abortTrigger="">
+    		</xf:submission>
+    		<xf:submission id="sbm_selectComboBox" ref="data:json,dma_srchAroundGds" target="" action="/pgj/pgj152/selectAroundGdsLst.on" method="post" mediatype="application/json" encoding="UTF-8"
+    			instance="" replace="" errorHandler="" customHandler="" mode="asynchronous" processMsg="" ev:submit="" ev:submitdone="scwin.sbm_selectComboBox_submitdone"
+    			ev:submiterror="" abortTrigger="">
+    		</xf:submission>
+    	</xf:model>
+    	<!--     	<link href="/pgj/cm/js/map/ol.css" rel="stylesheet" type="text/css" /> -->
+    	<script type="text/javascript" lazy="false"><![CDATA[scwin.isMain = function() {
+	return true;
+};
+/* mypinFlag */
+scwin.mypinFlag = false;
+scwin.mypinXcordi = '';
+scwin.mypinYcordi = '';
+
+scwin.zoomLevelBtnArr = [];
+
+scwin.userId = "";
+
+/* 탭 변경여부 */
+scwin.tapInit = false;
+
+/* 탭 클릭 인덱스 */
+scwin.clicked = 0;
+
+/* 넘겨받은 데이터 */
+scwin.param = '';
+
+scwin.onpageload = function() {
+	// window 오픈시 경로 못찾아서 직접 넣어줘야함
+	scscrno.setSystmCtxtPath('/pgj')
+	scscrno.setScPgmId('PGJ152F00');
+	sccdo.setSystm(scglblo.SYSTM.PGJ);
+	sccdo.loadIntgCdLst(scglblo.SYSTM.PGJ + scglblo.DELIMITER.HYPHEN + 'DSPSL_GDS_LST_USG_CD');
+	scwin.userId = WebSquare.cookie.getCookie('cortAuctnLgnMbr');
+	//scwin.userId = "ttest11a";
+	scwin.zoomLevelBtnArr.push(zoomLevelValue_1);
+	scwin.zoomLevelBtnArr.push(zoomLevelValue_2);
+	scwin.zoomLevelBtnArr.push(zoomLevelValue_3);
+	scwin.zoomLevelBtnArr.push(zoomLevelValue_4);
+	scwin.zoomLevelBtnArr.push(zoomLevelValue_5);
+	scwin.zoomLevelBtnArr.push(zoomLevelValue_6);
+	scwin.zoomLevelBtnArr.push(zoomLevelValue_7);
+	scwin.zoomLevelBtnArr.push(zoomLevelValue_8);
+	scwin.zoomLevelBtnArr.push(zoomLevelValue_9);
+	scwin.zoomLevelBtnArr.push(zoomLevelValue_10);
+	scwin.zoomLevelBtnArr.push(zoomLevelValue_11);
+	scwin.zoomLevelBtnArr.push(zoomLevelValue_12);
+
+	//탭 초기화
+	tab_mapTapCtr.hideTab(4);
+	tab_mapTapCtr.hideTab(5);
+	tab_mapTapCtr.hideTab(6);
+	const paramObj = com.data.getParameter("paramObj") || JSON.parse(WebSquare.util.getPopupParam()) || '';
+	scwin.param = JSON.stringify(paramObj.info);
+	if (!scutilo.isEmpty(paramObj)) {
+		scwin.tapMoveEvent(paramObj);
+	}
+
+	scwin.setMap(paramObj);
+	btn_myPin.hide(); //관심지역 탭에서만 오픈
+
+	/* 웹접근성 Enter이벤트를 추가하기 위한 로직 */
+	const levelDiv = document.querySelectorAll('.map_level');
+	levelDiv.forEach(el=>{
+		const aTags = el.querySelectorAll('a');
+		aTags.forEach(a=>{
+			a.addEventListener('keydown',function(e){
+				let key = e.key || e.which || e.keyCode;
+				if (key == 'Enter' || key == 1) {
+					let zoom = this.id.slice(9);
+					if(zoom == "minus"){
+						scwin.minusZoom();
+					} else if(zoom == "plus"){
+						scwin.plusZoom();
+					} else {
+						scwin.changeZoom(zoom);
+					}
+				}
+			});
+		});
+	});
+};
+
+scwin.setMap = function(param){
+
+	pgjMap(new FreeMapMap('mf_map'));
+	pgjMap.getMap().enableWheelZoom();
+
+	//초기맵 셋팅
+	let x = "312757";
+	let y = "544471";
+	let title = "서울중앙지방법원";
+	if (!scutilo.isEmpty(param) && !scutilo.isEmpty(param.info.x) && !scutilo.isEmpty(param.info.y)) {
+		x = param.info.x;
+		y = param.info.y;
+	} else {
+		//지도검색시 마커
+		pgjMap.makeMarker({
+			x: x
+			, y: y
+			, title: title
+		});
+	}
+
+	//중심값
+	pgjMap.getMap().setCenterAndZoomLevel(x, y, 10);
+
+	//기본줌
+	scwin.mgnZoomBox(10);
+
+	FreeMapEvent.addListener(pgjMap.getMap(), "zoom", function(newZoom, oldZoom){
+		scwin.mgnZoomBox(newZoom);
+	})
+}
+
+scwin.mgnZoomBox = function(zoom){
+	for(let i = 1; i <= 12; i++){
+		const btn = scwin.zoomLevelBtnArr[i-1];
+		let src = '/pgj/cm/images/map/level_empty.gif';
+		if(i <= zoom){
+			src = '/pgj/cm/images/map/level_fill.gif';
+		}
+		btn.setSrc(src);
+		zoomLevel.setSrc('/pgj/cm/images/map/level_' + String(zoom < 10? '0' + zoom : zoom) + '.gif');
+	}
+}
+
+scwin.changeZoom = function(newZoom){
+	pgjMap.getMap().setZoomLevel(newZoom);
+}
+
+scwin.plusZoom = function(){
+	pgjMap.getMap().setZoomLevel(pgjMap.getMap().getZoomLevel() + 1)
+}
+
+scwin.minusZoom = function(){
+	pgjMap.getMap().setZoomLevel(pgjMap.getMap().getZoomLevel() - 1)
+}
+
+scwin.sbm_selectCortOfcCdLst_submitdone = function(e){
+	const resultData = e.responseJSON;
+	try{
+		if( resultData.status == 200){
+
+			const sbxItmArr = resultData.data.result;
+			for(let i = 0; i < sbxItmArr.length; i++){
+				const value = sbxItmArr[i].cortOfcCd;
+				const label = sbxItmArr[i].cortOfcNm;
+				sbx_excpPrcsCortOfcCd.addItem(value, label, i);
+			}
+			sbx_excpPrcsCortOfcCd.addItem('', '전체', 0);
+		}else{
+			scutilo.showMsg("알림창",resultData.message);
+		}
+	}catch(e){
+		scutilo.showMsg("알림창",scutilo.getMsg(pgjmsg.PGJ.E_0002));
+	}
+}
+
+scwin.vwPpuNote = function(){
+	var winW = window.innerWidth;
+	var winH = window.innerHeight;
+
+	/* small popup size */
+	var popupW = 620;
+	var popupH = 590;
+
+	var popupX = (winW/2) - (popupW/2);
+	var popupY = (winH/2) - (popupH/2);
+
+	var options = {
+		id: "PGJ152P03",
+		type: "wframePopup",
+		popupName: "유의사항",
+		modal: true,
+		top:popupY,
+		left:popupX,
+		width:popupW,
+		height:popupH
+	};
+
+	com.win.openPopup("/pgj/ui/pgj100/PGJ152P03.xml", options);
+}
+
+scwin.trg_ctrl1_onclick = function(){
+	pgjMap.setMeasure({mod: '01'});
+	scwin.mypinFlag = false
+}
+
+scwin.trg_ctrl2_onclick = function(){
+	pgjMap.setMeasure({mod: '02'});
+	scwin.mypinFlag = false
+}
+
+scwin.trg_ctrl3_onclick = function(){
+	pgjMap.setMeasure({mod: '03'});
+	scwin.mypinFlag = false
+}
+
+scwin.trg_ctrl6_onclick = function(){
+	window.print()
+}
+/**
+ *
+ * 상단에 마이핀(관심지역) 버튼 클릭시 커서 변환 메서드
+ *
+ * ============= ============ ==========================
+ *  Date          Author       Description
+ * ============= ============ ==========================
+ *  2023.09.07.   나해준       [NELS]최초 생성
+ * ============= ============ ==========================
+*/
+scwin.trg_ctrl4_onclick = function(e) {
+	pgjMap.setMeasure({mod: '04'});
+	scwin.mypinFlag = true
+};
+
+/**
+ *
+ * 상단에 마이핀(관심지역) 버튼 클릭시 커서 변환 메서드
+ *
+ * ============= ============ ==========================
+ *  Date          Author       Description
+ * ============= ============ ==========================
+ *  2024.06.13.   나해준       [NELS]최초 생성
+ * ============= ============ ==========================
+*/
+scwin.moveTab = function(tabID,idx,userTabID){
+
+	scwin.mypinFlag = false; // tap 이동시  마이핀초기화
+	let wfmCond = "";
+	btn_myPin.hide();
+	if (idx === 3) {
+		btn_myPin.show("");
+	} else if(idx === 4){
+		if(scwin.tapInit && (scwin.clicked != idx)){ //동일 탭 클릭시 이벤트 X
+			wfmCond = wfm_gdsInfo.getWindow();
+			wfm_gdsInfo.setSrc("/pgj/ui/pgj100/PGJ152F05.xml");
+		}
+		scwin.clicked = 4;
+	} else if(idx === 5){
+		if(scwin.tapInit && (scwin.clicked != idx)){ //동일 탭 클릭시 이벤트 X
+			wfmCond = wfm_nearGds.getWindow();
+			wfm_gdsInfo.setSrc("/pgj/ui/pgj100/PGJ152F06.xml");
+		}
+		scwin.tapInit = true;
+		scwin.clicked = 5;
+	}
+}
+
+
+/**
+ *
+ * 관심물건,관심지역탭 로그인 체크
+ *
+ * ============= ============ ==========================
+ *  Date          Author       Description
+ * ============= ============ ==========================
+ *  2024.09.24.   나해준       [NELS]최초 생성
+ * ============= ============ ==========================
+*/
+scwin.tab_mapTapCtr_onbeforeselect = function(selectedIndex,index) {
+	if(index === 2 || index === 3){
+	 pgjUtil.loginCheckMoveLoginPage().then(result =>{
+		if(result){
+			//관심물건,관심지역
+		} else {
+			tab_mapTapCtr.setSelectedTabIndex(0);
+			return;
+		}
+	});
+	}
+};
+
+/**
+ *
+ * 집행기관에서 지도버튼 클릭시 발생하는 이벤트
+ *
+ * ============= ============ ==========================
+ *  Date          Author       Description
+ * ============= ============ ==========================
+ *  2023.04.28.   나해준       [NELS]최초 생성
+ * ============= ============ ==========================
+*/
+scwin.tapMoveEvent = function(param) {
+
+	if (!scutilo.isEmpty(param)) {
+		const pgmId = param.pgmId;
+		const info = param.info;
+		switch (true) {
+			case ['PGJ182M01','PGJ182F01'].includes(pgmId) :
+				tab_mapTapCtr.setSelectedTabIndex(1)
+				const arGds = wfm_aroundGds.getWindow()
+				arGds.sbx_searchType.setValue('03')
+				arGds.sbx_adongSdCd.setUserData('sdCd', info.sdCd || '')
+				arGds.sbx_adongSggCd.setUserData('sggCd',info.sggCd || '')
+				arGds.sbx_adongEmdCd.setUserData('emdCd',info.emdCd || '')
+				arGds.sbx_radius.setUserData('clickYn','Y'),
+				arGds.tbx_shopNm.setValue(info.cortSptNm)
+			break;
+			case ['PGJ15BM01','PGJ151M01','PGJ154M01','PGJ154M03','PGJ155M01','PGJ156M01','PGJ157M01','PGJ193M01'].includes(pgmId) :
+				tab_mapTapCtr.hideTab(0);
+				tab_mapTapCtr.hideTab(1);
+				tab_mapTapCtr.hideTab(2);
+				tab_mapTapCtr.hideTab(3);
+				tab_mapTapCtr.hideTab(6);
+				tab_mapTapCtr.showTab(4);
+				tab_mapTapCtr.showTab(5);
+			break;
+			case ['PGJ151M02', 'PGJ15BM04'].includes(pgmId) :
+				tab_mapTapCtr.hideTab(0);
+				tab_mapTapCtr.hideTab(1);
+				tab_mapTapCtr.hideTab(2);
+				tab_mapTapCtr.hideTab(3);
+				tab_mapTapCtr.hideTab(4);
+				tab_mapTapCtr.hideTab(5);
+				tab_mapTapCtr.showTab(6);
+			break;
+			default: return
+		}
+	}
+}
+
+/**
+ *
+ * 집행기관에서 지도버튼 클릭시 발생하는 이벤트
+ *
+ * ============= ============ ==========================
+ *  Date          Author       Description
+ * ============= ============ ==========================
+ *  2023.09.15.   나해준       [NELS]최초 생성
+ * ============= ============ ==========================
+ */
+scwin.map_onclick = function(e) {
+	if(scwin.mypinFlag) {
+		let pos = pgjMap.getMap().getCurrentObjectPoint(e);
+		pgjMap.removeMarkerByGrp(301) // 관심지역 마커
+		scwin.mypinXcordi = pos.x
+		scwin.mypinYcordi = pos.y
+		let imgSrc = '/pgj/cm/images/map/mypinMarker2.gif'
+		let m_Width = 90
+		let m_Height = 57
+		let markerObj = new FreeMapMarker(new FreeMapPoint(scwin.mypinXcordi, scwin.mypinYcordi), new FreeMapIcon(imgSrc, new FreeMapSize(m_Width, m_Height)));
+		pgjMap.getMap().addLayer(markerObj, 301);
+		let label = new FreeMapInfoWin();
+		markerObj.setLabel(label);
+		markerObj.setContents("");
+		FreeMapEvent.addListener(markerObj, 'click', scwin.myPinAddEvent);
+		markerObj.showLabel(scwin.mypinXcordi, scwin.mypinYcordi);
+	} else {
+		pgjMap.removeMarkerByGrp(301)
+	}
+};
+
+/**
+ *
+ * 관심지역 선택시 추가 한다.
+ *
+ * ============= ============ ==========================
+ *  Date          Author       Description
+ * ============= ============ ==========================
+ *  2023.09.18.   나해준       [NELS]최초 생성
+ * ============= ============ ==========================
+ */
+scwin.myPinAddEvent = function(){
+	const zoomLev = pgjMap.getMap().getZoomLevel();
+	const itrtArea = wfm_itrtArea.getWindow()
+
+	if(zoomLev < 9){ // 줌레벨 체크
+		scutilo.showConfirm(scglblo.MSG.CONFIRM
+		, scutilo.getMsg(pgjmsg.PGJ.C_0013)
+		, ({clickValue})=>{
+            if (clickValue) {
+                scwin.changeZoom(9)
+				pgjMap.getMap().setCenterAndZoomLevel(scwin.mypinXcordi, scwin.mypinYcordi, 9);
+				return;
+            } else {
+                return
+            }
+        })
+	} else if (!itrtArea.scwin.myPinValidationChk('02')) { //등록갯수 체크
+		scutilo.showMsg(scglblo.MSG.WARN,scutilo.getMsg(pgjmsg.PGJ.W_0063));
+		return
+	} else if (!itrtArea.scwin.myPinValidationChk('01',scwin.mypinXcordi,scwin.mypinYcordi)) { //반경 체크
+		scutilo.showMsg(scglblo.MSG.WARN,scutilo.getMsg(pgjmsg.PGJ.W_0062));
+		return
+	} else {
+		scutilo.showConfirm(scglblo.MSG.INFO,"선택하신 위치를 관심지역으로 등록하시겠습니까?",({clickValue})=>{
+			if (clickValue) {
+				pgjMap.removeMarkerByGrp(301);
+				pgjMap.getGraphics.setDrawMode = 'normal';
+				scwin.mypinFlag = 'false'
+				dma_createMyPin.set('myPin', '1');
+				dma_createMyPin.set('selcNum', '4');
+				dma_createMyPin.set('xCordi', scwin.mypinXcordi);
+				dma_createMyPin.set('yCordi', scwin.mypinYcordi);
+				dma_createMyPin.set('mode', 'create');
+				dma_createMyPin.set('cortAuctnMbrsId', scwin.userId);
+				com.executeSubmission(sbm_insertMyPinItrtArea);
+			} else {
+				return;
+			}
+		})
+	}
+}
+
+/**
+ *
+ * 선택한 관심지역 등록후 마커 생성 및 콤보박스 셋팅
+ *
+ * ============= ============ ==========================
+ *  Date          Author       Description
+ * ============= ============ ==========================
+ *  2023.09.18.   나해준       [NELS]최초 생성
+ * ============= ============ ==========================
+ */
+scwin.sbm_insertMyPinItrtArea_submitdone = function({responseJSON:{data,status}}) {
+	const result = data.result;
+	if (status === 200) {
+
+		const itrtArea = wfm_itrtArea.getWindow()
+		const myPinLst = result.myPinLst
+		const aroundSrchLst = result.srchLst
+		const srchLst = aroundSrchLst.pageResult
+		const xCordi = result.xCordi
+		const yCordi = result.yCordi
+
+		const filterTitle = result.myPinLst.filter( r => r.bmrkSrchSeq === Number(result.maxBmrkSrchSeq))[0]
+		const mapTitle = filterTitle.bmrkDtlLst.filter(r=> r.srchCondNm === "myPinMapAddr" )[0].srchCondVal
+		let mkArr = new Array();
+		// 관심지역 마커 만들기
+		pgjMap(new FreeMapMap('mf_map'));
+		pgjMap.getMap().enableWheelZoom();
+		pgjMap.makeMarker({
+			x: xCordi
+			, y: yCordi
+			, title: mapTitle
+		})
+		// 인근지역 마커 만들기 시작
+		srchLst.forEach((r,i)=>{
+			const markerId = 'marker' + String(i);
+			// scwin.markerArr.push(markerId);
+			const title = '<span class="marker markerIndex" id="' + markerId + '">'
+								+ String(i+1) + '</span>'
+								+ String(r.srnSaNo).substr(2).replace('타경', '-')
+								+ '[' + String(r.maemulSer) + ']';
+
+			const mkId = 'mk-' + String(i);
+			mkArr.push(mkId);
+			pgjMap.makeMarker({
+				x: r.xCordi
+				, y: r.yCordi
+				, title
+				, mkId
+				, imgSrc: '/pgj/cm/images/map/map_area_02.gif'
+				, mkGrp: '100'
+			})
+		})
+
+		const param = {myPinLst,srchLst,mkArr}
+		// 관심지역 콤보박스 셋팅
+		itrtArea.scwin.insertitrtAreaCallBack(param);
+		// 관심지역 해당 좌표로 이동
+		pgjMap.getMap().setCenterAndZoomLevel( xCordi, yCordi, 9);
+		// 줌 레벨 9로 변환
+		scwin.mgnZoomBox(9);
+		FreeMapEvent.addListener(pgjMap.getMap(), "zoom", function(newZoom, oldZoom){
+			scwin.mgnZoomBox(newZoom);
+		})
+
+
+	}
+};
+
+/**
+ *
+ * 관심지역 콤보박스 선택시 관심지역 목록, 인근지역 조회 콜백함수
+ *
+ * ============= ============ ==========================
+ *  Date          Author       Description
+ * ============= ============ ==========================
+ *  2023.09.18.   나해준       [NELS]최초 생성
+ * ============= ============ ==========================
+ */
+scwin.myPinSbxCallBack = function(param) {
+
+	const myPinInfo = param.thisMyPin
+	console.log('myPinInfo [1]===>',myPinInfo)
+	const rdus = param.rdus || ''
+	const mypinXcordi = myPinInfo.bmrkDtlLst.filter(r=> r.srchCondNm === 'myPinXCordi')[0].srchCondVal
+	const mypinYcordi = myPinInfo.bmrkDtlLst.filter(r=> r.srchCondNm === 'myPinYCordi')[0].srchCondVal
+
+	// 이전에 그려진 마커들 제거
+	pgjMap.removeMarkerByGrp(301); // 관심지역
+	pgjMap.removeMarkerByGrp(100); // 인근물건
+	scwin.mypinFlag = 'false'
+
+	dma_srchAroundGds.set('myPin', '1');
+	dma_srchAroundGds.set('selcNum', '4');
+	dma_srchAroundGds.set('bmrkSrchSeq',  myPinInfo.bmrkSrchSeq);
+	dma_srchAroundGds.set('mvprpRletDvsCd',  myPinInfo.mvprpRletDvsCd);
+	dma_srchAroundGds.set('mvprpRletDvsCd',  myPinInfo.mvprpRletDvsCd);
+	dma_srchAroundGds.set('xCordi', mypinXcordi);
+	dma_srchAroundGds.set('yCordi', mypinYcordi);
+	dma_srchAroundGds.set('srchRdus', rdus);
+	dma_srchAroundGds.set('cortAuctnSrchCondCd', '0004605');
+	dma_srchAroundGds.set('cortAuctnMbrsId', scwin.userId);
+	com.executeSubmission(sbm_selectComboBox);
+}
+
+/**
+ *
+ * 콤보박스 선택후 관심지역 , 인근지역 조회 후 마커 생성
+ *
+ * ============= ============ ==========================
+ *  Date          Author       Description
+ * ============= ============ ==========================
+ *  2023.09.18.   나해준       [NELS]최초 생성
+ * ============= ============ ==========================
+ */
+scwin.sbm_selectComboBox_submitdone = function({responseJSON:{data,status}}) {
+	const result = data.result;
+	if (status === 200) {
+		const aroundSrchLst = result.srchLst
+		let srchLst = aroundSrchLst.pageResult
+		const itrtArea = wfm_itrtArea.getWindow()
+		const myPinLst = result.myPinLst
+		const xCordi = result.xCordi
+		const yCordi = result.yCordi
+		const mapTitle = result.title
+		let mkArr = new Array();
+
+	    /* srchLst = [{
+				jiwonNm: "서울중앙지방법원",
+				boCd : "B000210",
+				srnSaNo: "2024타경100290",
+				saNo : "20050130000542",
+				maemulSer: "1",
+				mokmulSer: "1",
+				dspslUsgNm: "다세대",
+				notifyMinmaePrice1: "385000000",
+				notifyMinmaePrice2: "0",
+				notifyMinmaePrice3: "0",
+				notifyMinmaePrice4: "0",
+				maeGiil: "20240923",
+				printSt: "서울특별시 동작구  성대로37길 4 3층301호 (상도동,한나래9차)",
+				gamevalAmt: "385000000",
+				maeHh1: "1000",
+				maeHh2: "",
+				maeHh3: "",
+				maeHh4: "",
+				convAddr: "[집합건물 철근콘크리트구조   46.97㎡]",
+				xCordi: "305396",
+				yCordi: "543142",
+				mkId: "mk-0",
+				rowStatus: "U"
+			},
+			{
+				jiwonNm: "서울중앙지방법원",
+				boCd : "B000210",
+				srnSaNo: "2024타경100290",
+				saNo : "20050130000542",
+				maemulSer: "1",
+				mokmulSer: "1",
+				dspslUsgNm: "다세대",
+				notifyMinmaePrice1: "385000000",
+				notifyMinmaePrice2: "0",
+				notifyMinmaePrice3: "0",
+				notifyMinmaePrice4: "0",
+				maeGiil: "20240923",
+				printSt: "서울특별시 동작구  성대로37길 4 3층301호 (상도동,한나래9차)",
+				gamevalAmt: "385000000",
+				maeHh1: "1000",
+				maeHh2: "",
+				maeHh3: "",
+				maeHh4: "",
+				convAddr: "[집합건물 철근콘크리트구조   46.97㎡]",
+				xCordi: "305306",
+				yCordi: "543102",
+				mkId: "mk-1",
+				rowStatus: "U"
+			},
+			{
+				jiwonNm: "서울중앙지방법원",
+				boCd : "B000210",
+				srnSaNo: "2024타경100291",
+				saNo : "20050130100291",
+				maemulSer: "1",
+				mokmulSer: "1",
+				dspslUsgNm: "다세대",
+				notifyMinmaePrice1: "385000000",
+				notifyMinmaePrice2: "0",
+				notifyMinmaePrice3: "0",
+				notifyMinmaePrice4: "0",
+				maeGiil: "20240923",
+				printSt: "서울특별시 동작구  성대로37길 4 3층301호 (상도동,한나래9차)",
+				gamevalAmt: "385000000",
+				maeHh1: "1000",
+				maeHh2: "",
+				maeHh3: "",
+				maeHh4: "",
+				convAddr: "[집합건물 철근콘크리트구조   46.97㎡]",
+				xCordi: "305396",
+				yCordi: "543142",
+				mkId: "mk-0",
+				rowStatus: "U"
+			}]; */
+
+		// 관심지역 마커 만들기
+		pgjMap(new FreeMapMap('mf_map'));
+		pgjMap.getGraphics.setDrawMode = 'normal';
+		pgjMap.getMap().enableWheelZoom();
+		pgjMap.makeMarker({
+			x: xCordi
+			, y: yCordi
+			, title: mapTitle
+		})
+		if (srchLst.length>0) {
+			// 인근지역 마커 만들기 시작;
+			srchLst.forEach((r,i)=>{
+				const markerId = 'marker' + String(i);
+				// scwin.markerArr.push(markerId);
+				const title = '<span class="marker markerIndex" id="' + markerId + '">'
+									+ String(i+1) + '</span>'
+									+ String(r.srnSaNo).substr(2).replace('타경', '-')
+									+ '[' + String(r.maemulSer) + ']';
+
+				const mkId = 'mk-' + String(i);
+				mkArr.push(mkId);
+				pgjMap.makeMarker({
+					x: r.xCordi
+					, y: r.yCordi
+					, title
+					, mkId
+					, imgSrc: '/pgj/cm/images/map/map_area_02.gif'
+					, mkGrp: '100'
+				})
+			})
+		}
+		const param = {myPinLst,srchLst,mkArr,flag :'combo'}
+		itrtArea.scwin.insertitrtAreaCallBack(param);
+		// 관심지역 해당 좌표로 이동
+		pgjMap.getMap().setCenterAndZoomLevel( xCordi, yCordi, 9);
+		// 줌 레벨 9로 변환
+		scwin.mgnZoomBox(9);
+		FreeMapEvent.addListener(pgjMap.getMap(), "zoom", function(newZoom, oldZoom){
+			scwin.mgnZoomBox(newZoom);
+		})
+	}
+};
+
+
+
+]]></script>
+    </head>
+    <body ev:onpageload="scwin.onpageload" ev:onpageunload="scwin.onpageunload">
+    	<xf:group class="pop_contents user" id="" style="height: 100%;">
+    		<w2:tabControl useTabKeyOnly="false" id="tab_mapTapCtr" useMoveNextTabFocus="false" useConfirmMessage="false"
+    			confirmTrueAction="exist" confirmFalseAction="new" alwaysDraw="true" style="width: 400px;float: left;border-bottom: 0" class="inner_tab_type4" ev:onbeforeselect="scwin.tab_mapTapCtr_onbeforeselect" ev:ontabclick="scwin.moveTab">
+    			<w2:tabs disabled="false" style="" id="tabs1" label="물건검색"></w2:tabs>
+    			<w2:tabs disabled="false" style="" id="tabs2" label="지역물건"></w2:tabs>
+    			<w2:tabs disabled="false" style="" id="tabs3" label="관심물건"></w2:tabs>
+    			<w2:tabs disabled="false" style="" id="tabs4" label="관심지역"></w2:tabs>
+    			<w2:tabs disabled="false" style="" id="tabs5" label="물건정보"></w2:tabs>
+    			<w2:tabs disabled="false" style="" id="tabs6" label="인근물건"></w2:tabs>
+    			<w2:tabs disabled="false" style="" id="tabs7" label="물건정보"></w2:tabs>
+    			<w2:content alwaysDraw="false" style="" id="content1">
+    				<w2:wframe style="" id="wfm_srchCond" src="/pgj/ui/pgj100/PGJ152F01.xml"></w2:wframe>
+    			</w2:content>
+    			<w2:content alwaysDraw="false" style="" id="content2">
+    				<w2:wframe style="" id="wfm_aroundGds" src="/pgj/ui/pgj100/PGJ152F02.xml"></w2:wframe>
+    			</w2:content>
+    			<w2:content alwaysDraw="false" style="" id="content3">
+    				<w2:wframe style="" id="wfm_itrtGds" src="/pgj/ui/pgj100/PGJ152F03.xml"></w2:wframe>
+    			</w2:content>
+    			<w2:content alwaysDraw="false" style="" id="content4">
+    				<w2:wframe style="" id="wfm_itrtArea" src="/pgj/ui/pgj100/PGJ152F04.xml"></w2:wframe>
+    			</w2:content>
+    			<w2:content alwaysDraw="false" style="height:0px;border-bottom: 0;" id="content5">
+    				<w2:wframe id="wfm_gdsInfo" src="/pgj/ui/pgj100/PGJ152F05.xml" style=""></w2:wframe>
+    			</w2:content>
+    			<w2:content alwaysDraw="false" style="height:0px" id="content6">
+    				<w2:wframe id="wfm_nearGds" src="/pgj/ui/pgj100/PGJ152F06.xml" style=""></w2:wframe>
+    			</w2:content>
+    			<w2:content alwaysDraw="false" style="height:0px" id="content7">
+    				<w2:wframe id="wframe3" src="/pgj/ui/pgj100/PGJ152F07.xml" style=""></w2:wframe>
+    			</w2:content>
+    		</w2:tabControl>
+    		<xf:group class="map_ly" id="" style="width: calc(100% - 405px);float: right ;height: 100%;">
+    			<xf:group style="" id="mapControll">
+    				<xf:group class="shbox_btns" id="" style="position: absolute;">
+    					<xf:trigger class="mapBtn control_01" ev:onclick="scwin.trg_ctrl1_onclick" id="" style="" type="button"
+    						title="거리재기">
+    					</xf:trigger>
+    					<xf:trigger class="mapBtn control_02" ev:onclick="scwin.trg_ctrl2_onclick" id="" style="" type="button"
+    						title="화면확대하기">
+    					</xf:trigger>
+    					<xf:trigger class="mapBtn control_03" ev:onclick="scwin.trg_ctrl3_onclick" id="" style="" type="button"
+    						title="움직이기">
+    					</xf:trigger>
+    					<xf:trigger class="mapBtn control_06" ev:onclick="scwin.trg_ctrl6_onclick" id="" style="" type="button"
+    						title="인쇄하기">
+    					</xf:trigger>
+    					<xf:trigger class="mapBtn control_07" id="btn_myPin" style="" type="button" ev:onclick="scwin.trg_ctrl4_onclick"></xf:trigger>
+    					<w2:anchor outerDiv="false" style="" id="" ev:onclick="scwin.vwPpuNote">
+    						<xf:label><![CDATA[* 유의사항]]></xf:label>
+    					</w2:anchor>
+
+    				</xf:group>
+    				<xf:group class="map_level">
+    					<xf:group id="zoomLvminus" style="" tabIndex="0" tagname="a" ev:onclick="scwin.minusZoom"><xf:image class="btn-level" id="" src="/pgj/cm/images/map/level_btn_minus.gif" style="margin-right: 5px;" alt="줌 축소">
+    					</xf:image></xf:group>
+    					<xf:group id="zoomLv1" tagname="a" tabIndex="0" ev:onclick="scwin.changeZoom(1)"><xf:image src="/pgj/cm/images/map/level_empty.gif" style="" id="zoomLevelValue_1" class="btn-level zoom-level-value" value="1" alt="줌 레벨1">
+    					</xf:image></xf:group>
+    					<xf:group id="zoomLv2" tagname="a" tabIndex="0" ev:onclick="scwin.changeZoom(2)"><xf:image src="/pgj/cm/images/map/level_empty.gif" id="zoomLevelValue_2" class="btn-level zoom-level-value" value="2" alt="줌 레벨2">
+    					</xf:image></xf:group>
+    					<xf:group id="zoomLv3" tagname="a" ev:onclick="scwin.changeZoom(3)" tabIndex="0"><xf:image src="/pgj/cm/images/map/level_empty.gif" id="zoomLevelValue_3" class="btn-level zoom-level-value" value="3" alt="줌 레벨3">
+    					</xf:image></xf:group>
+    					<xf:group id="zoomLv4" tagname="a" ev:onclick="scwin.changeZoom(4)" tabIndex="0"><xf:image src="/pgj/cm/images/map/level_empty.gif" id="zoomLevelValue_4" class="btn-level zoom-level-value" value="4" alt="줌 레벨4">
+    					</xf:image></xf:group>
+    					<xf:group id="zoomLv5" tagname="a" ev:onclick="scwin.changeZoom(5)" tabIndex="0"><xf:image src="/pgj/cm/images/map/level_empty.gif" id="zoomLevelValue_5" class="btn-level zoom-level-value" value="5" alt="줌 레벨5">
+    					</xf:image></xf:group>
+    					<xf:group id="zoomLv6" tagname="a" ev:onclick="scwin.changeZoom(6)" tabIndex="0"><xf:image src="/pgj/cm/images/map/level_empty.gif" id="zoomLevelValue_6" class="btn-level zoom-level-value" value="6" alt="줌 레벨6">
+    					</xf:image></xf:group>
+    					<xf:group id="zoomLv7" tagname="a" ev:onclick="scwin.changeZoom(7)" tabIndex="0"><xf:image src="/pgj/cm/images/map/level_empty.gif" id="zoomLevelValue_7" class="btn-level zoom-level-value" value="7" alt="줌 레벨7">
+    					</xf:image></xf:group>
+    					<xf:group id="zoomLv8" tagname="a" ev:onclick="scwin.changeZoom(8)" tabIndex="0"><xf:image src="/pgj/cm/images/map/level_empty.gif" id="zoomLevelValue_8" class="btn-level zoom-level-value" value="8" alt="줌 레벨8">
+    					</xf:image></xf:group>
+    					<xf:group id="zoomLv9" tagname="a" ev:onclick="scwin.changeZoom(9)" tabIndex="0"><xf:image src="/pgj/cm/images/map/level_empty.gif" id="zoomLevelValue_9" class="btn-level zoom-level-value" value="9" alt="줌 레벨9">
+    					</xf:image></xf:group>
+    					<xf:group id="zoomLv10" tagname="a" ev:onclick="scwin.changeZoom(10)" tabIndex="0"><xf:image src="/pgj/cm/images/map/level_empty.gif" id="zoomLevelValue_10" class="btn-level zoom-level-value" value="10" alt="줌 레벨10">
+    					</xf:image></xf:group>
+    					<xf:group id="zoomLv11" tagname="a" ev:onclick="scwin.changeZoom(11)" tabIndex="0"><xf:image src="/pgj/cm/images/map/level_empty.gif" id="zoomLevelValue_11" class="btn-level zoom-level-value" value="11" alt="줌 레벨11">
+    					</xf:image></xf:group>
+    				    <xf:group id="zoomLv12" tagname="a" ev:onclick="scwin.changeZoom(12)" tabIndex="0"><xf:image src="/pgj/cm/images/map/level_empty.gif" style="margin-right: 5px;" id="zoomLevelValue_12" class="btn-level zoom-level-value" value="12" alt="줌 레벨12">
+    					</xf:image></xf:group>
+    					<xf:group id="zoomLvplus" tagname="a" ev:onclick="scwin.plusZoom()" tabIndex="0"><xf:image src="/pgj/cm/images/map/level_btn_plus.gif" style="" id="" class="btn-level" alt="줌 확대">
+    					</xf:image></xf:group></xf:group>
+    				<xf:image id="zoomLevel" src="/pgj/cm/images/map/level_01.gif" ev:onclick="" class=" " alt="줌 레벨" ></xf:image>
+    			</xf:group>
+    			<xf:group style="" id="map" class="mapbox" ev:onclick="scwin.map_onclick"></xf:group>
+    		</xf:group>
+    	</xf:group>
+
+    </body>
+</html>

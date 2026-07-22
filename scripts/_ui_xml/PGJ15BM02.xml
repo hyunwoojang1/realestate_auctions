@@ -1,0 +1,543 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<html xmlns="http://www.w3.org/1999/xhtml"
+    xmlns:ev="http://www.w3.org/2001/xml-events"
+    xmlns:w2="http://www.inswave.com/websquare" xmlns:xf="http://www.w3.org/2002/xforms">
+    <head meta_screenName="물건상세조회_부동산목록내역">
+    	<w2:type>DEFAULT</w2:type>
+        <w2:buildDate/>
+        <xf:model>
+        	<xf:instance>
+        		<data xmlns="" />
+        	</xf:instance>
+        	<w2:dataCollection baseNode="map">
+        		<w2:dataMap baseNode="map" id="dma_srchGdsLstDts">
+        			<w2:keyInfo>
+        				<w2:key id="cortOfcCd" name="법원사무소코드" dataType="text"></w2:key>
+        				<w2:key id="csNo" name="사건번호" dataType="text"></w2:key>
+        				<w2:key id="dspslGdsSeq" name="매각목적물번호" dataType="text"></w2:key>
+        			</w2:keyInfo>
+        		</w2:dataMap>
+        		<w2:dataMap baseNode="map" id="dma_pageInfo">
+        			<w2:keyInfo>
+        				<w2:key id="pageNo" name="페이지번호" dataType="number"></w2:key>
+        				<w2:key id="pageSize" name="페이지크기" dataType="number"></w2:key>
+        				<w2:key id="bfPageNo" name="이전 페이지 번호" dataType="number"></w2:key>
+        				<w2:key id="startRowNo" name="시작 행번호" dataType="number"></w2:key>
+        				<w2:key id="totalCnt" name="총건수" dataType="number" encYN="false"></w2:key>
+        				<w2:key id="totalYn" name="총건수조회여부" dataType="text"></w2:key>
+        			</w2:keyInfo>
+        			<w2:data use="true"></w2:data>
+        		</w2:dataMap>
+        		<w2:dataList baseNode="list" repeatNode="map" id="dlt_showLstDts" saveRemovedData="true">
+        			<w2:columnInfo>
+        				<w2:column id="LstDtsDvsNm" name="목록구분" dataType="text"></w2:column><w2:column id="lstDtsSeq" name="목록번호" dataType="text"></w2:column>
+
+        				<w2:column id="LstDtsCtt" name="목록내역" dataType="text"></w2:column>
+        			</w2:columnInfo>
+        		</w2:dataList>
+        	</w2:dataCollection>
+        	<w2:workflowCollection></w2:workflowCollection>
+        	<xf:submission id="selectLstDtsInfoLst" ref='data:json,["dma_srchGdsLstDts","dma_pageInfo"]'
+        		target='data:json,{"id":"dma_pageInfo","key":"data.dma_pageInfo"}' action="/pgj/pgj15B/selectPopUpGdsLstDts.on" method="post"
+        		mediatype="application/json" encoding="UTF-8" instance="" replace="" errorHandler="" customHandler="" mode="asynchronous"
+        		processMsg="" ev:submit="" ev:submitdone="scwin.selectLstDtsInfoLst_submitdone" ev:submiterror="" abortTrigger="">
+        	</xf:submission>
+        </xf:model>
+        <script type="text/javascript" lazy="false"><![CDATA[/* 최상단(opener, parent 포함) 기준 함수 */
+scwin.isMain = function() {
+	return true;
+};
+
+scwin.pgmId = "PGJ15BM02"
+
+scwin.pageCnt = '20';
+
+/**
+ *
+ *  onpageload시 목록내역 조회
+ *
+ * ============= ============ ==========================
+ *  Date          Author       Description
+ * ============= ============ ==========================
+ *  2023.11.02.   나해준       [NELS]최초 생성
+ * ============= ============ ==========================
+ */
+scwin.onpageload = function () {
+	const param = $p.getAllParameter().paramData.info;
+	dma_srchGdsLstDts.setJSON(param)
+	sbx_ntcMtrPage.setValue(scwin.pageCnt);
+	scwin.lstDtsPagingMain(true, scwin.pageCnt);
+};
+
+scwin.onpageunload = function () {
+
+};
+
+//웹접근성으로 인한 title제공 수정
+scwin.titleFormatter = function(){
+    return "";
+}
+
+/**
+ *
+ *  페이징처리 main
+ *
+ * ============= ============ ==========================
+ *  Date          Author       Description
+ * ============= ============ ==========================
+ *  2023.11.02.   나해준       [NELS]최초 생성
+ * ============= ============ ==========================
+ */
+scwin.lstDtsPagingMain = function(isFirst,pageCnt){
+	/* 최초 조회 여부 */
+	if (isFirst) {
+        dma_pageInfo.set("pageNo" , 1);
+        dma_pageInfo.set("totalYn", "Y");
+	} else {
+        dma_pageInfo.set("totalYn", "N");
+    }
+	/* 페이지 사이즈 셋팅 */
+    dma_pageInfo.set("pageSize", pageCnt);
+	com.executeSubmission(selectLstDtsInfoLst)
+}
+
+scwin.selectLstDtsInfoLst_submitdone = function({responseJSON:{status,data}}) {
+
+	if (status === 200) {
+		const result = data.result
+		const rletGdsLst =  result.rletGdsLst //목적물리스트)
+        const rgltLandLst =  result.rgltLandLst //대지권토지 리스트
+        const bldSdtrDtlLst = result.bldSdtrDtlLst // 건물표제부상세 리스트
+        const sugtExclBldLst = result.sugtExclBldLst // 제시외건물 리스트
+        const rletStLtnoLst = result.rletStLtnoLst // 부동산소재지번 리스트
+		if (rletGdsLst.length> 0) {
+			dlt_showLstDts.removeAll();
+			rletGdsLst.forEach( (r,i)=> {
+				let titleFlag = false;
+				dlt_showLstDts.insertRow(i);
+				let dtlDts = ''
+				dlt_showLstDts.setCellData(i, 'lstDtsSeq', r.dspslObjctSeq); //목적물 번호가 기준이되야함
+				dlt_showLstDts.setCellData(i, 'LstDtsDvsNm', r.auctnLstDvsCdNm);
+				if (r.auctnLstDvsCd === '06') { //목록 구분코드가 선박일 경우
+                    let splitTemp = r.bldDtlDts.split("\n");
+                    dtlDts =`선박의 종류와 명칭 : ${r.bldNm}<br />`
+                    dtlDts += `선적항: ${r.ltnoAddr}<br />`
+                    splitTemp.forEach(data => dtlDts += `${data}<br />`)
+				} else if (r.auctnLstDvsCd === '01'){ //목록 구분코드가 토지일경우
+					dtlDts = `${r.ldcgDts} ${r.objctArDts}`
+				} else if (r.auctnLstDvsCd === '02') { // 일반건물일때
+					if (!scutilo.isEmpty(rletStLtnoLst) && rletStLtnoLst.length>0) {
+						let rletStLtnoSt = ""
+                    	let rletStLtnoRdNm = ""
+						rletStLtnoLst.forEach((st,i) =>{
+							if (r.dspslObjctSeq === st.dspslObjctSeq) {
+								//도로명 - 법정동(지번주소) 출력이 전부다 끝난후 출력한다.
+								rletStLtnoSt = !scutilo.isEmpty(st.adongSdNm) ? `${st.adongSdNm} ` : ""
+								rletStLtnoSt += !scutilo.isEmpty(st.adongSggNm) ? `${st.adongSggNm} ` : ""
+								rletStLtnoSt += !scutilo.isEmpty(st.adongEmdNm) ? `${st.adongEmdNm} ` : ""
+								rletStLtnoSt += !scutilo.isEmpty(st.adongRiNm) ? `${st.adongRiNm} ` : ""
+								rletStLtnoSt += !scutilo.isEmpty(st.rletStLtnoAddr) ? `${st.rletStLtnoAddr}` : ""
+								if (realGdsRletStLtnoLst[j].addrTypCd === 'R' && scutilo.isEmpty(rletStLtnoSt)) {
+									rletStLtnoRdNm = `&nbsp;&nbsp;&nbsp;&nbsp;[도로명주소]<br />&nbsp;&nbsp;&nbsp;&nbsp;`
+									rletStLtnoRdNm += `${st.rdnmSdNm} `
+									rletStLtnoRdNm += !scutilo.isEmpty(st.rdnmSggNm) ? `${st.rdnmSggNm} ` : ""
+									rletStLtnoRdNm += !scutilo.isEmpty(st.rdnmEmdNm) ? `${st.rdnmEmdNm} ` : ""
+									rletStLtnoRdNm += `${st.rdnm} ${st.rdnmBldNo}`
+								}
+                        	dtlDts += `&nbsp;&nbsp;&nbsp;&nbsp;${rletStLtnoSt}</ br>`
+							}
+						})
+						if (!scutilo.isEmpty(r.bldNm)) dtlDts += `&nbsp;&nbsp;&nbsp;&nbsp;${r.bldNm}</ br>`
+						if (!scutilo.isEmpty(rletStLtnoRdNm)) dtlDts += `${rletStLtnoRdNm}<br />`
+					}
+					let upGrud = 0 //"위지상" 이라는 문구가 있는지 없는지를 체크하여 그 갯수를 파악
+					if (bldSdtrDtlLst.length>0) { //표제부
+						bldSdtrDtlLst.forEach((pyo,i) => {
+							if (r.dspslObjctSeq === pyo.dspslObjctSeq &&
+									!scutilo.isEmpty(pyo.bldSdtrDtlDts) &&
+										pyo.rletDvsDts === "일반건물") {
+								for (let cnt=0; cnt<9; cnt++) {
+									let strTemp = "";
+									switch (cnt) {
+										case 0 : strTemp = "위지상"
+										break;
+										case 1 : strTemp = "위 지상"
+										break;
+										case 2 : strTemp = "위지 상"
+										break;
+										case 3 : strTemp = "위 지 상"
+										break;
+										case 4 : strTemp = "위양지상"
+										break;
+										case 5 : strTemp = "위 양지상"
+										break;
+										case 6 : strTemp = "위 양 지상"
+										break;
+										case 7 : strTemp = "위양 지 상"
+										break;
+										case 8 : strTemp = "위 양 지 상"
+										break;
+									}
+									let idx = -1;
+									idx = pyo.bldSdtrDtlDts.indexOf(strTemp);
+									while(idx >=0) {
+										++upGrud;
+										idx += strTemp.length;
+										idx = pyo.bldSdtrDtlDts.indexOf(strTemp,idx);
+									}
+								}
+							}
+						})
+						if ( upGrud === 0) {
+							dtlDts = `위지상<br />`
+						}
+						bldSdtrDtlLst.forEach(pyo => {
+							if (r.dspslObjctSeq === pyo.dspslObjctSeq &&
+									!scutilo.isEmpty(pyo.bldSdtrDtlDts) &&
+										pyo.rletDvsDts === "일반건물") {
+								let splitTemp = pyo.bldSdtrDtlDts.split("\n");
+                            	splitTemp.forEach(p => dtlDts += `&nbsp;&nbsp;&nbsp;&nbsp;${p}< /br>`);
+							}
+						})
+					}
+                } else if (r.auctnLstDvsCd === '03') { //집합건물일 때
+					let dirCnt = 0;
+                	let pinCnt = 0;
+					if (!scutilo.isEmpty(rletStLtnoLst) && rletStLtnoLst.length>0) {
+						rletStLtnoLst.forEach(pyo => {
+							if (r.dspslObjctSeq === pyo.dspslObjctSeq
+									&& pyo.rletDvsDts === "1동"
+										&& scutilo.isEmpty(pyo.bldSdtrDtlDts)) {
+								pinCnt++;
+							}
+							if (r.dspslObjctSeq === pyo.dspslObjctSeq
+									&& !scutilo.isEmpty(pyo.bldSdtrDtlDts)
+										&& pyo.rletDvsDts === "전유") {
+								for (let cnt=0; cnt<10; cnt++) {
+									let strTemp ="";
+									switch (cnt) {
+										case 0 : strTemp = "1동건물의표시"
+										break;
+										case 1 : strTemp = "1동 건물의표시"
+										break;
+										case 2 : strTemp = "1동건물의 표시"
+										break;
+										case 3 : strTemp = "1동 건물의 표시"
+										break;
+										case 4 : strTemp = "1동의건물의표시"
+										break;
+										case 5 : strTemp = "1동의 건물의표시"
+										break;
+										case 6 : strTemp = "1동의건물의 표시"
+										break;
+										case 7 : strTemp = "1동의 건물의 표시"
+										break;
+										case 8 : strTemp = "전유부분"
+										break;
+										case 9 : strTemp = "전유 부분"
+										break;
+									}
+									let idx = -1;
+									idx = pyo.bldSdtrDtlDts.indexOf(strTemp);
+									while(idx >=0) {
+										++dirCnt;
+										idx += strTemp.length;
+										idx = pyo.bldSdtrDtlDts.indexOf(strTemp,idx);
+									}
+								}
+							}
+                    	})
+                	}
+					if (dirCnt > 0 || pinCnt > 0) {
+						if (!scutilo.isEmpty(rletStLtnoLst) && rletStLtnoLst.length>0) {
+							rletStLtnoLst.forEach(pyo =>{
+								if (r.dspslObjctSeq === pyo.dspslObjctSeq
+								&& !scutilo.isEmpty(pyo.bldSdtrDtlDts)
+								&& pyo.rletDvsDts === "전유") {
+									let splitTemp = pyo.bldSdtrDtlDts.split("\n");
+									splitTemp.forEach(r => dtlDts += `&nbsp;&nbsp;&nbsp;&nbsp;${r}< /br>`);
+								}
+							})
+                    	}
+					} else {
+						dtlDts += `1동의 건물의 표시</ br>`
+						if (!scutilo.isEmpty(rletStLtnoLst) && rletStLtnoLst.length>0) {
+							let rletStLtnoSt = ""
+							let rletStLtnoRdNm = ""
+							rletStLtnoLst.forEach(st =>{
+								if (r.dspslObjctSeq === st.dspslObjctSeq) {
+									rletStLtnoSt = !scutilo.isEmpty(st.adongSdNm) ? `${st.adongSdNm} `: ""
+									rletStLtnoSt += !scutilo.isEmpty(st.adongSggNm) ? `${st.adongSggNm} ` : ""
+									rletStLtnoSt += !scutilo.isEmpty(st.adongEmdNm) ? `${st.adongEmdNm} ` : ""
+									rletStLtnoSt += !scutilo.isEmpty(st.adongRiNm) ? `${st.adongRiNm} ` : ""
+									rletStLtnoSt += st.rletStLtnoAddr
+									if (scutilo.isEmpty(rletStLtnoSt) && st.addrTypCd === 'R') {
+										rletStLtnoRdNm = `&nbsp;&nbsp;&nbsp;&nbsp;[도로명주소]<br />&nbsp;&nbsp;&nbsp;&nbsp;`
+										rletStLtnoRdNm += `${st.rdnmSdNm} `
+										rletStLtnoRdNm += !scutilo.isEmpty(st.rdnmSggNm) ? `${st.rdnmSggNm} ` : ""
+										rletStLtnoRdNm += !scutilo.isEmpty(st.rdnmEmdNm) ? `${st.rdnmEmdNm} ` : ""
+										rletStLtnoRdNm += `${st.rdnm} ${st.rdnmBldNo}`
+									}
+									dtlDts += `&nbsp;&nbsp;&nbsp;&nbsp;${rletStLtnoSt}</ br>`
+								}
+							})
+							if (!scutilo.isEmpty(r.bldNm)) dtlDts += `&nbsp;&nbsp;&nbsp;&nbsp;${r.bldNm}</ br>`
+							if (!scutilo.isEmpty(rletStLtnoRdNm)) dtlDts += `${rletStLtnoRdNm}<br />`;
+						}
+						if (!scutilo.isEmpty(bldSdtrDtlLst) && bldSdtrDtlLst.length> 0 ) {
+                        	bldSdtrDtlLst.forEach(pyo =>{
+                            	if (r.dspslObjctSeq === pyo.dspslObjctSeq
+										&& !scutilo.isEmpty(pyo.bldSdtrDtlDts)
+										&& pyo.rletDvsDts === "1동") {
+									let splitTemp = pyo.bldSdtrDtlDts.split("\n");
+									splitTemp.forEach(r => dtlDts += `&nbsp;&nbsp;&nbsp;&nbsp;${r}</ br>`)
+                           		}
+							})
+                    	}
+						dtlDts += !scutilo.isEmpty(r.bldNm) ? `&nbsp;&nbsp;&nbsp;&nbsp;${r.bldNm}` : ""
+						dtlDts += `<br /><br />전유부분의 건물의 표시 <br />`
+                    	dtlDts += `&nbsp;&nbsp;&nbsp;&nbsp;건물의 번호 : ${r.bldDtlDts}<br />`
+                    	if (!scutilo.isEmpty(bldSdtrDtlLst)) {
+                        	let junCnt =0;
+							bldSdtrDtlLst.forEach(pyo=>{
+								if (r.dspslObjctSeq === pyo.dspslObjctSeq
+										&& !scutilo.isEmpty(pyo.bldSdtrDtlDts)
+										&& pyo.rletDvsDts === "전유") {
+									let splitTemp = pyo.bldSdtrDtlDts.split("\n");
+									let cnt =0;
+									splitTemp.forEach(data => {
+										if (cnt === 0 && junCnt ===0) {
+											dtlDts += `&nbsp;&nbsp;&nbsp;&nbsp;구&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;조 : `
+											dtlDts += `${data}<br />`
+										} else if (cnt >0 && junCnt === 0) {
+											dtlDts += `&nbsp;&nbsp;&nbsp;&nbsp;면&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;적 : `
+											dtlDts += `${data}<br />`
+										} else if (junCnt >0) {
+											dtlDts += `&nbsp;&nbsp;&nbsp;&nbsp; &nbsp;&nbsp;&nbsp;&nbsp; &nbsp;&nbsp;&nbsp;&nbsp; &nbsp;&nbsp;&nbsp;&nbsp;`
+											dtlDts += `&nbsp;&nbsp;${data}<br />`
+										}
+										cnt++
+									})
+									junCnt++;
+								}
+							})
+                   		}
+						if (!scutilo.isEmpty(rgltLandLst)) {
+                        	titleFlag = false;
+							rgltLandLst.forEach(land =>{
+								if (r.dspslObjctSeq === land.dspslObjctSeq) {
+									if (!scutilo.isEmpty(land.rletIndctDts)) {
+										if (!titleFlag) {
+											titleFlag = true;
+											dtlDts += `<br />대지권의 목적인 토지의 표시<br />`
+											dtlDts += `&nbsp;&nbsp;&nbsp;&nbsp;토 지 의&nbsp;&nbsp;표시 : `
+										} else {
+											dtlDts += `&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;`
+											dtlDts += `&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;`
+										}
+										dtlDts += `${land.rgltLandNo}. ${land.rletIndctDts}`
+										dtlDts += `&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;`
+										dtlDts += `&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;${land.landLdcgDts} ${land.landArDts}`
+									}
+								}
+							})
+							titleFlag = false;
+							rgltLandLst.forEach(land =>{
+								if (r.dspslObjctSeq === land.dspslObjctSeq) {
+									if (!scutilo.isEmpty(land.auctnRgltKndCd)) {
+										if (!titleFlag) {
+											titleFlag = true;
+											dtlDts += `&nbsp;&nbsp;&nbsp;&nbsp;대지권의 종류:`
+										} else {
+											dtlDts += `&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;`
+											dtlDts += `&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;`
+										}
+										dtlDts += `${land.rgltLandNo}. ${pgjUtil.getSTGcodeSystemNm('LJH','AUCTN_RGLT_KND_CD',land.auctnRgltKndCd)}<br />`
+									}
+								}
+							})
+                        	titleFlag = false;
+							rgltLandLst.forEach(land =>{
+								if (r.dspslObjctSeq === land.dspslObjctSeq) {
+									if (!scutilo.isEmpty(land.auctnRgltKndCd)) {
+										titleFlag = true;
+										dtlDts +=`&nbsp;&nbsp;&nbsp;&nbsp;대지권의 비율:`
+									} else {
+										dtlDts += `&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;`
+										dtlDts += `&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;`
+									}
+									dtlDts += `${land.rgltRateDnmnVal}.  분의${land.rgltRateNmrtVal}<br />`
+								}
+							})
+                        	titleFlag = false;
+                    	}
+					}
+				}
+				if (!scutilo.isEmpty(r.dspslStkCtt)) { //매각지분이 있을경우
+               		dtlDts += `<br /><br />매각지분 : ${r.dspslStkCtt}<br />`
+            	}
+				if (!scutilo.isEmpty(sugtExclBldLst) && sugtExclBldLst.length > 0) {
+					let exclCnt = 0;
+					sugtExclBldLst.forEach(ex =>{
+						if (r.dspslObjctSeq === ex.dspslObjctSeq) {
+							if (exclCnt === 0) {
+								dtlDts += `<br /><br /> 제시외<br />`
+							}
+							exclCnt++
+							dtlDts += `${ex.sugtBsdsBldSeq}.`
+							if (!scutilo.isEmpty(ex.etcUsgCtt)) {
+								dtlDts += `(용도)${ex.etcUsgCtt}`
+							}
+							if (!scutilo.isEmpty(ex.bldStrcDts)) {
+								dtlDts += `(구조)${ex.bldStrcDts}`
+							}
+							if (!scutilo.isEmpty(ex.bldArDts)) {
+								dtlDts += `(면적)${ex.bldArDts}`
+							}
+							dtlDts += `<br />`
+						}
+					})
+           		}
+				if (r.auctnLstDvsCd === '05' || r.auctnLstDvsCd === '07' || r.auctnLstDvsCd === '12' ) { //건설기계, 항공기일 경우
+                	dtlDts += `등록번호: ${!scutilo.isEmpty(r.objctRletCarUnqNo) ? r.objctRletCarUnqNo : ""}<br />`
+                	dtlDts += `기종: ${!scutilo.isEmpty(r.bldNm) ? r.bldNm : ""}<br />`
+                	if (!scutilo.isEmpty(r.bldDtlDts)) {
+                    	let splitTemp = r.bldDtlDts.split("\n");
+                    	splitTemp.forEach(data => dtlDts += `${data}<br />`);
+                	}
+            	}
+				if (r.auctnLstDvsCd === '08') { //광업권일경우
+					dtlDts += `등록번호: ${!scutilo.isEmpty(r.objctRletCarUnqNo) ? r.objctRletCarUnqNo : ""}<br />`
+					dtlDts += `광물명칭: ${!scutilo.isEmpty(r.bldNm) ? r.bldNm : ""}<br />`
+					if (!scutilo.isEmpty(r.bldDtlDts)) {
+						let splitTemp = r.bldDtlDts.split("\n");
+						splitTemp.forEach(data => dtlDts += `${data}<br />`);
+					}
+				}
+				if (r.auctnLstDvsCd === '09') { //어업권일경우
+                	dtlDts += `면호번호: ${!scutilo.isEmpty(r.objctRletCarUnqNo) ? r.objctRletCarUnqNo : ""}<br />`
+               		dtlDts += `어업및어구의명칭: ${!scutilo.isEmpty(r.bldNm) ? r.bldNm : ""}<br />`
+                	if (!scutilo.isEmpty(r.bldDtlDts)) {
+                	    let splitTemp = r.bldDtlDts.split("\n");
+                	    splitTemp.forEach(data => dtlDts += `${data}<br />`);
+                	}
+            	}
+				if (r.auctnLstDvsCd === '99') { //기타일경우
+					dtlDts += `등록번호: ${!scutilo.isEmpty(r.objctRletCarUnqNo) ? r.objctRletCarUnqNo : ""}<br />`
+					dtlDts += `정류: ${!scutilo.isEmpty(r.bldNm) ? r.bldNm : ""}<br />`
+					if (!scutilo.isEmpty(r.bldDtlDts)) {
+						let splitTemp = r.bldDtlDts.split("\n");
+						splitTemp.forEach(data => dtlDts += `${data}<br />`);
+					}
+				}
+				dlt_showLstDts.setCellData(i, 'LstDtsCtt', dtlDts);
+			})
+		}
+	}
+	scutilo.setPagingInfo(dma_pageInfo, pgl_ntcMtrList, grd_lstDts);
+};
+
+scwin.sbx_ntcMtrPage_onchange = function(info) {
+	const pageCnt = info.newValue;
+	switch(pageCnt) {
+		case '10' :
+			scwin.pageCnt = '10'
+			break;
+		case '20' :
+			scwin.pageCnt = '20'
+			break;
+		case '30' :
+			scwin.pageCnt = '30'
+			break;
+		case '40' :
+			scwin.pageCnt = '40';
+			break;
+	}
+	scwin.lstDtsPagingMain(true,pageCnt);
+};
+
+scwin.pgl_ntcMtrList_onviewchange = function(info) {
+	dma_pageInfo.set( "pageNo" , info.newSelectedIndex );
+    dma_pageInfo.set( "bfPageNo",info.oldSelectedIndex );
+	scwin.lstDtsPagingMain(false,scwin.pageCnt);//조회처리
+};]]></script>
+    </head>
+    <body ev:onpageload="scwin.onpageload" ev:onpageunload="scwin.onpageunload">
+    	<xf:group class="pop_contents user" id="" style="">
+    		<w2:gridView autoFit="allColumn" class="grid mb30" dataList="data:dlt_showLstDts" defaultCellHeight="20" id="grd_lstDts" readOnly="true"
+    			scrollByColumn="false" scrollByColumnAdaptive="false" style="min-height:300px;" summary="부동산 임대차 정보" tengeMask=""
+    			tooltipDisplay="true" visibleRowNum="all" titleAuto="false" titleFormatter="scwin.titleFormatter">
+    			<w2:caption style="" id="caption2" value="this is a grid caption."></w2:caption>
+    			<w2:header style="" id="header2">
+    				<w2:row style="" id="row19">
+    					<w2:column removeBorderStyle="false" width="70" inputType="text" style="height:20px" id="column75" value="목록번호"
+    						blockSelect="false" displayMode="label">
+    					</w2:column>
+    					<w2:column removeBorderStyle="false" width="70" inputType="text" style="height:20px" id="column74" value="목록구분"
+    						blockSelect="false" displayMode="label">
+    					</w2:column>
+    					<w2:column removeBorderStyle="false" width="200" inputType="text" style="height:20px" id="column73" value="상세내역"
+    						blockSelect="false" displayMode="label">
+    					</w2:column>
+    				</w2:row>
+    			</w2:header>
+    			<w2:gBody style="" id="gBody2">
+    				<w2:row style="" id="row20">
+    					<w2:column removeBorderStyle="false" width="70" inputType="text" style="height:20px" id="LstDtsDvsNm" value=""
+    						blockSelect="false" displayMode="label">
+    					</w2:column>
+    					<w2:column removeBorderStyle="false" width="70" inputType="text" style="height:20px" id="lstDtsSeq" value=""
+    						blockSelect="false" displayMode="label">
+    					</w2:column>
+    					<w2:column removeBorderStyle="false" width="200" inputType="text" style="height:20px" id="LstDtsCtt" value=""
+    						blockSelect="false" displayMode="label" escape="false" class="al">
+    					</w2:column>
+    				</w2:row>
+    			</w2:gBody>
+    		</w2:gridView>
+    		<xf:group class="count_page" id="" style="">
+    			<xf:group class="gvw_count_group" id="" style="">
+    				<w2:span id="" label="총" style=""></w2:span>
+    				<w2:span class="count_selected " id="spn_grsCnt" label="1" ref="data:dma_pageInfo.totalCnt" style=""></w2:span>
+    				<w2:span id="" label="건" style=""></w2:span>
+    			</xf:group>
+    			<w2:pageList buttonShowType="3" class="wq_pglist" displayButtonType="display" displayFormat="#"
+    				ev:onviewchange="scwin.pgl_ntcMtrList_onviewchange" id="pgl_ntcMtrList" pageSize="10" renderType="table" style="">
+    			</w2:pageList>
+    			<xf:group class="count_view" id="" style="">
+    				<w2:span class="txt" dataType="" id="" label="페이지당" style=""></w2:span>
+    				<xf:select1 allOption="" appearance="minimal" chooseOption="" class="sel" direction="auto" disabled="false"
+    					disabledClass="w2selectbox_disabled" ev:onviewchange="scwin.sbx_ntcMtrPage_onchange" id="sbx_ntcMtrPage" ref="" renderType="select"
+    					style="max-width:80px;" submenuSize="auto" title="화면에 표시할 데이터 갯수 선택">
+    					<xf:choices>
+    						<xf:item>
+    							<xf:label><![CDATA[10]]></xf:label>
+    							<xf:value><![CDATA[10]]></xf:value>
+    						</xf:item>
+    						<xf:item>
+    							<xf:label><![CDATA[20]]></xf:label>
+    							<xf:value><![CDATA[20]]></xf:value>
+    						</xf:item>
+    						<xf:item>
+    							<xf:label><![CDATA[30]]></xf:label>
+    							<xf:value><![CDATA[30]]></xf:value>
+    						</xf:item>
+    						<xf:item>
+    							<xf:label><![CDATA[40]]></xf:label>
+    							<xf:value><![CDATA[40]]></xf:value>
+    						</xf:item>
+    					</xf:choices>
+    				</xf:select1>
+    			</xf:group>
+    		</xf:group>
+    	</xf:group>
+    	<xf:group class="btn_group" id="" style="">
+    		<xf:trigger class="btn_cm lg bt_print" disabled="" id="" style="" title="인쇄하기" type="button">
+    			<xf:label><![CDATA[인쇄하기]]></xf:label>
+    		</xf:trigger>
+    		<xf:trigger anchorWithGroupClass="" class="btn_cm lg w2window_close" disabled="" id="" style="" title="팝업창 닫기" type="button">
+    			<xf:label><![CDATA[닫기]]></xf:label>
+    		</xf:trigger>
+    	</xf:group>
+    </body>
+</html>

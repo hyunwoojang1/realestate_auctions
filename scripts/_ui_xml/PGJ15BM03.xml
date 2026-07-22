@@ -1,0 +1,1021 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<html xmlns="http://www.w3.org/1999/xhtml"
+    xmlns:ev="http://www.w3.org/2001/xml-events"
+    xmlns:w2="http://www.inswave.com/websquare" xmlns:xf="http://www.w3.org/2002/xforms">
+    <head meta_screenName="물건상세검색_자동차중기" meta_vertical_guides="" meta_horizontal_guides="794 620">
+    	<w2:type>DEFAULT</w2:type>
+        <w2:buildDate/>
+        <xf:model>
+            <xf:instance>
+                <data xmlns=""/>
+            </xf:instance>
+            <w2:dataCollection baseNode="map">
+            	<w2:dataList baseNode="list" repeatNode="map" id="dataList4" saveRemovedData="true">
+            		<w2:columnInfo>
+            			<w2:column id="col1" name="기일" dataType="text"></w2:column>
+            			<w2:column id="col2" name="기일종류" dataType="text"></w2:column>
+            			<w2:column id="col3" name="기일장소" dataType="text"></w2:column>
+            			<w2:column id="col4" name="최저매각가격" dataType="text"></w2:column>
+            			<w2:column id="col5" name="기일결과" dataType="text"></w2:column>
+            		</w2:columnInfo>
+            		<w2:data use="true">
+            			<w2:row>
+            				<col1><![CDATA[2020.04.27 (10:00)]]></col1>
+            				<col2><![CDATA[매각기일]]></col2>
+            				<col3><![CDATA[신청사 101호 법정]]></col3>
+            				<col4><![CDATA[20,000,000원]]></col4>
+            				<col5><![CDATA[유찰]]></col5>
+            			</w2:row>
+            			<w2:row>
+            				<col1><![CDATA[2020.06.01 (10:00)]]></col1>
+            				<col2><![CDATA[매각기일]]></col2>
+            				<col3><![CDATA[신청사 101호 법정]]></col3>
+            				<col4><![CDATA[20,000,000원]]></col4>
+            				<col5><![CDATA[]]></col5>
+            			</w2:row>
+            			<w2:row>
+            				<col1><![CDATA[2020.07.06 (10:00)]]></col1>
+            				<col2><![CDATA[매각결정기일]]></col2>
+            				<col3><![CDATA[신청사 101호 법정]]></col3>
+            			</w2:row>
+            		</w2:data>
+            	</w2:dataList>
+            	<w2:dataList baseNode="list" repeatNode="map" id="dataList5" saveRemovedData="true">
+            		<w2:columnInfo>
+            			<w2:column id="col1" name="기간" dataType="text"></w2:column>
+            			<w2:column id="col2" name="매각건수" dataType="text"></w2:column>
+            			<w2:column id="col3" name="평균감정가" dataType="text"></w2:column>
+            			<w2:column id="col4" name="평균매각가" dataType="text"></w2:column>
+            			<w2:column id="col5" name="매각가율" dataType="text"></w2:column>
+            			<w2:column id="col6" name="평균유찰횟수" dataType="text"></w2:column>
+            		</w2:columnInfo>
+            		<w2:data use="true">
+            			<w2:row>
+            				<col1><![CDATA[3개월]]></col1>
+            				<col2><![CDATA[16건]]></col2>
+            				<col3><![CDATA[7,023,000원]]></col3>
+            				<col4><![CDATA[4,012,000원]]></col4>
+            				<col5><![CDATA[66%]]></col5>
+            				<col6><![CDATA[2.2회]]></col6>
+            			</w2:row>
+            			<w2:row>
+            				<col1><![CDATA[6개월]]></col1>
+            				<col2><![CDATA[35건]]></col2>
+            				<col3><![CDATA[8,023,000원]]></col3>
+            				<col4><![CDATA[5,012,000원]]></col4>
+            				<col5><![CDATA[69%]]></col5>
+            				<col6><![CDATA[1.9회]]></col6>
+            			</w2:row>
+            			<w2:row>
+            				<col1><![CDATA[12개월]]></col1>
+            				<col2><![CDATA[71건]]></col2>
+            				<col3><![CDATA[9,023,000원]]></col3>
+            				<col4><![CDATA[5,312,000원]]></col4>
+            				<col5><![CDATA[69%]]></col5>
+            				<col6><![CDATA[1.6회]]></col6>
+            			</w2:row>
+            		</w2:data>
+            	</w2:dataList>
+            	<w2:dataList baseNode="list" repeatNode="map" id="dataList6" saveRemovedData="true">
+            		<w2:columnInfo>
+            			<w2:column id="col1" name="사건번호" dataType="text"></w2:column>
+            			<w2:column id="col2" name="용도" dataType="text"></w2:column>
+            			<w2:column id="col3" name="소재지 및 내역" dataType="text"></w2:column>
+            			<w2:column id="col4" name="감정평가액(단위:원)" dataType="text"></w2:column>
+            			<w2:column id="col5" name="매각월" dataType="text"></w2:column>
+            			<w2:column id="col6" name="매각대금(단위:원)" dataType="text"></w2:column>
+            		</w2:columnInfo>
+            		<w2:data use="true">
+            			<w2:row>
+            				<col1><![CDATA[서울중앙지방법원<br>20**타경******]]></col1>
+            				<col2><![CDATA[자동차]]></col2>
+            				<col3><![CDATA[충청북도 충주시 가주종공1길 22]]></col3>
+            				<col4><![CDATA[14,012,000원]]></col4>
+            				<col5><![CDATA[2020.04]]></col5>
+            				<col6><![CDATA[14,012,000원]]></col6>
+            			</w2:row>
+            			<w2:row>
+            				<col1><![CDATA[서울중앙지방법원<br>20**타경******]]></col1>
+            				<col2><![CDATA[자동차]]></col2>
+            				<col3><![CDATA[충청북도 충주시 가주종공1길 22]]></col3>
+            				<col4><![CDATA[13,012,000원]]></col4>
+            				<col5><![CDATA[2020.06]]></col5>
+            				<col6><![CDATA[14,012,000원]]></col6>
+            			</w2:row>
+            			<w2:row>
+            				<col1><![CDATA[서울중앙지방법원<br>20**타경******]]></col1>
+            				<col2><![CDATA[자동차]]></col2>
+            				<col3><![CDATA[충청북도 충주시 가주종공1길 22]]></col3>
+            				<col4><![CDATA[9,012,000원]]></col4>
+            				<col5><![CDATA[2020.06]]></col5>
+            				<col6><![CDATA[9,012,000원]]></col6>
+            			</w2:row>
+            		</w2:data>
+            	</w2:dataList>
+            	<w2:dataList baseNode="list" repeatNode="map" id="dataList7" saveRemovedData="true">
+            		<w2:columnInfo>
+            			<w2:column id="col1" name="사건번호" dataType="text"></w2:column>
+            			<w2:column id="col2" name="물건번호" dataType="text"></w2:column>
+            			<w2:column id="col3" name="소재지 및 내역" dataType="text"></w2:column>
+            			<w2:column id="col4" name="비고" dataType="text"></w2:column>
+            			<w2:column id="col5" name="감정평가액" dataType="text"></w2:column>
+            			<w2:column id="col6" name="담당계" dataType="text"></w2:column>
+            			<w2:column id="col7" name="진행상태" dataType="text"></w2:column>
+            		</w2:columnInfo>
+            		<w2:data use="true">
+            			<w2:row>
+            				<col1><![CDATA[수원지방법원<br>20**타경******]]></col1>
+            				<col2><![CDATA[1]]></col2>
+            				<col3><![CDATA[사용본거지 : 경기도 수원시 가주종공1길 22<br>[그랜져]]]></col3>
+            				<col5><![CDATA[14,012,000원]]></col5>
+            				<col6><![CDATA[경매16계]]></col6>
+            				<col7><![CDATA[유찰 1회]]></col7>
+            			</w2:row>
+            		</w2:data>
+            	</w2:dataList>
+            </w2:dataCollection>
+            <w2:workflowCollection>
+            </w2:workflowCollection>
+        </xf:model>
+         <script type="text/javascript" lazy="false"><![CDATA[
+        
+	scwin.onpageload = function() {
+		
+	};
+	
+	scwin.onpageunload = function() {
+		
+	};
+	
+	]]></script>
+    </head>
+    <body ev:onpageload="scwin.onpageload" ev:onpageunload="scwin.onpageunload">
+    	<xf:group class="wrap user" id="" style="">
+    		<w2:wframe class="header" id="" src="/pgj/ui/common/header.xml" style=""></w2:wframe>
+    		<xf:group class="sub_cotainer" id="" style="">
+    			<xf:group class="inr" id="" style="">
+    				<w2:wframe class="sidebox" id="" src="/pgj/ui/common/sideMenu/side002.xml" style="" nextTabID=""></w2:wframe>
+    				<xf:group class="sub_contents" id="" style="">
+    					<xf:group class="pgtbox" id="" style="">
+    						<w2:textbox class="pgt_tit" id="" label="자동차·중기검색" style="" tagname="h2"></w2:textbox>
+    						<xf:group class="clearfix" id="" style="">
+    							<xf:group class="pgt_location" id="" style="" tagname="ul">
+    								<xf:group id="" style="" tagname="li">
+    									<w2:span id="" label="경매물건" style=""></w2:span>
+    								</xf:group>
+    								<xf:group id="" style="" tagname="li">
+    									<w2:span id="" label="자동차·중기검색" style=""></w2:span>
+    								</xf:group>
+    							</xf:group>
+    						</xf:group>
+    					</xf:group>
+    					<xf:group class="shbox" id="" style="">
+    						<xf:group class="shbox_inner" id="" style="">
+    							<xf:group class="w2tb" id="" style="width:100%;" tagname="table">
+    								<w2:attributes>
+    									<w2:summary></w2:summary>
+    								</w2:attributes>
+    								<xf:group tagname="caption"></xf:group>
+    								<xf:group tagname="colgroup">
+    									<xf:group style="width:100px;" tagname="col"></xf:group>
+    									<xf:group style="" tagname="col"></xf:group>
+    									<xf:group style="width:100px;" tagname="col"></xf:group>
+    									<xf:group style="" tagname="col"></xf:group>
+    								</xf:group>
+    								<xf:group tagname="tr">
+    									<xf:group class="w2tb_th" style="" tagname="th">
+    										<w2:attributes>
+    											<w2:scope>row</w2:scope>
+    										</w2:attributes>
+    										<w2:textbox id="" label="검색조건" style=""></w2:textbox>
+    									</xf:group>
+    									<xf:group class="w2tb_td" style="" tagname="td">
+    										<w2:attributes>
+    											<w2:colspan>3</w2:colspan>
+    											<w2:rowspan>1</w2:rowspan>
+    										</w2:attributes>
+    										<xf:group class="require_list" id="" style="" tagname="ul">
+    											<xf:group id="" style="" tagname="li">
+    												<w2:span class="tit" id="" label="법원" style=""></w2:span>
+    												<w2:span id="" label="서울중앙지방법원" style=""></w2:span>
+    											</xf:group>
+    											<xf:group id="" style="" tagname="li">
+    												<w2:span class="tit" id="" label="사건번호" style=""></w2:span>
+    												<w2:span id="" label="2019타경103311" style=""></w2:span>
+    											</xf:group>
+    										</xf:group>
+    									</xf:group>
+    								</xf:group>
+    							</xf:group>
+    						</xf:group>
+    					</xf:group>
+    					<xf:group class="stbox" id="" style="">
+    						<w2:textbox class="frm_title" id="" label="물건기본정보" style="" tagname="h3"></w2:textbox>
+
+    					</xf:group>
+    					<xf:group tagname="table" style="width:100%;" id="" class="w2tb tb_ty1" adaptive="" adaptiveThreshold="">
+    						<w2:attributes>
+    							<w2:summary>물건 기본정보 내역</w2:summary>
+    						</w2:attributes>
+    						<xf:group tagname="caption"></xf:group>
+    						<xf:group tagname="colgroup">
+    							<xf:group tagname="col" style="width:120px;"></xf:group>
+    							<xf:group tagname="col" style=""></xf:group>
+    							<xf:group tagname="col" style="width:120px;"></xf:group>
+    							<xf:group tagname="col" style="width:16.67%"></xf:group>
+    							<xf:group tagname="col" style="width:120px;"></xf:group>
+    							<xf:group tagname="col" style=""></xf:group>
+    						</xf:group>
+    						<xf:group tagname="tr">
+    							<xf:group tagname="th" style="" class="w2tb_th">
+    								<w2:attributes>
+    									<w2:scope>row</w2:scope>
+    								</w2:attributes>
+    								<w2:textbox id="" label="사건번호" style=""></w2:textbox>
+    							</xf:group>
+    							<xf:group tagname="td" style="" class="w2tb_td">
+    								<w2:span class="txt" id="" label="2020타경109909" style=""></w2:span>
+    								<w2:span class="txt_sa" id="" label="전자" style=""></w2:span>
+    							</xf:group>
+    							<xf:group tagname="th" style="" class="w2tb_th">
+    								<w2:attributes>
+    									<w2:scope>row</w2:scope>
+    								</w2:attributes>
+    								<w2:textbox id="" label="물건번호" style=""></w2:textbox>
+    							</xf:group>
+    							<xf:group tagname="td" style="" class="w2tb_td">
+    								<w2:span class="txt" id="" label="1" style=""></w2:span>
+    							</xf:group>
+    							<xf:group tagname="th" style="" class="w2tb_th">
+    								<w2:attributes>
+    									<w2:scope>row</w2:scope>
+    								</w2:attributes>
+    								<w2:textbox id="" label="물건종류" style=""></w2:textbox>
+    							</xf:group>
+    							<xf:group tagname="td" style="" class="w2tb_td">
+    								<w2:span class="txt" id="" label="자동차" style=""></w2:span>
+    							</xf:group>
+    						</xf:group>
+    						<xf:group tagname="tr">
+    							<xf:group tagname="th" style="" class="w2tb_th">
+    								<w2:attributes>
+    									<w2:scope>row</w2:scope>
+    								</w2:attributes>
+    								<w2:textbox id="" label="감정평가액" style=""></w2:textbox>
+    							</xf:group>
+    							<xf:group tagname="td" style="" class="w2tb_td">
+    								<w2:span class="txt" id="" label="30,000,000원" style=""></w2:span>
+    							</xf:group>
+    							<xf:group tagname="th" style="" class="w2tb_th">
+    								<w2:attributes>
+    									<w2:scope>row</w2:scope>
+    								</w2:attributes>
+    								<w2:textbox id="" label="최저매각가격" style=""></w2:textbox>
+    							</xf:group>
+    							<xf:group tagname="td" style="" class="w2tb_td">
+    								<w2:span class="txt" id="" label="7,890,000원" style=""></w2:span>
+    							</xf:group>
+    							<xf:group tagname="th" style="" class="w2tb_th">
+    								<w2:attributes>
+    									<w2:scope>row</w2:scope>
+    								</w2:attributes>
+    								<w2:textbox id="" label="입찰방법" style=""></w2:textbox>
+    							</xf:group>
+    							<xf:group tagname="td" style="" class="w2tb_td">
+    								<w2:span class="txt" id="" label="기일입찰" style=""></w2:span>
+    							</xf:group>
+    						</xf:group>
+    						<xf:group tagname="tr">
+    							<xf:group tagname="th" style="" class="w2tb_th">
+    								<w2:attributes>
+    									<w2:scope>row</w2:scope>
+    								</w2:attributes>
+    								<w2:textbox id="" label="매각기일" style=""></w2:textbox>
+    							</xf:group>
+    							<xf:group tagname="td" style="" class="w2tb_td">
+    								<w2:attributes>
+    									<w2:colspan>5</w2:colspan>
+    									<w2:rowspan>1</w2:rowspan>
+    								</w2:attributes>
+    								<w2:span class="txt" id="" label="2021.02.15 10:00 신청사 101호 법정" style=""></w2:span>
+    							</xf:group>
+    						</xf:group>
+    						<xf:group tagname="tr">
+    							<xf:group tagname="th" style="" class="w2tb_th">
+    								<w2:attributes>
+    									<w2:scope>row</w2:scope>
+    								</w2:attributes>
+    								<w2:textbox id="" label="물건비고" style=""></w2:textbox>
+    							</xf:group>
+    							<xf:group tagname="td" style="" class="w2tb_td">
+    								<w2:attributes>
+    									<w2:colspan>5</w2:colspan>
+    									<w2:rowspan>1</w2:rowspan>
+    								</w2:attributes>
+    							</xf:group>
+    						</xf:group>
+    						<xf:group tagname="tr">
+    							<xf:group tagname="th" style="" class="w2tb_th">
+    								<w2:attributes>
+    									<w2:scope>row</w2:scope>
+    								</w2:attributes>
+    								<w2:textbox id="" label="목록1 소재지" style=""></w2:textbox>
+    							</xf:group>
+    							<xf:group tagname="td" style="" class="w2tb_td">
+    								<w2:attributes>
+    									<w2:colspan>5</w2:colspan>
+    									<w2:rowspan>1</w2:rowspan>
+    								</w2:attributes>
+    								<w2:span class="txt" id="" label="(승용차) 서울특별시 동대문구 답십리롤 11길 32" style=""></w2:span>
+    							</xf:group>
+    						</xf:group>
+    						<xf:group tagname="tr">
+    							<xf:group tagname="th" style="" class="w2tb_th">
+    								<w2:attributes>
+    									<w2:scope>row</w2:scope>
+    								</w2:attributes>
+    								<w2:textbox id="" label="담당" style=""></w2:textbox>
+    							</xf:group>
+    							<xf:group tagname="td" style="" class="w2tb_td">
+    								<w2:attributes>
+    									<w2:colspan>5</w2:colspan>
+    									<w2:rowspan>1</w2:rowspan>
+    								</w2:attributes>
+    								<w2:span class="txt" id="" label="서울중앙지방법원 | 경매4계" style=""></w2:span>
+    							</xf:group>
+    						</xf:group>
+    					</xf:group>
+    					<xf:group adaptive="layout" class="w2tb tb_ty1 mb30" id="" style="width:100%;" tagname="table">
+    						<w2:attributes>
+    							<w2:summary>물건 기본정보 내역</w2:summary>
+    						</w2:attributes>
+    						<xf:group tagname="caption"></xf:group>
+    						<xf:group tagname="colgroup">
+    							<xf:group style="width:150px;" tagname="col"></xf:group>
+    							<xf:group style="" tagname="col"></xf:group>
+    							<xf:group style="width:150px;" tagname="col"></xf:group>
+    							<xf:group style="" tagname="col"></xf:group>
+    						</xf:group>
+    						<xf:group tagname="tr">
+    							<xf:group class="w2tb_th" style="" tagname="th">
+    								<w2:attributes>
+    									<w2:scope>row</w2:scope>
+    								</w2:attributes>
+    								<w2:textbox id="" label="사건접수" style=""></w2:textbox>
+    							</xf:group>
+    							<xf:group class="w2tb_td" style="" tagname="td">
+    								<w2:span class="txt" id="" label="2021.01.29" style=""></w2:span>
+    							</xf:group>
+    							<xf:group class="w2tb_th" style="" tagname="th">
+    								<w2:attributes>
+    									<w2:scope>row</w2:scope>
+    								</w2:attributes>
+    								<w2:textbox id="" label="경매개시일" style=""></w2:textbox>
+    							</xf:group>
+    							<xf:group class="w2tb_td" style="" tagname="td">
+    								<w2:span class="txt" id="" label="2021.01.29" style=""></w2:span>
+    							</xf:group>
+    						</xf:group>
+    						<xf:group style="" tagname="tr">
+    							<xf:group class="w2tb_th" style="" tagname="th">
+    								<w2:attributes>
+    									<w2:scope>row</w2:scope>
+    								</w2:attributes>
+    								<w2:textbox id="" label="배당요구종기" style=""></w2:textbox>
+    							</xf:group>
+    							<xf:group class="w2tb_td" style="" tagname="td">
+    								<w2:span class="txt" id="" label="2021.01.29" style=""></w2:span>
+    							</xf:group>
+    							<xf:group class="w2tb_th" style="" tagname="th">
+    								<w2:attributes>
+    									<w2:scope>row</w2:scope>
+    								</w2:attributes>
+    								<w2:textbox id="" label="청구금액" style=""></w2:textbox>
+    							</xf:group>
+    							<xf:group class="w2tb_td" style="" tagname="td">
+    								<w2:span class="txt" id="" label="7,890,000원" style=""></w2:span>
+    							</xf:group>
+    						</xf:group>
+    						<xf:group style="" tagname="tr">
+    							<xf:group class="w2tb_th" style="" tagname="th">
+    								<w2:attributes>
+    									<w2:scope>row</w2:scope>
+    								</w2:attributes>
+    								<w2:textbox id="" label="관련사진(6)" style=""></w2:textbox>
+    								<w2:textbox id="" label="위치도(1)" style=""></w2:textbox>
+    							</xf:group>
+    							<xf:group class="w2tb_td" style="" tagname="td">
+    								<w2:attributes>
+    									<w2:colspan>3</w2:colspan>
+    									<w2:rowspan>1</w2:rowspan>
+    								</w2:attributes>
+    								<xf:group style="" id="" class="img_slider">
+    									<xf:trigger type="button" style="" id="" class="btn_cm bt_prev">
+    										<xf:label><![CDATA[이전으로]]></xf:label>
+    									</xf:trigger>
+    									<xf:group style="" id="" class="list" tagname="ul">
+    										<xf:group style="" id="" tagname="li">
+
+    											<xf:group style="" id="" tagname="a">
+    												<xf:image src="/pgj/cm/images/sample/slider_sample1.png" style="" id=""></xf:image>
+    											</xf:group>
+    										</xf:group>
+    										<xf:group id="" style="" tagname="li">
+
+    											<xf:group style="" id="" tagname="a">
+    												<xf:image id="" src="/pgj/cm/images/sample/slider_sample2.png" style=""></xf:image>
+    											</xf:group>
+    										</xf:group>
+    										<xf:group id="" style="" tagname="li">
+
+    											<xf:group id="" style="" tagname="a">
+    												<xf:image id="" src="/pgj/cm/images/sample/slider_sample3.png" style=""></xf:image>
+    											</xf:group>
+    										</xf:group>
+    										<xf:group id="" style="" tagname="li">
+
+    											<xf:group id="" style="" tagname="a">
+    												<xf:image id="" src="/pgj/cm/images/sample/slider_sample4.png" style=""></xf:image>
+    											</xf:group>
+    										</xf:group>
+    									</xf:group>
+    									<xf:trigger class="btn_cm bt_next" id="" style="" type="button" disabled="">
+    										<xf:label><![CDATA[다음으로]]></xf:label>
+    									</xf:trigger>
+
+    								</xf:group>
+    							</xf:group>
+    						</xf:group>
+    					</xf:group>
+    					<xf:group class="stbox" id="" style="">
+    						<w2:textbox class="frm_title" id="" label="기일내역" style="" tagname="h3"></w2:textbox>
+    					</xf:group>
+    					<w2:gridView autoFit="allColumn" class="grid mb30" dataList="data:dataList4" defaultCellHeight="20" id=""
+    						readOnly="true" scrollByColumn="false" scrollByColumnAdaptive="false" style="min-height:35px;" summary="기일내역" tengeMask=""
+    						tooltipDisplay="true" visibleRowNum="all" checkEditableInputClass="true">
+    						<w2:caption style="" id="caption1" value="this is a grid caption."></w2:caption>
+    						<w2:header style="" id="header1">
+    							<w2:row style="" id="row1">
+    								<w2:column removeBorderStyle="false" width="70" inputType="text" style="height:20px" id="column5"
+    									value="기일" blockSelect="false" displayMode="label">
+    								</w2:column>
+    								<w2:column removeBorderStyle="false" width="70" inputType="text" style="height:20px" id="column4"
+    									value="기일종류" blockSelect="false" displayMode="label">
+    								</w2:column>
+    								<w2:column removeBorderStyle="false" width="70" inputType="text" style="height:20px" id="column3"
+    									value="기일장소" blockSelect="false" displayMode="label">
+    								</w2:column>
+    								<w2:column removeBorderStyle="false" width="70" inputType="text" style="height:20px" id="column2"
+    									value="최저매각가격" blockSelect="false" displayMode="label">
+    								</w2:column>
+    								<w2:column removeBorderStyle="false" width="70" inputType="text" style="height:20px" id="column1"
+    									value="기일결과" blockSelect="false" displayMode="label">
+    								</w2:column>
+    							</w2:row>
+    						</w2:header>
+    						<w2:gBody style="" id="gBody1">
+    							<w2:row style="" id="row2">
+    								<w2:column removeBorderStyle="false" width="70" inputType="text" style="height:20px" id="col1" value=""
+    									blockSelect="false" displayMode="label">
+    								</w2:column>
+    								<w2:column removeBorderStyle="false" width="70" inputType="text" style="height:20px" id="col2" value=""
+    									blockSelect="false" displayMode="label">
+    								</w2:column>
+    								<w2:column removeBorderStyle="false" width="70" inputType="text" style="height:20px" id="col3" value=""
+    									blockSelect="false" displayMode="label">
+    								</w2:column>
+    								<w2:column removeBorderStyle="false" width="70" inputType="text" style="height:20px" id="col4" value=""
+    									blockSelect="false" displayMode="label" class="ar">
+    								</w2:column>
+    								<w2:column removeBorderStyle="false" width="70" inputType="text" style="height:20px" id="col5" value=""
+    									blockSelect="false" displayMode="label">
+    								</w2:column>
+    							</w2:row>
+    						</w2:gBody>
+    					</w2:gridView>
+    					<xf:group class="stbox" id="" style="">
+    						<w2:textbox class="frm_title" id="" label="목록내역" style="" tagname="h3"></w2:textbox>
+    					</xf:group>
+    					<xf:group class="w2tb tb_ty1 mb30" id="" style="width:100%;" tagname="table">
+    						<w2:attributes>
+    							<w2:summary>목록내역</w2:summary>
+    						</w2:attributes>
+    						<xf:group tagname="caption"></xf:group>
+    						<xf:group tagname="colgroup">
+    							<xf:group style="width:120px;" tagname="col"></xf:group>
+    							<xf:group style="" tagname="col"></xf:group>
+    							<xf:group style="width:120px;" tagname="col"></xf:group>
+    							<xf:group style="width:16.67%" tagname="col"></xf:group>
+    							<xf:group style="width:120px;" tagname="col"></xf:group>
+    							<xf:group style="" tagname="col"></xf:group>
+    						</xf:group>
+    						<xf:group tagname="tr">
+    							<xf:group class="w2tb_th" style="" tagname="th">
+    								<w2:attributes>
+    									<w2:scope>row</w2:scope>
+    								</w2:attributes>
+    								<w2:textbox id="" label="목록번호" style=""></w2:textbox>
+    							</xf:group>
+    							<xf:group class="w2tb_td" style="" tagname="td">
+    								<w2:span class="txt" id="" label="1" style=""></w2:span>
+    							</xf:group>
+    							<xf:group class="w2tb_th" style="" tagname="th">
+    								<w2:attributes>
+    									<w2:scope>row</w2:scope>
+    								</w2:attributes>
+    								<w2:textbox id="" label="감정평가액" style=""></w2:textbox>
+    							</xf:group>
+    							<xf:group class="w2tb_td" style="" tagname="td">
+    								<w2:span class="txt" id="" label="30,000,000원" style=""></w2:span>
+    							</xf:group>
+    							<xf:group class="w2tb_th" style="" tagname="th">
+    								<w2:attributes>
+    									<w2:scope>row</w2:scope>
+    								</w2:attributes>
+    								<w2:textbox id="" label="차명" style=""></w2:textbox>
+    							</xf:group>
+    							<xf:group class="w2tb_td" style="" tagname="td">
+    								<w2:span class="txt" id="" label="A8 4.2 FSI Quattro" style=""></w2:span>
+    							</xf:group>
+    						</xf:group>
+    						<xf:group tagname="tr">
+    							<xf:group class="w2tb_th" style="" tagname="th">
+    								<w2:attributes>
+    									<w2:scope>row</w2:scope>
+    								</w2:attributes>
+    								<w2:textbox id="" label="차종" style=""></w2:textbox>
+    							</xf:group>
+    							<xf:group class="w2tb_td" style="" tagname="td">
+    								<w2:span class="txt" id="" label="승용차" style=""></w2:span>
+    							</xf:group>
+    							<xf:group class="w2tb_th" style="" tagname="th">
+    								<w2:attributes>
+    									<w2:scope>row</w2:scope>
+    								</w2:attributes>
+    								<w2:textbox id="" label="등록번호" style=""></w2:textbox>
+    							</xf:group>
+    							<xf:group class="w2tb_td" style="" tagname="td">
+    								<w2:span class="txt" id="" label="34고5580" style=""></w2:span>
+    							</xf:group>
+    							<xf:group class="w2tb_th" style="" tagname="th">
+    								<w2:attributes>
+    									<w2:scope>row</w2:scope>
+    								</w2:attributes>
+    								<w2:textbox id="" label="연식" style=""></w2:textbox>
+    							</xf:group>
+    							<xf:group class="w2tb_td" style="" tagname="td">
+    								<w2:span class="txt" id="" label="2010" style=""></w2:span>
+    							</xf:group>
+    						</xf:group>
+    						<xf:group tagname="tr">
+    							<xf:group class="w2tb_th" style="" tagname="th">
+    								<w2:attributes>
+    									<w2:scope>row</w2:scope>
+    								</w2:attributes>
+    								<w2:textbox id="" label="제조사" style=""></w2:textbox>
+    							</xf:group>
+    							<xf:group class="w2tb_td" style="" tagname="td">
+    								<w2:span class="txt" id="" label="Audi AG" style=""></w2:span>
+    							</xf:group>
+    							<xf:group class="w2tb_th" style="" tagname="th">
+    								<w2:attributes>
+    									<w2:scope>row</w2:scope>
+    								</w2:attributes>
+    								<w2:textbox id="" label="연료종류" style=""></w2:textbox>
+    							</xf:group>
+    							<xf:group class="w2tb_td" style="" tagname="td">
+    								<w2:span class="txt" id="" label="휘발유" style=""></w2:span>
+    							</xf:group>
+    							<xf:group class="w2tb_th" style="" tagname="th">
+    								<w2:attributes>
+    									<w2:scope>row</w2:scope>
+    								</w2:attributes>
+    								<w2:textbox id="" label="변속기" style=""></w2:textbox>
+    							</xf:group>
+    							<xf:group class="w2tb_td" style="" tagname="td">
+    								<w2:span class="txt" id="" label="오토" style=""></w2:span>
+    							</xf:group>
+    						</xf:group>
+    						<xf:group tagname="tr">
+    							<xf:group class="w2tb_th" style="" tagname="th">
+    								<w2:attributes>
+    									<w2:scope>row</w2:scope>
+    								</w2:attributes>
+    								<w2:textbox id="" label="원동기형식" style=""></w2:textbox>
+    							</xf:group>
+    							<xf:group class="w2tb_td" style="" tagname="td">
+    								<w2:span class="txt" id="" label="cdr" style=""></w2:span>
+    							</xf:group>
+    							<xf:group class="w2tb_th" style="" tagname="th">
+    								<w2:attributes>
+    									<w2:scope>row</w2:scope>
+    								</w2:attributes>
+    								<w2:textbox id="" label="승인번호" style=""></w2:textbox>
+    							</xf:group>
+    							<xf:group class="w2tb_td" style="" tagname="td">
+    								<w2:span class="txt" id="" label="023-1-200931-0000-2110" style=""></w2:span>
+    							</xf:group>
+    							<xf:group class="w2tb_th" style="" tagname="th">
+    								<w2:attributes>
+    									<w2:scope>row</w2:scope>
+    								</w2:attributes>
+    								<w2:textbox id="" label="차대번호" style=""></w2:textbox>
+    							</xf:group>
+    							<xf:group class="w2tb_td" style="" tagname="td">
+    								<w2:span class="txt" id="" label="WAFDXX-9392039-ZSD11" style=""></w2:span>
+    							</xf:group>
+    						</xf:group>
+    						<xf:group tagname="tr">
+    							<xf:group class="w2tb_th" style="" tagname="th">
+    								<w2:attributes>
+    									<w2:scope>row</w2:scope>
+    								</w2:attributes>
+    								<w2:textbox id="" label="배기량" style=""></w2:textbox>
+    							</xf:group>
+    							<xf:group class="w2tb_td" style="" tagname="td">
+    								<w2:span class="txt" id="" label="4163" style=""></w2:span>
+    							</xf:group>
+    							<xf:group class="w2tb_th" style="" tagname="th">
+    								<w2:attributes>
+    									<w2:scope>row</w2:scope>
+    								</w2:attributes>
+    								<w2:textbox id="" label="주행거리" style=""></w2:textbox>
+    							</xf:group>
+    							<xf:group class="w2tb_td" style="" tagname="td">
+    								<w2:attributes>
+    									<w2:colspan>3</w2:colspan>
+    									<w2:rowspan>1</w2:rowspan>
+    								</w2:attributes>
+    								<w2:span class="txt" id="" label="184,761Km" style=""></w2:span>
+    							</xf:group>
+    						</xf:group>
+    						<xf:group tagname="tr">
+    							<xf:group class="w2tb_th" style="" tagname="th">
+    								<w2:attributes>
+    									<w2:scope>row</w2:scope>
+    								</w2:attributes>
+    								<w2:textbox id="" label="보관장소" style=""></w2:textbox>
+    							</xf:group>
+    							<xf:group class="w2tb_td" style="" tagname="td">
+    								<w2:attributes>
+    									<w2:colspan>5</w2:colspan>
+    									<w2:rowspan>1</w2:rowspan>
+    								</w2:attributes>
+    								<w2:span class="txt" id="" label="서울특별시 동대문구 답십리로 31길 11" style=""></w2:span>
+    								<xf:trigger class="btn_cm bt_map" id="" style="" type="button">
+    									<xf:label><![CDATA[지도보기]]></xf:label>
+    								</xf:trigger>
+    							</xf:group>
+    						</xf:group>
+    					</xf:group>
+    					<xf:group class="stbox" id="" style="">
+    						<w2:textbox class="frm_title" id="" label="감정평가요항표 요약" style="" tagname="h3"></w2:textbox>
+    					</xf:group>
+    					<xf:group style="" id="" class="sumbox mb30">
+    						<w2:textbox label="1. 자동차감정평가요항표" style="" id="" class="tit"></w2:textbox>
+    						<xf:group style="" id="" class="sum_list" tagname="ul">
+    							<xf:group style="" id="" tagname="li">
+    								<w2:textbox label="1) 년식 및 주행거리" style="" id="" class="subtit"></w2:textbox>
+    								<xf:group style="" id="" class="depth2" tagname="ul">
+    									<xf:group style="" id="" tagname="li">
+    										<w2:textbox label="1) 년식:2011" style="" id=""></w2:textbox>
+    									</xf:group>
+    									<xf:group id="" style="" tagname="li">
+    										<w2:textbox id="" label="2) 주행거리 : 184,795km(계기판상)" style=""></w2:textbox>
+    									</xf:group>
+    								</xf:group>
+    							</xf:group>
+    							<xf:group id="" style="" tagname="li">
+    								<w2:textbox id="" label="2) 색상" style="" class="subtit"></w2:textbox>
+    								<xf:group class="depth2" id="" style="" tagname="ul">
+    									<xf:group id="" style="" tagname="li">
+    										<w2:textbox id="" label="아이스실버(LX7W)임." style=""></w2:textbox>
+    									</xf:group>
+    								</xf:group>
+    							</xf:group>
+    							<xf:group id="" style="" tagname="li">
+    								<w2:textbox id="" label="3) 관리상태" style="" class="subtit"></w2:textbox>
+    								<xf:group class="depth2" id="" style="" tagname="ul">
+    									<xf:group id="" style="" tagname="li">
+    										<w2:textbox id="" label="일부 흠집이 있으며, 관리상태는 대체로 보통임." style=""></w2:textbox>
+    									</xf:group>
+    								</xf:group>
+    							</xf:group>
+    							<xf:group id="" style="" tagname="li">
+    								<w2:textbox id="" label="4) 사용연료" style="" class="subtit"></w2:textbox>
+    								<xf:group class="depth2" id="" style="" tagname="ul">
+    									<xf:group id="" style="" tagname="li">
+    										<w2:textbox id="" label="휘발유" style=""></w2:textbox>
+    									</xf:group>
+    								</xf:group>
+    							</xf:group>
+    							<xf:group id="" style="" tagname="li">
+    								<w2:textbox id="" label="5) 유효검사기간" style="" class="subtit"></w2:textbox>
+    								<xf:group class="depth2" id="" style="" tagname="ul">
+    									<xf:group id="" style="" tagname="li">
+    										<w2:textbox id="" label="2019-03-18 - 2021-03-17." style=""></w2:textbox>
+    									</xf:group>
+    								</xf:group>
+    							</xf:group>
+    							<xf:group id="" style="" tagname="li">
+    								<w2:textbox id="" label="6) 기타(옵션 등등)" style="" class="subtit"></w2:textbox>
+    								<xf:group class="depth2" id="" style="" tagname="ul">
+    									<xf:group id="" style="" tagname="li">
+    										<w2:textbox id="" label="오토, 썬루프, 에어백, 열선시트, 네비게이션, 후방카메라, 스마트키 등 되어있음." style=""></w2:textbox>
+    									</xf:group>
+    								</xf:group>
+    							</xf:group>
+    						</xf:group>
+    					</xf:group>
+    					<xf:group class="stbox" id="" style="">
+    						<w2:textbox class="frm_title" id="" label="유사매각물건사례" style="" tagname="h3"></w2:textbox>
+
+    					</xf:group>
+    					<w2:tabControl useTabKeyOnly="false" id="" useMoveNextTabFocus="false" useConfirmMessage="false"
+    						confirmTrueAction="exist" confirmFalseAction="new" alwaysDraw="false" style="" class="inner_tab_type2">
+    						<w2:tabs disabled="false" style="" id="tabs1" label="유사매각통계"></w2:tabs>
+    						<w2:tabs disabled="false" style="" id="tabs2" label="유사매각물건"></w2:tabs>
+    						<w2:tabs disabled="false" style="" id="tabs3" label="유사진행물건"></w2:tabs>
+    						<w2:content alwaysDraw="false" style="" id="content1">
+    							<w2:gridView autoFit="allColumn" class="grid" dataList="data:dataList5" defaultCellHeight="20" id=""
+    								readOnly="true" scrollByColumn="false" scrollByColumnAdaptive="false" style="min-height:35px;" summary="유사매각통계" tengeMask=""
+    								tooltipDisplay="true" visibleRowNum="all">
+    								<w2:caption style="" id="caption1" value="this is a grid caption."></w2:caption>
+    								<w2:header style="" id="header1">
+    									<w2:row style="" id="row1">
+    										<w2:column removeBorderStyle="false" width="70" inputType="text" style="height:20px"
+    											id="column6" value="기간" blockSelect="false" displayMode="label">
+    										</w2:column>
+    										<w2:column removeBorderStyle="false" width="70" inputType="text" style="height:20px"
+    											id="column5" value="매각건수" blockSelect="false" displayMode="label">
+    										</w2:column>
+    										<w2:column removeBorderStyle="false" width="70" inputType="text" style="height:20px"
+    											id="column4" value="평균감정가" blockSelect="false" displayMode="label">
+    										</w2:column>
+    										<w2:column removeBorderStyle="false" width="70" inputType="text" style="height:20px"
+    											id="column3" value="평균매각가" blockSelect="false" displayMode="label">
+    										</w2:column>
+    										<w2:column removeBorderStyle="false" width="70" inputType="text" style="height:20px"
+    											id="column2" value="매각가율" blockSelect="false" displayMode="label">
+    										</w2:column>
+    										<w2:column removeBorderStyle="false" width="70" inputType="text" style="height:20px"
+    											id="column1" value="평균유찰횟수" blockSelect="false" displayMode="label">
+    										</w2:column>
+    									</w2:row>
+    								</w2:header>
+    								<w2:gBody style="" id="gBody1">
+    									<w2:row style="" id="row2">
+    										<w2:column removeBorderStyle="false" width="70" inputType="text" style="height:20px" id="col1"
+    											value="" blockSelect="false" displayMode="label">
+    										</w2:column>
+    										<w2:column removeBorderStyle="false" width="70" inputType="text" style="height:20px" id="col2"
+    											value="" blockSelect="false" displayMode="label" class="ar">
+    										</w2:column>
+    										<w2:column removeBorderStyle="false" width="70" inputType="text" style="height:20px" id="col3"
+    											value="" blockSelect="false" displayMode="label" class="ar">
+    										</w2:column>
+    										<w2:column removeBorderStyle="false" width="70" inputType="text" style="height:20px" id="col4"
+    											value="" blockSelect="false" displayMode="label" class="ar">
+    										</w2:column>
+    										<w2:column removeBorderStyle="false" width="70" inputType="text" style="height:20px" id="col5"
+    											value="" blockSelect="false" displayMode="label" class="ar">
+    										</w2:column>
+    										<w2:column removeBorderStyle="false" width="70" inputType="text" style="height:20px" id="col6"
+    											value="" blockSelect="false" displayMode="label" class="ar">
+    										</w2:column>
+    									</w2:row>
+    								</w2:gBody>
+    							</w2:gridView>
+    							<xf:group class="msg_box_txt" id="" style="">
+    								<w2:textbox class="txt_con" escape="false" id=""
+    									label="유사매각통계에서 12개월간의 매각건수는 6개월, 3개월간의 매각건수가 포함된 통계입니다." style="" tagname="p">
+    								</w2:textbox>
+    								<w2:textbox class="txt_con" escape="false" id=""
+    									label="유사매각물건사례는 ‘2011년식 휘발유 오토 중 자동차’ &amp;nbsp;조건으로 하는 물건을 대상으로 작성되었습니다." style="" tagname="p">
+    								</w2:textbox>
+    							</xf:group>
+    						</w2:content>
+    						<w2:content alwaysDraw="false" style="" id="content2">
+    							<w2:gridView autoFit="lastColumn" class="grid" dataList="data:dataList6" defaultCellHeight="20" id=""
+    								readOnly="true" scrollByColumn="false" scrollByColumnAdaptive="false" style="min-height:35px;" summary="유사매각물건" tengeMask=""
+    								tooltipDisplay="true" visibleRowNum="all">
+    								<w2:caption style="" id="caption1" value="this is a grid caption."></w2:caption>
+    								<w2:header style="" id="header1">
+    									<w2:row style="" id="row1">
+    										<w2:column removeBorderStyle="false" width="130" inputType="text" style="height:20px"
+    											id="column6" value="사건번호" blockSelect="false" displayMode="label">
+    										</w2:column>
+    										<w2:column removeBorderStyle="false" width="100" inputType="text" style="height:20px"
+    											id="column5" value="용도" blockSelect="false" displayMode="label">
+    										</w2:column>
+    										<w2:column removeBorderStyle="false" width="250" inputType="text" style="height:20px"
+    											id="column4" value="소재지 및 내역" blockSelect="false" displayMode="label">
+    										</w2:column>
+    										<w2:column removeBorderStyle="false" width="150" inputType="text" style="height:20px"
+    											id="column3" value="감정평가액(단위:원)" blockSelect="false" displayMode="label">
+    										</w2:column>
+    										<w2:column removeBorderStyle="false" width="100" inputType="text" style="height:20px"
+    											id="column2" value="매각월" blockSelect="false" displayMode="label">
+    										</w2:column>
+    										<w2:column removeBorderStyle="false" width="120" inputType="text" style="height:20px"
+    											id="column1" value="매각대금(단위:원)" blockSelect="false" displayMode="label">
+    										</w2:column>
+    									</w2:row>
+    								</w2:header>
+    								<w2:gBody style="" id="gBody1">
+    									<w2:row style="" id="row2">
+    										<w2:column removeBorderStyle="false" width="130" inputType="link" style="height:20px" id="col1"
+    											value="" blockSelect="false" displayMode="label" escape="false">
+    										</w2:column>
+    										<w2:column removeBorderStyle="false" width="100" inputType="text" style="height:20px" id="col2"
+    											value="" blockSelect="false" displayMode="label">
+    										</w2:column>
+    										<w2:column removeBorderStyle="false" width="250" inputType="text" style="height:20px" id="col3"
+    											value="" class="al" blockSelect="false" displayMode="label">
+    										</w2:column>
+    										<w2:column removeBorderStyle="false" width="150" inputType="text" style="height:20px" id="col4"
+    											value="" class="ar" blockSelect="false" displayMode="label">
+    										</w2:column>
+    										<w2:column removeBorderStyle="false" width="100" inputType="text" style="height:20px" id="col5"
+    											value="" blockSelect="false" displayMode="label">
+    										</w2:column>
+    										<w2:column removeBorderStyle="false" width="120" inputType="text" style="height:20px" id="col6"
+    											value="" class="ar" blockSelect="false" displayMode="label">
+    										</w2:column>
+    									</w2:row>
+    								</w2:gBody>
+    							</w2:gridView>
+    							<xf:group class="msg_box_txt" id="" style="">
+    								<w2:textbox class="txt_con" escape="false" id=""
+    									label="유사매각물건사례는 ‘2011년식 휘발유 오토 중 자동차’ &amp;nbsp;조건으로 하는 물건을 대상으로 작성되었습니다." style="" tagname="p">
+    								</w2:textbox>
+    							</xf:group>
+    						</w2:content>
+    						<w2:content alwaysDraw="false" style="" id="content3">
+    							<w2:gridView autoFit="allColumn" class="grid" dataList="data:dataList7" defaultCellHeight="20" id=""
+    								readOnly="true" scrollByColumn="false" scrollByColumnAdaptive="false" style="min-height:35px;" summary="유사진행물건" tengeMask=""
+    								tooltipDisplay="true" visibleRowNum="all">
+    								<w2:caption style="" id="caption1" value="this is a grid caption."></w2:caption>
+    								<w2:header style="" id="header1">
+    									<w2:row style="" id="row1">
+    										<w2:column rowSpan="2" colSpan="" removeBorderStyle="false" width="150" inputType="text"
+    											style="height:40px;" id="column7" value="사건번호" blockSelect="false" displayMode="label">
+    										</w2:column>
+    										<w2:column removeBorderStyle="false" width="80" inputType="text" style="height:40px;"
+    											id="column6" value="물건번호" blockSelect="false" displayMode="label">
+    										</w2:column>
+    										<w2:column rowSpan="2" colSpan="" removeBorderStyle="false" width="250" inputType="text"
+    											style="height:40px;" id="column5" value="소재지 및 내역" blockSelect="false" displayMode="label">
+    										</w2:column>
+    										<w2:column rowSpan="2" colSpan="" removeBorderStyle="false" width="200" inputType="text"
+    											style="height:40px;" id="column4" value="비고" blockSelect="false" displayMode="label">
+    										</w2:column>
+    										<w2:column removeBorderStyle="false" width="140" inputType="text" style="height:40px;"
+    											id="column3" value="감정평가액" blockSelect="false" displayMode="label">
+    										</w2:column>
+    										<w2:column removeBorderStyle="false" width="120" inputType="text" style="height:40px;"
+    											id="column2" value="담당계" blockSelect="false" displayMode="label">
+    										</w2:column>
+    										<w2:column rowSpan="2" colSpan="" removeBorderStyle="false" width="80" inputType="text"
+    											style="height:40px;" id="column1" value="진행상태" blockSelect="false" displayMode="label">
+    										</w2:column>
+    									</w2:row>
+    									<w2:row style="" id="row3">
+    										<w2:column removeBorderStyle="false" width="80" inputType="text" style="height:20px"
+    											id="column20" value="용도" blockSelect="false" displayMode="label">
+    										</w2:column>
+    										<w2:column removeBorderStyle="false" width="140" inputType="text" style="height:20px"
+    											id="column17" value="최저매각가격&lt;br&gt;(단위:원)" blockSelect="false" displayMode="label">
+    										</w2:column>
+    										<w2:column removeBorderStyle="false" width="120" inputType="text" style="height:20px"
+    											id="column16" value="매각기일&lt;br&gt;(입찰기간)" blockSelect="false" displayMode="label">
+    										</w2:column>
+    									</w2:row>
+    								</w2:header>
+    								<w2:gBody style="" id="gBody1">
+    									<w2:row style="" id="row2">
+    										<w2:column rowSpan="2" colSpan="" removeBorderStyle="false" width="150" inputType="link"
+    											style="height:20px;" id="col1" value="" escape="false" blockSelect="false" displayMode="label">
+    										</w2:column>
+    										<w2:column removeBorderStyle="false" width="80" inputType="text" style="height:20px" id="col2"
+    											value="" blockSelect="false" displayMode="label">
+    										</w2:column>
+    										<w2:column rowSpan="2" colSpan="" removeBorderStyle="false" readOnly="" blockSelect="false"
+    											displayMode="label" readOnlyClass="" width="250" inputType="link" style="height:20px;" id="col3" value="" class="al"
+    											escape="false">
+    										</w2:column>
+    										<w2:column rowSpan="2" colSpan="" removeBorderStyle="false" width="200" inputType="text"
+    											style="height:40px;" readOnly="true" id="col4" value="" class="al" blockSelect="false" displayMode="label">
+    										</w2:column>
+    										<w2:column removeBorderStyle="false" width="140" inputType="text" style="height:20px"
+    											readOnly="true" id="col5" value="" class="ar" blockSelect="false" displayMode="label">
+    										</w2:column>
+    										<w2:column removeBorderStyle="false" width="120" inputType="text" style="height:20px"
+    											readOnly="true" id="col6" value="" blockSelect="false" displayMode="label">
+    										</w2:column>
+    										<w2:column rowSpan="2" colSpan="" removeBorderStyle="false" width="80" inputType="text"
+    											style="height:20px;" readOnly="true" id="col7" value="" blockSelect="false" displayMode="label">
+    										</w2:column>
+    									</w2:row>
+    									<w2:row style="" id="row4">
+    										<w2:column removeBorderStyle="false" width="80" inputType="text" style="height:20px"
+    											id="column26" value="자동차" blockSelect="false" displayMode="label" readOnly="true">
+    										</w2:column>
+    										<w2:column removeBorderStyle="false" width="140" inputType="text" style="height:20px"
+    											id="column23" value="13,012,000원" blockSelect="false" displayMode="label" readOnly="true" class="ar">
+    										</w2:column>
+    										<w2:column removeBorderStyle="false" width="120" inputType="text" style="height:20px"
+    											id="column22" value="2021.02.04" blockSelect="false" displayMode="label" readOnly="true">
+    										</w2:column>
+    									</w2:row>
+    								</w2:gBody>
+    							</w2:gridView>
+    							<xf:group class="msg_box_txt" id="" style="">
+    								<w2:textbox class="txt_con" escape="false" id=""
+    									label="유사매각물건사례는 ‘2011년식 휘발유 오토 중 자동차’ &amp;nbsp;조건으로 하는 물건을 대상으로 작성되었습니다." style="" tagname="p">
+    								</w2:textbox>
+    							</xf:group>
+    						</w2:content>
+    					</w2:tabControl>
+    					<xf:group class="btn_group_w ty1 clearfix" id="" style="">
+    						<xf:group class="fl" id="" style="">
+    							<xf:group class="btn_group dsInb " id="" style="">
+    								<xf:trigger class="btn_cm bt_support" disabled="" id="" style="" title="현황조사서 보기" type="button">
+    									<xf:label><![CDATA[현황조사서]]></xf:label>
+    								</xf:trigger>
+    								<xf:trigger class="btn_cm bt_support" disabled="" id="" style="" title="감정평가서 보기" type="button">
+    									<xf:label><![CDATA[감정평가서]]></xf:label>
+    								</xf:trigger>
+    								<xf:trigger class="btn_cm bt_support2" disabled="" id="" style="" title="사건상세조회 보기" type="button">
+    									<xf:label><![CDATA[사건상세조회]]></xf:label>
+    								</xf:trigger>
+    							</xf:group>
+    						</xf:group>
+    						<xf:group class="fr" id="" style="">
+    							<xf:group class="btn_group r_line dsInb " id="" style="">
+    								<xf:trigger class="btn_cm lg bt_print" id="" style="" type="button">
+    									<xf:label><![CDATA[인쇄하기]]></xf:label>
+    								</xf:trigger>
+    							</xf:group>
+    							<xf:group class="btn_group r_line dsInb " id="" style="">
+    								<xf:trigger class="btn_cm lg bg3" id="" style="" type="button">
+    									<xf:label><![CDATA[관심물건등록]]></xf:label>
+    								</xf:trigger>
+    							</xf:group>
+    							<xf:group class="btn_group dsInb " id="" style="">
+    								<xf:trigger class="btn_cm lg" id="" style="" type="button">
+    									<xf:label><![CDATA[이전]]></xf:label>
+    								</xf:trigger>
+    							</xf:group>
+    						</xf:group>
+    					</xf:group><xf:group class="infobox ty_2" id="" style="">
+    						<w2:textbox class="tit" id="" label="유의사항" style=""></w2:textbox>
+    						<xf:group class="info_list" id="" style="" tagname="ul">
+    							<xf:group id="" style="" tagname="li">
+    								<w2:textbox id=""
+    									label="제공된 정보가 실제 매각물건의 정보와 일치하지 않거나 정보의 제공 이후 중요한 변동사항이 생길 수 있으므로, 매각물건의 내용을 법원에 비치된 물건명세서, 현황조사서 또는 감정평가서를 열람하는 등 반드시 재확인한 후 입찰에 참가하시기 바랍니다."
+    									style="">
+    								</w2:textbox>
+    							</xf:group>
+    							<xf:group id="" style="" tagname="li">
+    								<w2:textbox id="" label="매수에 영향을 줄 수 있는 중요한 권리관계의 변동사항이 있을 수 있으므로 입찰참가 전 등기사항전부증명서를 확인하시기 바랍니다."
+    									style="">
+    								</w2:textbox>
+    							</xf:group>
+    							<xf:group id="" style="" tagname="li">
+    								<w2:textbox id="" label="법원경매정보 홈페이지에서 서비스하는 정보만으로 참여한 입찰과 관련하여 발생하는 문제에 대해서 법원은 책임을 지지 않습니다."
+    									style="">
+    								</w2:textbox>
+    							</xf:group>
+    						</xf:group>
+    					</xf:group>
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+    					
+    				</xf:group>
+
+    			</xf:group>
+    		</xf:group>
+    		<w2:wframe class="footer" id="" src="/pgj/ui/common/footer.xml" style=""></w2:wframe>
+    		<w2:wframe class="quickmenu" id="" src="/pgj/ui/common/quick.xml" style=""></w2:wframe>
+    	</xf:group>
+    </body>
+</html>

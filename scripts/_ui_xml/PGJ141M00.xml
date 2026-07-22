@@ -1,0 +1,157 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<html xmlns="http://www.w3.org/1999/xhtml"
+
+    xmlns:ev="http://www.w3.org/2001/xml-events"
+    xmlns:w2="http://www.inswave.com/websquare" xmlns:xf="http://www.w3.org/2002/xforms">
+    <head meta_screenName="공지사항">
+        <title>법원경매정보 공지사항</title>
+        <w2:type>DEFAULT</w2:type>
+        <w2:buildDate/>
+        <xf:model>
+        	<xf:instance>
+        		<data xmlns="" />
+        	</xf:instance>
+        	<w2:dataCollection baseNode="map">
+        		<w2:dataList baseNode="list" repeatNode="map" id="dlt_ntcList" saveRemovedData="true">
+        			<w2:columnInfo>
+        				<w2:column id="seq" name="번호" dataType="text"></w2:column>
+        				<w2:column id="cortAuctnComCdNm" name="법원경매공통코드명" dataType="text"></w2:column>
+        				<w2:column id="ntatcTitlNm" name="게시물제목명" dataType="text"></w2:column>
+        				<w2:column id="frstInptDt" name="최초입력일시" dataType="text"></w2:column>
+        				<w2:column id="attatchCnt" name="법원경매첨부파일순번" dataType="text"></w2:column>
+        				<w2:column id="srvcInqCnt" name="서비스조회수" dataType="text"></w2:column>
+        				<w2:column id="cortAuctnNtcEtcDtlDvsCd" name="법원경매공지기타상세구분코드" dataType="text"></w2:column>
+        				<w2:column id="cortAuctnNtcMtrSeq" name="법원경매공지사항순번" dataType="text"></w2:column>
+        				<w2:column id="ntatcAtflNm" name="파일명" dataType="text"></w2:column>
+
+
+        			</w2:columnInfo>
+        			<w2:data use="true"></w2:data>
+        		</w2:dataList>
+        		<w2:dataMap baseNode="map" id="dma_srchDat">
+        			<w2:keyInfo>
+        				<w2:key id="srchNtc" name="제목검색" dataType="text"></w2:key>
+        				<w2:key id="inqDvsCd" name="조회구분코드" dataType="text"></w2:key>
+        				<w2:key id="ntcMtrDtlInqCnt" name="상세조회수구분코드" dataType="text"></w2:key>
+        			</w2:keyInfo>
+        			<w2:data use="true"></w2:data>
+        		</w2:dataMap>
+        		<w2:dataMap baseNode="map" id="dma_pageInfo">
+        			<w2:keyInfo>
+        				<w2:key id="pageNo" name="페이지번호" dataType="number"></w2:key>
+        				<w2:key id="pageSize" name="페이지크기" dataType="number"></w2:key>
+        				<w2:key id="bfPageNo" name="이전 페이지 번호" dataType="number"></w2:key>
+        				<w2:key id="startRowNo" name="시작 행번호" dataType="number"></w2:key>
+        				<w2:key id="totalCnt" name="총건수" dataType="number" encYN="false"></w2:key>
+        				<w2:key id="totalYn" name="총건수조회여부" dataType="text"></w2:key>
+        			</w2:keyInfo>
+        			<w2:data use="true"></w2:data>
+        		</w2:dataMap>
+        		<w2:dataList baseNode="list" repeatNode="map" id="dlt_cortAuctnFileList" saveRemovedData="true">
+        			<w2:columnInfo>
+        				<w2:column id="ntatcAtflNm" name="파일명" dataType="text"></w2:column>
+        				<w2:column id="cortAuctnNtcMtrSeq" name="법원경매사항순번" dataType="text"></w2:column>
+        				<w2:column id="cortAuctnNtcEtcDvsCd" name="법원경매구분코드" dataType="text"></w2:column>
+
+        				<w2:column id="cortAuctnAtflSeq" name="법원경매파일순번" dataType="text"></w2:column>
+        				<w2:column id="ntatcAtfl" name="파일" dataType="text"></w2:column>
+
+        			</w2:columnInfo>
+        			<w2:data use="true"></w2:data>
+        		</w2:dataList>
+        		<w2:dataMap baseNode="map" id="dma_fileSrch">
+        			<w2:keyInfo>
+        				<w2:key id="cortAuctnNtcEtcDvsCd" name="법원경매구분코드" dataType="text"></w2:key>
+        				<w2:key id="cortAuctnNtcMtrSeq" name="법원경매사항순번" dataType="text"></w2:key>
+        				<w2:key id="fileFlag" name="파일flag" dataType="text"></w2:key>
+        			</w2:keyInfo>
+        		<w2:data use="false"></w2:data></w2:dataMap>
+        	</w2:dataCollection>
+        	<w2:workflowCollection></w2:workflowCollection>
+        	<xf:submission id="sbm_selectNtcList" ref='data:json,["dma_srchDat","dma_pageInfo"]'
+        		target='data:json,[{"id":"dlt_cortAuctnFileList","key":"data.dlt_cortAuctnFileList"},{"id":"dma_pageInfo","key":"data.dma_pageInfo"},{"id":"dlt_ntcList","key":"data.dlt_ntcList"}]'
+        		action="/pgj/pgj141/selectAuctnPbancNtcMtrLst.on" method="post" mediatype="application/json" encoding="UTF-8" instance=""
+        		replace="" errorHandler="" customHandler="" mode="asynchronous" processMsg="" ev:submit=""
+        		ev:submitdone="scwin.sbm_selectNtcList_submitdone" ev:submiterror="" abortTrigger="">
+        	</xf:submission>
+        </xf:model>
+        <script type="text/javascript" lazy="false"><![CDATA[/* 프로그램ID */
+scwin.pgmId = 'PGJ141M01';
+
+/* 최상단(opener, parent 포함) 기준 함수 */
+scwin.isMain = function() {
+	return true;
+};
+
+
+/**
+ * PageLoad시 공지사항 전체 리스트 조회
+ *
+ * ============= ============ ==========================
+ *  Date          Author       Description
+ * ============= ============ ==========================
+ *  2022.07.26.   나해준       [NELS]최초 생성
+ * ============= ============ ==========================
+ */
+scwin.onpageload = function() {
+	const pgmId = $p.getParameter("pgjId");
+	let option = '';
+	let path = ""
+	switch(pgmId) {
+		case '141M01' : path = '/pgj/ui/pgj100/PGJ141M01.xml';
+			document.title = '법원경매정보제공 - 공지사항'
+			break
+		case '142M01' : path = '/pgj/ui/pgj100/PGJ142M01.xml';
+			document.title = '법원경매정보제공 - 배당요구종기공고'
+			break
+		case '143M01' : path = '/pgj/ui/pgj100/PGJ143M01.xml';
+			document.title = '법원경매정보제공 - 부동산매각공고'
+			break
+		case '143M02' : path = '/pgj/ui/pgj100/PGJ143M02.xml';
+			document.title = '법원경매정보제공 - 부동산매각공고'
+			break
+		case '143M03' : path = '/pgj/ui/pgj100/PGJ143M03.xml';
+			document.title = '법원경매정보제공 - 부동산매각공고'
+			break
+		case '144M01' : path = '/pgj/ui/pgj100/PGJ144M01.xml';
+
+		    const param =JSON.parse($p.local.getItem(('dxdySrchParm'))) || ''
+			$p.local.removeItem('dxdySrchParm')
+			let cortOfcCd = param ?. cortOfcCd || ''
+    		let dxdyYmd = param ?. dxdyYmd || ''
+    		let mvprpPbanTypCd = param ?. mvprpPbanTypCd || ''
+			
+			option = { "dataObject": 
+						{	"type" : "json",
+                   			"name" : "param",
+                    		"data" : { cortOfcCd, mvprpPbanTypCd, dxdyYmd }
+                    	}
+            };
+			document.title = '법원경매정보제공 - 동산매각공고'
+			break
+		case '144M02' : path = '/pgj/ui/pgj100/PGJ144M02.xml';
+			document.title = '법원경매정보제공 - 동산매각공고'
+			break
+		case '145M01' : path = '/pgj/ui/pgj100/PGJ145M01.xml';
+			document.title = '법원경매정보제공 - 최고공고'
+			break
+		default : path = '/pgj/ui/pgj100/PGJ141M01.xml';
+	}
+	$p.main().wfm_mainFrame.setSrc(path,option);
+
+};
+
+scwin.onpageunload = function() {
+
+};
+]]></script>
+    </head>
+    <body ev:onpageload="scwin.onpageload" ev:onpageunload="scwin.onpageunload" class="">
+        <xf:group style="" id="" class="wrap user">
+        	<w2:wframe style="" id="wfm_header" src="../common/header.xml" class="header" scope=""></w2:wframe>
+        	<w2:wframe style="" id="wfm_mainFrame" initScript="true"></w2:wframe>
+        	<w2:wframe id="" src="../common/footer.xml" style="" class="footer"></w2:wframe>
+        	<w2:wframe class="quickmenu" id="" src="../common/quick.xml" style=""></w2:wframe>
+        </xf:group>
+    </body>
+</html>

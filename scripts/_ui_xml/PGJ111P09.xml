@@ -1,0 +1,221 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<html xmlns="http://www.w3.org/1999/xhtml"
+    xmlns:ev="http://www.w3.org/2001/xml-events"
+    xmlns:w2="http://www.inswave.com/websquare" xmlns:xf="http://www.w3.org/2002/xforms">
+    <head meta_screenName="투표">
+    	<w2:type>DEFAULT</w2:type>
+        <w2:buildDate/>
+        <xf:model>
+        	<xf:instance>
+        		<data xmlns="" />
+        	</xf:instance>
+        	<w2:dataCollection baseNode="map">
+        		<w2:dataMap baseNode="map" id="dma_vtInfoResult">
+        			<w2:keyInfo>
+        				<w2:key id="vtItm" name="최신투표정보" dataType="text"></w2:key>
+        				<w2:key id="vtItmLst" name="최신투표정보항목" dataType="text"></w2:key>
+        			</w2:keyInfo>
+        		</w2:dataMap>
+        		<w2:dataMap baseNode="map" id="dma_saveVt">
+        			<w2:keyInfo>
+        				<w2:key id="cortAuctnVtSrno" name="법원경매투표일련번호" dataType="text"></w2:key>
+        				<w2:key id="cortAuctnMbrsId" name="회원ID" dataType="text"></w2:key>
+        				<w2:key id="cortAuctnVtQstnSeq" name="법원경매투표질문순번" dataType="text"></w2:key>
+        				<w2:key id="cortAuctnVtQstnVsbeSeq" name="법원경매투표질문보기순번" dataType="text"></w2:key>
+        			</w2:keyInfo>
+        		</w2:dataMap>
+        	</w2:dataCollection>
+        	<w2:workflowCollection></w2:workflowCollection>
+        	<xf:submission id="sbm_selectNwstVtInf" ref="data:json,dma_srchVtInfo"
+        		target='data:json,{"id":"dma_vtInfoResult","key":"data.dma_vtInfoResult"}' action="/pgj/pgj111/selectVtInf.on" method="post"
+        		mediatype="application/json" encoding="UTF-8" instance="" replace="" errorHandler="" customHandler="" mode="asynchronous"
+        		processMsg="" ev:submit="" ev:submitdone="scwin.sbm_selectNwstVtInf_submitdone" ev:submiterror="" abortTrigger="">
+        	</xf:submission>
+        	<xf:submission id="sbm_insertMbrsVt" ref="data:json,dma_saveVt" target="" action="/pgj/pgj111/saveVtCtt.on" method="post" mediatype="application/json"
+        		encoding="UTF-8" instance="" replace="" errorHandler="" customHandler="" mode="asynchronous" processMsg="" ev:submit=""
+        		ev:submitdone="scwin.sbm_insertMbrsVt_submitdone" ev:submiterror="" abortTrigger="">
+        	</xf:submission>
+        </xf:model>
+        <script type="text/javascript" lazy="false"><![CDATA[/* 프로그램ID */
+scwin.pgmId = 'PGJ111P09';
+
+/*최상단 선언 */
+scwin.isMain = function() {
+	return true;
+};
+
+scwin.result = '';
+
+/**
+ * 투표 onpageLoad
+ *
+ * ============= ============ ==========================
+ *  Date          Author       Description
+ * ============= ============ ==========================
+ *  2023.08.14.   나해준       [NELS]최초 생성
+ * ============= ============ ==========================
+ */
+scwin.onpageload = function() {
+	setTimeout(function(){
+        pgjUtil.setPopUpCloseNextTabEvent($p.getFrame());
+    }, 500);
+	const userId = WebSquare.cookie.getCookie('cortAuctnLgnMbr')
+	scscrno.setScPgmId(scwin.pgmId);
+	scglblo.setScUserId(userId);
+	com.executeSubmission(sbm_selectNwstVtInf)
+};
+
+scwin.onpageunload = function() {
+
+};
+
+
+/**
+ * 최신정보 투표조회후 데이터 셋팅
+ *
+ * ============= ============ ==========================
+ *  Date          Author       Description
+ * ============= ============ ==========================
+ *  2023.08.14.   나해준       [NELS]최초 생성
+ * ============= ============ ==========================
+ */
+scwin.sbm_selectNwstVtInf_submitdone = function({responseJSON:{data,status,message}}) {
+	if (status === 200) {
+		scwin.result = data.result
+		const item = scwin.result.vtItm
+		const itemLst = scwin.result.vtItmLst
+		tbx_title.setValue(item.vtTitlNm);
+		let ymd = `${scdateo.getFmtDate(item.bgngYmd)} ~ ${scdateo.getFmtDate(item.endYmd)}`
+		spn_srvyPerd.setValue(ymd)
+		itemLst.forEach(r=>{
+			rad_vtItem.addItem(r.cortAuctnVtQstnVsbeSeq, r.vtItmVsbeCtt)
+		})
+		/* 현재 투표결과 내역 */
+		scwin.reloadGraph(itemLst)
+	} else {
+		scutilo.showMsg(scglblo.MSG.WARN,message);
+	}
+};
+
+/**
+ * '투표하기 버튼 클릭시 사용자의 투표정보 insert'
+ *
+ * ============= ============ ==========================
+ *  Date          Author       Description
+ * ============= ============ ==========================
+ *  2023.08.14.   나해준       [NELS]최초 생성
+ * ============= ============ ==========================
+ */
+scwin.btn_vtSave_onclick = function(e) {
+	/* TO-DO 로그인 여부 체크후 실행 일단은 TRUE처리*/
+	if (rad_vtItem.getSelectedIndex() === -1) {
+		scutilo.showMsg(scglblo.MSG.WARN,scutilo.getMsg(pgjmsg.PGJ.W_0061))
+		return
+	} else {
+		 pgjUtil.loginCheckMoveLoginPage().then(result =>{
+			if(result){
+				//투표진행
+				const item = scwin.result.vtItm
+				const value = {
+					cortAuctnVtSrno : item.cortAuctnVtSrno,
+					cortAuctnVtQstnSeq : item.cortAuctnVtQstnSeq,
+					cortAuctnVtQstnVsbeSeq : rad_vtItem.getValue(),
+					cortAuctnMbrsId : WebSquare.cookie.getCookie('cortAuctnLgnMbr'),
+				}
+				dma_saveVt.setJSON(value);
+				com.executeSubmission(sbm_insertMbrsVt);
+			} else {
+				return;
+			}
+		});
+	}
+};
+
+/**
+ *  투표정보 저장후에 확인메세지와 투표결과 최신내역 반영
+ *
+ * ============= ============ ==========================
+ *  Date          Author       Description
+ * ============= ============ ==========================
+ *  2023.08.14.   나해준       [NELS]최초 생성
+ * ============= ============ ==========================
+ */
+scwin.sbm_insertMbrsVt_submitdone = function({responseJSON:{data:{result},status,message}}) {
+	if (status === 200) {
+		scutilo.showMsg(scglblo.MSG.INFO,message);
+	} else {
+		scutilo.showMsg(scglblo.MSG.WARN,message);
+	}
+	const vtLst = result.vtItmLst;
+	/* 투표결과 내역 reload */
+	scwin.reloadGraph(vtLst)
+};
+
+/**
+ * 투표결과 반영하는 메서드
+ *
+ * ============= ============ ==========================
+ *  Date          Author       Description
+ * ============= ============ ==========================
+ *  2023.08.14.   나해준       [NELS]최초 생성
+ * ============= ============ ==========================
+ */
+scwin.reloadGraph = function(itemLst) {
+	gen_prBar.removeAll();
+	if (itemLst.length>0) {
+		itemLst.forEach((r,i)=>{
+			gen_prBar.insertChild(i);
+			gen_prBar.getChild(i, 'tbx_barTitle').setValue(r.vtItmVsbeCtt)
+			gen_prBar.getChild(i, 'spn_barRate').setValue(`${r.rate}%`)
+			gen_prBar.getChild(i, 'spn_barCnt').setValue(`(${r.bogiCnt}명)`)
+			gen_prBar.getChild(i, 'grp_barGraph').setStyle('width', `${r.rate}%`);
+		})
+	}
+}]]></script>
+    </head>
+    <body ev:onpageload="scwin.onpageload" ev:onpageunload="scwin.onpageunload">
+    	<xf:group class="pop_contents user" id="" style="">
+
+    		<xf:group style="" id="" class="vote_box mb30">
+
+    			<xf:group style="" id="" class="tit_box">
+    				<w2:textbox class="tit" dataType="" id="tbx_title" label="대법원 경매정보 포탈 사이트를 통해 ... 에 대하여 무엇을 할 생각이 있으십니까?" style="" escape="false"></w2:textbox>
+    			</xf:group>
+    			<xf:group class="btn_group" id="" style="">
+    				<w2:span label="설문기간 : " style="" id=""></w2:span>
+    				<w2:span label="Insert Text" style="" id="spn_srvyPerd"></w2:span>
+    			</xf:group>
+    			<xf:select1 appearance="full" class="rdo row" cols="" disabled="" id="rad_vtItem" itemTagname="li" ref="" renderType="radiogroup"
+    				rows="" selectedIndex="0" style="" tagname="ul" title="↑↓위아래 버튼으로 선택하십쇼" escape="false">
+    				<xf:choices></xf:choices>
+    			</xf:select1>
+    			<xf:group style="" id="" class="btn_group">
+    				<xf:trigger type="button" style="" id="btn_vtSave" class="btn_cm bg3" ev:onclick="scwin.btn_vtSave_onclick" title="투표하기버튼">
+    					<xf:label><![CDATA[투표하기]]></xf:label>
+    				</xf:trigger>
+    			</xf:group>
+
+    		</xf:group>
+    		<xf:group class="stbox" id="" style="">
+    			<w2:textbox class="frm_title" id="" label="결과보기" style="" tagname="h3"></w2:textbox>
+    		</xf:group>
+    		<xf:group class="vote_box" id="" style="">
+    			<xf:group class="que_list" id="" style="" tagname="ul">
+    				<w2:generator style="" id="gen_prBar" tagname="li"><w2:textbox label="어쩌구저쩌구 하다." style="" id="tbx_barTitle" class="txt_que" dataType="" escape="false"></w2:textbox><xf:group class="bar_graph" id="" style="">
+    						<xf:group class="bar" id="grp_barGraph" style="width:65%;"></xf:group>
+    					</xf:group><w2:span class="txt fwb" id="spn_barRate" label="65%" style=""></w2:span><w2:span class="txt ml5" id="spn_barCnt" label="(650명)" style="" dataType=""></w2:span></w2:generator>
+
+
+    			</xf:group>
+    		</xf:group>
+
+    	</xf:group>
+    	<xf:group class="btn_group" id="" style="">
+    		<xf:image id="" src="/pgj/cm/images/contents/logo.png" alt="대한민국 법원 법원경매정보제공 로고" style="width:135px;height:30px;margin-top: 8px;float:left;" title="법원경매정보제공 로고 이미지">
+    		</xf:image><xf:trigger class="btn_cm lg w2window_close" id="" style="" title="투표하기 팝업창 닫기" type="button">
+    			<xf:label><![CDATA[닫기]]></xf:label>
+    		</xf:trigger>
+
+    	</xf:group>
+    </body>
+</html>

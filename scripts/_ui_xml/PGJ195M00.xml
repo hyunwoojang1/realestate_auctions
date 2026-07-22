@@ -1,0 +1,202 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<html xmlns="http://www.w3.org/1999/xhtml"
+    xmlns:ev="http://www.w3.org/2001/xml-events"
+    xmlns:w2="http://www.inswave.com/websquare" xmlns:xf="http://www.w3.org/2002/xforms">
+    <head meta_screenName="자주쓰는검색" meta_vertical_guides="680" meta_horizontal_guides="">
+    	<title>법원경매정보 - 자주쓰는검색</title>
+    	<w2:type>DEFAULT</w2:type>
+    	<w2:buildDate />
+    	<xf:model>
+    		<xf:instance>
+    			<data xmlns="" />
+    		</xf:instance>
+    		<w2:dataCollection baseNode="map">
+    			<w2:dataMap baseNode="map" id="dma_saveBmrkSrchCond">
+    				<w2:keyInfo>
+    					<w2:key id="rletDspslSpcCondCd" name="부동산매각특수조건" dataType="text"></w2:key>
+    					<w2:key id="cortStDvs" name="검색조건법원주소구분코드" dataType="text"></w2:key>
+    					<w2:key id="bidDvsCd" name="입찰구분" dataType="text"></w2:key>
+    					<w2:key id="emlSrvcRcptnYn" name="EMAIL수신여부" dataType="text"></w2:key>
+    					<w2:key id="mvprpRletDvsCd" name="부동산동산구분코드" dataType="text"></w2:key>
+    					<w2:key id="cortAuctnSrchCondCd" name="법원경매검색조건" dataType="text"></w2:key>
+    					<w2:key id="rprsAdongSdCd" name="부동산지번시도코드" dataType="text"></w2:key>
+    					<w2:key id="rprsAdongSggCd" name="부동산지번시군구코드" dataType="text"></w2:key>
+    					<w2:key id="rprsAdongEmdCd" name="부동산지번읍면동코드" dataType="text"></w2:key>
+    					<w2:key id="rdnmSdCd" name="부동산도로명시도코드" dataType="text"></w2:key>
+    					<w2:key id="rdnmSggCd" name="부동산도로명시군구코드" dataType="text"></w2:key>
+    					<w2:key id="rdnmNo" name="부동산도로명" dataType="text"></w2:key>
+    					<w2:key id="mvprpDspslPlcAdongSdCd" name="동산지번시도코드" dataType="text"></w2:key>
+    					<w2:key id="mvprpDspslPlcAdongSggCd" name="동산지번시군구코드" dataType="text"></w2:key>
+    					<w2:key id="mvprpDspslPlcAdongEmdCd" name="동산지번읍면동코드" dataType="text"></w2:key>
+    					<w2:key id="rdDspslPlcAdongSdCd" name="동산도로명시도코드" dataType="text"></w2:key>
+    					<w2:key id="rdDspslPlcAdongSggCd" name="동산도로명시군구코드" dataType="text"></w2:key>
+    					<w2:key id="rdDspslPlcAdongEmdCd" name="동산도로명" dataType="text"></w2:key>
+    					<w2:key id="cortOfcCd" name="법원사무소코드" dataType="text"></w2:key>
+    					<w2:key id="jdbnCd" name="법원사무소부서코드" dataType="text"></w2:key>
+    					<w2:key id="execrOfcDvsCd" name="집행관사무소도구분코드" dataType="text"></w2:key>
+    					<w2:key id="lclDspslGdsLstUsgCd" name="용도대분류코드" dataType="text"></w2:key>
+    					<w2:key id="mclDspslGdsLstUsgCd" name="용도중분류코드" dataType="text"></w2:key>
+    					<w2:key id="sclDspslGdsLstUsgCd" name="용도소분류코드" dataType="text"></w2:key>
+    					<w2:key id="carDspslLstCd" name="자동차종류" dataType="text"></w2:key>
+    					<w2:key id="grbxTypCd" name="변속기어유형코드" dataType="text"></w2:key>
+    					<w2:key id="fuelKndCd" name="연료종류코드" dataType="text"></w2:key>
+    					<w2:key id="gdsVendNm" name="제조사명" dataType="text"></w2:key>
+    					<w2:key id="cortAuctnMbrsId" name="회원ID" dataType="text"></w2:key>
+    					<w2:key id="aeeEvlAmtMin" name="감정평가액MIN" dataType="text"></w2:key>
+    					<w2:key id="aeeEvlAmtMax" name="감정평가액MAX" dataType="text"></w2:key>
+    					<w2:key id="rletLwsDspslPrcMin" name="부동산최저매각가격MIN" dataType="text"></w2:key>
+    					<w2:key id="rletLwsDspslPrcMax" name="부동산최저매각가격MAX" dataType="text"></w2:key>
+    					<w2:key id="mvprpLwsDspslPrcMin" name="동산최저매각가격MIN" dataType="text"></w2:key>
+    					<w2:key id="mvprpLwsDspslPrcMax" name="동산최저매각가격MAX" dataType="text"></w2:key>
+    					<w2:key id="lwsDspslPrcRateMin" name="최저매각가율MIN" dataType="text"></w2:key>
+    					<w2:key id="lwsDspslPrcRateMax" name="최저매각가율MAX" dataType="text"></w2:key>
+    					<w2:key id="flbdNcntMin" name="유찰횟수MIN" dataType="text" encYN="true"></w2:key>
+    					<w2:key id="flbdNcntMax" name="유찰횟수MAX" dataType="text"></w2:key>
+    					<w2:key id="objctArDtsMin" name="면적MIN" dataType="text" encYN="true"></w2:key>
+    					<w2:key id="objctArDtsMax" name="면적MAX" dataType="text"></w2:key>
+    					<w2:key id="mvprpArtclKndCd" name="동산물품종류" dataType="text"></w2:key>
+    					<w2:key id="mvprpArtclNm" name="동산물품명" dataType="text"></w2:key>
+    					<w2:key id="mvprpAtchmPlcTypCd" name="압류장소" dataType="text"></w2:key>
+    					<w2:key id="carMdyrMin" name="자동차연식MIN" dataType="text"></w2:key>
+    					<w2:key id="carMdyrMax" name="자동차연식MAX" dataType="text"></w2:key>
+    					<w2:key id="carNm" name="자동차이름" dataType="text"></w2:key>
+    					<w2:key id="notifyLoc" name="주소공고중여버" dataType="text"></w2:key>
+    					<w2:key id="consonant" name="자음코드" dataType="text"></w2:key>
+    					<w2:key id="bmrkSrchSeq" name="검색어번호" dataType="text"></w2:key>
+    				</w2:keyInfo>
+    			</w2:dataMap>
+    			<w2:dataMap baseNode="map" id="dma_srchBmrkSrchCondLst">
+    				<w2:keyInfo>
+    					<w2:key id="cortAuctnMbrsId" name="회원ID" dataType="text"></w2:key>
+    					<w2:key id="cortAuctnSrchCondCd" name="검색조건구분코드" dataType="text"></w2:key>
+    				</w2:keyInfo>
+    			</w2:dataMap>
+    			<w2:dataList baseNode="list" repeatNode="map" id="dlt_autocom" saveRemovedData="true">
+    				<w2:columnInfo>
+    					<w2:column id="name" name="name" dataType="text"></w2:column>
+    					<w2:column id="name2" name="name2" dataType="text"></w2:column>
+    				</w2:columnInfo>
+    			</w2:dataList>
+    			<w2:dataList baseNode="list" repeatNode="map" id="dlt_bmrkSrchCondLst" saveRemovedData="true">
+    				<w2:columnInfo>
+    					<w2:column id="seq" name="순번" dataType="text"></w2:column>
+    					<w2:column id="srchKndNm" name="조건검새분류명" dataType="text"></w2:column>
+    					<w2:column id="emailStatNm" name="이메일상태" dataType="text"></w2:column>
+    					<w2:column id="title" name="제목" dataType="text"></w2:column>
+    					<w2:column id="select" name="검색" dataType="text"></w2:column>
+    					<w2:column id="update" name="수정" dataType="text"></w2:column>
+    					<w2:column id="delete" name="삭제" dataType="text"></w2:column>
+    					<w2:column id="emlSrvcRcptnYn" name="이메일수신여부" dataType="text"></w2:column>
+    					<w2:column id="cortAuctnMbrsId" name="회원ID" dataType="text"></w2:column>
+    					<w2:column id="bmrkSrchSeq" name="자주쓰는검색목록순번" dataType="text"></w2:column>
+    					<w2:column id="mvprpRletDvsCd" name="동산부동산여부" dataType="text"></w2:column>
+    					<w2:column id="cortAuctnSrchCondCd" name="검색구분코드" dataType="text"></w2:column>
+    				</w2:columnInfo>
+    			</w2:dataList>
+    			<w2:dataMap baseNode="map" id="dma_maxMsg">
+    				<w2:keyInfo>
+    					<w2:key id="limitFlag" name="최대개수여부" dataType="text"></w2:key>
+    					<w2:key id="maxCntWarMsg" name="최대개수메세지" dataType="text"></w2:key>
+    					<w2:key id="msgFlag" name="메세지flag" dataType="text"></w2:key>
+    				</w2:keyInfo>
+    			</w2:dataMap>
+    			<w2:dataMap baseNode="map" id="dma_deleteBmrkSrchCond">
+    				<w2:keyInfo>
+    					<w2:key id="cortAuctnMbrsId" name="회원ID" dataType="text"></w2:key>
+    					<w2:key id="mvprpRletDvsCd" name="name2" dataType="text"></w2:key>
+    					<w2:key id="bmrkSrchSeq" name="name3" dataType="text"></w2:key>
+    				</w2:keyInfo>
+    			</w2:dataMap>
+    			<w2:dataMap baseNode="map" id="dma_srchBmrkSrchCondDtlLst">
+    				<w2:keyInfo>
+    					<w2:key id="cortAuctnMbrsId" name="회원ID" dataType="text"></w2:key>
+    					<w2:key id="bmrkSrchSeq" name="자주쓰는검색목록순번" dataType="text"></w2:key>
+    					<w2:key id="mvprpRletDvsCd" name="동산부동산여부" dataType="text"></w2:key>
+    					<w2:key id="cortAuctnSrchCondCd" name="자주쓰는검색구분코드" dataType="text"></w2:key>
+    				</w2:keyInfo>
+    			</w2:dataMap>
+    			<w2:dataList baseNode="list" repeatNode="map" id="dlt_bmrkSrchCondDtlLst" saveRemovedData="true">
+    				<w2:columnInfo>
+    					<w2:column id="cortAuctnMbrsId" name="회원ID" dataType="text"></w2:column>
+    					<w2:column id="mvprpRletDvsCd" name="동산부동산구분코드" dataType="text"></w2:column>
+    					<w2:column id="bmrkSrchSeq" name="즐겨찾기검색순번" dataType="text"></w2:column>
+    					<w2:column id="bmrkSrchCondSeq" name="즐겨찾기검색조건순번" dataType="text"></w2:column>
+    					<w2:column id="srchTrgtNm" name="검색대상명" dataType="text"></w2:column>
+    					<w2:column id="srchCondVal" name="검색조건값" dataType="text"></w2:column>
+    					<w2:column id="srchCondNm" name="검색조건명" dataType="text"></w2:column>
+    					<w2:column id="cortAuctnSrchCondCd" name="검색조건구분코드" dataType="text"></w2:column>
+    				</w2:columnInfo>
+    			</w2:dataList>
+    		</w2:dataCollection>
+    		<w2:workflowCollection></w2:workflowCollection>
+    		<xf:submission id="sbm_selectBmrkSrchCondLst" ref="data:json,dma_srchBmrkSrchCondLst"
+    			target='data:json,{"id":"dlt_bmrkSrchCondLst","key":"data.dlt_bmrkSrchCondLst"}' action="/pgj/pgj195/selectBmrkSrchCondLst.on"
+    			method="post" mediatype="application/json" encoding="UTF-8" instance="" replace="" errorHandler="" customHandler=""
+    			mode="asynchronous" processMsg="" ev:submit="" ev:submitdone="scwin.sbm_selectBmrkSrchCondLst_submitdone" ev:submiterror=""
+    			abortTrigger="">
+    		</xf:submission>
+    		<xf:submission id="sbm_selectBmrkSrchCondDtlLst" ref="data:json,dma_srchBmrkSrchCondDtlLst"
+    			target='data:json,{"id":"dlt_bmrkSrchCondDtlLst","key":"data.dlt_bmrkSrchCondDtlLst"}'
+    			action="/pgj/pgj195/selectBmrkSrchCondDtlLst.on" method="post" mediatype="application/json" encoding="UTF-8" instance="" replace=""
+    			errorHandler="" customHandler="" mode="asynchronous" processMsg="" ev:submit=""
+    			ev:submitdone="scwin.sbm_selectBmrkSrchCondDtlLst_submitdone" ev:submiterror="" abortTrigger="">
+    		</xf:submission>
+    		<xf:submission id="sbm_insertBmrkSrchCond" ref="data:json,dma_saveBmrkSrchCond"
+    			target='data:json,{"id":"dma_maxMsg","key":"data.dma_maxMsg"}' action="/pgj/pgj195/saveBmrkSrchCond.on" method="post"
+    			mediatype="application/json" encoding="UTF-8" instance="" replace="" errorHandler="" customHandler="" mode="asynchronous"
+    			processMsg='"검색조건을 저장 중입니다."' ev:submit="" ev:submitdone="scwin.sbm_insertBmrkSrchCond_submitdone" ev:submiterror=""
+    			abortTrigger="">
+    		</xf:submission>
+    		<xf:submission id="sbm_deleteBmrkSrchCond" ref="data:json,dma_deleteBmrkSrchCond" target=""
+    			action="/pgj/pgj195/deleteBmrkSrchCond.on" method="post" mediatype="application/json" encoding="UTF-8" instance="" replace=""
+    			errorHandler="" customHandler="" mode="asynchronous" processMsg="" ev:submit=""
+    			ev:submitdone="scwin.sbm_deleteBmrkSrchCond_submitdone" ev:submiterror="" abortTrigger="">
+    		</xf:submission>
+    	</xf:model>
+    	<script type="text/javascript" lazy="false"><![CDATA[/* 프로그램ID */
+scwin.pgmId = 'PGJ195M00';
+
+/* 최상단(opener, parent 포함) 기준 함수 */
+scwin.isMain = function() {
+	return true;
+};
+
+
+/**
+ * PageLoad시 공지사항 전체 리스트 조회
+ *
+ * ============= ============ ==========================
+ *  Date          Author       Description
+ * ============= ============ ==========================
+ *  2024.09.25.   나해준       [NELS]최초 생성
+ * ============= ============ ==========================
+ */
+scwin.onpageload = function() {
+	const pgmId = $p.getParameter("pgjId");
+	let path = ""
+	switch(pgmId) {
+		case '141M01' : path = '/pgj/ui/pgj100/PGJ195M02.xml';
+			document.title = '법원경매정보제공 - 자주쓰는검색'
+			break
+		default : 
+            document.title = '법원경매정보제공 - 자주쓰는검색'
+            path = '/pgj/ui/pgj100/PGJ195M02.xml';
+	}
+	$p.main().wfm_mainFrame.setSrc(path);
+
+};
+
+scwin.onpageunload = function() {
+
+};
+]]></script>
+    </head>
+    <body ev:onpageload="scwin.onpageload" ev:onpageunload="scwin.onpageunload">
+        <xf:group class="wrap user" id="" style="">
+        	<w2:wframe class="header" id="wfm_header" src="/pgj/ui/common/header.xml" style=""></w2:wframe>
+        	<w2:wframe class="" id="wfm_mainFrame" style=""></w2:wframe><w2:wframe class="footer" id="" src="/pgj/ui/common/footer.xml" style=""></w2:wframe>
+        	<w2:wframe class="quickmenu" id="" src="/pgj/ui/common/quick.xml" style=""></w2:wframe>
+        	
+        </xf:group>
+    </body>
+</html>

@@ -1,0 +1,188 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<html xmlns="http://www.w3.org/1999/xhtml"
+    xmlns:ev="http://www.w3.org/2001/xml-events"
+    xmlns:w2="http://www.inswave.com/websquare" xmlns:xf="http://www.w3.org/2002/xforms">
+    <head meta_screenName="법원경매정보 공지사항">
+    	<w2:type>DEFAULT</w2:type>
+        <w2:buildDate/>
+        <xf:model>
+        	<xf:instance>
+        		<data xmlns="" />
+        	</xf:instance>
+        	<w2:dataCollection baseNode="map">
+        		<w2:dataMap baseNode="map" id="dma_ntcMtrSeq">
+        			<w2:keyInfo>
+        				<w2:key id="cortAuctnNtcMtrSeq" name="법원경매공지사항순번" dataType="text"></w2:key>
+        			</w2:keyInfo>
+        			<w2:data use="true"></w2:data>
+        		</w2:dataMap>
+        		<w2:dataList baseNode="list" repeatNode="map" id="dlt_rcntRegNtcMtr" saveRemovedData="true">
+        			<w2:columnInfo>
+        				<w2:column id="cortAuctnNtcEtcDtlDvsCd" name="법원경매공지기타상세구분코드" dataType="text"></w2:column>
+        				<w2:column id="ntatcTitlNm" name="게시물제목명" dataType="text"></w2:column>
+        				<w2:column id="srvcInqCnt" name="서비스조회수" dataType="text"></w2:column>
+        				<w2:column id="ntatcCtxtCtt" name="게시물본문내용" dataType="text"></w2:column>
+        				<w2:column id="cortAuctnNtcMtrSeq" name="법원경매공지사항순번" dataType="text"></w2:column>
+        				<w2:column id="cortAuctnRletDvsCd" name="법원경매공지사항형식구분코드" dataType="text"></w2:column>
+        				<w2:column id="cortAuctnAtflSeq" name="법원경매첨부파일순번" dataType="text"></w2:column>
+        				<w2:column id="ntatcAtfl" name="게시물첨부파일" dataType="text"></w2:column>
+        				<w2:column id="ntatcAtflNm" name="게시물첨부파일명" dataType="text"></w2:column>
+        				<w2:column id="cortAuctnNtcEtcDvsCd" name="법원경매공지기타구분코드" dataType="text"></w2:column>
+        				<w2:column id="lnkNm" name="링크명" dataType="text"></w2:column>
+        				<w2:column id="ntcMtrLnkUrl" name="공지사항링크URL" dataType="text"></w2:column>
+        				<w2:column id="bfDbJobCd" name="공지사항이전글번호" dataType="text"></w2:column>
+        				<w2:column id="bfGul" name="공지사항이전글" dataType="text"></w2:column>
+        				<w2:column id="nxtDbJobCd" name="공지사항다음글번호" dataType="text"></w2:column>
+        				<w2:column id="nxtGul" name="공지사항다음글" dataType="text"></w2:column>
+        				<w2:column id="ntatcAtflEyn" name="게시물첨부파일유무" dataType="text"></w2:column>
+        				<w2:column id="cortAuctnComCdNm" name="법원경매공통코드명" dataType="text"></w2:column>
+        			</w2:columnInfo>
+        		</w2:dataList>
+        	</w2:dataCollection>
+        	<w2:workflowCollection></w2:workflowCollection>
+        	<xf:submission id="sbm_selectPopUpNtcMtrDtl" ref="data:json,dma_ntcMtrSeq" target='data:json,{"id":"dlt_rcntRegNtcMtr","key":"data.dlt_rcntRegNtcMtr"}' action="/pgj/pgj111/selectNtcMtrGnrlPopupCtt.on" method="post"
+        		mediatype="application/json" encoding="UTF-8" instance="" replace="" errorHandler="" customHandler="" mode="asynchronous"
+        		processMsg="" ev:submit="" ev:submitdone="scwin.sbm_selectPopUpNtcMtrDtl_submitdone" ev:submiterror="" abortTrigger="">
+        	</xf:submission>
+        </xf:model>
+        <script type="text/javascript" lazy="false"><![CDATA[/* 프로그램ID */
+scwin.pgmId = 'PGJ111P08';
+
+/*최상단 선언 */
+scwin.isMain = function() {
+	return true;
+};
+
+/* 콜백명 */
+scwin.callbackFncName = ''
+
+/**
+ * 공지 팝업창 패이지 onload
+ * ============= ============ ==========================
+ *  Date          Author       Description
+ * ============= ============ ==========================
+ *  2022.07.22.   나해준       [NELS]최초 생성
+ * ============= ============ ==========================
+ */
+scwin.onpageload = function () {
+
+	setTimeout(function(){
+        pgjUtil.setPopUpCloseNextTabEvent($p.getFrame());
+    }, 500);
+
+	/* 메인페이로부터 공지사항 제목,내용 데이터를 전달 받아 화면으로 전송. */
+	param = com.data.getParameter();
+	/* 콜백함수 */
+	scwin.callbackFncName = param.callbackFn;
+	/* 메인으로부터 넘겨받은 조회된 공지사항 parameter */
+	data = param.paramObj;
+ 	/* 상세 페이지를 눌렀을 경우 cortAuctnNtcMtrSeq 해당 법원경매공지사항순번 데이터를 삽입 */
+
+	dma_ntcMtrSeq.set("cortAuctnNtcMtrSeq", data.ntcMtrSeq);
+	/* 조회된 공지사항 제목 및 내용 */
+	cbx_toDayPopUpClose.setUserData("ntcMtrSeq", data.ntcMtrSeq);
+	com.executeSubmission(sbm_selectPopUpNtcMtrDtl)
+};
+
+
+scwin.onpageunload = function () {
+
+};
+
+/**
+ * 팝업용 공지사항 상세조회
+ * ============= ============ ==========================
+ *  Date          Author       Description
+ * ============= ============ ==========================
+ *  2023.10.18.   나해준       [NELS]최초 생성
+ * ============= ============ ==========================
+ */
+scwin.sbm_selectPopUpNtcMtrDtl_submitdone = function({responseJSON:{status,data}}) {
+
+	if (status === 200) {
+		const result = data.dlt_rcntRegNtcMtr[0];
+
+		//개행처리
+		let ntatcCtxtCtt = result.ntatcCtxtCtt;
+		if(!scutilo.isEmpty(ntatcCtxtCtt)){
+			ntatcCtxtCtt = ntatcCtxtCtt.replaceAll(' ', '&nbsp;').replaceAll('\n', '<br />');
+		}
+
+		tbx_ntatcTitlNm.setValue(result.ntatcTitlNm);
+		tbx_ntatcCtxtCtt1.setValue(ntatcCtxtCtt);
+	}
+};
+
+
+
+scwin.btn_NtcMtrPouUpClose_onclick = function(e) {
+	let flagYn = cbx_toDayPopUpClose.getValue();
+	let ntcMtrSeq = cbx_toDayPopUpClose.getUserData("ntcMtrSeq");
+	if (flagYn == "Y") {
+		pgjUtil.setCookie(ntcMtrSeq,"Y",6*60*24);
+	}
+};
+
+/**
+ * 상세버튼 눌렀을 경우 법원경매공지사항순번 parameter와 함께
+ * 공지사항 팝업창 close하면서 메인페이지 callback함수 실행
+ *
+ * ============= ============ ==========================
+ *  Date          Author       Description
+ * ============= ============ ==========================
+ *  2022.07.22.   나해준       [NELS]최초 생성
+ * ============= ============ ==========================
+ */
+scwin.btn_ntcMtrDtl_onclick = function(e) {
+
+	/*공지사항 상세정보  */
+	var moveData ={
+		"cortAuctnNtcMtrSeq" : dma_ntcMtrSeq.get("cortAuctnNtcMtrSeq")
+	};
+	com.win.closePopup(scwin.callbackFncName,moveData);
+};
+
+
+
+]]></script>
+    </head>
+    <body ev:onpageload="scwin.onpageload" ev:onpageunload="scwin.onpageunload" useExternalClass="true">
+    	<xf:group class="pop_contents user" id="popup1" style="">
+    		<xf:group class="notice_box" id="" style="">
+    			<w2:textbox class="tit" id="" label="공지사항" style="" dataType=""></w2:textbox>
+
+    		</xf:group>
+    		<xf:group style="" id="" class="msg_box_txt">
+    			<w2:textbox label="" style="color: #FF8224;" id="tbx_ntatcTitlNm" dataType="" class="fwb fs16 mb10" escape="false"></w2:textbox>
+
+    			<w2:textbox label="" style="" id="tbx_ntatcCtxtCtt1" class="txt" escape="false"></w2:textbox>
+    		</xf:group>
+    		<xf:group class="btn_group" id="" style="">
+    			<xf:group class="fl" id="" style="float: right;">
+    				<xf:trigger class="btn_cm bt_support2" ev:onclick="scwin.btn_ntcMtrDtl_onclick" id="trigger4" style="" type="button" title="공지사항 자세히 보기 버튼">
+    					<xf:label><![CDATA[공지사항 자세히 보기]]></xf:label>
+    				</xf:trigger>
+    			</xf:group>
+    		</xf:group>
+    	</xf:group>
+    	<xf:group class="btn_group" id="" style="">
+    		<xf:image id="" src="/pgj/cm/images/contents/logo.png" alt="대한민국 법원 법원경매정보제공 로고" style="width:135px;height:30px;margin-top: 8px;float:left;" title="법원경매정보제공 로고 이미지"></xf:image><xf:group class="fr" id="" style="">
+    			<xf:select appearance="full" class="chk mr10" cols="" disabled="" id="cbx_toDayPopUpClose" itemTagname="li" ref=""
+    				renderType="checkboxgroup" rows="" selectedindex="-1" style="" tagname="ul" title="오늘 하루 해당 창을 열지않음 체크박스">
+    				<xf:choices>
+    					<xf:item>
+    						<xf:label><![CDATA[오늘 하루 이 창을 열지않음]]></xf:label>
+    						<xf:value><![CDATA[Y]]></xf:value>
+    					</xf:item>
+    				</xf:choices>
+    			</xf:select>
+    			<xf:trigger class="btn_cm lg w2window_close" id="btn_NtcMtrPouUpClose" style="" title="공지사항 팝업창 닫기 버튼" type="button"
+    				ev:onclick="scwin.btn_NtcMtrPouUpClose_onclick">
+    				<xf:label><![CDATA[닫기]]></xf:label>
+    			</xf:trigger>
+
+    		</xf:group>
+
+    	</xf:group>
+    </body>
+</html>

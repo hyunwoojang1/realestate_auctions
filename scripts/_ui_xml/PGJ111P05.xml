@@ -1,0 +1,1025 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<html xmlns="http://www.w3.org/1999/xhtml"
+    xmlns:ev="http://www.w3.org/2001/xml-events"
+    xmlns:w2="http://www.inswave.com/websquare" xmlns:xf="http://www.w3.org/2002/xforms">
+    <head meta_screenName="사이트 이용안내" meta_vertical_guides="" meta_horizontal_guides="464">
+    	<w2:type>DEFAULT</w2:type>
+        <w2:buildDate/>
+        <xf:model>
+            <xf:instance>
+                <data xmlns=""/>
+            </xf:instance>
+            <w2:dataCollection baseNode="map">
+            </w2:dataCollection>
+            <w2:workflowCollection>
+            </w2:workflowCollection>
+        </xf:model>
+         <script type="text/javascript" lazy="false"><![CDATA[/* 프로그램ID */
+scwin.pgmId = 'PGJ111P09';
+
+/*최상단 선언 */
+scwin.isMain = function() {
+	return true;
+};
+
+
+scwin.onpageload = function() {
+	scscrno.setScPgmId(scwin.pgmId);
+	setTimeout(function(){
+		pgjUtil.setPopUpCloseNextTabEvent($p.getFrame());
+	}, 500); 
+};
+
+scwin.onpageunload = function() {
+
+};
+
+scwin.tabControl1_onchange = function(tabID,idx,userTabID) {
+	document.body.scrollTop = 0;
+};
+]]></script>
+    </head>
+    <body ev:onpageload="scwin.onpageload" ev:onpageunload="scwin.onpageunload">
+    	<xf:group class="pop_contents user" id="" style="">
+    		<xf:group style="" id="" class="guide_wrap">
+    			<xf:group class="wq_tbc tab_guide" id="">
+    				<w2:tabControl adaptive="" adaptiveThreshold="" alwaysDraw="false" class="" closable="false" confirmFalseAction="new"
+    					confirmTrueAction="exist" id="" removeBridge="true" selectedIndex="0" style="" useATagBtn="" useConfirmMessage="false"
+    					useMoveNextTabFocus="false" useTabKeyOnly="false">
+    					<w2:tabs disabled="false" id="tabs1" label="메인화면" style="" title="메인화면"></w2:tabs>
+    					<w2:tabs disabled="false" id="tabs2" label="경매공고" style="" title="경매공고"></w2:tabs>
+    					<w2:tabs disabled="false" id="tabs3" label="경매물건" style="" title="경매물건"></w2:tabs>
+    					<w2:tabs disabled="false" style="" id="tabs4" label="매각통계" title="매각통계"></w2:tabs>
+    					<w2:tabs disabled="false" style="" id="tabs5" label="나의경매" title="나의경매"></w2:tabs>
+    					<w2:content alwaysDraw="false" id="content1" style="">
+    						<xf:group class="guide_content" id="" style="" tabIndex="0">
+    							<xf:group class="pgtbox" id="" style="">
+    								<xf:group class="clearfix" id="" style="">
+    									<xf:group class="pgt_location" id="" style="" tagname="ul">
+    										<xf:group id="" style="" tagname="li">
+    											<w2:span id="" label="사이트 이용안내" style=""></w2:span>
+    										</xf:group>
+    										<xf:group id="" style="" tagname="li">
+    											<w2:span id="" label="메인화면" style=""></w2:span>
+    										</xf:group>
+    									</xf:group>
+    								</xf:group>
+    							</xf:group>
+    							<xf:image id="" src="/pgj/cm/images/contents/bg_guid0_1_1.png" style="width: 100%"  alt="메인화면 상단 메뉴 영역"></xf:image>
+
+
+
+
+
+
+    							<xf:group style="" id="" class="mt20">
+    								<w2:textbox id="" label="1. 글로벌메뉴" style="" tagname="h4"></w2:textbox>
+    								<xf:image alt="메인화면 글로벌메뉴 검색 영역" id="" src="/pgj/cm/images/contents/bg_guid0_1_2.png"
+    									style="width: 100%">
+    								</xf:image>
+    								<w2:textbox id="" label="법원경매정보 사이트의 전체 메뉴입니다." style=""></w2:textbox>
+    								<w2:textbox id="" label="- 경매공고" style="" class="fc_prmy1 mt10"></w2:textbox>
+    								<w2:textbox id=""
+    									label="공지사항, 배당요구종기공고, 부동산매각공고, 동산매각공고, 최고공고로 구성되어 있으며, 서비스안내 및 법률개정과 각종 공고내역을 검색할 수 있습니다." style="">
+    								</w2:textbox>
+    								<w2:textbox id="" label="- 경매물건" style="" class="fc_prmy1"></w2:textbox>
+    								<w2:textbox id=""
+    									label="물건상세검색, 지도검색, 기일별검색, 자동차/중기검색, 다수조회물건, 다수관심물건, 매각예정물건, 매각결과검색, 경매사건검색으로 구성되어 있으며, 경매물건을 다양한 조건으로 검색할 수 있습니다."
+    									style="">
+    								</w2:textbox>
+    								<w2:textbox class="fc_prmy1" id="" label="- 매각통계" style=""></w2:textbox>
+    								<w2:textbox id="" label="연도별매각통계, 법원별매각통계, 지역별매각통계, 용도별매각통계로 구성되어 있으며, 경매물건의 매각통계를 다양한 조건으로 검색할 수 있습니다."
+    									style="">
+    								</w2:textbox>
+    								<w2:textbox class="fc_prmy1" id="" label="- 경매지식" style=""></w2:textbox>
+    								<w2:textbox id=""
+    									label="경매절차, 경매용어, 경매서식, 입찰안내, 매수신청대리안내, 경매비용, 관련법률로 구성되어 있으며, 부동산/동산경매 전반에 관한 지식 및 관련법률을 알려줍니다." style="">
+    								</w2:textbox>
+    								<w2:textbox class="fc_prmy1" id="" label="- 이용안내" style=""></w2:textbox>
+    								<w2:textbox id="" label="제공서비스, 집행기관, 사이트이용안내, FAQ, 사이트맵으로 구성되어 있으며, 제공하는 서비스 및 이용안내와 집행기관을 검색할 수 있습니다."
+    									style="">
+    								</w2:textbox>
+    								<w2:textbox class="fc_prmy1" id="" label="- 나의경매" style=""></w2:textbox>
+    								<w2:textbox id=""
+    									label="회원정보관리, 일정관리, 관심물건, 관심사건, 자주쓰는검색, 나의설정, 나의동산집행정보로 구성되어 있으며, 회원가입을 통해 회원에 특화된 서비스를 이용할 수 있습니다." style="">
+    								</w2:textbox>
+    							</xf:group>
+
+    							<xf:group class="mt20" id="" style="">
+    								<w2:textbox id="" label="2. 빠른물건검색" style="" tagname="h4"></w2:textbox><xf:image id="" src="/pgj/cm/images/contents/bg_guid0_1_3.png" style="width: 50%" alt="메인화면 빠른물건 검색 영역"></xf:image>
+    								<w2:textbox id="" label="- 일반검색 : 법원 및 소재지로 경매물건을 검색할 수 있습니다." style=""></w2:textbox>
+    								<w2:textbox id="" label="- 물건상세검색 : 다양한 검색조건으로 경매물건을 검색할 수 있습니다." style=""></w2:textbox>
+    								<w2:textbox id="" label="- 지도검색 : 지도맵을 이용하여 경매물건을 검색할 수 있습니다." style=""></w2:textbox>
+    								<w2:textbox id="" label="- 자동차/중기검색 : 자동차/중기에 특화된 검색조건으로 경매물건을 검색할 수 있습니다." style=""></w2:textbox>
+    							</xf:group>
+
+    							<xf:group class="mt20" id="" style="">
+    								<w2:textbox id="" label="3. 용도별 물건정보" style="" tagname="h4"></w2:textbox><xf:image id="" src="/pgj/cm/images/contents/bg_guid0_1_4.png" style="width: 50%" alt="메인화면 용도별 물건정보 영역"></xf:image>
+    								<w2:textbox id="" label="인기있는 용도별로 경매물건을 검색할 수 있습니다." style=""></w2:textbox>
+    							</xf:group>
+
+    							<xf:group class="mt20" id="" style="">
+    								<w2:textbox id="" label="4. 다수관심물건" style="" tagname="h4"></w2:textbox>
+    								<xf:image id="" src="/pgj/cm/images/contents/bg_guid0_1_5.png" style="width: 90%;" alt="메인화면 다수관심물건 영역"></xf:image><w2:textbox id="" label="회원들이 관심물건으로 등록한 경매물건을 검색할 수 있습니다." style=""></w2:textbox>
+    							</xf:group>
+
+    							<xf:group class="mt20" id="" style="">
+    								<w2:textbox id="" label="5. 금주의 경매일정 (부동산)" style="" tagname="h4"></w2:textbox>
+    								<xf:image id="" src="/pgj/cm/images/contents/bg_guid0_1_6.png" style="width: 25%;" alt="메인화면 금주의 경매일정 부동산탭영역"></xf:image><w2:textbox id="" label="- 공고 : 전국법원에 매각공고된 경매물건(부동산)의 일정을 검색할 수 있습니다." style=""></w2:textbox>
+    								<w2:textbox id="" label="- 정정 : 전국법원에 정정공고된 경매물건(부동산)의 일정을 검색할 수 있습니다." style=""></w2:textbox>
+    								<w2:textbox id="" label="- 취하/취소 : 전국법원에 취하/취소공고된 경매물건(부동산)의 일정을 검색할 수 있습니다." style=""></w2:textbox>
+    							</xf:group>
+
+    							<xf:group class="mt20" id="" style="">
+    								<w2:textbox id="" label="6. 금주의 경매일정 (동산)" style="" tagname="h4"></w2:textbox><xf:image id="" src="/pgj/cm/images/contents/bg_guid0_1_7.png" style="width: 25%;" alt="메인화면 금주의 경매일정 동산탭영역"></xf:image>
+    								<w2:textbox id="" label="- 일반 : 전국법원에 매각공고된 경매물건(동산)의 일정을 검색할 수 있습니다." style=""></w2:textbox>
+    								<w2:textbox id="" label="- 조기 : 전국법원에 조기공고된 경매물건(동산)의 일정을 검색할 수 있습니다." style=""></w2:textbox>
+    							</xf:group>
+
+    							<xf:group class="mt20" id="" style="">
+    								<w2:textbox id="" label="7. 경매도우미" style="" tagname="h4"></w2:textbox>
+    								<xf:image id="" src="/pgj/cm/images/contents/bg_guid0_1_8.png" style="width: 30%" alt="메인화면 금주의 경매일정 경매도우미 영역"></xf:image><w2:textbox id="" label="경매와 관련한 용어들을 검색할 수 있습니다." style=""></w2:textbox>
+    							</xf:group>
+    							<xf:group class="mt20" id="" style="">
+    								<w2:textbox id="" label="8. 퀵링크(바로가기)" style="" tagname="h4"></w2:textbox><xf:image id="" src="/pgj/cm/images/contents/bg_guid0_1_10.png" style="width: 10%" alt="메인화면 오른쪽  퀵메뉴(사이드바)영역"></xf:image>
+    								<w2:textbox id="" label="법원경매정보서비스의 주요 메뉴로 쉽고 빠르게 이동할 수 있습니다." style=""></w2:textbox>
+    							</xf:group>
+
+
+
+
+
+
+
+    						</xf:group>
+    					</w2:content>
+    					<w2:content alwaysDraw="false" id="content2" style="">
+
+    						<xf:group class="tab_guide_type2" id="">
+    							<w2:tabControl adaptive="" adaptiveThreshold="" alwaysDraw="false" class="" closable="false"
+    								confirmFalseAction="new" confirmTrueAction="exist" id="tabControl1" removeBridge="true" selectedIndex="0" style="" useATagBtn=""
+    								useConfirmMessage="false" useMoveNextTabFocus="false" useTabKeyOnly="true" tabScroll="false" ev:onchange="scwin.tabControl1_onchange">
+    								<w2:tabs disabled="false" id="tabs1" label="배당요구종기공고" style="margin-left: 5px;" title="배당요구종기공고"></w2:tabs>
+    								<w2:tabs disabled="false" id="tabs2" label="부동산매각공고" style="" title="부동산매각공고"></w2:tabs>
+    								<w2:tabs disabled="false" id="tabs3" label="동산매각공고" style="" title="동산매각공고"></w2:tabs>
+    								<w2:tabs disabled="false" style="" id="tabs4" label="최고공고" title="최고공고"></w2:tabs>
+    								<w2:content alwaysDraw="false" id="content1" style="">
+
+
+
+    									<xf:group style="" id="" class="guide_content">
+    										<xf:group class="pgtbox" id="" style="">
+    											<xf:group class="clearfix" id="" style="">
+    												<xf:group class="pgt_location" id="" style="" tagname="ul">
+    													<xf:group id="" style="" tagname="li">
+    														<w2:span id="" label="HOME" style=""></w2:span>
+    													</xf:group><xf:group id="" style="" tagname="li">
+    														<w2:span id="" label="경매공고" style=""></w2:span>
+    													</xf:group>
+    													<xf:group id="" style="" tagname="li">
+    														<w2:span id="" label="배당요구종기공고" style=""></w2:span>
+    													</xf:group>
+
+    												</xf:group>
+    											</xf:group>
+    										</xf:group><xf:image id="" src="/pgj/cm/images/contents/bg_guid1_1_1.png" style="width: 100%" alt="배당요구종기공고 페이지 배당요구조기공고 영역"></xf:image>
+    										<xf:group class="mt20" id="" style="">
+    											<w2:textbox id="" label="법원/담당계" style="" tagname="h4"></w2:textbox><xf:image src="/pgj/cm/images/contents/bg_guid1_1_2.png" style="" id="" alt="검색조건 법원/담당계 영역"></xf:image>
+
+
+    											<w2:textbox id=""
+    												label="법원과 담당계로 배당요구종기공고를 검색하여 사건번호, 소재지, 소유자, 공고일, 담당계 등을 확인할 수 있습니다.&lt;br /&gt;법원과 담당계를 모두 선택해야 검색이 가능합니다." style=""
+    												escape="false">
+    											</w2:textbox>
+
+    										</xf:group>
+    										<xf:group class="mt20" id="" style="">
+    											<w2:textbox id="" label="사건번호/이해관계인명" style="" tagname="h4"></w2:textbox><xf:image id="" src="/pgj/cm/images/contents/bg_guid1_1_3.png" style="" alt="검색조건 사건번호/이해관계인명 영역"></xf:image>
+
+    											<w2:textbox id=""
+    												label="법원과 사건번호, 이해관계인명으로 배당요구종기공고를 검색하여 사건번호, 소재지, 소유자, 공고일, 담당계 등을 확인할 수 있습니다.&lt;br /&gt;법원과 사건번호, 이해관계인명을 모두 선택, 입력해야 검색이 가능합니다."
+    												style="" escape="false">
+    											</w2:textbox>
+
+    										</xf:group>
+    										<xf:group class="mt20" id="" style="">
+    											<w2:textbox id="" label="소재지(지번주소)" style="" tagname="h4"></w2:textbox><xf:image id="" src="/pgj/cm/images/contents/bg_guid1_1_4.png" style="" alt="검색조건 소재지(지번주소)영역"></xf:image>
+
+    											<w2:textbox id=""
+    												label="경매물건의 소재지(지번주소)로 배당요구종기공고를 검색하여 사건번호, 소재지, 소유자, 공고일, 담당계 등을 확인할 수 있습니다.&lt;br /&gt;소재지(지번주소)의 시도, 시군구, 읍면동을 선택해야 검색이 가능합니다."
+    												style="" escape="false">
+    											</w2:textbox>
+    										</xf:group>
+    										<xf:group class="mt20" id="" style="">
+    											<w2:textbox id="" label="소재지(새주소)" style="" tagname="h4"></w2:textbox><xf:image id="" src="/pgj/cm/images/contents/bg_guid1_1_5.png" style=""  alt="검색조건 소재지(새주소)영역"></xf:image>
+
+    											<w2:textbox id=""
+    												label="경매물건의 소재지(새주소)로 검색하여 사건번호, 소재지, 소유자, 공고일, 담당계 등을 확인할 수 있습니다.&lt;br /&gt;소재지(새주소)의 시도, 시군구, 도로명을 선택해야 검색이 가능합니다. 소재지(새주소)의 자음은 시군구까지 선택했을때 변동확인이 되며 자음 변경시 해당 자음에 대한 &amp;nbsp;도로명을 확인하실 수 있습니다."
+    												style="" escape="false">
+    											</w2:textbox>
+    										</xf:group>
+    									</xf:group>
+    								</w2:content>
+    								<w2:content alwaysDraw="false" id="content2" style="">
+
+    									<xf:group class="guide_content" id="" style="">
+    										<xf:group class="pgtbox" id="" style="">
+    											<xf:group class="clearfix" id="" style="">
+    												<xf:group class="pgt_location" id="" style="" tagname="ul">
+    													<xf:group id="" style="" tagname="li">
+    														<w2:span id="" label="HOME" style=""></w2:span>
+    													</xf:group><xf:group id="" style="" tagname="li">
+    														<w2:span id="" label="경매공고" style=""></w2:span>
+    													</xf:group>
+    													<xf:group id="" style="" tagname="li">
+    														<w2:span id="" label="부동산매각공고" style=""></w2:span>
+    													</xf:group>
+
+    												</xf:group>
+    											</xf:group>
+    										</xf:group>
+    										<xf:image id="" src="/pgj/cm/images/contents/bg_guid1_2_1.png" style="width: 100%" alt="배당요구종기공고 페이지 부동산매각공고 영역"></xf:image>
+    										<w2:textbox escape="false" id="" label='&lt;br&gt;채무자의 부동산을 압류하여 매각하는 공고내역을 검색하는 화면입니다.&lt;br/&gt;기일입찰과 기간입찰의 담당계에 우측에 표시된 아이콘은 &lt;group class="schInfoO" tagname="span"&gt;취소&lt;/group&gt;(취하/취소공고), &lt;group class="schInfoC" tagname="span"&gt;정정&lt;/group&gt;(정정공고), &lt;group class="schInfoV" tagname="span"&gt;취/정&lt;/group&gt;(취하/취소공고와 정정공고)을 나타냅니다.' style="">
+    										</w2:textbox>
+    										<xf:group class="mt20" id="" style="">
+    											<w2:textbox id="" label="기일입찰" style="" tagname="h4"></w2:textbox>
+    											<xf:image id="" src="/pgj/cm/images/contents/bg_guid1_2_2.png" style="" alt="입찰방법 검색조건 기입입찰"></xf:image>
+
+    											<w2:textbox escape="false" id=""
+    												label="부동산 경매물건중 기일입찰로 매각공고된 물건의 정보를 법원별로 검색한 달력에서 해당 법원의 담당계를 선택하여 검색할 수 있습니다." style="">
+    											</w2:textbox>
+    										</xf:group>
+    										<xf:group class="mt20" id="" style="">
+    											<w2:textbox id="" label="기간입찰" style="" tagname="h4"></w2:textbox>
+    											<xf:image id="" src="/pgj/cm/images/contents/bg_guid1_2_3.png" style="" alt="입찰방법 검색조건 기간입찰"></xf:image>
+
+    											<w2:textbox escape="false" id=""
+    												label="부동산 경매물건중 기간입찰로 매각공고된 물건의 정보를 각 법원의 담당계를 선택하여 검색할 수 있습니다." style="">
+    											</w2:textbox>
+    										</xf:group>
+
+
+    									</xf:group>
+    								</w2:content>
+    								<w2:content alwaysDraw="false" id="content3" style="">
+
+    									<xf:group class="guide_content" id="" style="">
+    										<xf:group class="pgtbox" id="" style="">
+    											<xf:group class="clearfix" id="" style="">
+    												<xf:group class="pgt_location" id="" style="" tagname="ul">
+    													<xf:group id="" style="" tagname="li">
+    														<w2:span id="" label="HOME" style=""></w2:span>
+    													</xf:group><xf:group id="" style="" tagname="li">
+    														<w2:span id="" label="경매공고" style=""></w2:span>
+    													</xf:group>
+    													<xf:group id="" style="" tagname="li">
+    														<w2:span id="" label="동산매각공고" style=""></w2:span>
+    													</xf:group>
+
+    												</xf:group>
+    											</xf:group>
+    										</xf:group><xf:image id="" src="/pgj/cm/images/contents/bg_guid1_3_1.png" style="width: 100%"  alt="배당요구종기공고 페이지 동산매각공고 영역">
+    										</xf:image><w2:textbox id="" label='&lt;br&gt;채무자의 동산을 압류하여 매각하는 공고내역을 검색하는 화면입니다.&lt;br/&gt;동산 경매물건의 정보를 집행관사무소와 공고종류(일반/조기)로 검색한 달력에서 해당 법원의 담당부서를 선택하여 검색할 수 있습니다.&lt;br/&gt;부서에 우측에 표시된 아이콘은 &lt;group class="schInfoO" tagname="span"&gt;취소&lt;/group&gt;(취소공고), &lt;group class="schInfoY" tagname="span"&gt;조기&lt;/group&gt;(조기공고), &lt;group class="schInfoV" tagname="span"&gt;취/조&lt;/group&gt;(취소공고와 조기공고)를 나타냅니다.' style="" escape="false">
+    											</w2:textbox>
+
+    									</xf:group>
+    								</w2:content>
+    								<w2:content alwaysDraw="false" style="" id="content4">
+
+    									<xf:group class="guide_content" id="" style="">
+    										<xf:group class="pgtbox" id="" style="">
+    											<xf:group class="clearfix" id="" style="">
+    												<xf:group class="pgt_location" id="" style="" tagname="ul">
+    													<xf:group id="" style="" tagname="li">
+    														<w2:span id="" label="HOME" style=""></w2:span>
+    													</xf:group><xf:group id="" style="" tagname="li">
+    														<w2:span id="" label="경매공고" style=""></w2:span>
+    													</xf:group>
+    													<xf:group id="" style="" tagname="li">
+    														<w2:span id="" label="최고공고" style=""></w2:span>
+    													</xf:group>
+
+    												</xf:group>
+    											</xf:group>
+    										</xf:group>
+    										<xf:image id="" src="/pgj/cm/images/contents/bg_guid1_4_1.png" style="width: 100%"  alt="배당요구종기공고 페이지 최고공고 영역"></xf:image>
+    										<xf:group class="mt20" id="" style="">
+    											<w2:textbox id="" label="법원/담당계" style="" tagname="h4"></w2:textbox>
+    											<xf:image id="" src="/pgj/cm/images/contents/bg_guid1_4_2.png" style=""  alt="검색조건 법원/담당계 영역"></xf:image>
+
+    											<w2:textbox escape="false" id=""
+    												label="법원과 담당계로 최고공고를 검색하여 사건번호, 소재지, 소유자, 공고일, 담당계 등을 확인할 수 있습니다.&lt;br /&gt;법원과 담당계를 모두 선택해야 검색이 가능합니다." style="" alt="검색조건 법원/담당계 영역">
+    											</w2:textbox>
+    										</xf:group>
+    										<xf:group class="mt20" id="" style="">
+    											<w2:textbox id="" label="사건번호/최고당사자명" style="" tagname="h4"></w2:textbox><xf:image id="" src="/pgj/cm/images/contents/bg_guid1_4_3.png" style="" alt="검색조건 사건번호/최고당사자명 영역"></xf:image>
+
+    											<w2:textbox escape="false" id=""
+    												label="법원 및 사건번호와 최고당사자명으로 최고공고를 검색하여 사건번호, 소재지, 소유자, 공고일, 담당계 등을 확인할 수 있습니다.&lt;br /&gt;법원과 사건번호, 최고당사자명을 모두 선택, 입력해야 검색이 가능합니다."
+    												style="">
+    											</w2:textbox>
+    										</xf:group>
+    										<xf:group class="mt20" id="" style="">
+    											<w2:textbox id="" label="소재지(지번주소)" style="" tagname="h4"></w2:textbox><xf:image id="" src="/pgj/cm/images/contents/bg_guid1_4_4.png" style="" alt="검색조건 소재지(지번주소)영역"></xf:image>
+
+    											<w2:textbox escape="false" id=""
+    												label="경매물건의 소재지(지번주소)로 최고공고를 검색하여 사건번호, 소재지, 소유자, 공고일, 담당계 등을 확인할 수 있습니다.&lt;br /&gt;소재지(지번주소)의 시도, 시군구, 읍면동을 선택해야 검색이 가능합니다."
+    												style="">
+    											</w2:textbox>
+    										</xf:group>
+    										<xf:group class="mt20" id="" style="">
+    											<w2:textbox id="" label="소재지(새주소)" style="" tagname="h4"></w2:textbox><xf:image id="" src="/pgj/cm/images/contents/bg_guid1_4_5.png" style=""  alt="검색조건 소재지(새주소)영역"></xf:image>
+
+    											<w2:textbox escape="false" id=""
+    												label="경매물건의 소재지(새주소)로 최고공고를 검색하여 사건번호, 소재지, 소유자, 공고일, 담당계 등을 확인할 수 있습니다.&lt;br /&gt;소재지(새주소)의 시도, 시군구, 도로명을 선택해야 검색이 가능합니다. 소재지(새주소)의 자음은 시군구까지 선택했을때 변동확인이 되며 자음 변경시 해당 자음에 대한 도로명을 확인하실 수 있습니다."
+    												style="">
+    											</w2:textbox>
+    										</xf:group>
+
+    									</xf:group>
+    								</w2:content>
+    							</w2:tabControl>
+    						</xf:group>
+    					</w2:content>
+    					<w2:content alwaysDraw="false" id="content3" style="">
+    						<xf:group class="tab_guide_type2" id="" style="">
+    							<w2:tabControl adaptive="" adaptiveThreshold="" alwaysDraw="false" class="" closable="false"
+    								confirmFalseAction="new" confirmTrueAction="exist" id="" removeBridge="true" selectedIndex="0" style="" useATagBtn=""
+    								useConfirmMessage="false" useMoveNextTabFocus="false" useTabKeyOnly="true">
+    								<w2:tabs disabled="false" id="tabs1" label="물건상세검색" style="margin-left: 5px;" title="물건상세검색"></w2:tabs>
+    								<w2:tabs disabled="false" id="tabs2" label="지도검색" style="" title="지도검색"></w2:tabs>
+    								<w2:tabs disabled="false" id="tabs3" label="기일별검색" style="" title="기일별검색"></w2:tabs>
+    								<w2:tabs disabled="false" id="tabs4" label="자동차·중기검색" style="" title="자동차·중기검색"></w2:tabs>
+    								<w2:tabs disabled="false" style="" id="tabs5" label="다수조회물건" title="다수조회물건"></w2:tabs>
+    								<w2:tabs disabled="false" style="" id="tabs6" label="다수관심물건" title="다수관심물건"></w2:tabs>
+    								<w2:tabs disabled="false" style="margin-left: 5px;" id="tabs7" label="매각예정물건" title="매각예정물건"></w2:tabs>
+    								<w2:tabs disabled="false" style="" id="tabs8" label="매각결과검색" title="매각결과검색"></w2:tabs>
+    								<w2:tabs disabled="false" style="" id="tabs9" label="경매사건검색" title="경매사건검색"></w2:tabs>
+    								<w2:content alwaysDraw="false" id="content1" style="">
+    									<xf:group class="guide_content" id="" style="">
+    										<xf:group class="pgtbox" id="" style="">
+    											<xf:group class="clearfix" id="" style="">
+    												<xf:group class="pgt_location" id="" style="" tagname="ul">
+    													<xf:group id="" style="" tagname="li">
+    														<w2:span id="" label="HOME" style=""></w2:span>
+    													</xf:group>
+    													<xf:group id="" style="" tagname="li">
+    														<w2:span id="" label="경매물건" style=""></w2:span>
+    													</xf:group>
+    													<xf:group id="" style="" tagname="li">
+    														<w2:span id="" label="물건상세검색" style=""></w2:span>
+    													</xf:group>
+
+    												</xf:group>
+    											</xf:group>
+    										</xf:group>
+    										<xf:image id="" src="/pgj/cm/images/contents/bg_guid2_1_1.png" style="width: 100%"  alt="경매물건 페이지"></xf:image>
+    										<xf:group class="mt20" id="" style="">
+    											<w2:textbox id=""
+    												label='&lt;img src="/pgj/cm/images/contents/ico_arr_right.png" alt="" style="position: relative; top: 3px;"/&gt; 물건상세검색_부동산' style=""
+    												tagname="h4" escape="false" alt="">
+    											</w2:textbox>
+    											<w2:textbox id=""
+    												label="부동산 경매물건을 법원/소재지, 사건번호, 입찰구분, 기간, 용도, 감정평가액, 최저매각가격, 면적, 유찰횟수, 최저매각가율, 특이사항의 조건으로 검색할 수 있으며, 검색결과로 사건번호, 물건번호 및 용도, 소재지 및 내역, 비고, 감정평가액 및 최저매각가격, 담당계 및 매각기일, 진행상태 정보를 제공합니다.&lt;br&gt;검색결과에서 물건비교 및 관심물건등록, 사건상세내역 및 물건상세내역 조회 기능을 이용할 수 있습니다."
+    												style="" escape="false">
+    											</w2:textbox>
+    											<xf:image id="" src="/pgj/cm/images/contents/bg_guid2_1_2.png" style="width: 100%" alt="물건상세검색 페이지 부동산 영역 "></xf:image>
+
+    											<w2:textbox id=""
+    												label="설정한 검색조건을 자주 사용하는 경우 검색조건 추가 버튼을 이용해 자주쓰는 검색조건으로 등록할 수 있습니다. 이 기능을 이용하고자 하는 경우 회원 로그인이 필요합니다."
+    												style="" escape="false">
+    											</w2:textbox>
+    										</xf:group>
+    										<xf:group class="mt20" id="" style="">
+    											<w2:textbox id=""
+    												label='&lt;img src="/pgj/cm/images/contents/ico_arr_right.png" alt="" style="position: relative; top: 3px;"/&gt; 물건상세검색_동산' style=""
+    												tagname="h4" escape="false" alt="">
+    											</w2:textbox>
+    											<xf:image id="" src="/pgj/cm/images/contents/bg_guid2_1_3.png" style="width: 100%" alt="물건상세검색 페이지 동산 영역"></xf:image><w2:textbox id=""
+    												label="동산 경매물건을 집행관사무소/매각장소, 사건번호, 매각기일, 물품종류, 물품명, 매각장소유형, 감정평가액, 최저매각가격의 조건으로 검색할 수 있으며, 검색결과로 사건번호, 물건번호, 매각장소 및 목록내역, 비고, 감정평가액 및 최저매각가격, 담당부서 및 매각기일 정보를 제공합니다.&lt;br&gt;검색결과에서 관심물건등록, 사건상세내역 및 물건상세내역 조회 기능을 이용할 수 있습니다."
+    												style="" escape="false">
+    											</w2:textbox>
+
+    										</xf:group>
+
+
+    									</xf:group>
+    								</w2:content>
+    								<w2:content alwaysDraw="false" id="content2" style="">
+    									<xf:group class="guide_content" id="" style="">
+    										<xf:group class="pgtbox" id="" style="">
+    											<xf:group class="clearfix" id="" style="">
+    												<xf:group class="pgt_location" id="" style="" tagname="ul">
+    													<xf:group id="" style="" tagname="li">
+    														<w2:span id="" label="HOME" style=""></w2:span>
+    													</xf:group>
+    													<xf:group id="" style="" tagname="li">
+    														<w2:span id="" label="경매물건" style=""></w2:span>
+    													</xf:group>
+    													<xf:group id="" style="" tagname="li">
+    														<w2:span id="" label="지도검색" style=""></w2:span>
+    													</xf:group>
+
+    												</xf:group>
+    											</xf:group>
+    										</xf:group>
+    										<xf:image id="" src="/pgj/cm/images/contents/bg_guid2_2_1.png" style="width: 100%" alt="경매물건 지도 검색 페이지"></xf:image>
+    										<xf:group class="mt20" id="" style="">
+    											<w2:textbox id="" label="1. 물건검색" style="" tagname="h4"></w2:textbox>
+    											<w2:textbox id=""
+    												label="법원, 사건번호, 최저매각가격, 용도를 검색조건으로 하여 물건을 검색하시면 해당 물건의 위치가 지도에 나타납니다. &amp;nbsp;검색결과를 클릭하면 해당 물건의 상세한 위치로 지도가 이동됩니다.&lt;br/&gt;"
+    												style="" escape="false">
+    											</w2:textbox>
+    											<xf:image id="" src="/pgj/cm/images/contents/bg_guid2_2_2.png" style="margin-top: 10px;width:70%" alt="경매물건 지도 검색 페이지 물건검색"></xf:image>
+    											<w2:textbox id=""
+    												label="검색결과는 법원정보, 사건번호, 물건번호, 물건용도, 최저매각가격, 매각기일, 입찰기간, 소재지 및 내역으로 구성됩니다." style="">
+    											</w2:textbox>
+    											<xf:image id="" src="/pgj/cm/images/contents/bg_guid2_2_3.png" style="margin-top: 10px;width:20%;"  alt="경매물건 지도 검색 페이지 물건검색"></xf:image>
+    											<w2:textbox id=""
+    												label="지도상에 표시되는 물건정보 입니다. 앞의 두자리 '07'은 연도를, '6414'는 사건번호를, '[1]'은 물건번호를 의미합니다." style="">
+    											</w2:textbox>
+    											<xf:image id="" src="/pgj/cm/images/contents/bg_guid2_2_4.png" style="margin-top: 10px;width:70%;" alt="경매물건 지도 검색 페이지 물건검색"></xf:image>
+    											<w2:textbox id=""
+    												label="지도상에 표시되는 물건정보를 클릭하면 해당 물건의 요약정보가 팝업으로 나타나며 [상세조회]버튼을 클릭하면 메인화면에 물건상세조회 화면이 나타납니다." style="" alt="경매물건 지도 검색 페이지 물건검색">
+    											</w2:textbox>
+    											<xf:image id="" src="/pgj/cm/images/contents/bg_guid2_2_5.png" style="margin-top: 10px;"  alt="지도 검색 물건검색"></xf:image>
+    										</xf:group>
+    										<xf:group class="mt20" id="" style="">
+    											<w2:textbox id="" label="2.지역검색" style="" tagname="h4"></w2:textbox>
+    											<w2:textbox id=""
+    												label="소재지검색과 상호/명칭 검색을 제공합니다. 상호/명칭 검색의 경우, 검색결과를 클릭하면 인근의 진행중인 물건이 지도상에 표시됩니다. &amp;nbsp;반경은 1km, 2km, 3km 로 선택할 수 있습니다. &lt;br&gt; 지도상에 표시된 물건정보를 클릭하시면 요약정보와 물건상세조회로의 링크를 사용하실 수 있습니다."
+    												style="" escape="false">
+    											</w2:textbox>
+    											<xf:image id="" src="/pgj/cm/images/contents/bg_guid2_2_6.png" style="margin-top: 10px;" alt="지도 검색 지역검색"></xf:image>
+    										</xf:group>
+
+    										<xf:group class="mt20" id="" style="">
+    											<w2:textbox id="" label="3.관심물건" style="" tagname="h4"></w2:textbox>
+    											<w2:textbox id=""
+    												label="관심물건으로 등록한 물건을 지도상에서 조회하는 기능입니다. 사용자가 설정한 관심분류별로 검색할 수 있습니다. 관심물건을 클릭하면 해당 물건의 상세한 위치로 지도가 이동됩니다. " style="" escape="false">
+    											</w2:textbox>
+    											<xf:image id="" src="/pgj/cm/images/contents/bg_guid2_2_7.png" style="margin-top: 10px;" alt="지도 검색 관심물건 "></xf:image>
+    										</xf:group>
+    										<xf:group class="mt20" id="" style="">
+    											<w2:textbox id="" label="4.관심지역" style="" tagname="h4"></w2:textbox>
+    											<w2:textbox id=""
+    												label="관심지역(지번단위)을 등록하고 관심지역 인근의 진행중인 물건을 검색하는 기능입니다.&lt;br&gt;관심지역을 목록에서 선택하면 설정된 반경(1km, 2km, 3km)을 기준으로 진행중인 물건을 검색하여 지도상에 표시합니다. "
+    												style="">
+    											</w2:textbox>
+    											<xf:image id="" src="/pgj/cm/images/contents/bg_guid2_2_8.png" style="margin-top: 10px;width:10%" alt="지도 검색 관심지역"></xf:image>
+    											<w2:textbox id=""
+    												label="관심지역 등록 기능을 사용하기 위해 해당 아이콘을 클릭합니다. 위 아이콘을 클릭한 후 원하는 지역을 선택하면 아래의 아이콘이 표시됩다. " style="">
+    											</w2:textbox>
+    											<xf:image id="" src="/pgj/cm/images/contents/bg_guid2_2_9.png" style="margin-top: 10px;width:15%;" alt="지도검색 페이지  관심지역"></xf:image>
+    											<w2:textbox id=""
+    												label="관심지역을 등록하기 위해 나타난 위의 아이콘을 클릭하면 관심지역을 등록할 수 있습니다. &lt;br&gt;관심지역은 최대 10개까지 등록할 수 있습니다. " style="" escape="false">
+    											</w2:textbox>
+    										</xf:group>
+    									</xf:group>
+    								</w2:content>
+    								<w2:content alwaysDraw="false" id="content3" style="">
+    									<xf:group class="guide_content" id="" style="">
+    										<xf:group class="pgtbox" id="" style="">
+    											<xf:group class="clearfix" id="" style="">
+    												<xf:group class="pgt_location" id="" style="" tagname="ul">
+    													<xf:group id="" style="" tagname="li">
+    														<w2:span id="" label="HOME" style=""></w2:span>
+    													</xf:group><xf:group id="" style="" tagname="li">
+    														<w2:span id="" label="경매물건" style=""></w2:span>
+    													</xf:group>
+    													<xf:group id="" style="" tagname="li">
+    														<w2:span id="" label="기일별검색" style=""></w2:span>
+    													</xf:group>
+
+    												</xf:group>
+    											</xf:group>
+    										</xf:group>
+    										<xf:image id="" src="/pgj/cm/images/contents/bg_guid2_3_1.png" style="width: 100%" alt="경매물건 기일별 검색 페이지 부동산 영역"></xf:image>
+    										<xf:group class="mt20" id="" style="">
+    											<w2:textbox id="" label='&lt;img src="/pgj/cm/images/contents/ico_arr_right.png"  alt="" style="position: relative; top: 3px;"/&gt; 기일별검색_부동산' style="" tagname="h4" escape="false" alt=""></w2:textbox>
+    											<w2:textbox id=""
+    												label="부동산 경매물건을 입찰구분(기일/기간)과 법원을 선택하여 검색할 수 있습니다. &lt;br&gt;기일로 검색하실 경우 오늘부터 14일이내의 기일인 사건이 검색이 되고, 기간으로 검색을 하실 경우 오늘부터 14일이내의 기간에 속하는 사건이 검색이 됩니다."
+    												style="" escape="false">
+    											</w2:textbox>
+    										</xf:group>
+    										<xf:group class="mt20" id="" style="">
+    											<w2:textbox id=""
+    												label='&lt;img src="/pgj/cm/images/contents/ico_arr_right.png" alt="" style="position: relative; top: 3px;"/&gt; 기일별검색_동산' 
+    												tagname="h4" escape="false" alt="">
+    											</w2:textbox><xf:image id="" src="/pgj/cm/images/contents/bg_guid2_3_2.png" style="width: 100%" alt="경매물건 기일별 검색 페이지 동산 영역"></xf:image>
+    											<w2:textbox id=""
+    												label="동산 경매물건을 집행관사무소를 선택하여 검색할 수 있습니다.&lt;br&gt;검색되는 기일은 오늘부터 30일이내입니다."
+    												style="" escape="false">
+    											</w2:textbox>
+
+    										</xf:group>
+
+    									</xf:group>
+    								</w2:content>
+    								<w2:content alwaysDraw="false" id="content4" style="">
+    									<xf:group class="guide_content" id="" style="">
+    										<xf:group class="pgtbox" id="" style="">
+    											<xf:group class="clearfix" id="" style="">
+    												<xf:group class="pgt_location" id="" style="" tagname="ul">
+    													<xf:group id="" style="" tagname="li">
+    														<w2:span id="" label="HOME" style=""></w2:span>
+    													</xf:group><xf:group id="" style="" tagname="li">
+    														<w2:span id="" label="경매물건" style=""></w2:span>
+    													</xf:group>
+    													<xf:group id="" style="" tagname="li">
+    														<w2:span id="" label="자동차·중기검색" style=""></w2:span>
+    													</xf:group>
+
+    												</xf:group>
+    											</xf:group>
+    										</xf:group>
+    										<xf:group class="mt20" id="" style="">
+    											<xf:image id="" src="/pgj/cm/images/contents/bg_guid2_4_1.png" style="width: 100%" alt="경매물건 자동차·중기 검색 페이지"></xf:image><w2:textbox id=""
+    												label="부동산 경매물건중 자동차 중기 경매물건에 대해서 법원, 사건번호, 차종, 감정평가액, 최저매각가격, 유찰횟수, 사용연료, 제조사, 연식, 변속기, 차명의 조건으로 검색할 수 있습니다.&lt;br&gt;자동차 중기는 소재지(지번주소, 새주소)의 부정확성으로 소재지에 대한 검색조건은 제공하지 않습니다."
+    												style="" escape="false" alt="부동산 경매물건 자동차·중기검색 영역">
+    											</w2:textbox>
+
+    										</xf:group>
+    									</xf:group>
+    								</w2:content>
+    								<w2:content alwaysDraw="false" style="" id="content5">
+    									<xf:group class="guide_content" id="" style="">
+    										<xf:group class="pgtbox" id="" style="">
+    											<xf:group class="clearfix" id="" style="">
+    												<xf:group class="pgt_location" id="" style="" tagname="ul">
+    													<xf:group id="" style="" tagname="li">
+    														<w2:span id="" label="HOME" style=""></w2:span>
+    													</xf:group>
+    													<xf:group id="" style="" tagname="li">
+    														<w2:span id="" label="경매물건" style=""></w2:span>
+    													</xf:group>
+    													<xf:group id="" style="" tagname="li">
+    														<w2:span id="" label="다수조회물건" style=""></w2:span>
+    													</xf:group>
+
+    												</xf:group>
+    											</xf:group>
+    										</xf:group>
+    										<xf:image id="" src="/pgj/cm/images/contents/bg_guid2_5_1.png" style="width: 100%"  alt="경매물건 다수조회물건 페이지"></xf:image>
+    										<xf:group class="mt20" id="" style="">
+    											<w2:textbox id=""
+    												label='&lt;img src="/pgj/cm/images/contents/ico_arr_right.png" alt="" style="position: relative; top: 3px;"/&gt; 다수조회물건' style=""
+    												tagname="h4" escape="false" alt="">
+    											</w2:textbox>
+    											<xf:image id="" src="/pgj/cm/images/contents/bg_guid2_5_2.png" style="margin-top: 10px;" alt="경매물건 다수조회물건 페이지 검색조건 설정 영역"></xf:image>
+    											<w2:textbox id=""
+    												label="부동산 경매물건중 로그인한 회원이 매각물건명세서를 조회한 횟수를 기준으로 상위 50위의 물건에 대해서 법원/소재지, 용도의 조건으로 검색할 수 있습니다.&lt;br&gt;소재지 검색시 소재지(지번주소)와 소재지(새주소)가 같이 검색이 되므로 별도의 소재지(지번주소와 새주소) 선택 없이 시도나 시군구를 선택하고 검색하시면 지번주소와 새주소에 대한 결과를 검색하실 수 있습니다."
+    												style="" escape="false">
+    											</w2:textbox>
+
+    										</xf:group>
+
+    									</xf:group>
+    								</w2:content>
+    								<w2:content alwaysDraw="false" style="" id="content6">
+    									<xf:group class="guide_content" id="" style="">
+    										<xf:group class="pgtbox" id="" style="">
+    											<xf:group class="clearfix" id="" style="">
+    												<xf:group class="pgt_location" id="" style="" tagname="ul">
+    													<xf:group id="" style="" tagname="li">
+    														<w2:span id="" label=" HOME" style=""></w2:span>
+    													</xf:group><xf:group id="" style="" tagname="li">
+    														<w2:span id="" label="경매물건" style=""></w2:span>
+    													</xf:group>
+    													<xf:group id="" style="" tagname="li">
+    														<w2:span id="" label="다수관심물건" style=""></w2:span>
+    													</xf:group>
+
+    												</xf:group>
+    											</xf:group>
+    										</xf:group>
+    										<xf:image id="" src="/pgj/cm/images/contents/bg_guid2_6_1.png" style="width: 100%" alt="경매물건 다수관심물건 페이지"></xf:image>
+    										<xf:group class="mt20" id="" style="">
+    											<w2:textbox id=""
+    												label='&lt;img src="/pgj/cm/images/contents/ico_arr_right.png" alt="" style="position: relative; top: 3px;"/&gt; 다수관심물건' style=""
+    												tagname="h4" escape="false" alt="">
+    											</w2:textbox>
+    											<xf:image id="" src="/pgj/cm/images/contents/bg_guid2_6_2.png" style="margin-top: 10px;" alt="경매물건 다수관심물건 페이지 검색조건 설정 영역"></xf:image>
+    											<w2:textbox id=""
+    												label="부동산 경매물건중 로그인한 회원이 관심 물건으로 등록한 횟수를 기준으로 상위 50위의 물건에 대해서 법원/소재지, 용도의 조건으로 검색할 수 있습니다.&lt;br&gt;소재지 검색시 소재지(지번주소)와 소재지(새주소)가 같이 검색이 되므로 별도의 소재지(지번주소와 새주소) 선택 없이 시도나 시군구를 선택하고 검색하시면 지번주소와 새주소에 대한 결과를 검색하실 수 있습니다."
+    												style="" escape="false">
+    											</w2:textbox>
+    										</xf:group>
+
+    									</xf:group>
+    								</w2:content>
+    								<w2:content alwaysDraw="false" style="" id="content7">
+    									<xf:group class="guide_content" id="" style="">
+    										<xf:group class="pgtbox" id="" style="">
+    											<xf:group class="clearfix" id="" style="">
+    												<xf:group class="pgt_location" id="" style="" tagname="ul">
+    													<xf:group id="" style="" tagname="li">
+    														<w2:span id="" label="HOME" style=""></w2:span>
+    													</xf:group><xf:group id="" style="" tagname="li">
+    														<w2:span id="" label="경매물건" style=""></w2:span>
+    													</xf:group>
+    													<xf:group id="" style="" tagname="li">
+    														<w2:span id="" label="매각예정물건" style=""></w2:span>
+    													</xf:group>
+
+    												</xf:group>
+    											</xf:group>
+    										</xf:group><xf:image id="" src="/pgj/cm/images/contents/bg_guid2_7_1.png" style="width: 100%" alt="경매물건 매각예정물건 페이지"></xf:image>
+    										<xf:group class="mt20" id="" style="">
+    											<w2:textbox id=""
+    												label="부동산 경매물건 중 물건이 유찰 혹은 매각이후 매각불허가결정으로 인해 신경매되거나 매수인이 대금납부를 하지 않아 재경매되는 물건 중 공고되지 않은 물건에 한해서 법원/소재지, 사건번호, 입찰구분(기일/기간), 예정매각기간, 용도, 감정평가액, 최저매각가격, 면적, 유찰횟수, 최저매각가율을 조건으로 검색할 수 있습니다.&lt;br&gt;(검색 방법은 물건상세검색과 유사)"
+    												style="" escape="false">
+    											</w2:textbox>
+    										</xf:group>
+
+    									</xf:group>
+    								</w2:content>
+    								<w2:content alwaysDraw="false" style="" id="content8">
+    									<xf:group class="guide_content" id="" style="">
+    										<xf:group class="pgtbox" id="" style="">
+    											<xf:group class="clearfix" id="" style="">
+    												<xf:group class="pgt_location" id="" style="" tagname="ul">
+    													<xf:group id="" style="" tagname="li">
+    														<w2:span id="" label="HOME" style=""></w2:span>
+    													</xf:group><xf:group id="" style="" tagname="li">
+    														<w2:span id="" label="경매물건" style=""></w2:span>
+    													</xf:group>
+    													<xf:group id="" style="" tagname="li">
+    														<w2:span id="" label="매각결과검색" style=""></w2:span>
+    													</xf:group>
+
+    												</xf:group>
+    											</xf:group>
+    										</xf:group>
+    										<xf:image id="" src="/pgj/cm/images/contents/bg_guid2_8_1.png" style="width: 100%" alt="경매물건 매각결과검색 페이지"></xf:image><xf:group class="mt20" id="" style="">
+    											<w2:textbox id=""
+    												label="부동산 경매물건의 매각결과를 법원/소재지, 매각대금, 감정평가액, 매각결과, 유찰횟수, 용도의 조건으로 검색할 수 있습니다."
+    												style="">
+    											</w2:textbox>
+    										</xf:group>
+
+    									</xf:group>
+    								</w2:content>
+    								<w2:content alwaysDraw="false" style="" id="content9">
+    									<xf:group class="guide_content" id="" style="">
+    										<xf:group class="pgtbox" id="" style="">
+    											<xf:group class="clearfix" id="" style="">
+    												<xf:group class="pgt_location" id="" style="" tagname="ul">
+    													<xf:group id="" style="" tagname="li">
+    														<w2:span id="" label="HOME" style=""></w2:span>
+    													</xf:group>
+    													<xf:group id="" style="" tagname="li">
+    														<w2:span id="" label="경매물건" style=""></w2:span>
+    													</xf:group>
+    													<xf:group id="" style="" tagname="li">
+    														<w2:span id="" label="경매사건검색" style=""></w2:span>
+    													</xf:group>
+
+    												</xf:group>
+    											</xf:group>
+    										</xf:group><xf:image id="" src="/pgj/cm/images/contents/bg_guid2_9_1.png" style="width: 100%"  alt="경매물건 경매사건검색 페이지"></xf:image>
+    										<xf:group class="mt20" id="" style="">
+    											<w2:textbox id=""
+    												label="부동산 경매사건을 법원 및 사건번호를 입력하여 검색할 수 있습니다."
+    												style="">
+    											</w2:textbox>
+    										</xf:group>
+
+    									</xf:group>
+    								</w2:content>
+    							</w2:tabControl>
+    						</xf:group>
+    					</w2:content>
+    					<w2:content alwaysDraw="false" style="" id="content4">
+    						<xf:group class="tab_guide_type2" id="" style="">
+    							<w2:tabControl adaptive="" adaptiveThreshold="" alwaysDraw="false" class="" closable="false"
+    								confirmFalseAction="new" confirmTrueAction="exist" id="" removeBridge="true" selectedIndex="0" style="" useATagBtn=""
+    								useConfirmMessage="false" useMoveNextTabFocus="false" useTabKeyOnly="true">
+    								<w2:tabs disabled="false" id="tabs1" label="연도별매각통계" style="margin-left: 5px;" title="연도별매각통계"></w2:tabs>
+    								<w2:tabs disabled="false" id="tabs2" label="법원별매각통계" style="" title="법원별매각통계"></w2:tabs>
+    								<w2:tabs disabled="false" id="tabs3" label="지역별매각통계" style="" title="지역별매각통계"></w2:tabs>
+    								<w2:tabs disabled="false" id="tabs4" label="용도별매각통계" style="" title="용도별매각통계"></w2:tabs>
+    								<w2:content alwaysDraw="false" id="content1" style="">
+    									<xf:group class="guide_content" id="" style="">
+    										<xf:group class="pgtbox" id="" style="">
+    											<xf:group class="clearfix" id="" style="">
+    												<xf:group class="pgt_location" id="" style="" tagname="ul">
+    													<xf:group id="" style="" tagname="li">
+    														<w2:span id="" label="HOME" style=""></w2:span>
+    													</xf:group>
+    													<xf:group id="" style="" tagname="li">
+    														<w2:span id="" label="매각통계" style=""></w2:span>
+    													</xf:group>
+    													<xf:group id="" style="" tagname="li">
+    														<w2:span id="" label="연도별매각통계" style=""></w2:span>
+    													</xf:group>
+
+    												</xf:group>
+    											</xf:group>
+    										</xf:group><xf:image id="" src="/pgj/cm/images/contents/bg_guid3_1_1.png" style="width: 100%" alt="경매물건 매각통계 페이지"></xf:image>
+    										<xf:group class="mt20" id="" style="">
+    											<w2:textbox id="" label='&lt;img src="/pgj/cm/images/contents/ico_arr_right.png" alt="" style="position: relative; top: 3px;"/&gt; &amp;nbsp;연도별 매각통계' style="" tagname="h4" escape="false" alt=""></w2:textbox>
+    											<w2:textbox id=""
+    												label="부동산 경매사건의 접수, 처리, 미제 통계를 년도을 선택하여 검색할 수 있습니다.&lt;br&gt;검색된 목록에서 법원을 선택하고 그래프보기를 누르면 선택한 법원에 대한 매각통계를 그래프로 보실 수 있습니다.&lt;br&gt;엑셀다운로드를 누르시면 검색된 결과를 엑셀로 열어보실 수 있습니다.(엑셀뷰어로는 열리지 않을 수도 있습니다.)"
+    												style="" escape="false">
+    											</w2:textbox>
+    										</xf:group>
+
+    									</xf:group>
+    								</w2:content>
+    								<w2:content alwaysDraw="false" id="content2" style="">
+    									<xf:group class="guide_content" id="" style="">
+    										<xf:group class="pgtbox" id="" style="">
+    											<xf:group class="clearfix" id="" style="">
+    												<xf:group class="pgt_location" id="" style="" tagname="ul">
+    													<xf:group id="" style="" tagname="li">
+    														<w2:span id="" label="HOME" style=""></w2:span>
+    													</xf:group>
+    													<xf:group id="" style="" tagname="li">
+    														<w2:span id="" label="매각통계" style=""></w2:span>
+    													</xf:group>
+    													<xf:group id="" style="" tagname="li">
+    														<w2:span id="" label="법원별매각통계" style=""></w2:span>
+    													</xf:group>
+
+    												</xf:group>
+    											</xf:group>
+    										</xf:group>
+    										<xf:image id="" src="/pgj/cm/images/contents/bg_guid3_2_1.png" style="width: 100%" alt="경매물건 법원별 매각통계 페이지"></xf:image><xf:group class="mt20" id="" style="">
+    											<w2:textbox id="" label='&lt;img src="/pgj/cm/images/contents/ico_arr_right.png" alt="" style="position: relative; top: 3px;"/&gt; &amp;nbsp;법원별 매각통계' style="" tagname="h4" escape="false" alt=""></w2:textbox>
+    											<w2:textbox id=""
+    												label="부동산 경매물건의 법원별 경매건수, 매각건수, 감정가, 매각가, 매각율, 매각가율등의 통계를 기간을 선택하여 검색할 수 있습니다.&lt;br&gt;그래프보기를 누르면 법원에 대한 매각통계를 그래프로 보실 수 있습니다.&lt;br&gt;엑셀다운로드를 누르시면 검색된 결과를 엑셀로 열어보실 수 있습니다.(엑셀뷰어로는 열리지 않을 수도 있습니다.)"
+    												style="" escape="false">
+    											</w2:textbox>
+    										</xf:group>
+
+    									</xf:group>
+    								</w2:content>
+    								<w2:content alwaysDraw="false" id="content3" style="">
+    									<xf:group class="guide_content" id="" style="">
+    										<xf:group class="pgtbox" id="" style="">
+    											<xf:group class="clearfix" id="" style="">
+    												<xf:group class="pgt_location" id="" style="" tagname="ul">
+    													<xf:group id="" style="" tagname="li">
+    														<w2:span id="" label="HOME" style=""></w2:span>
+    													</xf:group>
+    													<xf:group id="" style="" tagname="li">
+    														<w2:span id="" label="매각통계" style=""></w2:span>
+    													</xf:group>
+    													<xf:group id="" style="" tagname="li">
+    														<w2:span id="" label="지역별매각통계" style=""></w2:span>
+    													</xf:group>
+
+    												</xf:group>
+    											</xf:group>
+    										</xf:group><xf:image id="" src="/pgj/cm/images/contents/bg_guid3_3_1.png" style="width: 100%" alt="경매물건 지역별 매각통계 페이지"></xf:image>
+    										<xf:group class="mt20" id="" style="">
+    											<w2:textbox id=""
+    												label='&lt;img src="/pgj/cm/images/contents/ico_arr_right.png" alt="" style="position: relative; top: 3px;"/&gt; &amp;nbsp;지역별 매각통계'
+    												style="" tagname="h4" escape="false" alt="">
+    											</w2:textbox>
+    											<w2:textbox id=""
+    												label="부동산 경매물건의 지역별 경매건수, 매각건수, 감정가, 매각가, 매각율, 매각가율등의 통계를 소재지 및 기간을 선택하여 검색할 수 있습니다.&lt;br&gt;그래프보기를 누르면 지역에 대한 매각통계를 그래프로 보실 수 있습니다.&lt;br&gt;엑셀다운로드를 누르시면 검색된 결과를 엑셀로 열어보실 수 있습니다.(엑셀뷰어로는 열리지 않을 수도 있습니다.)"
+    												style="" escape="false">
+    											</w2:textbox>
+    										</xf:group>
+
+    									</xf:group>
+    								</w2:content>
+    								<w2:content alwaysDraw="false" id="content4" style="">
+    									<xf:group class="guide_content" id="" style="">
+    										<xf:group class="pgtbox" id="" style="">
+    											<xf:group class="clearfix" id="" style="">
+    												<xf:group class="pgt_location" id="" style="" tagname="ul">
+    													<xf:group id="" style="" tagname="li">
+    														<w2:span id="" label="HOME" style=""></w2:span>
+    													</xf:group><xf:group id="" style="" tagname="li">
+    														<w2:span id="" label="매각통계" style=""></w2:span>
+    													</xf:group>
+    													<xf:group id="" style="" tagname="li">
+    														<w2:span id="" label="용도별매각통계" style=""></w2:span>
+    													</xf:group>
+
+    												</xf:group>
+    											</xf:group>
+    										</xf:group><xf:image id="" src="/pgj/cm/images/contents/bg_guid3_4_1.png" style="width: 100%" alt="경매물건 용도별 매각통계 페이지"></xf:image>
+    										<xf:group class="mt20" id="" style="">
+    											<w2:textbox id="" label='&lt;img src="/pgj/cm/images/contents/ico_arr_right.png" alt="" style="position: relative; top: 3px;"/&gt; &amp;nbsp;용도별 매각통계' style="" tagname="h4" escape="false" alt=""></w2:textbox>
+    											<w2:textbox id=""
+    												label="부동산 경매물건의 용도별 경매건수, 매각건수, 감정가, 매각가, 매각율, 매각가율등의 통계를 법원/소재지 및 기간을 선택하여 검색할 수 있습니다.&lt;br&gt;그래프보기를 누르면 용도에 대한 매각통계를 그래프로 보실 수 있습니다.&lt;br&gt;엑셀다운로드를 누르시면 검색된 결과를 엑셀로 열어보실 수 있습니다.(엑셀뷰어로는 열리지 않을 수도 있습니다.)"
+    												style="" escape="false">
+    											</w2:textbox>
+
+    										</xf:group>
+    									</xf:group>
+    								</w2:content>
+    							</w2:tabControl>
+    						</xf:group>
+    					</w2:content>
+    					<w2:content alwaysDraw="false" style="" id="content5">
+    						<xf:group class="tab_guide_type2" id="" style="">
+    							<w2:tabControl adaptive="" adaptiveThreshold="" alwaysDraw="false" class="" closable="false"
+    								confirmFalseAction="new" confirmTrueAction="exist" id="" removeBridge="true" selectedIndex="0" style="" useATagBtn=""
+    								useConfirmMessage="false" useMoveNextTabFocus="false" useTabKeyOnly="true">
+    								<w2:tabs disabled="false" id="tabs1" label="일정관리" style="margin-left: 5px;" title="물건상세검색"></w2:tabs>
+    								<w2:tabs disabled="false" id="tabs2" label="관심물건" style="" title="지도검색"></w2:tabs>
+    								<w2:tabs disabled="false" id="tabs3" label="관심사건" style="" title="기일별검색"></w2:tabs>
+    								<w2:tabs disabled="false" id="tabs4" label="자주쓰는검색" style="" title="자동차·중기검색"></w2:tabs>
+    								<w2:tabs disabled="false" id="tabs5" label="나의설정" style="" title="다수조회물건"></w2:tabs>
+    								<w2:tabs disabled="false" id="tabs6" label="나의동산집행정보" style="" title="다수관심물건"></w2:tabs>
+    								<w2:content alwaysDraw="false" id="content1" style="">
+    									<xf:group class="guide_content" id="" style="">
+    										<xf:group class="pgtbox" id="" style="">
+    											<xf:group class="clearfix" id="" style="">
+    												<xf:group class="pgt_location" id="" style="" tagname="ul">
+    													<xf:group id="" style="" tagname="li">
+    														<w2:span id="" label="HOME" style=""></w2:span>
+    													</xf:group>
+    													<xf:group id="" style="" tagname="li">
+    														<w2:span id="" label="나의경매" style=""></w2:span>
+    													</xf:group>
+    													<xf:group id="" style="" tagname="li">
+    														<w2:span id="" label="일정관리" style=""></w2:span>
+    													</xf:group>
+
+    												</xf:group>
+    											</xf:group>
+    										</xf:group><xf:image id="" src="/pgj/cm/images/contents/bg_guid4_1_1.png" style="width: 100%" alt="나의경매 일정관리 페이지"></xf:image>
+    										<xf:group class="mt20" id="" style="">
+    											<w2:textbox id=""
+    												label="개인일정을 달력을 선택하여 직접 등록/수정하고 검색할 수 있습니다.&lt;br&gt;관심물건을 통하여 등록 가능하며 등록된 물건은 달력에 표시되어 상세정보연결을 제공하므로 편리하게 사용하실 수 있습니다."
+    												style="" escape="false">
+    											</w2:textbox>
+    										</xf:group>
+    										
+    									</xf:group>
+    								</w2:content>
+    								<w2:content alwaysDraw="false" id="content2" style="">
+    									<xf:group class="guide_content" id="" style="">
+    										<xf:group class="pgtbox" id="" style="">
+    											<xf:group class="clearfix" id="" style="">
+    												<xf:group class="pgt_location" id="" style="" tagname="ul">
+    													<xf:group id="" style="" tagname="li">
+    														<w2:span id="" label="HOME" style=""></w2:span>
+    													</xf:group>
+    													<xf:group id="" style="" tagname="li">
+    														<w2:span id="" label="나의경매" style=""></w2:span>
+    													</xf:group>
+    													<xf:group id="" style="" tagname="li">
+    														<w2:span id="" label="관심물건" style=""></w2:span>
+    													</xf:group>
+
+    												</xf:group>
+    											</xf:group>
+    										</xf:group>
+    										<xf:image id="" src="/pgj/cm/images/contents/bg_guid4_2_1.png" style="width: 100%" alt="나의경매 관심물건 페이지"></xf:image><xf:group class="mt20" id="" style="">
+    											<w2:textbox id="" label='&lt;img src="/pgj/cm/images/contents/ico_arr_right.png" alt="" style="position: relative; top: 3px;"/&gt; &amp;nbsp;관심물건' style="" tagname="h4" escape="false" alt=""></w2:textbox>
+    											<w2:textbox id=""
+    												label="부동산 경매물건 중 관심물건으로 등록한 경매물건에 대해서 지정한 관심분류, 용도, 최저매각가격, 소재지의 검색조건으로 검색할 수 있습니다.&lt;br&gt;관심물건에 등록된 물건을 선택하고 일정등록하면 관심분류란에 등록이 표시되고, 일정관리에서 달력으로 매각기일을 확인하실 수 있습니다."
+    												style="" escape="false">
+    											</w2:textbox>
+    										</xf:group>
+    										
+    									</xf:group>
+    								</w2:content>
+    								<w2:content alwaysDraw="false" id="content3" style="">
+    									<xf:group class="guide_content" id="" style="">
+    										<xf:group class="pgtbox" id="" style="">
+    											<xf:group class="clearfix" id="" style="">
+    												<xf:group class="pgt_location" id="" style="" tagname="ul">
+    													<xf:group id="" style="" tagname="li">
+    														<w2:span id="" label="HOME" style=""></w2:span>
+    													</xf:group>
+    													<xf:group id="" style="" tagname="li">
+    														<w2:span id="" label="나의경매" style=""></w2:span>
+    													</xf:group>
+    													<xf:group id="" style="" tagname="li">
+    														<w2:span id="" label="관심사건" style=""></w2:span>
+    													</xf:group>
+
+    												</xf:group>
+    											</xf:group>
+    										</xf:group><xf:image id="" src="/pgj/cm/images/contents/bg_guid4_3_1.png" style="width: 100%" alt="나의경매 관심사건 페이지"></xf:image>
+    										<xf:group class="mt20" id="" style="">
+    											<w2:textbox id=""
+    												label="경매물건중 관심사건으로 등록한 사건정보를 조회 및 삭제할 수 있습니다."
+    												style="">
+    											</w2:textbox>
+    										</xf:group>
+    										
+    									</xf:group>
+    								</w2:content>
+    								<w2:content alwaysDraw="false" id="content4" style="">
+    									<xf:group class="guide_content" id="" style="">
+    										<xf:group class="pgtbox" id="" style="">
+    											<xf:group class="clearfix" id="" style="">
+    												<xf:group class="pgt_location" id="" style="" tagname="ul">
+    													<xf:group id="" style="" tagname="li">
+    														<w2:span id="" label="HOME" style=""></w2:span>
+    													</xf:group>
+    													<xf:group id="" style="" tagname="li">
+    														<w2:span id="" label="나의경매" style=""></w2:span>
+    													</xf:group>
+    													<xf:group id="" style="" tagname="li">
+    														<w2:span id="" label="자주쓰는검색" style=""></w2:span>
+    													</xf:group>
+
+    												</xf:group>
+    											</xf:group>
+    										</xf:group>
+    										<xf:image id="" src="/pgj/cm/images/contents/bg_guid4_4_1.png" style="width: 100%"  alt="나의경매 자주쓰는검색 페이지"></xf:image><xf:group class="mt20" id="" style="">
+    											<w2:textbox id=""
+    												label="경매물건 검색시 자주 이용하는 검색조건을 미리 등록해서 등록한 검색조건으로 편리하게 물건을 검색할 수 있습니다.&lt;br&gt;검색조건 추가, 수정, 삭제, 검색이 가능하며 검색종류별(물건상세검색 부동산, 물건상세검색 동산, 매각예정물건, 자동차 중기검색)로 각각 5개의 검색조건을 설정할 수 있습니다."
+    												style="" escape="false">
+    											</w2:textbox>
+    										</xf:group>
+    										
+    									</xf:group>
+    								</w2:content>
+    								<w2:content alwaysDraw="false" id="content5" style="">
+    									<xf:group class="guide_content" id="" style="">
+    										<xf:group class="pgtbox" id="" style="">
+    											<xf:group class="clearfix" id="" style="">
+    												<xf:group class="pgt_location" id="" style="" tagname="ul">
+    													<xf:group id="" style="" tagname="li">
+    														<w2:span id="" label="HOME" style=""></w2:span>
+    													</xf:group>
+    													<xf:group id="" style="" tagname="li">
+    														<w2:span id="" label="나의경매" style=""></w2:span>
+    													</xf:group>
+    													<xf:group id="" style="" tagname="li">
+    														<w2:span id="" label="나의설정" style=""></w2:span>
+    													</xf:group>
+
+    												</xf:group>
+    											</xf:group>
+    										</xf:group>
+    										<xf:image id="" src="/pgj/cm/images/contents/bg_guid4_5_1.png" style="width: 100%" alt="나의경매 나의설정  관심부류 페이지"></xf:image>
+    										<xf:group class="mt20" id="" style="">
+    											<w2:textbox id=""
+    												label='&lt;img src="/pgj/cm/images/contents/ico_arr_right.png" alt="" style="position: relative; top: 3px;"/&gt; &amp;nbsp;나의설정_관심분류'
+    												style="" tagname="h4" escape="false" alt="">
+    											</w2:textbox>
+    											<w2:textbox id=""
+    												label="경매물건 중 관심물건으로 저장된 물건을 최대 10개까지 관심분류로 지정하여 효율적으로 관리할 수 있습니다.&lt;br&gt;관심물건 등록시에 사용되며 관심분류를 지정시에 이미 만들어 놓은 관심분류의 카테고리별로 경매물건을 저장할 수 있습니다."
+    												style="" escape="false">
+    											</w2:textbox>
+    										</xf:group>
+    										<xf:image id="" src="/pgj/cm/images/contents/bg_guid4_5_2.png" style="width: 100%" alt="나의경매 나의설정  자주쓰는메뉴 페이지"></xf:image><xf:group class="mt20" id="" style="" >
+    											<w2:textbox id="" label='&lt;img src="/pgj/cm/images/contents/ico_arr_right.png" alt="" style="position: relative; top: 3px;"/&gt; &amp;nbsp;나의설정_자주쓰는메뉴' style="" tagname="h4" escape="false" alt=""></w2:textbox>
+    											<w2:textbox id=""
+    												label="사이트 메뉴중 자주쓰는 메뉴를 최대 10개까지 설정하여 편리하게 이용할 수 있습니다.&lt;br&gt;등록된 자주쓰는 메뉴는 화면상단의 로그인사용자명 옆의 자주쓰는 메뉴를 통해서 사용하시면 됩니다.&lt;br/&gt;"
+    												style="" escape="false">
+    											</w2:textbox>
+    										</xf:group>
+
+    										
+    									</xf:group>
+    								</w2:content>
+    								<w2:content alwaysDraw="false" id="content6" style="">
+    									<xf:group class="guide_content" id="" style="">
+    										<xf:group class="pgtbox" id="" style="">
+    											<xf:group class="clearfix" id="" style="">
+    												<xf:group class="pgt_location" id="" style="" tagname="ul">
+    													<xf:group id="" style="" tagname="li">
+    														<w2:span id="" label="나의경매" style=""></w2:span>
+    													</xf:group>
+    													<xf:group id="" style="" tagname="li">
+    														<w2:span id="" label="나의동산집행정보" style=""></w2:span>
+    													</xf:group>
+    													<xf:group id="" style="" tagname="li">
+    														<w2:span id="" label="HOME" style=""></w2:span>
+    													</xf:group>
+    												</xf:group>
+    											</xf:group>
+    										</xf:group>
+    										<xf:image id="" src="/pgj/cm/images/contents/bg_guid4_6_1.png" style="width: 100%" alt="나의경매 나의동산집행정보 페이지"></xf:image><xf:group class="mt20" id="" style="">
+    											<w2:textbox id=""
+    												label="동산 경매사건중 해당 집행사건의 비밀번호를 부여받은 채권자/채무자인 경우 나의동산집행사건으로 추가해서 이용할 수 있습니다."
+    												style="">
+    											</w2:textbox>
+    										</xf:group>
+    										
+    									</xf:group>
+    								</w2:content>
+    							</w2:tabControl>
+    						</xf:group>
+    					</w2:content>
+    				</w2:tabControl>
+    				<xf:group style="" id="" class="not_box">
+    					<w2:textbox id="" label="시스템 중단" style="" class="tit"></w2:textbox>
+    					<w2:textbox id="" label="01:00~06:00(매일)" style="" class="txt_time"></w2:textbox>
+    					<w2:textbox id="" label="데이터 수집작업으로 인하여 매일 해당시간에 서비스가 일시 중단됨" style="" class="cont"></w2:textbox>
+    				</xf:group>
+    			</xf:group>
+    		</xf:group>
+    	</xf:group>
+    	<xf:group class="btn_group" id="" style="">
+    		<xf:image id="" ref="" src="/pgj/cm/images/contents/logo.png" style="width:135px;height:30px;margin-top: 8px;float:left;" alt="대한민국 법원 법원경매정보"></xf:image>
+    		<xf:trigger class="btn_cm lg w2window_close" id="" style="" title="팝업창 닫기" type="button">
+    			<xf:label><![CDATA[닫기]]></xf:label>
+    		</xf:trigger>
+    	</xf:group>
+
+    </body>
+</html>

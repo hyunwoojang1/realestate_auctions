@@ -70,16 +70,63 @@ def _vworld_coord(address: str, vworld_key: str, type_: str) -> dict | None:
     return res
 
 
+def _reverse_parcel(address: str, vworld_key: str) -> tuple[str, str, str] | None:
+    """도로명-only 주소 폴백: road getcoord(좌표) → getAddress(PARCEL 역지오코딩) → 지번.
+
+    (2026-07-22 실측) type=road 는 level4LC(지번 PNU)를 비워 보내지만 좌표는 정확하다.
+    그 좌표를 getAddress 로 역변환하면 법정동코드10(level4LC)+지번(level5 '120-10')이 나온다
+    — juso.go.kr 별도 키 없이 도로명 주소 ~23%를 구제(예: 다대로429번길 20 → 다대동 120-10).
+    """
+    import requests  # noqa: PLC0415
+
+    res = _vworld_coord(address, vworld_key, "road")
+    if res is None:
+        return None
+    pt = (res.get("result") or {}).get("point") or {}
+    x, y = pt.get("x"), pt.get("y")
+    if not x or not y:
+        return None
+    params = {
+        "service": "address", "request": "getAddress", "version": "2.0",
+        "crs": "epsg:4326", "format": "json", "type": "PARCEL",
+        "point": f"{x},{y}", "key": vworld_key,
+    }
+    domain = os.environ.get("VWORLD_DOMAIN", "").strip()
+    if domain:
+        params["domain"] = domain
+    r = requests.get(_VWORLD_ADDR_URL, params=params, timeout=_TIMEOUT_VWORLD)
+    r.raise_for_status()
+    rev = (r.json() or {}).get("response") or {}
+    if rev.get("status") != "OK":
+        logger.warning("VWorld 역지오코딩 실패(status=%s): %s",
+                       rev.get("status"), address[:40])
+        return None
+    st = ((rev.get("result") or [{}])[0] or {}).get("structure") or {}
+    lc = st.get("level4LC") or ""
+    jibun = (st.get("level5") or "").strip()
+    if not lc.isdigit() or len(lc) < 10 or not jibun:
+        return None
+    if jibun.startswith("산"):   # 산지 — 표제부 platGbCd 미지원(v1 제외)
+        return None
+    bun, _, ji = jibun.partition("-")
+    if not bun.strip().isdigit():
+        return None
+    return lc[:10], bun.strip().zfill(4), (ji.strip() or "0").zfill(4)
+
+
 def _resolve_parcel(address: str, vworld_key: str) -> tuple[str, str, str] | None:
     """VWorld 주소 API(getcoord, type=parcel) → (법정동코드10, bun4, ji4).
 
     level4LC는 실측 **19자리 PNU**(법정동10+대지구분1+본번4+부번4). 산지(구분 '2')는 표제부
     platGbCd 미지원이라 None. 10자리만 오면 parse_jibun 폴백을 쓰도록 bun/ji 빈 값.
-    status not OK 면 RuntimeError(결과 캐시 방지). ⚠ type=road 는 좌표만 주고 지번 PNU(level4LC)를
-    비워 보내므로 건축물대장 조회엔 무용 — 도로명-only 주소(~23%)는 별도 지번변환(juso 등) 후속과제.
+    parcel 해석 실패(NOT_FOUND) 시 도로명 역지오코딩 폴백(_reverse_parcel)을 1회 시도한다.
+    둘 다 실패면 RuntimeError(결과 캐시 방지).
     """
     res = _vworld_coord(address, vworld_key, "parcel")
     if res is None:
+        rev = _reverse_parcel(address, vworld_key)
+        if rev is not None:
+            return rev
         raise RuntimeError("vworld status not OK")   # 실패로 승격 — 결과 캐시 방지
     lc = ((res.get("refined") or {}).get("structure") or {}).get("level4LC") or ""
     if not lc.isdigit() or len(lc) < 10:

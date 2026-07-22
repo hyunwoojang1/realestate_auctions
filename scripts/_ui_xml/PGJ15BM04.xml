@@ -1,0 +1,868 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+    ============= ============ ==========================
+     Date          Author       Description
+    ============= ============ ==========================
+     2025.10.24.   강은숙                   [25A-PGJ-0032] 집행관연계 열람장소 배치 오류 개선
+     2025.12.26.   공태은                   [25A-PGJ-0053] 나의경매 자주쓰는검색 화면에서 페이지 이동시 검색조건이 초기화되는 현상 수정
+    ============= ============ ==========================
+-->
+<html xmlns="http://www.w3.org/1999/xhtml"
+    xmlns:ev="http://www.w3.org/2001/xml-events"
+    xmlns:w2="http://www.inswave.com/websquare" xmlns:xf="http://www.w3.org/2002/xforms">
+    <head meta_screenName="물건상세조회_동산">
+        <w2:type>DEFAULT</w2:type>
+        <w2:buildDate/>
+        <xf:model>
+            <xf:instance>
+                <data xmlns="" />
+            </xf:instance>
+            <w2:dataCollection baseNode="map">
+                <w2:dataList baseNode="list" repeatNode="map" id="dlt_mvprpGdsLst" saveRemovedData="true">
+                	<w2:columnInfo>
+                		<w2:column id="seq" name="번호" dataType="text"></w2:column><w2:column id="dspslObjctSeq" name="매각목적물순번" dataType="text"></w2:column>
+                		<w2:column id="printGdsNm" name="매각목적물명" dataType="text"></w2:column>
+                		<w2:column id="printCnt" name="사용자용횟수" dataType="text"></w2:column>
+                		<w2:column id="dspslObjctStrdDts" name="매각목적물규격내역" dataType="text"></w2:column>
+                		<w2:column id="aeeEvlAmt" name="감정평가금액" dataType="text"></w2:column>
+                		<w2:column id="mvprpArtclKndNm" name="물품명" dataType="text"></w2:column>
+                		<w2:column id="dspslObjctRmk" name="매각목적물비고" dataType="text" encYN="true"></w2:column>
+                		<w2:column id="mvprpArtclKndCd" name="동산물풍종류코드" dataType="text"></w2:column>
+
+                		<w2:column id="cortOfcCd" name=" 법원사무소코드" dataType="text"></w2:column>
+                		<w2:column id="csNo" name="사건번호" dataType="text"></w2:column>
+                		<w2:column id="objctQutyIndctUnitNm" name="목적물수량표시단위명" dataType="text"></w2:column>
+                		<w2:column id="gdsVendNm" name="물건제조사명" dataType="text"></w2:column>
+                		<w2:column id="dspslObjctCnt" name="매각목적물수" dataType="text"></w2:column>
+
+                	</w2:columnInfo>
+                	<w2:data use="true">
+                		<w2:row></w2:row>
+                	</w2:data>
+                </w2:dataList>
+                <w2:dataMap baseNode="map" id="dma_pageInfo">
+                    <w2:keyInfo>
+                        <w2:key id="pageNo" name="페이지번호" dataType="number"></w2:key>
+                        <w2:key id="pageSize" name="페이지크기" dataType="number"></w2:key>
+                        <w2:key id="bfPageNo" name="이전 페이지 번호" dataType="number"></w2:key>
+                        <w2:key id="startRowNo" name="시작 행번호" dataType="number"></w2:key>
+                        <w2:key id="totalCnt" name="총건수" dataType="number" encYN="false"></w2:key>
+                        <w2:key id="totalYn" name="총건수조회여부" dataType="text"></w2:key>
+                    </w2:keyInfo>
+                    <w2:data use="true"></w2:data>
+                </w2:dataMap>
+                <w2:dataMap baseNode="map" id="dma_srchGdsinfo">
+                    <w2:keyInfo>
+                        <w2:key id="cortOfcCd" name="법원사무소코드" dataType="text"></w2:key>
+                        <w2:key id="cortOfcNm" name="법원사무소명" dataType="text"></w2:key><w2:key id="csNo" name="사건번호" dataType="text"></w2:key>
+                        <w2:key id="mvprpCsNo" name="동산사건번호" dataType="text"></w2:key>
+                        <w2:key id="dspslGdsSeq" name="매각목적물순번" dataType="text"></w2:key>
+
+                    </w2:keyInfo>
+                </w2:dataMap>
+            </w2:dataCollection>
+            <w2:workflowCollection></w2:workflowCollection>
+            <xf:submission id="sbm_mvprpGdsDtlInf" ref='data:json,["dma_srchGdsinfo","dma_pageInfo"]' target='data:json,[{"id":"dma_pageInfo","key":"data.dma_pageInfo"},{"id":"dlt_mvprpGdsLst","key":"data.dlt_mvprpGdsLst"}]' action="/pgj/pgj15B/selecctMvprpGdsDtlInf.on" method="post" mediatype="application/json" encoding="UTF-8"
+                instance="" replace="" errorHandler="" customHandler="" mode="asynchronous" processMsg='조회중입니다.' ev:submit="" ev:submitdone="scwin.sbm_mvprpGdsDtlInf_submitdone"
+                ev:submiterror="" abortTrigger="">
+            </xf:submission>
+        </xf:model>
+        <script type="text/javascript" lazy="false"><![CDATA[/* 동산 매각물건 상세 화면 */
+
+/* 프로그램ID */
+scwin.pgmId = 'PGJ15BM04';
+
+scwin.srchInfo = {};
+scwin.prevPgmId = "";
+
+/* 기본정보 */
+scwin.baseInfo = "";
+
+/* 검색조건 */
+scwin.param;
+scwin.pageSize;
+scwin.pageNum = '';
+
+/* 최상단(opener, parent 포함) 기준 함수 */
+scwin.isMain = function() {
+    return true;
+};
+
+/**
+ *  경매공고, 경매물건, 나의경매 화면 구분코드에 따라 화면 페이지 셋팅
+ *
+ * ============= ============ ==========================
+ *  Date          Author       Description
+ * ============= ============ ==========================
+ *  2023.01.06.   나해준       [NELS]최초 생성
+ *  2025.12.26.   공태은       [25A-PGJ-0053] 나의경매 자주쓰는검색 화면에서 페이지 이동시 검색조건이 초기화되는 현상 수정
+ * ============= ============ ==========================
+ */
+scwin.onpageload = function() {
+    scwin.param = com.getParameter('param');
+    scwin.prevPgmId = scwin.param ?. pgmId || scwin.param.srchInfo ?. pgmId
+    const sideDvsCd = scwin.param.srchInfo ?. sideDvsCd
+    const menuNm = scwin.param.srchInfo ?. menuNm;
+    scwin.pageNum = scwin.param.prevInfo ?. pageNum || 1;
+
+    let sidePath = '';
+    let topTitle = '';
+    switch(sideDvsCd){
+        case '1' : sidePath = '../common/sideMenu/side001.xml'
+            topTitle = '경매공고'
+            break;
+        case '2' : sidePath = '../common/sideMenu/side002.xml'
+            topTitle = '경매물건'
+            break;
+//        case '3' : sidePath = '../common/sideMenu/side003.xml'
+//            topTitle = '매각통계'
+//            break;
+//        case '4' : sidePath = '../common/sideMenu/side004.xml'
+//            topTitle = '경매지식'
+//            break;
+//        case '5' : sidePath = '../common/sideMenu/side005.xml'
+//            topTitle = '이용안내'
+//            break;
+        case '3' : sidePath = '../common/sideMenu/side006.xml'
+            topTitle = '나의경매'
+            break;
+    }
+    wfm_sideBox.setSrc(sidePath);
+    
+    /* 메뉴 */
+    if (!scutilo.isEmpty(scwin.prevPgmId)) {
+        if(sideDvsCd == '3'){
+            $p.main().wfm_mainFrame.scope.wfm_sideBox.scope.scwin.menuFocus('PGJ195');
+        }else{
+            $p.main().wfm_mainFrame.scope.wfm_sideBox.scope.scwin.menuFocus(scwin.prevPgmId.slice(0, 6));
+        }
+    }
+
+	tbx_mainTitle.setValue(menuNm);
+    spn_topTitle.setValue(topTitle);
+    spn_topTitle2.setValue(menuNm);
+
+    dma_srchGdsinfo.setJSON({
+        cortOfcCd : scwin.param.cortOfcCd || scwin.param.srchInfo ?. cortOfcCd ,
+        csNo : scwin.param.csNo || scwin.param.srchInfo ?. csNo ,
+        mvprpCsNo : scwin.param.mvSaNo || scwin.param.srchInfo ?. mvprpCsNo ,
+        dspslGdsSeq : scwin.param.dspslGdsSeq || scwin.param.srchInfo ?. dspslGdsSeq
+    })
+    scwin.pageSize =20;
+    if (pgjUtil.getCookie('pageCnt')) {
+        scwin.pageSize = Number(pgjUtil.getCookie('pageCnt'));
+    }
+    /* 전자사건 여부 hide */
+    spn_elctnCs.hide();
+    grp_rdngPlc.hide();
+    sbx_mvprpGdsPage.setValue(scwin.pageSize);
+    scwin.mvprpGdsInfoPagingMain(true, scwin.pageSize);
+};
+
+scwin.onpageunload = function() {
+
+};
+
+//웹접근성으로 인한 title제공 수정
+scwin.titleFormatter = function(){
+    return "";
+}
+
+/**
+ * 페이징 처리 Main
+ *
+ * ============= ============ ==========================
+ *  Date          Author       Description
+ * ============= ============ ==========================
+ *  2023.06.15.   나해준       [NELS]최초 생성
+ * ============= ============ ==========================
+ */
+scwin.mvprpGdsInfoPagingMain = function(isFirst,pageNum){
+
+    /* 최초 조회 여부 */
+    if (isFirst) {
+        dma_pageInfo.set("pageNo" , 1);
+        dma_pageInfo.set("totalYn", "Y");
+    } else {
+        dma_pageInfo.set("totalYn", "N");
+    }
+    /* 페이지 사이즈 셋팅 */
+    dma_pageInfo.set("pageSize", pageNum);
+    com.executeSubmission(sbm_mvprpGdsDtlInf);
+}
+scwin.sbm_mvprpGdsDtlInf_submitdone = function({responseJSON:{data,message,status}}) {
+    document.body.scrollTop = 0;
+    if (status === 200) {
+        const {result,dlt_mvprpGdsLst} = data;
+        const baseInfo = result.mvprpBaseInfo;
+        const cncrncCsLst = result.cncrncCsLst;
+        const mvprpGdsInfo = result.mvprpGdsInfo;
+        const atchmPlc = result.atchmPlc;
+        if (baseInfo) {
+            spn_cortSptNm.setValue(baseInfo.cortSptNm)
+            spn_baseCsNo.setValue(baseInfo.mvprpCsNo)
+            /* 사건번호 */
+            if (baseInfo.lwstDvsCd === "2") spn_elctnCs.show("")
+            spn_mvprpCsNo.setValue(baseInfo.mvprpCsNo);
+            /* 집행담당관 */
+            spn_chargExecr.setValue(`${baseInfo.cortAuctnJdbnNm} ${baseInfo.chargrNm}`)
+            /* 경합사건 */
+            if (cncrncCsLst.length >0) {
+                let printNm = ""
+                cncrncCsLst.forEach(data => {
+                    printNm += `${data.mvprpCsNo} `;
+                    // 02 : 정지 ,03 : 취소, 04 : 취하
+                    if (data.csProgStatCd === '0002100002'
+                            || data.csProgStatCd === '0002100003'
+                            || data.csProgStatCd === '0002100004') {
+                        printNm += `(${pgjUtil.getSTGcodeSystemNm('PGJ','CS_PROG_STAT_CD',data.csProgStatCd)})`
+                    }
+                })
+                spn_cncrncCs.setValue(printNm);
+            } else {
+                tr_cncrncCs.hide();
+            }
+            /* 집행관 사무소 */
+            let printOfcNm = baseInfo.cortOfcNm;
+            if (baseInfo.cortTypCd === '70') printOfcNm += ` ${baseInfo.cortSptNm.replaceAll('대구','').replaceAll('부산','')}`;
+            spn_sptNm.setValue(printOfcNm);
+
+            scwin.baseInfo = baseInfo;
+        }
+        let preRdngNm = '사전열람사항이 없습니다.'
+        if (!scutilo.isEmpty(mvprpGdsInfo.spotRdngYmd)) {
+            /* 열람 시간 */
+            preRdngNm = `개방시간 : ${scdateo.getFmtDate(mvprpGdsInfo.spotRdngYmd,".")} ${scwin.timeFormat(mvprpGdsInfo.spotRdngBgngHm)}`
+            preRdngNm += ` ~ ${scdateo.getFmtDate(mvprpGdsInfo.spotRdngYmd,".")} ${scwin.timeFormat(mvprpGdsInfo.spotRdngEndHm)}`
+            grp_rdngPlc.show("");
+
+            /* 열람 장소 */
+            let rdngPlcNm = ""
+            if (!scutilo.isEmpty(mvprpGdsInfo.spotRdngAddrTypCd) && mvprpGdsInfo.spotRdngAddrTypCd === 'R') {
+                rdngPlcNm = `${mvprpGdsInfo.hreadRegnRdnmSdNm || ''} ${mvprpGdsInfo.hreadRegnRdnmSggNm || ''}`
+                rdngPlcNm += ` ${mvprpGdsInfo.spotRdngRdnmEmdNm || ""} ${mvprpGdsInfo.hreadRegnRdnm}`
+                rdngPlcNm += ` ${mvprpGdsInfo.spotRdngDtlAddr || ""}`
+                rdngPlcNm += !scutilo.isEmpty(mvprpGdsInfo.spotRdngRdnmDtlAddr) ? ` (${mvprpGdsInfo.spotRdngRdnmDtlAddr})` : ""
+            } else {
+                rdngPlcNm = `${mvprpGdsInfo.hreadRegnSidoCdNm || ''} ${mvprpGdsInfo.hreadRegnSiguCdNm || ''}`
+                rdngPlcNm += ` ${mvprpGdsInfo.hreadRegnEpmdongCdNm ||''}`
+                rdngPlcNm += !scutilo.isEmpty(mvprpGdsInfo.hreadRegnRdongCdNm) ? ` ${mvprpGdsInfo.hreadRegnRdongCdNm}` : ""
+                rdngPlcNm += ` ${mvprpGdsInfo.spotRdngDtlAddr || ''}`
+            }
+            pn_preRdngPlc.setValue(rdngPlcNm);
+        }
+        spn_preRdng.setValue(preRdngNm);
+        /* 매각기일 */
+        let dspslDxdy = `${scdateo.getFmtDate(mvprpGdsInfo.dxdyYmd,".")} ${scwin.timeFormat(mvprpGdsInfo.dxdyHm)} 부터`
+        spn_dspslDxdy.setValue(dspslDxdy)
+        /* 매각장소 */
+        let dspslPlc = ""
+        if (!scutilo.isEmpty(mvprpGdsInfo.mvprpDspslPlcAddrTypCd) && mvprpGdsInfo.mvprpDspslPlcAddrTypCd === 'R') {
+            dspslPlc = `${mvprpGdsInfo.mvmPlaceRdnmSdNm || ''} ${mvprpGdsInfo.mvmPlaceRdnmSggNm || ''}`
+            dspslPlc += ` ${mvprpGdsInfo.mvprpDspslPlcRdnmEmdNm || ""} ${mvprpGdsInfo.mvmPlaceRdnm}`
+            dspslPlc += ` ${mvprpGdsInfo.mvprpDspslPlcDtlAddr || ""}`
+            dspslPlc += !scutilo.isEmpty(mvprpGdsInfo.mvprpDspslPlcRdnmDtlAddr) ? ` (${mvprpGdsInfo.mvprpDspslPlcRdnmDtlAddr})` : ""
+        } else {
+            dspslPlc = `${mvprpGdsInfo.adongSdNm || ''} ${mvprpGdsInfo.adongSggNm || ''}`
+            dspslPlc += ` ${mvprpGdsInfo.adongEmdNm || ''} ${mvprpGdsInfo.adongRiNm || ''}`
+            dspslPlc += ` ${mvprpGdsInfo.mvprpDspslPlcDtlAddr || ''}`
+        }
+        spn_dspslPlc.setValue(dspslPlc);
+
+        /* 공고유형 */
+        let pbancTyp = pgjUtil.getSTGcodeSystemNm('PGJ','CORT_AUCTN_PBANC_TYP_CD',mvprpGdsInfo.cortAuctnPbancTypCd);
+        spn_pbancTyp.setValue(pbancTyp);
+        /* 매각장소유형 */
+        if (atchmPlc.length>0) {
+            let plcNm =""
+            atchmPlc.forEach(data=>{
+                if (data.mvprpAtchmPlcTypCd) {
+                    plcNm += pgjUtil.getSTGcodeSystemNm('PGJ','MVPRP_ATCHM_PLC_TYP_CD',data.mvprpAtchmPlcTypCd)
+                }
+            })
+            spn_dspslPlcTyp.setValue(plcNm);
+        }
+        /* 감정평가금액 */
+        spn_aeeEvlAmt.setValue(mvprpGdsInfo.aeeEvlAmt || '0');
+        /* 최저매각가격 */
+        spn_lwsPrc.setValue(mvprpGdsInfo.lwsDspslPrc || '0');
+        /* 물건 비고 */
+        spn_gdsRmk.setValue(mvprpGdsInfo.dspslGdsRmk || "");
+
+        /* 안내문구 */
+        let tmpCtt = "매각날짜와 정확한 매각시간은 집행관사무실(" + baseInfo.cortTelnoLstCtt+ ")로 확인하시기 바랍니다.";
+        tbx__artinfo.setValue(tmpCtt);
+
+        scutilo.setPagingInfo(dma_pageInfo,pgl_mvprpGds,grd_mvprpGdsLst)
+        spn_totalCnt.setValue(dma_pageInfo.get('totalCnt'));
+
+    }
+
+    //매각물품 번호
+    if(dlt_mvprpGdsLst.getTotalRow() > 0){
+        const startRowNo = Number(dma_pageInfo.get("startRowNo"));
+        for(let i=0; i<dlt_mvprpGdsLst.getTotalRow();i++) {
+            dlt_mvprpGdsLst.setCellData(i, "seq", i+startRowNo);
+        }
+    }
+
+};
+
+/**
+ * 뒤로가기 버튼 클릭시 뒤로가기 이동
+ *
+ * ============= ============ ==========================
+ *  Date          Author       Description
+ * ============= ============ ==========================
+ *  2023.03.22.   나해준       [NELS]최초 생성
+ *  2025.12.26.   공태은       [25A-PGJ-0053] 나의경매 자주쓰는검색 화면에서 페이지 이동시 검색조건이 초기화되는 현상 수정
+ * ============= ============ ==========================
+ */
+scwin.prevButton = function(e) {
+    let path = '';
+    let detailInfo = {};
+    let obj = {
+        "dataObject": {
+            "type": "json",
+            "name": "param",
+            "data": {}
+        }
+    };
+    detailInfo = {
+        prevInfo: {
+            prevPgmId: scwin.prevPgmId
+          , pageNum : scwin.pageNum
+        },
+        srchInfo: scwin.param.srchInfo
+    }
+    switch (scwin.prevPgmId) {
+        case 'PGJ144M02':
+            path = '/pgj/ui/pgj100/PGJ144M02.xml';
+            break;
+        case 'PGJ144M03':
+            path = '/pgj/ui/pgj100/PGJ144M03.xml';
+            break;
+        case 'PGJ153M01':
+            path = '/pgj/ui/pgj100/PGJ151M02.xml';
+            break;
+        case 'PGJ151F01':
+            path = '/pgj/ui/pgj100/PGJ151M02.xml';
+            break;
+        case 'PGJ195M02':
+            path = '/pgj/ui/pgj100/PGJ151M02.xml';
+            break;
+            
+    }
+    obj.dataObject.data = detailInfo
+    $p.main().wfm_mainFrame.setSrc(path, obj);
+};
+
+scwin.printEvent = function(e) {
+
+    let paramJSON = {};
+    paramJSON.html = document.getElementById($p.getComponentById('grp_contests').id).innerHTML;
+
+	var dataObject = {
+			type : "json",
+			data : paramJSON,
+			name : "paramObj"
+	};
+
+    /* default popup size */
+    const winW = window.innerWidth;
+    const winH = window.innerHeight;
+    const popupW = 1200;
+    const popupH = 700;
+
+    const popupX = (winW / 2) - (popupW / 2);
+    const popupY = (winH / 2) - (popupH / 2);
+
+	// 팝업의 옵션
+	var options = {
+			id: 'print',					// 팝업ID
+			type: "browserPopup",			// 팝업 타입(wframePopup,browserPopup)
+			width: popupW,				// 팝업 가로사이즈
+			height: popupH,			// 팝업 세로사이즈
+			top: popupY,					// 팝업 top위치
+			left: popupX,				// 팝업 left위치
+			popupName: "인쇄",				// 팝업 Name
+			modal: false,					// 부모창이 안움직임(true)/부모창이 움직임(false)
+			useIFrame: true,
+			dataObject : dataObject
+	};
+
+	$p.openPopup("/pgj/ui/pgj100/PGJPrintContainer.xml", options);
+
+};
+
+//지도검색 팝업
+scwin.mapPopUpOpen = function(e) {
+    /********* Popup Settings *********/
+    const winW = window.innerWidth;
+    const winH = window.innerHeight;
+
+    /* default popup size */
+    const popupW = winW - 300;
+    const popupH = winH - 100;
+
+    const popupX = (winW/2) - (popupW/2);
+    const popupY = (winH/2) - (popupH/2);
+
+    const options = {
+        id: "gdsMap",
+        type: "browser",
+        popupName: "지도",
+        top:popupY,
+        left:popupX,
+        width:popupW,
+        height:popupH,
+        modal: false
+    };
+    paramObj = {};
+    paramObj.pgmId = scwin.pgmId;
+    paramObj.info = {
+        csNo : dma_srchGdsinfo.get('csNo'),
+        cortOfcCd : dma_srchGdsinfo.get('cortOfcCd'),
+        dspslGdsSeq : dma_srchGdsinfo.get('dspslGdsSeq'),
+        cortOfcNm : scwin.baseInfo.cortSptNm
+    };
+
+    com.win.openPopup("/pgj/ui/pgj100/PGJ152F00.xml",options,paramObj);
+};
+
+/**
+ * 시간 셋팅 메서드
+ *
+ * ============= ============ ==========================
+ *  Date          Author       Description
+ * ============= ============ ==========================
+ *  2023.03.22.   나해준       [NELS]최초 생성
+ * ============= ============ ==========================
+ */
+scwin.timeFormat = function(time){
+    return scutilo.isEmpty(time) ? "" : time.slice(0,2).concat(":").concat(time.slice(2));
+}
+
+/**
+ * 페이지 번호 클릭시 조회
+ *
+ * ============= ============ ==========================
+ *  Date          Author       Description
+ * ============= ============ ==========================
+ *  2024.11.13.   나해준       [NELS]최초 생성
+ * ============= ============ ==========================
+ */
+scwin.pgl_mvprpGds_onviewchange = function(info) {
+    dma_pageInfo.set( "pageNo" , info.newSelectedIndex );
+    dma_pageInfo.set( "bfPageNo",info.oldSelectedIndex );
+    scwin.mvprpGdsInfoPagingMain(false, scwin.pageSize);
+};
+
+/**
+ * 페이지당 변경시 조회
+ *
+ * ============= ============ ==========================
+ *  Date          Author       Description
+ * ============= ============ ==========================
+ *  2024.11.13.   나해준       [NELS]최초 생성
+ * ============= ============ ==========================
+ */
+scwin.sbx_mvprpGdsPage_onviewchange = function(info) {
+    scwin.pageSize = info.newValue;
+    scwin.mvprpGdsInfoPagingMain(true, info.newValue);
+};
+]]></script>
+    </head>
+    <body ev:onpageload="scwin.onpageload" ev:onpageunload="scwin.onpageunload">
+        <xf:group class="sub_cotainer" id="" style="">
+                <xf:group class="inr" id="" style="">
+                    <w2:wframe class="sidebox" id="wfm_sideBox" style="" userData1=""></w2:wframe>
+                    <xf:group class="sub_contents" id="grp_contests" style="">
+                        <xf:group class="pgtbox" id="" style="">
+                            <w2:textbox class="pgt_tit" id="tbx_mainTitle" label="물건상세검색" style="" tagname="h2"></w2:textbox>
+                            <xf:group class="clearfix" id="" style="">
+                                <xf:group class="pgt_location" id="" style="" tagname="ul">
+                                    <xf:group id="" style="" tagname="li">
+                                        <w2:span id="" label="HOME" style=""></w2:span>
+                                    </xf:group>
+                                    <xf:group id="" style="" tagname="li">
+                                        <w2:span id="spn_topTitle" label="경매물건" style=""></w2:span>
+                                    </xf:group><xf:group id="" style="" tagname="li">
+                                        <w2:span id="spn_topTitle2" label="물건상세검색" style=""></w2:span>
+                                    </xf:group>
+
+                                </xf:group>
+                            </xf:group>
+                        </xf:group>
+                        <xf:group class="shbox" id="" style="">
+                            <xf:group class="shbox_inner" id="" style="">
+                                <xf:group class="w2tb" id="" style="width:100%;" tagname="table">
+                                    <w2:attributes>
+                                        <w2:summary></w2:summary>
+                                    </w2:attributes>
+                                    <xf:group tagname="caption"></xf:group>
+                                    <xf:group tagname="colgroup">
+                                        <xf:group style="width:100px;" tagname="col"></xf:group>
+                                        <xf:group style="" tagname="col"></xf:group>
+                                        <xf:group style="width:100px;" tagname="col"></xf:group>
+                                        <xf:group style="" tagname="col"></xf:group>
+                                    </xf:group>
+                                    <xf:group tagname="tr">
+                                        <xf:group class="w2tb_th" style="" tagname="th">
+                                            <w2:attributes>
+                                                <w2:scope>row</w2:scope>
+                                            </w2:attributes>
+                                            <w2:textbox id="" label="검색조건" style=""></w2:textbox>
+                                        </xf:group>
+                                        <xf:group class="w2tb_td" style="" tagname="td">
+                                            <w2:attributes>
+                                                <w2:colspan>3</w2:colspan>
+                                                <w2:rowspan>1</w2:rowspan>
+                                            </w2:attributes>
+                                            <xf:group class="require_list" id="" style="" tagname="ul">
+                                                <xf:group id="" style="" tagname="li">
+                                                    <w2:span class="tit" id="" label="집행관사무소" style=""></w2:span>
+                                                    <w2:span id="spn_cortSptNm" label="서울중앙지방법원" style=""></w2:span>
+                                                </xf:group>
+                                                <xf:group id="" style="" tagname="li">
+                                                    <w2:span class="tit" id="" label="사건번호" style=""></w2:span>
+                                                    <w2:span id="spn_baseCsNo" label="" style=""></w2:span>
+                                                </xf:group>
+                                            </xf:group>
+                                        </xf:group>
+                                    </xf:group>
+                                </xf:group>
+                            </xf:group>
+                        </xf:group>
+                        <xf:group class="stbox" id="" style="">
+                            <w2:textbox class="frm_title" id="" label="사건기본정보" style="" tagname="h3"></w2:textbox>
+                        </xf:group>
+                        <xf:group adaptive="layout" class="w2tb tb_ty1 mb30" id="" style="width:100%;" tagname="table">
+                            <w2:attributes>
+                                <w2:summary>사건기본정보</w2:summary>
+                            </w2:attributes>
+                            <xf:group tagname="caption"></xf:group>
+                            <xf:group tagname="colgroup">
+                                <xf:group style="width:150px;" tagname="col"></xf:group>
+                                <xf:group style="" tagname="col"></xf:group>
+                                <xf:group style="width:150px;" tagname="col"></xf:group>
+                                <xf:group style="" tagname="col"></xf:group>
+                            </xf:group>
+                            <xf:group tagname="tr">
+                                <xf:group class="w2tb_th" style="" tagname="th">
+                                    <w2:attributes>
+                                        <w2:scope>row</w2:scope>
+                                    </w2:attributes>
+                                    <w2:textbox id="" label="사건번호" style=""></w2:textbox>
+                                </xf:group>
+                                <xf:group class="w2tb_td" style="" tagname="td">
+                                    <w2:span class="txt" id="spn_mvprpCsNo" label="" style=""></w2:span>
+                                    <w2:span class="txt_sa" id="spn_elctnCs" label="전자" style=""></w2:span>
+                                </xf:group>
+                                <xf:group class="w2tb_th" style="" tagname="th">
+                                    <w2:attributes>
+                                        <w2:scope>row</w2:scope>
+                                    </w2:attributes>
+                                    <w2:textbox id="" label="담당집행관" style=""></w2:textbox>
+                                </xf:group>
+                                <xf:group class="w2tb_td" style="" tagname="td">
+                                    <w2:span class="txt" id="spn_chargExecr" label="5부 이승재" style=""></w2:span>
+                                </xf:group>
+                            </xf:group>
+                            <xf:group style="" tagname="tr" id="tr_cncrncCs">
+                                <xf:group class="w2tb_th" style="" tagname="th">
+                                    <w2:attributes>
+                                        <w2:scope>row</w2:scope>
+                                    </w2:attributes>
+                                    <w2:textbox id="" label="경합사건" style=""></w2:textbox>
+                                </xf:group>
+                                <xf:group class="w2tb_td" style="" tagname="td">
+                                    <w2:attributes>
+                                        <w2:colspan>3</w2:colspan>
+                                        <w2:rowspan>1</w2:rowspan>
+                                    </w2:attributes>
+                                    <w2:span class="txt" id="spn_cncrncCs" label="" style=""></w2:span>
+                                </xf:group>
+                            </xf:group>
+                            <xf:group style="" tagname="tr">
+                                <xf:group class="w2tb_th" style="" tagname="th">
+                                    <w2:attributes>
+                                        <w2:scope>row</w2:scope>
+                                    </w2:attributes>
+                                    <w2:textbox id="" label="관할집행관사무소" style=""></w2:textbox>
+                                </xf:group>
+                                <xf:group class="w2tb_td" style="" tagname="td">
+                                    <w2:attributes>
+                                        <w2:colspan>3</w2:colspan>
+                                        <w2:rowspan>1</w2:rowspan>
+                                    </w2:attributes>
+                                    <w2:span class="txt" id="spn_sptNm" label="" style=""></w2:span>
+                                </xf:group>
+                            </xf:group>
+                        </xf:group>
+                        <xf:group class="stbox" id="" style="">
+                            <w2:textbox class="frm_title" id="" label="매각정보" style="" tagname="h3"></w2:textbox>
+                        </xf:group>
+                        <xf:group adaptive="layout" class="w2tb tb_ty1" id="" style="width:100%;" tagname="table">
+                            <w2:attributes>
+                                <w2:summary>매각정보</w2:summary>
+                            </w2:attributes>
+                            <xf:group tagname="caption"></xf:group>
+                            <xf:group tagname="colgroup">
+                                <xf:group style="width:150px;" tagname="col"></xf:group>
+                                <xf:group style="" tagname="col"></xf:group>
+                                <xf:group style="width:150px;" tagname="col"></xf:group>
+                                <xf:group style="" tagname="col"></xf:group>
+                            </xf:group>
+                            <xf:group tagname="tr">
+                                <xf:group class="w2tb_th" style="" tagname="th">
+                                    <w2:attributes>
+                                        <w2:scope>row</w2:scope>
+                                    </w2:attributes>
+                                    <w2:textbox id="" label="사전열람" style=""></w2:textbox>
+                                </xf:group>
+                                <xf:group class="w2tb_td" style="" tagname="td">
+                                    <w2:attributes>
+                                        <w2:colspan>3</w2:colspan>
+                                        <w2:rowspan>1</w2:rowspan>
+                                    </w2:attributes>
+                                    <w2:span class="txt" id="spn_preRdng" label="사전열람사항이 없습니다." style=""></w2:span>
+                                </xf:group>
+                            </xf:group><xf:group tagname="tr" style="" id="grp_rdngPlc">
+                                <xf:group class="w2tb_th" style="" tagname="th">
+                                    <w2:attributes>
+                                        <w2:scope>row</w2:scope>
+                                    </w2:attributes>
+                                    <w2:textbox id="" label="열람장소" style=""></w2:textbox>
+                                </xf:group>
+                                <xf:group class="w2tb_td" style="" tagname="td">
+                                    <w2:attributes>
+                                        <w2:colspan>3</w2:colspan>
+                                        <w2:rowspan>1</w2:rowspan>
+                                    </w2:attributes>
+                                    <w2:span class="txt" id="pn_preRdngPlc" label="사전열람사항이 없습니다." style=""></w2:span>
+                                </xf:group>
+                            </xf:group>
+                            <xf:group style="" tagname="tr">
+                                <xf:group class="w2tb_th" style="" tagname="th">
+                                    <w2:attributes>
+                                        <w2:scope>row</w2:scope>
+                                    </w2:attributes>
+                                    <w2:textbox id="" label="매각날짜" style=""></w2:textbox>
+                                </xf:group>
+                                <xf:group class="w2tb_td" style="" tagname="td">
+                                    <w2:span class="txt" id="spn_dspslDxdy" label="" style=""></w2:span>
+                                </xf:group>
+                                <xf:group class="w2tb_th" style="" tagname="th">
+                                    <w2:attributes>
+                                        <w2:scope>row</w2:scope>
+                                    </w2:attributes>
+                                    <w2:textbox id="" label="매각장소" style=""></w2:textbox>
+                                </xf:group>
+                                <xf:group class="w2tb_td" style="" tagname="td">
+                                    <w2:span class="txt" id="spn_dspslPlc" label="경기도 화성시 양감면 정문회화로 191-11" style=""></w2:span>
+                                    <xf:group style="" id="" class="mb5 mt5">
+                                        <xf:trigger class="btn_cm bt_map" id="trigger2" style="" type="button" ev:onclick="scwin.mapPopUpOpen">
+                                            <xf:label><![CDATA[지도보기]]></xf:label>
+                                        </xf:trigger>
+                                    </xf:group>
+                                </xf:group>
+                            </xf:group>
+                            <xf:group style="" tagname="tr">
+                                <xf:group class="w2tb_th" style="" tagname="th">
+                                    <w2:attributes>
+                                        <w2:scope>row</w2:scope>
+                                    </w2:attributes>
+                                    <w2:textbox id="" label="공고유형" style=""></w2:textbox>
+                                </xf:group>
+                                <xf:group class="w2tb_td" style="" tagname="td">
+                                    <w2:span class="txt" id="spn_pbancTyp" label="" style=""></w2:span>
+                                </xf:group>
+                                <xf:group class="w2tb_th" style="" tagname="th">
+                                    <w2:attributes>
+                                        <w2:scope>row</w2:scope>
+                                    </w2:attributes>
+                                    <w2:textbox id="" label="매각장소유형" style=""></w2:textbox>
+                                </xf:group>
+                                <xf:group class="w2tb_td" style="" tagname="td">
+                                    <w2:span class="txt" id="spn_dspslPlcTyp" label="" style=""></w2:span>
+                                </xf:group>
+                            </xf:group>
+                            <xf:group style="" tagname="tr">
+                                <xf:group class="w2tb_th" style="" tagname="th">
+                                    <w2:attributes>
+                                        <w2:scope>row</w2:scope>
+                                    </w2:attributes>
+                                    <w2:textbox id="" label="감정평가액" style=""></w2:textbox>
+                                </xf:group>
+                                <xf:group class="w2tb_td" style="" tagname="td">
+                                    <w2:span class="txt" id="spn_aeeEvlAmt" label="" style="" displayFormat="##,###,###,###,###,###,###,###원"></w2:span>
+                                </xf:group>
+                                <xf:group class="w2tb_th" style="" tagname="th">
+                                    <w2:attributes>
+                                        <w2:scope>row</w2:scope>
+                                    </w2:attributes>
+                                    <w2:textbox id="" label="최저매각가격" style=""></w2:textbox>
+                                </xf:group>
+                                <xf:group class="w2tb_td" style="" tagname="td">
+                                    <w2:span class="txt" id="spn_lwsPrc" label="" style="" displayFormat="##,###,###,###,###,###,###,###원"></w2:span>
+                                </xf:group>
+                            </xf:group>
+                            <xf:group style="" tagname="tr">
+                                <xf:group class="w2tb_th" style="" tagname="th">
+                                    <w2:attributes>
+                                        <w2:scope>row</w2:scope>
+                                    </w2:attributes>
+                                    <w2:textbox id="" label="비고" style=""></w2:textbox>
+                                </xf:group>
+                                <xf:group class="w2tb_td" style="" tagname="td">
+                                    <w2:attributes>
+                                        <w2:colspan>3</w2:colspan>
+                                        <w2:rowspan>1</w2:rowspan>
+                                    </w2:attributes>
+                                    <w2:span class="txt" id="spn_gdsRmk" label="" style=""></w2:span>
+                                </xf:group>
+                            </xf:group>
+
+                        </xf:group>
+                        <xf:group class="msg_box_txt mb30" id="" style="">
+                            <w2:textbox class="txt_con" escape="false" id="tbx__artinfo" label="매각날짜와 정확한 매각시간은 집행관사무실(031-1234-5678)로 확인하시기 바랍니다." style="" tagname="p">
+                            </w2:textbox>
+                            <w2:textbox class="txt_con" escape="false" id="" label="아래의 물품 전체를 일괄매각 합니다.(물품별로 각각 매각하지는 않습니다.)" style="" tagname="p">
+                            </w2:textbox>
+                        </xf:group>
+                        <xf:group class="stbox" id="" style="">
+                            <w2:textbox class="frm_title" id="" label="매각물품" style="" tagname="h3"></w2:textbox>
+                        </xf:group>
+
+
+                        <w2:gridView autoFit="allColumn" class="grid" dataList="data:dlt_mvprpGdsLst" defaultCellHeight="20"
+                            id="grd_mvprpGdsLst" readOnly="true" scrollByColumn="false" scrollByColumnAdaptive="false" style="min-height:35px;" summary="매각물품"
+                            tengeMask="" tooltipDisplay="true" visibleRowNum="all" titleAuto="false" titleFormatter="scwin.titleFormatter">
+                            <w2:caption style="" id="caption1" value="this is a grid caption."></w2:caption>
+                            <w2:header style="" id="header1">
+                                <w2:row style="" id="row1">
+                                    <w2:column removeBorderStyle="false" width="50" inputType="text" style="height:20px" id="column7"
+                                        value="번호" blockSelect="false" displayMode="label">
+                                    </w2:column>
+                                    <w2:column removeBorderStyle="false" width="159" inputType="text" style="height:20px" id="column6"
+                                        value="압류목록" blockSelect="false" displayMode="label">
+                                    </w2:column>
+                                    <w2:column removeBorderStyle="false" width="70" inputType="text" style="height:20px" id="column5"
+                                        value="수량" blockSelect="false" displayMode="label">
+                                    </w2:column>
+                                    <w2:column removeBorderStyle="false" width="153" inputType="text" style="height:20px" id="column4"
+                                        value="규격" blockSelect="false" displayMode="label">
+                                    </w2:column>
+                                    <w2:column removeBorderStyle="false" width="100" inputType="text" style="height:20px" id="column3"
+                                        value="감정가" blockSelect="false" displayMode="label">
+                                    </w2:column>
+                                    <w2:column removeBorderStyle="false" width="150" inputType="text" style="height:20px" id="column2"
+                                        value="물품항목" blockSelect="false" displayMode="label">
+                                    </w2:column>
+                                    <w2:column removeBorderStyle="false" width="200" inputType="text" style="height:20px" id="column1"
+                                        value="비고" blockSelect="false" displayMode="label">
+                                    </w2:column>
+                                </w2:row>
+                            </w2:header>
+                            <w2:gBody style="" id="gBody1">
+                                <w2:row style="" id="row2">
+                                    <w2:column removeBorderStyle="false" width="50" inputType="text" style="height:20px" id="seq"
+                                        value="" blockSelect="false" displayMode="label" readOnly="true">
+                                    </w2:column>
+                                    <w2:column removeBorderStyle="false" width="159" inputType="text" style="height:20px" id="printGdsNm"
+                                        value="" blockSelect="false" displayMode="label">
+                                    </w2:column>
+                                    <w2:column removeBorderStyle="false" width="70" inputType="text" style="height:20px" id="printCnt"
+                                        value="" blockSelect="false" displayMode="label">
+                                    </w2:column>
+                                    <w2:column removeBorderStyle="false" width="153" inputType="text" style="height:20px"
+                                        id="dspslObjctStrdDts" value="" blockSelect="false" displayMode="label">
+                                    </w2:column>
+                                    <w2:column removeBorderStyle="false" width="100" inputType="text" style="height:20px" id="aeeEvlAmt"
+                                        value="" blockSelect="false" displayMode="label" class="ar" displayFormat="##,###,###,###,###,###,###,###원">
+                                    </w2:column>
+                                    <w2:column removeBorderStyle="false" width="150" inputType="text" style="height:20px"
+                                        id="mvprpArtclKndNm" value="" blockSelect="false" displayMode="label" class="">
+                                    </w2:column>
+                                    <w2:column removeBorderStyle="false" width="200" inputType="text" style="height:20px" id="dspslObjctRmk"
+                                        value="" blockSelect="false" displayMode="label" class="al">
+                                    </w2:column>
+                                </w2:row>
+                            </w2:gBody>
+                        </w2:gridView>
+                        <xf:group class="count_page" id="" style="">
+                            <xf:group class="gvw_count_group" id="" style="">
+                                <w2:span id="" label="총" style=""></w2:span>
+                                <w2:span class="count_selected " id="spn_totalCnt" label="0" style=""></w2:span>
+                                <w2:span id="" label="건" style=""></w2:span>
+                            </xf:group>
+                            <w2:pageList class="wq_pglist" displayButtonType="display" displayFormat="#" id="pgl_mvprpGds" pageSize="10" style="" buttonShowType="3" ev:onviewchange="scwin.pgl_mvprpGds_onviewchange">
+                            </w2:pageList>
+                            <xf:group class="count_view" id="" style="">
+                                <w2:span class="txt" dataType="" id="" label="페이지당" style=""></w2:span>
+                                <xf:select1 allOption="" appearance="minimal" chooseOption="" class="sel" direction="auto" disabled="false"
+                                    disabledClass="w2selectbox_disabled" id="sbx_mvprpGdsPage" ref="" renderType="select" style="max-width:80px;" submenuSize="auto"
+                                    title="화면에 표시할 데이터 갯수 선택" ev:onviewchange="scwin.sbx_mvprpGdsPage_onviewchange">
+                                    <xf:choices>
+                                        <xf:item>
+                                            <xf:label><![CDATA[10]]></xf:label>
+                                            <xf:value><![CDATA[10]]></xf:value>
+                                        </xf:item>
+                                        <xf:item>
+                                            <xf:label><![CDATA[20]]></xf:label>
+                                            <xf:value><![CDATA[20]]></xf:value>
+                                        </xf:item>
+                                        <xf:item>
+                                            <xf:label><![CDATA[30]]></xf:label>
+                                            <xf:value><![CDATA[30]]></xf:value>
+                                        </xf:item>
+                                        <xf:item>
+                                            <xf:label><![CDATA[ 40]]></xf:label>
+                                            <xf:value><![CDATA[40]]></xf:value>
+                                        </xf:item>
+                                    </xf:choices>
+                                </xf:select1>
+                            </xf:group>
+                        </xf:group>
+                        <xf:group class="btn_group_w ty1 clearfix" id="grp_buttonInfo" style="">
+                            <xf:group class="btn_group r_line dsInb " id="" style="">
+                                    <xf:trigger class="btn_cm lg bt_print" id="trigger3" style="" type="button" ev:onclick="scwin.printEvent">
+                                        <xf:label><![CDATA[인쇄하기]]></xf:label>
+                                    </xf:trigger>
+                                </xf:group><xf:group class="btn_group dsInb " id="" style="">
+                                    <xf:trigger class="btn_cm lg" id="trigger1" style="" type="button" ev:onclick="scwin.prevButton">
+                                        <xf:label><![CDATA[이전]]></xf:label>
+                                    </xf:trigger>
+                                </xf:group>
+                        </xf:group><xf:group class="infobox ty_2" id="grp_noticeInfo" style="">
+                            <w2:textbox class="tit" id="" label="유의사항" style=""></w2:textbox>
+                            <xf:group class="info_list" id="" style="" tagname="ul">
+                                <xf:group id="" style="" tagname="li">
+                                    <w2:textbox id="" label="경매참가를 위해서 각 물건별 매각장소(법원이 아님)를 직접 방문하셔야 하며 물건별로 일괄매각함을 유의하시기 바랍니다." style="">
+                                    </w2:textbox>
+                                </xf:group>
+                                <xf:group id="" style="" tagname="li">
+                                    <w2:textbox id="" label="부동산경매와는 달리, 대금지급과 물건을 인도할 날을 매각기일과 다른 날로 정한 경우를 제외하고는 매각기일에 매각허가와 대금지급, 물건의 인도가 모두 이루어집니다." style="">
+                                    </w2:textbox>
+                                </xf:group>
+                                <xf:group id="" style="" tagname="li">
+                                    <w2:textbox id="" label="법원경매정보 홈페이지에서 제공되는 동산매각물건정보에 대한 모든 권한은 집행관사무소에 있으며 법원과는 무관함을 유의하시기 바랍니다." style="">
+                                    </w2:textbox>
+                                </xf:group>
+                                <xf:group id="" style="" tagname="li">
+                                    <w2:textbox id="" label="제공된 정보가 실제 매각물건의 정보와 일치하지 않거나 정보의 제공 이후 중요한 변동사항이 생길 수 있으므로, 매각물건의 내용을 해당 집행관사무소에 문의하신 후 입찰에 참가하시기 바랍니다." style="">
+                                    </w2:textbox>
+                                </xf:group>
+                                <xf:group id="" style="" tagname="li">
+                                    <w2:textbox id="" label="법원경매정보 홈페이지에서 서비스하는 정보만으로 참여한 입찰과 관련하여 발생하는 문제에 대해서 집행관사무소는 책임을 지지 않습니다." style="">
+                                    </w2:textbox>
+                                </xf:group>
+                            </xf:group>
+                        </xf:group>
+
+                    </xf:group>
+                </xf:group>
+            </xf:group>
+    </body>
+</html>

@@ -1,0 +1,255 @@
+<?xml version="1.0" encoding="UTF-8" standalone="no"?>
+<!--
+PGJPrintContainer(법원경매정보 인쇄미리보기) 화면 XML
+
+============= ============ ==========================
+ Date          Author       Description
+============= ============ ==========================
+ 2023.09.06.   김아현       [NELS]최초 생성
+ 2026.06.05.   김기석       [26A-PGJ-0023] 용도별매각통계 인쇄 미리보기 시군구 오류 개선
+============= ============ ==========================
+-->
+<html xmlns="http://www.w3.org/1999/xhtml" xmlns:ev="http://www.w3.org/2001/xml-events" xmlns:w2="http://www.inswave.com/websquare"
+    xmlns:xf="http://www.w3.org/2002/xforms">
+    <head meta_horizontal_guides="" meta_vertical_guides="">
+        <meta content="width=device-width,initial-scale=1.0,maximum-scale=2.0,minimum-scale=1.0,user-scalable=yes" name="viewport" />
+        <w2:type>DEFAULT</w2:type>
+        <w2:buildDate />
+        <xf:model>
+            <xf:instance>
+                <data xmlns="" />
+            </xf:instance>
+            <w2:dataCollection baseNode="map"></w2:dataCollection>
+            <w2:workflowCollection></w2:workflowCollection>
+            <xf:submission id="sbm_selectUser" ref="data:json,dma_searchParam"
+                target='data:json,[{"id":"dma_sjtUserInfo","key":"data.dma_sjtUserInfo"},{"id":"dma_sjtUserEnvInfo","key":"data.dma_sjtUserEnvInfo"}]'
+                action="/sjt/sjt100/selectUser.on" method="post" mediatype="application/json" encoding="UTF-8" instance="" replace="" errorHandler=""
+                customHandler="" mode="asynchronous" processMsg="" ev:submit="" ev:submitdone="scwin.sbm_selectUser_submitdone" ev:submiterror="scwin.sbm_selectUser_submiterror"
+                abortTrigger="">
+            </xf:submission>
+        </xf:model>
+        <script lazy="false" type="text/javascript">
+<![CDATA[/**
+ * 최상단(opener, parent 포함) 기준 함수
+ */
+scwin.isMain = function() {
+    return true;
+};
+
+/**
+ * onpageload 이벤트
+ *
+ * ============= ============ ==========================
+ *  Date          Author       Description
+ * ============= ============ ==========================
+ *  2025.02.10.   나해준       [NELS]최초 생성
+ * ============= ============ ==========================
+ */
+scwin.onpageload = function () {
+    scwin.loadPopupPage();
+};
+
+/**
+ * onpageunload 이벤트
+ *
+ * ============= ============ ==========================
+ *  Date          Author       Description
+ * ============= ============ ==========================
+ *  2025.02.10.   나해준       [NELS]최초 생성
+ * ============= ============ ==========================
+ */
+scwin.onpageunload = function () {
+
+};
+
+
+/**
+ * 팝업페이지 메인페이지 셋팅 이벤트
+ *
+ * ============= ============ ==========================
+ *  Date          Author       Description
+ * ============= ============ ==========================
+ *  2025.02.13.   나해준       [NELS]최초 생성
+ *  2026.06.05    김기석       [26A-PGJ-0023] 용도별매각통계 인쇄 미리보기 시군구 오류 개선
+ * ============= ============ ==========================
+ */
+scwin.loadPopupPage = function () {
+
+
+    let style = document.createElement('style');
+    style.nodeType = "text/css";
+    let srchInfo = $w.getParameter("paramObj") ?. srchInfo;
+    style.innerHTML = `
+        @media print {
+
+            body {
+                overflow: visible !important; /* 스크롤 제거*/
+                height: auto !important; /* 전체 높이를 자동으로 조정 */
+                zoom: 0.6;
+                -webkit-print-color-adjust: exact; /* 크롬 색상 보정*/
+                print-color-adjust: exact; /* 파이어 폭스 및 기타 브라우저 */
+                text-shadow: none !important;
+                font-weight: 700 !important;
+            }
+            font {
+                color: #000000 !improtant;
+            }
+            thead {
+                display: table-row-group; /* 하위 그룹 thead제거 */
+            }
+        };
+    `;
+
+    if (!scutilo.isEmpty(srchInfo) ) {
+        if (srchInfo.menuNm == "PGJ141P01" ) {
+            style.innerHTML = `
+                    @media print {
+
+                    body {
+                        overflow: visible !important; /* 스크롤 제거*/
+                        height: auto !important; /* 전체 높이를 자동으로 조정 */
+                        zoom: 0.6;
+                        -webkit-print-color-adjust: exact; /* 크롬 색상 보정*/
+                        text-shadow: none !important;
+                    }
+                    font {
+                        color: #000000 !improtant;
+                    }
+                    thead {
+                        display: table-row-group; /* 하위 그룹 thead제거 */
+                    }
+                };
+            `;
+        }
+    }
+    let tmpDiv = document.createElement('div');
+    let html = $w.getParameter("paramObj").html;
+    tmpDiv.innerHTML = html;
+
+    let removeObjetlst = [];
+    let removeLst = ['mf_wfm_mainFrame_grp_rletPageInfo'
+                    ,'mf_wfm_mainFrame_grp_buttonInfo'
+                    ,'mf_wfm_mainFrame_grp_buttonInfo2'
+                    ,'mf_wfm_mainFrame_grp_noticeInfo'
+                    ,'mf_wfm_mainFrame_grp_noticeInfo2'
+                    ,'mf_wfm_mainFrame_wfm_dxdyDts_grp_buttonInfo'
+                    ,'mf_wfm_mainFrame_wfm_ofdocDlvrDts_grp_buttonInfo'
+                    ,'mf_grp_buttonInfo'
+                    ,'mf_grp_buttonInfo2'
+                    ,'mf_grp_noticeInfo'
+                    ,'mf_grp_noticeInfo2'
+                    ,'mf_mvprpExecInfDtlPopUp_wframe_grp_buttonInfo'
+                    ,'mf_mvprpExecInfDtlPopUp_wframe_grp_buttonInfo2'
+                    ,'mf_mvprpExecInfDtlPopUp_wframe_grp_noticeInfo'
+                    ,'mf_mvprpExecInfDtlPopUp_wframe_grp_noticeInfo2'
+                    ,'mf_mvprpExecInfDtlPopUp_wframe_wfm_atchmLst_grp_buttonInfo'
+                    ,'mf_mvprpExecInfDtlPopUp_wframe_wfm_atchmLst_grp_buttonInfo2'
+                    ,'mf_mvprpExecInfDtlPopUp_wframe_wfm_atchmLst_grp_noticeInfo'
+                    ,'mf_mvprpExecInfDtlPopUp_wframe_wfm_atchmLst_grp_noticeInfo2'
+                    ,'mf_mvprpExecInfDtlPopUp_wframe_wfm_prpamt_grp_buttonInfo'
+                    ,'mf_mvprpExecInfDtlPopUp_wframe_wfm_prpamt_grp_buttonInfo2'
+                    ,'mf_mvprpExecInfDtlPopUp_wframe_wfm_prpamt_grp_noticeInfo'
+                    ,'mf_mvprpExecInfDtlPopUp_wframe_wfm_prpamt_wframe_grp_noticeInfo2'
+                    ,'mf_mvprpExecInfDtlPopUp_wframe_wfm_indvdRfdactTsfr_grp_buttonInfo'
+                    ,'mf_mvprpExecInfDtlPopUp_wframe_wfm_indvdRfdactTsfr_grp_buttonInfo2'
+                    ,'mf_mvprpExecInfDtlPopUp_wframe_wfm_indvdRfdactTsfr_grp_noticeInfo'
+                    ,'mf_mvprpExecInfDtlPopUp_wframe_wfm_indvdRfdactTsfr_grp_noticeInfo2']
+    //삭제한 태그 담기
+    removeLst.forEach ( tagId => removeObjetlst.push(tmpDiv.querySelector(`#${tagId}`)) )
+
+    if (removeObjetlst.length > 0) {
+        removeObjetlst.forEach( object =>{
+            if (object) object.remove();
+        })
+    }
+
+    document.head.appendChild(style);
+    document.getElementById($p.getComponentById('grp_contests').id).innerHTML = tmpDiv.innerHTML;
+
+    document.querySelectorAll('table td, table th, table td div, table th div, table td span, table th span').forEach(el => {
+        el.style.fontSize = '16px';
+    });
+
+    //공통조회조건
+    if (!scutilo.isEmpty(srchInfo)) {
+        if(srchInfo.menuNm == "PGJ161M01"){ //연도별매각통계
+            //연도
+            $("#mf_sbx_year").val(srchInfo.year);
+        } else if(srchInfo.menuNm == "PGJ162M01"){ //법원별매각통계
+            //기간
+            $("#mf_sbx_startYear").val(srchInfo.startDate.substr(0,4));
+            $("#mf_sbx_startMonth").val(srchInfo.startDate.substr(4,2));
+            $("#mf_sbx_endYear").val(srchInfo.endDate.substr(0,4));
+            $("#mf_sbx_endMonth").val(srchInfo.endDate.substr(4,2));
+        } else if(srchInfo.menuNm == "PGJ163M01"){ //지역별매각통계
+            // [26A-PGJ-0023] pgjUtil.getAdongSdLst(), pgjUtil.getAdongSggLst() - 공고중여부(pbancMidYn) Y -> N 으로 변경
+            const sbx_adongSdCd = pgjUtil.getAdongSdLst("N","B","A");
+            const sbx_adongSggCd = pgjUtil.getAdongSggLst("N","B","A", srchInfo.adongSdCd);
+            const addressType = srchInfo.addressType == "1"? "0" : "1";
+
+            //소재지 구분
+            $("#mf_sbx_addressType_input_"+addressType).prop("checked", true);
+            //소재지
+            $("#mf_sbx_adongSdCd").val(sbx_adongSdCd.filter(r=>r.code == srchInfo.adongSdCd)[0]?. name || '');
+            $("#mf_sbx_adongSggCd").val(sbx_adongSggCd.filter(r=>r.code == srchInfo.adongSggCd)[0]?. name || '전체');
+            //기간
+            $("#mf_sbx_startYear").val(srchInfo.startDate.substr(0,4));
+            $("#mf_sbx_startMonth").val(srchInfo.startDate.substr(4,2));
+            $("#mf_sbx_endYear").val(srchInfo.endDate.substr(0,4));
+            $("#mf_sbx_endMonth").val(srchInfo.endDate.substr(4,2));
+        } else if(srchInfo.menuNm == "PGJ164M01"){ //용도별매각통계
+            const searchType = srchInfo.searchType == "01"? "0" : "1";
+            //법원/소재지 구분
+            $("#mf_sbx_searchType_input_"+searchType).prop("checked", true);
+            //법원
+            if(searchType == "0"){
+                const sbx_cortOfcCd = pgjUtil.getCortOfcLst("B");
+                $("#mf_sbx_cortOfcCd").val(sbx_cortOfcCd.filter(r=>r.code == srchInfo.cortOfcCd)[0].name);
+            //소재지
+            } else {
+                // [26A-PGJ-0023] pgjUtil.getAdongSdLst(), pgjUtil.getAdongSggLst() - 공고중여부(pbancMidYn) Y -> N 으로 변경
+                const sbx_adongSdCd = pgjUtil.getAdongSdLst("N","B","A");
+                const sbx_adongSggCd = pgjUtil.getAdongSggLst("N","B","A", srchInfo.adongSdCd);
+                $("#mf_sbx_adongSdCd").val(sbx_adongSdCd.filter(r=>r.code == srchInfo.adongSdCd)[0]?. name || '');
+                $("#mf_sbx_adongSggCd").val(sbx_adongSggCd.filter(r=>r.code == srchInfo.adongSggCd)[0]?. name || '전체');
+            }
+            //기간
+            $("#mf_sbx_startYear").val(srchInfo.startDate.substr(0,4));
+            $("#mf_sbx_startMonth").val(srchInfo.startDate.substr(4,2));
+            $("#mf_sbx_endYear").val(srchInfo.endDate.substr(0,4));
+            $("#mf_sbx_endMonth").val(srchInfo.endDate.substr(4,2));
+        }
+    }
+    scwin.print();
+}
+
+
+/**
+ * onpageunload 이벤트
+ *
+ * ============ ============ ==========================
+ *  Date         Author       Description
+ * ============ ============ ==========================
+ * 2025.02.13    나해준       [NELS]최초 생성
+ * ============ ============ ==========================
+ */
+scwin.print = function () {
+    window.print();
+    setTimeout( ()=>{
+        window.close();
+    } , 800);
+};]]>
+
+
+        </script>
+        <style type="text/css"><![CDATA[
+
+         ]]></style>
+    </head>
+
+    <body ev:onpageload="scwin.onpageload" ev:onpageunload="scwin.onpageunload" class="">
+        <xf:group class="pop_contents user" id="grp_contests" style="width: 100%;">
+        </xf:group>
+    </body>
+
+</html>
