@@ -478,6 +478,30 @@ def extract_photos(dma_result: dict, cap: int = 3) -> list[str]:
     return out
 
 
+# (H4 필드 카나리 2026-07-22) 법원이 응답 필드명을 바꾸거나 섹션을 빼면, normalize 는 조용히
+# 빈 값을 채우고 그 물건은 '치명적 인수권리 미발견'으로 오표시된다(침묵실패). 값이 비어있는 것
+# (정상)과 **필드명 자체가 사라진 것**(스키마 드리프트)을 구분해 후자만 경보한다. 값 유무가 아니라
+# '키 이름의 존재'를 본다 — 삼환처럼 ndstrcRghCtt=null 은 정상(키는 있음)이라 드리프트 아님.
+_DETAIL_CORE_KEYS = ("ndstrcRghCtt", "tprtyRnkHypthcStngDts", "sprfcExstcDts")
+
+
+def detail_schema_drift(dma_result: dict) -> str:
+    """물건상세 응답의 스키마 드리프트 사유(있으면). 정상이면 ''.
+
+    - dspslGdsDxdyInfo(명세서 요지) 섹션 자체가 없음 → 드리프트.
+    - 섹션은 있으나 인수권리·최선순위·유치권 **핵심 필드명이 모두 사라짐** → 드리프트.
+    크롤러가 이 사유를 집계해 드리프트율이 높으면 '스키마 변경/차단'으로 비정상 종료(exit code).
+    """
+    if not isinstance(dma_result, dict):
+        return "dma_result 아님"
+    gds = dma_result.get("dspslGdsDxdyInfo")
+    if not isinstance(gds, dict):
+        return "dspslGdsDxdyInfo(명세서 요지) 섹션 없음"
+    if not any(k in gds for k in _DETAIL_CORE_KEYS):
+        return "명세서 요지 핵심 필드명 전무(ndstrcRghCtt/tprtyRnkHypthcStngDts/sprfcExstcDts)"
+    return ""
+
+
 def normalize(dma_result: dict, court: str = "", case_no: str = "",
               item_no: str = "", fetched_at: str = "") -> CaseRights:
     """pgj15B dma_result → CaseRights. 누락 섹션은 빈 값(부분 응답도 수용)."""

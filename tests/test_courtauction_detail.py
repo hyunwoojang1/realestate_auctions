@@ -247,12 +247,47 @@ def test_sanitize_unescapes_html_entities():
 
 
 def test_multiple_deposits_summed_distinct():
-    """idx12 MEDIUM: 서로 다른 보증금 여러 건은 합산, 같은 금액 반복은 1회."""
+    """idx12 MEDIUM: 서로 다른 보증금 여러 건은 합산, 같은 금액 반복(재고지)은 1회."""
     from src.courtauction_rights import detect_assumed_amount
     txt = ("갑 임차인 보증금 100,000,000원 매수인이 인수함\n"
            "을 임차인 보증금 50,000,000원 매수인이 인수함\n"
            "위 보증금 100,000,000원 인수 관련 재안내")
     assert detect_assumed_amount(txt) == 150_000_000
+
+
+def test_h1_same_deposit_two_tenants_summed():
+    """H1(2026-07-22): 같은 보증금 임차인 2명은 합산(종전 set-dedup은 1명치로 과소산정=위험)."""
+    from src.courtauction_rights import detect_assumed_amount
+    two = ("갑 임차인 임차보증금 50,000,000원 매수인이 인수함\n"
+           "을 임차인 임차보증금 50,000,000원 매수인이 인수함")
+    assert detect_assumed_amount(two) == 100_000_000
+
+
+def test_h1_backref_restatement_not_double_counted():
+    """H1: '상기/위 보증금 …재안내' 재고지 줄은 앞 임차인 금액 반복이라 합산 제외."""
+    from src.courtauction_rights import detect_assumed_amount
+    txt = ("임차보증금 80,000,000원 매수인이 인수함\n"
+           "상기 임차보증금 80,000,000원은 배당 후 잔액 인수 재고지")
+    assert detect_assumed_amount(txt) == 80_000_000
+
+
+def test_h1_identical_line_copy_counted_once():
+    """H1: 완전히 동일한 줄(요지↔비고 복붙)은 1회만(과대 방지)."""
+    from src.courtauction_rights import detect_assumed_amount
+    dupe = ("임차보증금 70,000,000원 매수인이 인수함\n"
+            "임차보증금 70,000,000원 매수인이 인수함")
+    assert detect_assumed_amount(dupe) == 70_000_000
+
+
+def test_h4_schema_drift_canary():
+    """H4(2026-07-22): 값이 null(정상)인 것과 필드명 자체가 사라진 것(드리프트)을 구분."""
+    from src.courtauction_detail import detail_schema_drift
+    ok = {"csBaseInfo": {}, "dspslGdsDxdyInfo": {"ndstrcRghCtt": None,
+                                                 "tprtyRnkHypthcStngDts": "2002. 4. 23. 근저당권"}}
+    assert detail_schema_drift(ok) == ""                           # 키 존재(값 null이어도) = 정상
+    assert "섹션 없음" in detail_schema_drift({"csBaseInfo": {}})   # 요지 섹션 자체 없음
+    assert detail_schema_drift({"dspslGdsDxdyInfo": {"someRenamedField": "x"}})   # 핵심 필드명 전무
+    assert detail_schema_drift("not a dict")                       # dma_result 아님
 
 
 def test_empty_case_rights_is_empty():

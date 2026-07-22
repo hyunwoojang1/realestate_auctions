@@ -107,6 +107,16 @@ def test_opposable_deposit_sums_only_senior_earlier_tenants():
     assert opposable_deposit(tenants, "2002-04-23") == 30_000_000
 
 
+def test_h1_structured_same_deposit_two_tenants_summed():
+    """H1 구조화 경로(대항력 임차인 2명·같은 보증금)는 텍스트 dedup 함정 없이 정확히 합산 —
+    임차인표는 행이 분리돼 있어 같은 금액이어도 2명치가 온전히 잡힌다(대항력 실판정의 이점)."""
+    tenants = [
+        {"is_tenant_like": True, "movein_ymd": "1998-03-01", "deposit": 50_000_000},
+        {"is_tenant_like": True, "movein_ymd": "1999-05-01", "deposit": 50_000_000},
+    ]
+    assert opposable_deposit(tenants, "2002-04-23") == 100_000_000
+
+
 def test_empty_or_no_ipcheck_survey_yields_no_tenants():
     assert parse_curst_survey({"ipcheck": False}) == []
     assert parse_curst_survey({}) == []

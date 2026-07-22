@@ -310,15 +310,27 @@ def _line_assumed(line: str) -> int:
     return sum(set(amts)) if n >= 2 else max(amts)
 
 
+# (H1 수정 2026-07-22) 앞 임차인 금액을 되짚는 '재고지' 줄 — 이런 줄의 금액은 새 인수액이
+# 아니라 앞 줄의 반복이므로 합산에서 제외한다. 이 마커가 있어야 '같은 보증금 임차인 2명'(합산)과
+# '한 임차인 금액 재안내'(1회)를 구분할 수 있다(텍스트만으론 금액이 같아 구분 불가했던 게 H1).
+_ASSUME_BACKREF = ("재안내", "재고지", "재통지", "상기", "앞서", "위 보증", "위 임차",
+                   "위 임대차", "참고로", "다시 안내")
+
+
 def detect_assumed_amount(*texts: str) -> int:
     """인수 문맥 줄들의 금액으로 인수 총액 추정.
 
     - 인수 직접부정("…인수하지 아니함") 줄은 이중부정보다 우선해 제외(서빙감사 #15).
     - 이중부정("말소되지 않고 … 인수") 줄은 negation 이 있어도 인수로 판정(idx7).
     - 한글 단위(억/천만/백만/만원)·혼합표기 파싱(서빙감사 #0).
-    - 줄 내 다건 임차권 합산·'중 미반환 Y' 채택(서빙감사 #16), 줄 간에는 distinct 합산.
+    - 줄 내 다건 임차권 합산·'중 미반환 Y' 채택(서빙감사 #16).
+    - (H1 2026-07-22) **줄 간 합산** — 같은 보증금이 서로 다른 임차인 줄에서 나오면 합산한다
+      (종전 set-dedup 은 '같은 금액 임차인 2명'을 1명치로 과소산정 = 위험한 미탐). 단 '위 보증금
+      …재안내' 같은 재고지 줄(_ASSUME_BACKREF)과 **완전히 동일한 줄**(요지↔비고 복붙)은 이중계산
+      하지 않는다. 텍스트만으론 애매하므로 임차인 전입일 실데이터가 있으면 그쪽(구조화 합산)이 우선.
     """
-    picked: set[int] = set()
+    total = 0
+    seen_lines: set[str] = set()    # 완전 동일 줄(복붙) 이중계산 방지
     for text in texts:
         if not text:
             continue
@@ -330,10 +342,16 @@ def detect_assumed_amount(*texts: str) -> int:
             double_neg = any(dn in line for dn in _DOUBLE_NEGATION)
             if not double_neg and any(neg in line for neg in _ASSUME_NEGATION):
                 continue
+            if any(b in line for b in _ASSUME_BACKREF):
+                continue    # (H1) 앞 임차인 금액 재고지 줄 — 새 인수액 아님
+            key = re.sub(r"\s+", "", line)
+            if key in seen_lines:
+                continue    # 동일 줄 복붙(요지↔비고)은 1회만
             amt = _line_assumed(line)
             if amt > 0:
-                picked.add(amt)
-    return sum(picked)
+                total += amt
+                seen_lines.add(key)
+    return total
 
 
 # 보증금 표기 — '임대차보증금 금X원' / '보증금 X원' (서빙감사 #9: 인수 금액미상 물건의

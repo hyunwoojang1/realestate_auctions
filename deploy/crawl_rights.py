@@ -20,7 +20,12 @@ from datetime import datetime, timedelta, timezone
 from deploy.migrate_to_supabase import _load_env
 from src import casesearch, photo, photo_store, store, store_rest
 from src.courtauction_client import CourtAuctionBlocked, CourtAuctionClient, CourtAuctionError
-from src.courtauction_detail import extract_photos, normalize, parse_curst_survey
+from src.courtauction_detail import (
+    detail_schema_drift,
+    extract_photos,
+    normalize,
+    parse_curst_survey,
+)
 
 _KST = timezone(timedelta(hours=9))
 # 물건당 저장 사진 수 상한 — 히어로 스와이프용. Supabase 공유티어(500MB) 용량 때문에 무제한은
@@ -124,6 +129,7 @@ def main(argv=None) -> int:
     crawl_tenants = os.environ.get("AUCTION_CRAWL_TENANTS") == "1"
     ok, fail, skipped_empty, photo_n, tenant_n = 0, 0, 0, 0, 0
     mismatch = 0          # (C6) 응답 사건번호 불일치로 스킵한 건(오사건 저장 차단)
+    drift = 0             # (H4) 응답 스키마 드리프트(필드명 변경) 감지 건 — 침묵실패 조기경보
     blocked = False       # (C5) 차단/상한 신호로 중단됐는지 — exit code 승격용
     batch: list[dict] = []
     now = datetime.now(_KST).strftime("%Y-%m-%d %H:%M:%S")
@@ -163,6 +169,14 @@ def main(argv=None) -> int:
                 print(f"  [{i}/{len(targets)}] {t['case_no']} 응답 사건번호 불일치"
                       f"(resp={resp_raw!r}) — 스킵(오사건 저장 차단)")
                 continue
+            # (H4) 스키마 드리프트 카나리 — 필드명이 바뀌어 요지가 통째로 빈 값이 되는 침묵실패
+            # (전 물건 '발견 안 됨' 오표시)를 조기 경보. 감지돼도 저장은 진행(빈 요지는 아래 is_empty
+            # 가드가 스킵)하되 건수를 집계해, 드리프트율이 높으면 아래에서 비정상 종료로 알린다.
+            reason = detail_schema_drift(dma)
+            if reason:
+                drift += 1
+                print(f"  [{i}/{len(targets)}] {t['case_no']} ⚠ 스키마 드리프트: {reason}",
+                      file=sys.stderr)
             cr = normalize(dma, court=t["court"], case_no=t["case_no"],
                            item_no=t["item_no"], fetched_at=now)
             if cr.is_empty:
@@ -232,15 +246,25 @@ def main(argv=None) -> int:
         print(f"[+] 임차인(대항력 후보) 이번 {tenant_n}명 · listing_tenants 누적 {tenants_total}행")
     if mismatch:
         print(f"[!] 응답 사건번호 불일치로 스킵 {mismatch}건(오사건 저장 차단됨).", file=sys.stderr)
+    if drift:
+        print(f"[!] (H4) 응답 스키마 드리프트 {drift}건 감지 — 법원 API 필드명 변경 가능성.",
+              file=sys.stderr)
 
     # (C5) exit code 종합 — 스케줄러가 '부분 중단'을 '완전 성공'과 구분하게 한다.
-    #  0=정상, 2=차단/상한으로 중단, 3=처리대상 중 실패율 과다(시스템적 실패 의심).
+    #  0=정상, 2=차단/상한으로 중단, 3=처리대상 중 실패율 과다 또는 (H4)스키마 드리프트율 과다.
     exit_code = 0
+    processed = ok + skipped_empty          # 실제 응답을 받아 파싱까지 간 건(드리프트율 분모)
     if blocked:
         exit_code = 2
     elif targets and fail / len(targets) > 0.5:
         print(f"[!] 실패율 과다({fail}/{len(targets)}) — 스키마 변경/차단 의심. 비정상 종료로 알림.",
               file=sys.stderr)
+        exit_code = 3
+    elif processed >= 20 and drift / processed > 0.3:
+        # (H4) 응답은 오는데 요지 필드가 대량으로 사라짐 = 필드명 변경 강한 신호. 조용히 전 물건을
+        # '발견 안 됨'으로 적재하지 않도록 비정상 종료로 사람을 부른다(침묵실패 방어).
+        print(f"[!] (H4) 스키마 드리프트율 과다({drift}/{processed}) — 파서-응답 불일치. "
+              f"비정상 종료로 알림(파서 점검 필요).", file=sys.stderr)
         exit_code = 3
 
     if args.no_cloud or not store_rest.enabled():
