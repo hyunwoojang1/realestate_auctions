@@ -1,5 +1,30 @@
 # 크롤러 QA 종합 + 코드 보완 계획 (Layer-1 ⊕ Layer-2)
 
+## ✅ 구현 진행 현황 (2026-07-22)
+| 항목 | 상태 |
+|---|---|
+| C1 실명 PII 마스킹(senior_lien·appraisal·convAddr)+백필453+**Supabase 재미러**(유출차단) | ✅ 완료 (7cf2225) |
+| B1 H4 드리프트 카나리 any()→핵심키 전부존재 | ✅ 완료 (c7fdf84) |
+| E1 replace_all 커버리지 플로어 게이트 | ✅ 완료 (c7fdf84) |
+| D1 요청예산 영속(하루 6119콜 방지) | ✅ 완료 (60f1a80) |
+| D2 _targets 중복제거(52배 낭비) | ✅ 완료 (60f1a80) |
+| E3 임차인 소프트차단 삭제가드(curst_has_context) | ✅ 완료 (60f1a80) |
+| E2 고아행 정리기 photos·naver + 라이브 8278행 정리 | ✅ 완료 (52c7f31) |
+| D3 refresh-daily 권리크롤 종료코드 캡처 | ✅ 완료 |
+| **A 안전 재채점→재미러(삼환 stale·L2-P1·P2 해소)** | ⏳ 다음 (크롤 후 or 즉시) |
+| **mulBigo 파싱(무료 대항력 1583건 표출)** | ⏳ 별도 피처(아래) |
+| F1 pgj15B 골든 캡처 / F2 건축물대장 센티널 / F3 드리프트 사유 영속 / D4 RIGHTS_STOP | ⏳ 후속 |
+| Supabase Storage 죽은 JPEG GC (E2 클라우드분) | ⏳ 후속 |
+
+**mulBigo 무료정보 피처(신규, 高가치)**: 법원 무료 목록 `mulBigo`(물건 특이사항)를 이미 raw_json에
+크롤하는데 파싱·표출 안 함. 실측 raw 27530건에 특이사항, **1583건에 "대항력" 문구**. to_auction_listing
+단계에서 detect_special_rights + 대항력 태그를 mulBigo에도 적용하면 **추가 크롤 0으로** 대항력/유치권/지분
+신호를 리스트 레벨에 확보(현황조사서 크롤 전에도). 스키마: listing_tags 컬럼 or special_rights 확장 +
+서빙 칩. Layer-2(판정) 영향 있어 신중 배선·테스트 필요.
+
+---
+
+
 > Layer-1(크롤러 수집 파이프라인 자체 품질) + Layer-2(우리 사이트 결론 ≠ 실제 물건 상태) 두 QA를 종합.
 > 2026-07-22. 근거: Layer-1=docs/crawler_qa_layer1.md(26에이전트·실측), Layer-2=타 세션 2세트 교차검증.
 

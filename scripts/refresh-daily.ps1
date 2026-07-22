@@ -112,6 +112,14 @@ try {
     if (-not $SkipRights) {
         "--- 권리 크롤(물건상세, 상위 $RightsLimit건) ---" | Tee-Object -FilePath $LogPath -Append
         & $Python -m deploy.crawl_rights --db $DbPath --limit $RightsLimit 2>&1 | Tee-Object -FilePath $LogPath -Append
+        # (D3 2026-07-22) 권리크롤 종료코드를 **같은 블록에서 즉시** 캡처 — 종전엔 뒤이은 run.py가
+        # $LASTEXITCODE를 덮어써 차단(2)·드리프트/실패(3) 승격이 무시됐다(안티밴·침묵실패 방어 무력).
+        $rightsCode = $LASTEXITCODE
+        if ($rightsCode -eq 2) {
+            "[!] 권리크롤 차단/상한(exit 2) — 정부사이트 밴 의심. 다음 사이클 -SkipRights 권장, 조사 필요." | Tee-Object -FilePath $LogPath -Append
+        } elseif ($rightsCode -eq 3) {
+            "[!] 권리크롤 실패율/스키마 드리프트 과다(exit 3) — 파서-응답 불일치. 파서 점검 필요." | Tee-Object -FilePath $LogPath -Append
+        }
     } else {
         "--- 권리 크롤 건너뜀(-SkipRights) ---" | Tee-Object -FilePath $LogPath -Append
     }
