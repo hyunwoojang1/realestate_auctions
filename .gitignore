@@ -45,3 +45,4 @@ data/naver_cache.json
 # 루트 로그·마이그레이션 산출물(키 노출 가능 로그의 우발적 스테이징 방지 — 감사 2026-07-20)
 *.log
 migrate_status.html
+scripts/_ui_xml/

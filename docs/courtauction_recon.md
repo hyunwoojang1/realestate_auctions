@@ -4,6 +4,51 @@
 
 ---
 
+## 3차 정찰 — 임차인표(전입일) 원천 발굴: 현황조사서 엔드포인트 (2026-07-22) ⏳ 라이브검증 1스텝 남음
+
+**배경**: 대항력 false-negative 버그(삼환 2022타경3289) 근본원인 = 우리가 쓰는 물건상세
+`PGJ151F01`(`/pgj/pgj15B/selectAuctnCsSrchRslt.on`) 응답엔 **임차인 전입일/보증금 표가 아예 없음**.
+전입일 vs 말소기준일 날짜비교(진짜 대항력 판정)를 하려면 임차인 데이터 원천이 별도로 필요.
+
+### UI XML 그래프 탐색으로 확정한 구조 (전부 `scripts/_ui_xml/` 로컬 캐시)
+- `PGJ15BM01.xml` = **물건상세조회_부동산**(진짜 상세 화면; F01은 상세'검색' 화면이었음 — 함정).
+- 문서 3종 접근 경로:
+  | 문서 | 경로 | 형태 |
+  |---|---|---|
+  | 매각물건명세서(전문) | `insertDspslGdsSpecArtcWdrwInf.on`(열람로그) → 응답 `{scsYn,encParam,url}` → `url?paramData=BASE64(serialize({encParam,pspTkn:"NA",pspSid:"NA"}))` → **외부 '소송문서뷰어' PDF** | PDF(무거움) |
+  | **현황조사서** | 팝업 `PGJ15BP01.xml` → **`POST /pgj/pgj15B/selectCurstExmndc.on`** | **구조화 JSON** ★ |
+  | 감정평가서 | 팝업 `PGJ15BP03.xml` (요지는 이미 aeeWevlMnpntLst로 수집 중) | — |
+
+### ★ selectCurstExmndc.on — 임차인표의 구조화 원천
+- 요청 `dma_srchCurstExmn`: `{cortOfcCd, csNo, auctnInfOriginDvsCd:"2"(현황조사서 고정), ordTsCnt(명령회차, 초기엔 생략)}`
+- 응답 dataList (XML 정의 기준):
+  - **`dlt_ordTsLserLtn`(임차인 리스트)**: `mvinDtlCtt`(**전입상세내용=전입일**) ·
+    `rgstryCrtcpCfmtnCtt`(**확정일자**) · `lesDposDts`(보증금) · `mmrntAmtDts`(월세) ·
+    `gdsPossCtt`(점유내용) · `lesUsgDts`(임차용도) · `lesPartCtt`(임차부분) · `lesDtsRmk`(비고)
+    - ⚠️ **PII 포함**: `ENRRNO`(암호화 주민번호)·`ZPCD`·`basAddr`·`objctDtlAddr`·이해관계인 성명류
+      → 저장 시 **불리언·금액·날짜만 추출**, 원문 저장 금지(기존 PII 가드 규범).
+  - `dlt_curstExmnDpcnMrg`: `lstPossRltnDts`(목록점유관계) · `lesDts`(임차내역) · `lesCnt`(임차명수)
+    → **G2(점유 미수집) 문제도 이 엔드포인트로 해결 가능**.
+  - `dma_curstExmnMngInf`(조사서 발송/수신일 등), `dlt_spotExmnOrdCntLst`(회차), `dlt_ordTsRlet`(부동산).
+
+### 라이브 검증 상태 (미완 — 다음 1스텝)
+- `csNo="2022타경3289"+auctnInfOriginDvsCd="2"` POST → **200이지만 `{ipcheck:false}` 빈 응답**.
+- 내부포맷 csNo(`20220130003289`)·`ordTsCnt` 조합 재시도 중 **서버가 무응답 커넥션 종료** →
+  차단 신호로 보고 즉시 중단(권리 크롤 세션과 IP 공유 중이라 보수적으로).
+- **다음 가설(1콜로 검증 가능)**: 같은 세션에서 **선행 상세조회(selectAuctnCsSrchRslt) 후** 호출해야
+  세션에 사건 컨텍스트(orvParam류)가 실려 응답하는 방식일 것. 크롤 오케스트레이터 휴지기에
+  "상세 1콜 → curst 1콜" 순서로 재검증할 것. (참고: `selectPopUpGdsLstDts.on`은 물건 목록내역이며
+  임대차 정보 없음 — XML summary 라벨 '부동산 임대차 정보'는 오표기)
+
+### 통합 설계(검증되면)
+1. `crawl_rights.py`가 상세콜 직후 같은 세션으로 `selectCurstExmndc.on` 1콜 추가(물건당 +1요청).
+2. 신규 파서: `mvinDtlCtt`→전입일, `rgstryCrtcpCfmtnCtt`→확정일자, `lesDposDts`→보증금(PII 제외).
+3. `analyze_priority`에 전입일 실데이터 주입 → **전입일 ≤ 말소기준일 날짜비교로 대항력 판정**
+   (현재는 명세서 요지 자유텍스트에서만 전입일을 찾아 사실상 무력).
+4. 자유란 빈 물건(19%)도 임차인표 유무로 clean/burden 실판정 → '권리미확인' 정체 해소.
+
+---
+
 ## 2차 정찰 — 물건검색 엔드포인트 확정 + 필터 실효성 (2026-06-30 19:16) ✅ 크롤러 구현완료
 
 검색 UI `PGJ151M01.xml`(부동산 상세검색) 역분석으로 **실물건 검색을 확정**하고 크롤러를 구현·라이브검증했다.
