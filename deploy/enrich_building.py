@@ -30,26 +30,29 @@ from src import building_info, store  # noqa: E402
 
 _KST = timezone(timedelta(hours=9))
 
-# '부산광역시 사하구 다대동 120-10 삼환아파트' → '부산광역시 사하구 다대동 120-10'
-# (동/리 뒤 번지[-지]까지만 남겨 VWorld 지번해석 적중률을 높인다. 건물명 꼬리가 붙으면
-#  NOT_FOUND 가 나므로 잘라낸다.)
-_JIBUN_RE = re.compile(r"^(.*?[동리]\s*산?\s*\d+(?:-\d+)?)")
+# 주소 정제 — VWorld 지번/도로명 해석 적중률을 높인다.
+# 지번:  '부산 사하구 다대동 120-10 삼환아파트'        → '부산 사하구 다대동 120-10'
+# 도로명:'부산 사하구 다대로429번길 20 205동 20층2004호 (다대동,삼환아파트)' → '부산 사하구 다대로429번길 20'
+_PAREN_RE = re.compile(r"\s*\(.*$")                       # (다대동,삼환아파트) 꼬리
+_UNIT_RE = re.compile(r"\s+(제?\s*\d+동|지하\d*층?|\d+층|\d+호).*$")  # 건물 동/층/호 꼬리
+_JIBUN_TAIL_RE = re.compile(r"^(.*?[동리]\s*산?\s*\d+(?:-\d+)?)(?:\s|$)")  # 지번 뒤 건물명 절단
 
 
 def _jibun_only(addr: str) -> str:
-    m = _JIBUN_RE.search(addr or "")
-    return m.group(1).strip() if m else (addr or "").strip()
+    a = _PAREN_RE.sub("", addr or "").strip()
+    a = _UNIT_RE.sub("", a).strip()          # 먼저 '205동 20층2004호' 제거(도로명 보존)
+    m = _JIBUN_TAIL_RE.search(a)             # 남은 게 지번형이면 건물명 꼬리 절단
+    return (m.group(1).strip() if m else a).strip()
 
 
-def _summarize_one(court: str, case_no: str, item_no: str, address: str,
-                   now: str) -> dict:
-    """워커 스레드에서 실행 — 순수 조회만(네트워크). DB 쓰기는 메인에서."""
-    base = {"court": court, "case_no": case_no, "item_no": item_no,
-            "jibun_addr": "", "fetched_at": now}
-    jibun = _jibun_only(address)
+def _summarize_addr(jibun: str, now: str) -> dict:
+    """워커 스레드 — 건물(정제주소) 단위 요약. PK(court/case/item)는 호출측에서 붙인다.
+
+    순수 조회만(네트워크). DB 쓰기는 메인에서. 같은 건물의 여러 세대가 이 결과를 공유한다.
+    """
+    base = {"jibun_addr": jibun or "", "fetched_at": now}
     if not jibun:
         return {**base, "status": "no_addr"}
-    base["jibun_addr"] = jibun
     try:
         summary = building_info.get_building_summary(jibun)
     except Exception as e:  # noqa: BLE001 — 개별 실패는 job 전체를 막지 않는다
@@ -95,7 +98,8 @@ def main() -> int:
     ap.add_argument("--db", default=os.environ.get("AUCTION_DB", "auction.db"))
     ap.add_argument("--all", action="store_true", help="미enrich 전량")
     ap.add_argument("--limit", type=int, default=200, help="--all 아니면 이 개수만")
-    ap.add_argument("--workers", type=int, default=10, help="병렬 스레드 수(정부API·무밴)")
+    ap.add_argument("--workers", type=int, default=4,
+                    help="병렬 스레드 수. 건축물대장 API는 순간 한도(429)가 있어 4 권장(과하면 429).")
     ap.add_argument("--retry-failed", action="store_true",
                     help="실패(no_addr/no_bld/error)로 저장된 행도 재조회")
     ap.add_argument("--no-cloud", action="store_true", help="Supabase 미러 생략")
@@ -114,21 +118,35 @@ def main() -> int:
         return 0
 
     now = datetime.now(_KST).strftime("%Y-%m-%d %H:%M:%S")
-    ok = fail = 0
-    with ThreadPoolExecutor(max_workers=args.workers) as ex:
-        futs = {ex.submit(_summarize_one, t["court"], t["case_no"], t["item_no"],
-                          t["address"], now): t for t in targets}
-        for i, fut in enumerate(as_completed(futs), 1):
-            row = fut.result()
-            store.save_building(conn, row)          # sqlite 쓰기는 메인 스레드에서만
-            if row["status"] == "ok":
-                ok += 1
-            else:
-                fail += 1
-            if i % 50 == 0 or i == len(targets):
-                print(f"  [{i}/{len(targets)}] ok={ok} 실패/미확인={fail}")
+    # ⚡ 건물 단위 dedup — 같은 건물의 여러 세대는 정제주소가 동일하므로 API를 1회만 친다.
+    # (일일 무료 쿼터 < 전체 세대수 이므로 필수. 15,509 세대 → 고유 건물 수만 조회.)
+    by_addr: dict[str, list[dict]] = {}
+    for t in targets:
+        by_addr.setdefault(_jibun_only(t["address"]), []).append(t)
+    uniq = list(by_addr.items())
+    print(f"[*] 고유 건물 {len(uniq)}개 (세대 {len(targets)} → API {len(uniq)}회로 절감)")
 
-    print(f"[+] 완료: 적재 {ok}건 · 미확인/실패 {fail}건")
+    ok = fail = 0
+    done = 0
+    with ThreadPoolExecutor(max_workers=args.workers) as ex:
+        futs = {ex.submit(_summarize_addr, addr, now): (addr, ts)
+                for addr, ts in uniq}
+        for fut in as_completed(futs):
+            addr, ts = futs[fut]
+            base = fut.result()          # 건물 단위 요약(court/case/item 없음)
+            for t in ts:                 # 같은 건물의 모든 세대에 복제 저장
+                row = {**base, "court": t["court"], "case_no": t["case_no"],
+                       "item_no": t["item_no"]}
+                store.save_building(conn, row)   # sqlite 쓰기는 메인 스레드에서만
+                if row["status"] == "ok":
+                    ok += 1
+                else:
+                    fail += 1
+                done += 1
+            if done % 100 < len(ts) or done == len(targets):
+                print(f"  [{done}/{len(targets)}] ok={ok} 실패/미확인={fail}")
+
+    print(f"[+] 완료: 적재 {ok}건 · 미확인/실패 {fail}건 (API {len(uniq)}회)")
 
     # Supabase 미러(테이블 있으면). 없거나 실패해도 로컬은 유지.
     if not args.no_cloud:

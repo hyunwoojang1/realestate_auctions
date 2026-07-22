@@ -187,7 +187,7 @@ def get_building_summary(address: str) -> dict | None:
                     from .building_register_client import fetch_building_titles  # noqa: PLC0415
                     records = fetch_building_titles(lc[:5], lc[5:], molit_key,
                                                     bun=bun, ji=ji,
-                                                    timeout=_TIMEOUT_BLDG, retries=1)
+                                                    timeout=_TIMEOUT_BLDG, retries=3)
                     out = _summarize(records)
     except Exception as e:  # noqa: BLE001 — 표시용 부가정보: 어떤 실패도 페이지를 막지 않음
         failed = True

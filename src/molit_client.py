@@ -14,6 +14,7 @@ from __future__ import annotations
 
 import logging
 import re
+import random
 import time
 import xml.etree.ElementTree as ET
 
@@ -170,7 +171,12 @@ redact = _redact
 
 
 def _get_with_retry(session, url: str, params: dict, timeout: int, retries: int) -> str:
-    """일시적 네트워크 오류는 지수 백오프로 재시도. 마지막 실패는 그대로 올린다."""
+    """일시적 네트워크 오류는 지수 백오프로 재시도. 마지막 실패는 그대로 올린다.
+
+    429(Too Many Requests)는 레이트리밋이라 더 길게 백오프하고 Retry-After 를 존중한다 —
+    병렬 enrichment 가 정부 건축물대장 API 한도를 순간 초과할 때 조용히 error 로 굳지 않게 한다.
+    """
+    import requests  # noqa: PLC0415
     last_exc = None
     for attempt in range(1, retries + 1):
         try:
@@ -180,9 +186,17 @@ def _get_with_retry(session, url: str, params: dict, timeout: int, retries: int)
         except Exception as e:  # noqa: BLE001 — requests 예외 전반(연결/타임아웃/HTTP)
             last_exc = e
             if attempt < retries:
-                backoff = 2 ** (attempt - 1)
-                logger.warning("국토부 호출 실패(%d/%d), %ds 후 재시도: %s",
-                               attempt, retries, backoff, _redact(e))
+                is_429 = isinstance(e, requests.HTTPError) and getattr(
+                    getattr(e, "response", None), "status_code", None) == 429
+                if is_429:
+                    ra = e.response.headers.get("Retry-After")
+                    backoff = float(ra) if (ra and str(ra).isdigit()) else 3.0 * (2 ** (attempt - 1))
+                    backoff += random.uniform(0, 1.5)   # 워커들이 동시에 깨어나 재폭주하지 않게 지터
+                else:
+                    backoff = 2 ** (attempt - 1)
+                logger.warning("국토부 호출 실패(%d/%d)%s, %.1fs 후 재시도: %s",
+                               attempt, retries, " [429 레이트리밋]" if is_429 else "",
+                               backoff, _redact(e))
                 time.sleep(backoff)
     raise MolitApiError(f"국토부 호출 {retries}회 모두 실패: {_redact(last_exc)}") from last_exc
 
