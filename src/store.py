@@ -67,6 +67,31 @@ _RIGHTS_COLS = [
     "schedule", "appraisal_notes", "fetched_at",
 ]
 
+# 임차인 현황(현황조사서 crawl) — 대항력 '실판정'(전입일 vs 말소기준일)의 원천. 물건당 0..N행.
+# ⚠️ PII 미저장: 성명·주민번호·상세주소 없음. 전입일·확정일자·보증금(금액)·점유유형만.
+DDL_TENANTS = """
+CREATE TABLE IF NOT EXISTS listing_tenants (
+    court TEXT NOT NULL DEFAULT '',
+    case_no TEXT NOT NULL,
+    item_no TEXT NOT NULL DEFAULT '',
+    seq INTEGER NOT NULL DEFAULT 0,
+    movein_ymd TEXT NOT NULL DEFAULT '',
+    confirm_ymd TEXT NOT NULL DEFAULT '',
+    deposit INTEGER NOT NULL DEFAULT 0,
+    possession TEXT NOT NULL DEFAULT '',
+    usage TEXT NOT NULL DEFAULT '',
+    part TEXT NOT NULL DEFAULT '',
+    is_tenant_like INTEGER NOT NULL DEFAULT 0,
+    fetched_at TEXT NOT NULL DEFAULT '',
+    PRIMARY KEY (court, case_no, item_no, seq)
+);
+"""
+
+_TENANT_COLS = [
+    "court", "case_no", "item_no", "seq", "movein_ymd", "confirm_ymd", "deposit",
+    "possession", "usage", "part", "is_tenant_like", "fetched_at",
+]
+
 # 원본 보존: 파싱/채점과 무관하게 수집 시점의 raw row(개인정보 제거본)를 남긴다.
 # 파싱 버그·스키마 개편 시 재처리의 원천이자, "무엇을 수집했는가"의 감사 증거.
 DDL_RAW = """
@@ -190,6 +215,7 @@ def connect(db_path: str = "auction.db") -> sqlite3.Connection:
     conn.execute(DDL_PHOTOS)
     conn.execute(DDL_NAVER)
     conn.execute(DDL_BUILDING)
+    conn.execute(DDL_TENANTS)
     conn.execute(f"PRAGMA user_version={SCHEMA_VERSION}")
     return conn
 
@@ -305,6 +331,46 @@ def load_all_rights(conn: sqlite3.Connection) -> list[dict]:
     if not has:
         return []
     return [dict(r) for r in conn.execute("SELECT * FROM listing_rights")]
+
+
+def save_tenants(conn: sqlite3.Connection, court: str, case_no: str, item_no: str,
+                 tenants: list[dict], fetched_at: str = "") -> None:
+    """물건별 임차인 현황을 교체 저장(기존 행 삭제 후 재삽입 — 재크롤 멱등).
+
+    tenants = parse_curst_survey 결과. 빈 리스트면 기존 행만 지운다(임차인 없음 확정).
+    """
+    item_no = str(item_no or "")
+    with conn:
+        conn.execute("DELETE FROM listing_tenants WHERE court=? AND case_no=? AND item_no=?",
+                     (court, case_no, item_no))
+        ph = ",".join("?" * len(_TENANT_COLS))
+        for seq, t in enumerate(tenants or []):
+            row = {
+                "court": court, "case_no": case_no, "item_no": item_no, "seq": seq,
+                "movein_ymd": t.get("movein_ymd", ""), "confirm_ymd": t.get("confirm_ymd", ""),
+                "deposit": int(t.get("deposit") or 0),
+                "possession": t.get("possession", ""), "usage": t.get("usage", ""),
+                "part": t.get("part", ""),
+                "is_tenant_like": 1 if t.get("is_tenant_like") else 0,
+                "fetched_at": fetched_at,
+            }
+            conn.execute(
+                f"INSERT INTO listing_tenants ({','.join(_TENANT_COLS)}) VALUES ({ph})",
+                [row[c] for c in _TENANT_COLS])
+
+
+def load_tenants(conn: sqlite3.Connection, court: str, case_no: str,
+                 item_no: str) -> list[dict]:
+    """물건별 임차인 현황(서빙 상세용). 테이블 없거나 미크롤이면 빈 리스트."""
+    has = conn.execute(
+        "SELECT 1 FROM sqlite_master WHERE type='table' AND name='listing_tenants'"
+    ).fetchone()
+    if not has:
+        return []
+    rows = conn.execute(
+        "SELECT * FROM listing_tenants WHERE court=? AND case_no=? AND item_no=? ORDER BY seq",
+        (court, case_no, str(item_no or ""))).fetchall()
+    return [dict(r) for r in rows]
 
 
 def _migrate(conn: sqlite3.Connection) -> None:

@@ -728,6 +728,20 @@ def create_app() -> Flask:
                 photos = store_rest.fetch_photos(s.court, s.case_no, s.item_no)
         except Exception as e:  # noqa: BLE001 — 사진 실패는 히어로 생략, 페이지는 정상
             logger.warning("사진 로드 실패(%s %s): %s", s.court, s.case_no, e)
+        # 임차인 현황(현황조사서 crawl) — 대항력 실판정(전입일 vs 말소기준) 원천. 미크롤이면 빈 리스트.
+        tenants: list[dict] = []
+        try:
+            if db_path:
+                tconn = store.connect(db_path)
+                try:
+                    tenants = store.load_tenants(tconn, s.court, s.case_no, s.item_no)
+                finally:
+                    tconn.close()
+            elif store_rest.enabled():
+                tenants = store_rest.fetch_tenants(s.court, s.case_no, s.item_no)
+        except Exception as e:  # noqa: BLE001 — 임차인 로드 실패는 상세 페이지를 막지 않음
+            logger.warning("임차인 현황 로드 실패(%s %s): %s", s.court, s.case_no, e)
+
         badge = None
         priority = None
         if rights_row:
@@ -736,32 +750,41 @@ def create_app() -> Flask:
             from .courtauction_detail import (  # noqa: PLC0415
                 CaseRights,
                 analyze_priority,
+                opposable_deposit,
                 summarize,
+                tenant_moveins,
             )
             _cr = CaseRights.from_row(rights_row)
+            tmoveins = tenant_moveins(tenants)   # 임차인(소유자 전입 제외) 전입일 실데이터
             # (서빙감사 2026-07-12 #13) 빈/부분 명세서는 판정 근거 0 — 배지·rights 둘 다 미표시로
             # 폴백해 '✓ 인수 없음/권리분석 반영됨'으로 오판하지 않는다(목록 가드와 정합).
             if _cr.is_empty:
                 rights_row = None
-            elif not _cr.opposability_assessable:
-                # (2026-07-22) 자유기술란(인수권리·유치권·비고) 전부 빈 요지 = 대항력 판정근거 0 →
-                # 배지·판정은 만들지 않아 '대항력 임차인 발견 안 됨' 초록 오표시를 막되(삼환
-                # 2022타경3289), 참고정보(명세서 요지 말소기준·기일·감정요항)는 그대로 보여준다.
+            elif _cr.opposability_assessable or tmoveins:
+                # 판정 가능: 요지 자유텍스트가 있거나(구경로), 현황조사서 임차인 전입일 실데이터가 있음.
+                rights = _cr
+                badge = summarize(_cr)
+                # 대항력 근거(2026-07-13): 실전입일 있으면 항상 날짜비교, 없으면 부담물건에만(구동작).
+                if tmoveins or not badge.is_clean:
+                    priority = analyze_priority(_cr, tenant_moveins=tmoveins)
+                # 현황조사서 전입일로 대항력 확정(전입 ≤ 말소기준)이면 opposable·인수액 보정.
+                confirmed = priority is not None and priority.verdict == "confirmed_opposable"
+                assumed = badge.assumed
+                if confirmed:
+                    assumed = max(assumed, opposable_deposit(tenants, priority.senior_date))
+                listing = dataclasses.replace(
+                    listing,
+                    special_rights=badge.special,
+                    tenant_opposable=badge.opposable or confirmed,
+                    assumed_amount=assumed,
+                    rights_verified=True,
+                )
+            else:
+                # (2026-07-22) 자유기술란 전부 빈 요지 + 임차인표도 미크롤 = 대항력 판정근거 0 →
+                # 배지·판정 미생성으로 '발견 안 됨' 초록 오표시를 막되(삼환 2022타경3289), 참고정보
+                # (명세서 요지 말소기준·기일·감정요항)는 그대로 보여준다.
                 rights = _cr
                 rights_row = None
-        if rights_row:
-            rights = _cr
-            badge = summarize(rights)
-            # 대항력 판정 근거(2026-07-13) — 전입일 vs 말소기준일. 인수 부담 물건에만.
-            if not badge.is_clean:
-                priority = analyze_priority(rights)
-            listing = dataclasses.replace(
-                listing,
-                special_rights=badge.special,
-                tenant_opposable=badge.opposable,
-                assumed_amount=badge.assumed,
-                rights_verified=True,
-            )
         gated = score.is_hard_gated(listing)
         gate_reasons = []
         if gated:

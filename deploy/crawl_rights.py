@@ -20,7 +20,7 @@ from datetime import datetime, timedelta, timezone
 from deploy.migrate_to_supabase import _load_env
 from src import casesearch, photo, photo_store, store, store_rest
 from src.courtauction_client import CourtAuctionBlocked, CourtAuctionClient, CourtAuctionError
-from src.courtauction_detail import extract_photos, normalize
+from src.courtauction_detail import extract_photos, normalize, parse_curst_survey
 
 _KST = timezone(timedelta(hours=9))
 # 물건당 저장 사진 수 상한 — 히어로 스와이프용. Supabase 공유티어(500MB) 용량 때문에 무제한은
@@ -119,7 +119,10 @@ def main(argv=None) -> int:
     if args.max_interval is not None:
         client_kw["max_interval"] = args.max_interval
     client = CourtAuctionClient(**client_kw)
-    ok, fail, skipped_empty, photo_n = 0, 0, 0, 0
+    # 임차인 현황(현황조사서) 동시 수집 — 물건당 +1 요청이라 밴 위험↑. 기본 OFF,
+    # AUCTION_CRAWL_TENANTS=1 일 때만 켠다(대항력 실판정 원천. 크롤 완전 휴지기·소량부터 검증).
+    crawl_tenants = os.environ.get("AUCTION_CRAWL_TENANTS") == "1"
+    ok, fail, skipped_empty, photo_n, tenant_n = 0, 0, 0, 0, 0
     mismatch = 0          # (C6) 응답 사건번호 불일치로 스킵한 건(오사건 저장 차단)
     blocked = False       # (C5) 차단/상한 신호로 중단됐는지 — exit code 승격용
     batch: list[dict] = []
@@ -170,6 +173,20 @@ def main(argv=None) -> int:
                 continue
             batch.append(cr.to_row())
             ok += 1
+            # 임차인 현황(현황조사서) — 대항력 실판정(전입일 vs 말소기준일) 원천. case_detail
+            # '직후 같은 세션'이라 세션 컨텍스트 충족(선행 상세 없이는 빈 응답). 물건당 +1 요청.
+            if crawl_tenants:
+                try:
+                    survey = client.case_curst_survey(t["bo_cd"], t["case_no"])
+                    tenants = parse_curst_survey(survey)
+                    store.save_tenants(conn, t["court"], t["case_no"], t["item_no"],
+                                       tenants, fetched_at=now)
+                    tenant_n += sum(1 for x in tenants if x.get("is_tenant_like"))
+                except CourtAuctionBlocked:
+                    raise  # 차단은 전체 중단(우회 금지)
+                except Exception as e:  # noqa: BLE001 — 현황조사서 실패는 권리 크롤을 막지 않음
+                    print(f"  [{i}/{len(targets)}] {t['case_no']} 현황조사서 실패(무시): "
+                          f"{type(e).__name__}")
             # 사진 썸네일 — 같은 pgj15B 응답에서 추출(추가 요청 0), 시세추정 물건만 저장.
             # Storage 가능하면 업로드→URL 저장(DB 경량), 아니면 base64 폴백(로컬 개발).
             key = (t["court"], t["case_no"], str(t["item_no"] or ""))
@@ -210,6 +227,9 @@ def main(argv=None) -> int:
     total = conn.execute("SELECT COUNT(*) FROM listing_rights").fetchone()[0]
     photos_total = conn.execute("SELECT COUNT(*) FROM listing_photos").fetchone()[0]
     print(f"[+] listing_rights 총 {total}건 · 사진 이번 {photo_n}장(누적 {photos_total}장)")
+    if crawl_tenants:
+        tenants_total = conn.execute("SELECT COUNT(*) FROM listing_tenants").fetchone()[0]
+        print(f"[+] 임차인(대항력 후보) 이번 {tenant_n}명 · listing_tenants 누적 {tenants_total}행")
     if mismatch:
         print(f"[!] 응답 사건번호 불일치로 스킵 {mismatch}건(오사건 저장 차단됨).", file=sys.stderr)
 

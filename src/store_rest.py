@@ -352,6 +352,30 @@ def fetch_rights(court: str, case_no: str, item_no: str = "") -> dict | None:
     return rows[0] if rows else None
 
 
+# 임차인 현황(대항력 실판정) 클라우드 테이블 — 미러링은 실크롤 후 도입(현재 로컬 우선).
+TENANTS_TABLE = os.environ.get("SUPABASE_TENANTS_TABLE", "auction_listing_tenants")
+
+
+def fetch_tenants(court: str, case_no: str, item_no: str = "") -> list[dict]:
+    """단건 임차인 현황 조회(클라우드 서빙). 테이블 미배포/미러 전이면 조용히 빈 리스트.
+
+    (2026-07-22) 대항력 실판정 원천. Supabase 테이블·미러 파이프라인은 실크롤로 데이터가
+    쌓인 뒤 도입하므로, 그전까지 프로덕션은 이 함수가 [] 를 반환해 기존 서빙을 깨지 않는다.
+    """
+    try:
+        url, key, _ = _cfg()
+        r = requests.get(_endpoint(url, TENANTS_TABLE), headers=_headers(key),
+                         params={"select": "*", "court": f"eq.{court}",
+                                 "case_no": f"eq.{case_no}",
+                                 "item_no": f"eq.{item_no or ''}", "order": "seq"},
+                         timeout=15)
+        if r.status_code >= 400:      # 테이블 미배포(404/400 등) → 미크롤 취급
+            return []
+        return r.json() or []
+    except Exception:  # noqa: BLE001 — 임차인 조회 실패는 상세 페이지를 막지 않음
+        return []
+
+
 def replace_all(items: Iterable[ScoredListing]) -> int:
     """전량 스냅샷 교체. 이번 run 시각으로 전부 upsert 후, 그보다 오래된 행을 삭제.
 

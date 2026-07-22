@@ -223,20 +223,32 @@ class PriorityAnalysis:
 
     verdict:
       confirmed_opposable   — 전입 ≤ 말소기준 → 대항력 있음(법원 인수 판정과 일치, 근거 명확)
+      not_opposable         — 전입 > 말소기준 → 대항력 없음(낙찰로 소멸, 명세서 인수 문구 없음)
       contradiction         — 전입 > 말소기준인데 명세서는 인수(임차권등기명령 등 특수·파싱오류 검증대상)
       dates_incomplete      — 말소기준은 있으나 전입일 미기재(법원 판정만 신뢰 + 등기부 확인 권고)
       no_basis              — 판정할 날짜가 없음
+
+    movein_source: '현황조사서'(임차인 전입일 실데이터) | '명세서'(요지 자유텍스트 스캔) | ''.
     """
     senior_type: str = ""       # 말소기준 유형(근저당/전세권/압류 …)
     senior_date: str = ""       # 말소기준일 YYYY-MM-DD
     movein_date: str = ""       # 임차인 전입일 YYYY-MM-DD
+    movein_source: str = ""     # 전입일 출처(현황조사서=실판정 / 명세서=요지스캔)
     verdict: str = "no_basis"
     note: str = ""
 
 
-def analyze_priority(r: CaseRights) -> PriorityAnalysis:
-    """CaseRights → 대항력 판정 근거. surviving_rights(+remark)에서 전입일, senior_lien에서 말소기준."""
-    text = f"{r.surviving_rights}\n{r.remark}"
+def analyze_priority(r: CaseRights,
+                     tenant_moveins: list[str] | None = None) -> PriorityAnalysis:
+    """CaseRights → 대항력 판정 근거.
+
+    말소기준일 = senior_lien 의 첫 날짜. 임차인 전입일 우선순위:
+      1) tenant_moveins(현황조사서 selectCurstExmndc 의 **임차인** 전입일 실데이터) — 있으면 최우선.
+         ★ 호출측이 반드시 '임차인(is_tenant_like)'만 걸러서 넘길 것 — 소유자 전입일을 넘기면
+           대항력 없는 물건을 있음으로 오판(false-positive)한다. 대항력은 임차인에게만 성립.
+      2) 없으면 명세서 요지 자유텍스트에서 '전입' 라벨 날짜 스캔(구경로, 사실상 빈 요지엔 무력).
+    실데이터(1)가 있으면 명세서 요지가 비어 있어도 날짜비교로 직접 대항력을 판정한다.
+    """
     # 말소기준: senior_lien 의 첫 날짜 + 그 근처 유형 키워드
     senior = _first_date(r.senior_lien or "")
     senior_type = ""
@@ -245,31 +257,49 @@ def analyze_priority(r: CaseRights) -> PriorityAnalysis:
             if t in (r.senior_lien or ""):
                 senior_type = t
                 break
-    # 임차인 전입일: 명시적 '전입' 라벨이 붙은 날짜(여러 명이면 가장 이른 = 대항력 최강)
-    moveins = []
-    for m in _MOVEIN_RE.finditer(text):
-        d = _first_date(m.group(1))
-        if d:
-            moveins.append(d)
-    movein = min(moveins, key=lambda x: x[0]) if moveins else None
+
+    movein = None
+    movein_source = ""
+    if tenant_moveins:
+        parsed = [d for d in (_first_date(str(x)) for x in tenant_moveins) if d]
+        if parsed:
+            movein = min(parsed, key=lambda x: x[0])   # 가장 이른 전입 = 대항력 최강
+            movein_source = "현황조사서"
+    if movein is None:
+        # 구경로: 명세서 요지 자유텍스트에서 '전입' 라벨 날짜 스캔
+        text = f"{r.surviving_rights}\n{r.remark}"
+        moveins = [d for m in _MOVEIN_RE.finditer(text)
+                   if (d := _first_date(m.group(1)))]
+        if moveins:
+            movein = min(moveins, key=lambda x: x[0])
+            movein_source = "명세서"
 
     a = PriorityAnalysis(
         senior_type=senior_type,
         senior_date=senior[1] if senior else "",
         movein_date=movein[1] if movein else "",
+        movein_source=movein_source,
     )
     has_burden_text = is_substantive(r.surviving_rights)
+    src_tag = "현황조사서 전입일" if movein_source == "현황조사서" else "명세서 판정"
     if movein and senior:
         if movein[0] <= senior[0]:
             a.verdict = "confirmed_opposable"
             a.note = (f"임차인 전입({a.movein_date})이 말소기준"
                       f"({a.senior_type or '최선순위'} {a.senior_date})보다 앞서 대항력 있음 → "
-                      f"배당 부족분은 매수인 인수. 법원 명세서 판정과 일치합니다.")
-        else:
+                      f"배당 부족분은 매수인 인수({src_tag} 기준). 확정일자·보증금은 최종 확인 요망.")
+        elif has_burden_text:
+            # 명세서 요지가 '인수'라는데 날짜는 대항력 없음 → 임차권등기명령 등 특수사유·파싱오류 검증대상.
             a.verdict = "contradiction"
             a.note = (f"임차인 전입({a.movein_date})이 말소기준({a.senior_date})보다 늦어 "
-                      f"통상 대항력이 없으나, 명세서는 인수로 기재됨 — 임차권등기명령 등 특수사유 또는 "
-                      f"표기 차이 가능. 등기부·명세서 전문으로 반드시 확인하세요.")
+                      f"통상 대항력 없으나, 명세서 요지는 인수로 기재됨 — 임차권등기명령 등 특수사유·"
+                      f"표기차 가능. 등기부·명세서 전문으로 반드시 확인하세요.")
+        else:
+            # 실전입일(현황조사서 등)이 말소기준보다 늦고 명세서 인수 문구도 없음 → 대항력 없음(소멸).
+            a.verdict = "not_opposable"
+            a.note = (f"임차인 전입({a.movein_date})이 말소기준({a.senior_type or '최선순위'} "
+                      f"{a.senior_date})보다 늦어 대항력 없음 — 낙찰로 소멸({src_tag} 기준). "
+                      f"확정일자·배당요구는 최종 확인 요망.")
     elif senior and has_burden_text:
         a.verdict = "dates_incomplete"
         a.note = (f"말소기준은 {a.senior_type or '최선순위'} {a.senior_date}이나 명세서 요지에 "
@@ -278,6 +308,86 @@ def analyze_priority(r: CaseRights) -> PriorityAnalysis:
     else:
         a.verdict = "no_basis"
     return a
+
+
+# ---------------------------------------------------------------------------
+# 현황조사서(selectCurstExmndc) 파서 — 임차인 전입일·점유의 유일한 구조화 원천 (2026-07-22)
+# ---------------------------------------------------------------------------
+# 매각물건명세서 요지엔 임차인 전입일이 없다. 이 파서로 대항력 '실판정'의 재료를 확보한다.
+# ⚠️ PII 절대 미수집: 성명·주민번호(ENRRNO)·기본주소(basAddr)·상세주소(objctDtlAddr) 는 읽지 않는다.
+#   전입일·확정일자·보증금(금액)·점유유형만 뽑는다. 대항력은 임차인에게만 성립하므로 소유자 전입과
+#   구분하기 위해 is_tenant_like(보증금>0·확정일자·임차용도·임차부분 중 하나라도 있음) 를 남긴다.
+_CURST_PII_KEYS = ("ENRRNO", "ZPCD", "basAddr", "objctDtlAddr")  # 명시적 배제 목록(읽지 않음)
+
+
+def _curst_deposit_won(s: str) -> int:
+    """임차보증금 텍스트('금50,000,000원'·'5,000만원'·'50000000') → 원. 실패 0."""
+    from .courtauction_rights import _korean_won  # noqa: PLC0415 — 순환 import 회피
+    if not s:
+        return 0
+    t = re.sub(r"[금원\s]", "", str(s))     # 라벨·단위 문자 제거 후 억/만/숫자 파싱
+    return _korean_won(t)
+
+
+def parse_curst_survey(data: dict) -> list[dict]:
+    """현황조사서 응답 dict → 임차인 레코드 리스트(PII 제외).
+
+    각 레코드: {movein_ymd, confirm_ymd, deposit, possession, usage, part, is_tenant_like}.
+    ipcheck=false / 리스트 없음 / 빈 물건이면 [](예외 아님 — '임차인 없음/미상').
+    """
+    if not isinstance(data, dict):
+        return []
+    res = data.get("result") if isinstance(data.get("result"), dict) else data
+    rows = res.get("dlt_ordTsLserLtn") if isinstance(res, dict) else None
+    out: list[dict] = []
+    for r in (rows or []):
+        if not isinstance(r, dict):
+            continue
+        mv = _first_date(str(r.get("mvinDtlCtt") or ""))
+        cf = _first_date(str(r.get("rgstryCrtcpCfmtnCtt") or ""))
+        deposit = _curst_deposit_won(str(r.get("lesDposDts") or ""))
+        # 용도·임차부분·점유내용은 구조 필드(주거/전부/임차인 점유 등)라 성명이 없다 — 마스킹하면
+        # '점유' 같은 단어를 이름으로 오탐해 훼손한다. 성명·주민번호는 애초에 다른 필드라 안 읽는다.
+        usage = (r.get("lesUsgDts") or "").strip()
+        part = (r.get("lesPartCtt") or "").strip()
+        possession = (r.get("gdsPossCtt") or "").strip()
+        is_tenant_like = bool(deposit > 0 or cf or usage or part)
+        out.append({
+            "movein_ymd": mv[1] if mv else "",
+            "confirm_ymd": cf[1] if cf else "",
+            "deposit": deposit,
+            "possession": possession,
+            "usage": usage,
+            "part": part,
+            "is_tenant_like": is_tenant_like,
+        })
+    return out
+
+
+def tenant_moveins(tenants: list[dict]) -> list[str]:
+    """임차인 레코드 중 **is_tenant_like** 이고 전입일이 있는 것들의 전입일 리스트.
+
+    analyze_priority(tenant_moveins=...) 에 넘길 값 — 소유자 전입(is_tenant_like=False)은 제외해
+    대항력 false-positive 를 막는다."""
+    return [t["movein_ymd"] for t in (tenants or [])
+            if t.get("is_tenant_like") and t.get("movein_ymd")]
+
+
+def opposable_deposit(tenants: list[dict], senior_ymd: str) -> int:
+    """말소기준일 **이전(≤)** 전입한 대항력 임차인들의 보증금 합(원) — 매수인 인수 상한 추정.
+
+    말소기준일 파싱 실패거나 대항력 임차인 없으면 0. is_tenant_like 만 집계(소유자 제외)."""
+    sd = _first_date(senior_ymd or "")
+    if not sd:
+        return 0
+    total = 0
+    for t in (tenants or []):
+        if not t.get("is_tenant_like") or not t.get("movein_ymd"):
+            continue
+        mv = _first_date(str(t["movein_ymd"]))
+        if mv and mv[0] <= sd[0]:
+            total += int(t.get("deposit") or 0)
+    return total
 
 
 @dataclass

@@ -46,6 +46,11 @@ SEARCH_URL = f"{BASE}/pgj/pgjsearch/searchControllerMain.on"
 # 물건상세(사건 단위) — 매각물건명세서 요지(인수권리·최선순위)·기일내역·청구금액 등.
 # 실측(2026-07-10, Playwright XHR 캡처): 미니멀 페이로드(csNo+cortOfcCd+dspslGdsSeq+pgmId)로 동작.
 DETAIL_URL = f"{BASE}/pgj/pgj15B/selectAuctnCsSrchRslt.on"
+# 현황조사서(부동산현황조사) — 임차인 전입일·확정일자·점유관계. 매각물건명세서 요지엔 없는
+# '임차인 전입일'의 유일한 구조화 원천(2026-07-22 정찰, docs/courtauction_recon.md 3차).
+# ★제약: 같은 세션에서 DETAIL_URL(case_detail)을 선행해야 응답이 온다 — 선행 없이 호출하면
+# 200이지만 {ipcheck:false} 빈 응답(서버가 사건 컨텍스트를 세션에서 확인). 타 세션 라이브검증 완료.
+CURST_URL = f"{BASE}/pgj/pgj15B/selectCurstExmndc.on"
 
 # 브라우저 위장 헤더(실측상 필수 6종 + 보강). requests 기본 UA는 즉시 봇 차단됨.
 _UA = ("Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 "
@@ -341,6 +346,40 @@ class CourtAuctionClient:
                                        "dspslGdsSeq": str(gds_seq), "pgmId": "PGJ151F01"}}
         j = self._post(body, url=DETAIL_URL, validator=self._validate_detail)
         return j["data"]["dma_result"]
+
+    def case_curst_survey(self, cort_ofc_cd: str, cs_no: str) -> dict:
+        """현황조사서 조회 → 임차인 전입일·점유관계 원재료 dict.
+
+        ★반드시 같은 세션에서 case_detail(같은 사건)을 **선행 호출한 뒤** 부를 것 —
+        선행 없이 부르면 서버가 {ipcheck:false} 빈 응답을 준다(세션 사건 컨텍스트 필요).
+        crawl_rights 는 물건당 case_detail 직후 이 메서드를 호출하므로 자연히 충족된다.
+
+        반환: {ipcheck, dlt_ordTsLserLtn(임차인 리스트), dlt_curstExmnDpcnMrg(점유관계),
+              dma_curstExmnMngInf(조사서 관리정보), ...}. ipcheck=false거나 리스트 없음이면
+              '임차인 없음/미상'으로 처리(예외 아님). PII(성명·주민번호)는 파서에서 제거한다.
+
+        스로틀·kill-switch·일일상한·백오프는 _post 가 담당(case_detail 과 동일 안전장치).
+        """
+        body = {"dma_srchCurstExmn": {"cortOfcCd": cort_ofc_cd, "csNo": cs_no,
+                                      "auctnInfOriginDvsCd": "2"}}  # 2=현황조사서 고정
+        # raw validator — 기본 검증기(_validate_payload)는 dlt_srchResult 를 기대해 이 응답을
+        # 오탐 차단한다. Content-Type(JSON)만 확인하고 data 를 그대로 반환.
+        j = self._post(body, url=CURST_URL, validator=self._validate_detail_lenient)
+        return j.get("data") or {}
+
+    @staticmethod
+    def _validate_detail_lenient(resp) -> dict:
+        """현황조사서용 관대한 검증 — JSON 이기만 하면 통과(빈 임차인표도 정상 응답).
+
+        위장차단(HTML/비-JSON) 은 여전히 차단으로 판정하되, dma_result·특정 키 유무는
+        요구하지 않는다(임차인 없는 물건은 빈 리스트로 정상 반환되므로)."""
+        ctype = resp.headers.get("Content-Type", "")
+        if "json" not in ctype.lower():
+            raise CourtAuctionBlocked(f"현황조사서 200인데 비-JSON({ctype}) — 위장차단 의심.")
+        try:
+            return resp.json()
+        except Exception as e:  # noqa: BLE001
+            raise CourtAuctionBlocked(f"현황조사서 200인데 JSON 파싱불가 — 위장차단 의심: {e}") from e
 
     def canary(self) -> int:
         """반드시 결과가 나오는 알려진 쿼리(서울 부동산 1페이지)로 정상성 확인. totalCnt 반환."""
