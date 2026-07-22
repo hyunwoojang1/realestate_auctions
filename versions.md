@@ -1,5 +1,21 @@
 # versions.md — auction-arbitrage 루프 작업 로그 (append-only, 최신순)
 
+## 2026-07-22 15:45 KST — 🚨 가장 크리티컬한 부분(권리 게이트) 검증 + 빈틈1 수정(보수차익에 인수액 차감)
+- **분석**: 사이트 가장 크리티컬 = **권리 위험 게이트**(`is_hard_gated`+`derive_grade`). 이유=비대칭
+  파국 리스크(시세 오차는 %, 권리 미탐은 차익 통째 마이너스). 검증 결과 명시 트리거(유치권·지분매각·
+  인수>30%·미확인·차익없음)는 정상·단일출처(derive_grade)로 견고. **그러나 빈틈2개 발견**.
+- **빈틈1(수정함)**: 취득원가에 인수 보증금을 안 넣어(설계상 표면차익) → 30% 하드게이트 **아래**의
+  대항력 임차인 물건(보증금이 표면차익보다 큰 함정)이 '차익 유력'으로 상위 노출 가능했음. 수정:
+  **보수차익 profit_low = 하한시세 − 취득원가 − 인수보증금**. 인수액>표면차익이면 profit_low≤0 →
+  derive_grade가 '차익없음'으로 추천 제외. 표면차익(expected_profit/profit_high)은 정보성 유지.
+  - ScoredListing.assumed_amount 필드+DDL+_COLS+마이그레이션(v7→v8, 레거시 0), score_listing·
+    _apply_market_price(서빙폴백) 양쪽 차감. 정렬키(profit_low) 기준 sort 테스트 3종 갱신 + 함정/
+    대조 회귀 2종. **pytest 641 통과**·ruff 클린. 커밋 785f590.
+  - ⚠️**배포 전 필수**: `deploy/supabase_rights.sql`의 `auction_scored_listings.assumed_amount`
+    ALTER를 Supabase SQL Editor에서 **선행 실행**(없으면 클라우드 서빙 400). Management API 직접
+    실행은 Cloudflare 1010(Python UA 차단)로 실패 → 대시보드 수동 실행 권장.
+- **빈틈2**: 게이트 입력인 대항력 판정이 문구매칭이라 미탐 가능 → B-2(전입일 날짜판정)가 메움(실크롤 대기).
+
 ## 2026-07-22 15:10 KST — 🛡️ H1 인수액 과소산정 + H4 스키마 드리프트 카나리(권리 파서 백로그)
 - **H1**(같은 보증금 임차인 2명 과소산정): `detect_assumed_amount` set-dedup→줄-간 합산. 서로 다른
   임차인 줄의 같은 금액도 합산(과소=위험 방향 수정). `상기/위 보증금 …재안내` back-reference·완전
