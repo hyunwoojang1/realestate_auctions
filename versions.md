@@ -1,5 +1,21 @@
 # versions.md — auction-arbitrage 루프 작업 로그 (append-only, 최신순)
 
+## 2026-07-22 17:30 KST — 🧪 Layer-1 크롤러 QA 설계(5세대×5트랙 진화형, 26에이전트) + CRITICAL 4건 발견
+- 역할: Layer-1(크롤러 수집 파이프라인 자체 품질) QA 설계. Layer-2(결론 정확성)는 다른 세션.
+- Workflow(crawler-qa-l1-evolve): 5트랙(정확성·완전성·침묵실패·멱등무결성·밴안전신선도)×5세대 진화
+  (세대N 문제→세대N+1 집중+적대검증)→통합. **181 발견(CRITICAL 19·HIGH 72), 라이브 courtauction 0(밴안전).**
+- 설계·스코어카드·CI가드·골든셋 전문 = **docs/crawler_qa_layer1.md**(영구저장).
+- **CRITICAL 4(전부 실측 CONFIRMED)**: C1 senior_lien·appraisal_notes **실명 PII 현재 서빙중**(47행/42사건,
+  형제필드는 마스킹되는데 이 둘만 누락, courtauction_detail.py:543/:526-532) · C2 **H4 카나리 구멍**
+  (`:500 any()`→핵심키 하나만 개명해도 무경보→burden이 조용히 clean, 내가 짠 H4의 결함) · C3 replace_all
+  앞 커버리지 플로어 부재(부실샤드가 백로그 파괴, run.py:197/pipeline.py:111) · C4 요청예산 인스턴스리셋
+  (하루 6119콜=상한 12배, courtauction_client.py:173). HIGH: 고아 photos6578·naver1700, _targets 무dedup
+  (52배 낭비), pgj15B 원본 미저장(파서 골든0), ipcheck=false가 tenants 삭제(내 B-2 결함), refresh 종료코드
+  Tee파이프로 소실.
+- **아직 수정 안 함(설계·리포트 단계)**. C1(PII)은 현재 라이브 유출이라 최우선 — 수정 시 법인토큰 예외+
+  오탐가드 필수(단순 전량mask는 g4 반증). CI가드 13종·골든셋 5종 구현 대기.
+
+
 ## 2026-07-22 15:45 KST — 🚨 가장 크리티컬한 부분(권리 게이트) 검증 + 빈틈1 수정(보수차익에 인수액 차감)
 - **분석**: 사이트 가장 크리티컬 = **권리 위험 게이트**(`is_hard_gated`+`derive_grade`). 이유=비대칭
   파국 리스크(시세 오차는 %, 권리 미탐은 차익 통째 마이너스). 검증 결과 명시 트리거(유치권·지분매각·
