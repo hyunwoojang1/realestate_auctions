@@ -174,6 +174,7 @@ def score_listing(listing: AuctionListing, est_market_price: int | None, matched
             grade=na_grade, rights_verified=listing.rights_verified,
             court=listing.court, item_no=listing.item_no, doc_id=listing.doc_id,
             market_scope=market_scope, market_sample_basis=band_basis,
+            assumed_amount=listing.assumed_amount,   # 서빙 폴백이 보수차익에서 차감할 수 있게 영속
         )
 
     gap_rate = (est_market_price - cost) / est_market_price
@@ -182,7 +183,11 @@ def score_listing(listing: AuctionListing, est_market_price: int | None, matched
     arb = round(raw * conf, 1)
     profit = est_market_price - cost
     # (T4) 밴드 차익 — 보수(하한가 기준)/기준(기준가 기준). 추천 판단은 p_low가 기준.
-    p_low = band_low - cost if band_low is not None else None
+    # (2026-07-22 빈틈1) 보수차익(최악)에서 인수 보증금(전액 인수 상한)을 뺀다 — 표면차익이
+    # 양수여도 대항력 임차인 보증금이 그보다 크면 실제 손해다. p_low ≤ 0 → derive_grade가
+    # '차익없음'으로 걸러 추천에서 뺀다(30% 하드게이트 아래의 함정 매물 방어). 표면차익(profit·
+    # profit_high)은 정보성으로 그대로 둔다(숫자와 경고=독립 채널, 추천 판단만 보수화).
+    p_low = band_low - cost - listing.assumed_amount if band_low is not None else None
     p_high = band_high - cost if band_high is not None else None
 
     # 하드게이트: 권리 점수만 0으로는 부족하다(가격갭 50%가 커서 상위 노출 가능).
@@ -220,6 +225,7 @@ def score_listing(listing: AuctionListing, est_market_price: int | None, matched
         market_band_low=band_low, market_band_high=band_high,
         profit_low=p_low, profit_high=p_high,
         market_comps=[list(c) for c in comps],
+        assumed_amount=listing.assumed_amount,
     )
 
 
@@ -277,7 +283,8 @@ def _apply_market_price(s: ScoredListing, naver: dict, price: int, price_low: in
     gap = gap_score_from_rate(gap_rate)
     raw = gap * CONFIG.w_gap + s.rights_score * CONFIG.w_rights + s.liquidity_score * CONFIG.w_liq
     arb = round(raw * confidence, 1)          # 폴백 시세 → 신뢰계수 하향(실거래보다 보수)
-    p_low = price_low - cost
+    # (2026-07-22 빈틈1) 서빙 폴백(KB/호가/전세)도 보수차익에서 인수 보증금 차감 — 채점 경로와 동일.
+    p_low = price_low - cost - (s.assumed_amount or 0)
     gated = (s.grade == CONFIG.grade_labels["risk"])   # 하드게이트는 채점층이 등급 문자열로 전달
     if gated:                                 # 위험(권리)은 시세로 안 풀림 — arb 상한 유지
         arb = min(arb, CONFIG.gate_ceiling)

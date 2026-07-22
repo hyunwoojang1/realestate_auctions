@@ -137,17 +137,24 @@ def test_is_high_profit():
     assert query.is_high_profit(_sl(profit_low=None, expected_profit=None)) is False
 
 
+def _eff_profit(s):
+    """정렬 기준값 = 보수차익(profit_low, 인수액 차감) 우선, 없으면 표면차익. query._eff와 동일."""
+    return s.profit_low if s.profit_low is not None else s.expected_profit
+
+
 def test_default_sort_is_profit():
     assert query.DEFAULT_SORT == "profit"
     out = query.sort_items(_scored())   # 기본 정렬
-    profits = [s.expected_profit for s in out if s.expected_profit is not None]
-    assert profits == sorted(profits, reverse=True)
+    # 정렬키는 보수차익(profit_low) — 인수 보증금이 큰 물건은 표면차익이 높아도 아래로 내려간다
+    # (2026-07-22 빈틈1). 그래서 표면차익이 아니라 실제 정렬키로 내림차순을 검증한다.
+    keys = [_eff_profit(s) for s in out if _eff_profit(s) is not None]
+    assert keys == sorted(keys, reverse=True)
 
 
 def test_sort_by_profit_desc():
     out = query.sort_items(_scored(), "profit")
-    profits = [s.expected_profit for s in out if s.expected_profit is not None]
-    assert profits == sorted(profits, reverse=True)
+    keys = [_eff_profit(s) for s in out if _eff_profit(s) is not None]
+    assert keys == sorted(keys, reverse=True)
 
 
 def test_sort_by_profit_asc_includes_negatives():

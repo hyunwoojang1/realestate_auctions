@@ -35,6 +35,7 @@ CREATE TABLE IF NOT EXISTS scored_listings (
     market_sample_basis INTEGER,
     market_comps TEXT NOT NULL DEFAULT '[]',
     rights_verified INTEGER NOT NULL DEFAULT 0,
+    assumed_amount INTEGER NOT NULL DEFAULT 0,
     PRIMARY KEY (court, case_no, item_no)
 );
 """
@@ -192,6 +193,9 @@ _COLS = [
     # 왕복 시 항상 False 로 복원됐다 — 권리 배선(apply_rights_from_rows) 도입으로 이 값이
     # 실제 의미를 갖게 되므로 영속화한다. sqlite는 bool을 0/1 정수로 저장.
     "rights_verified",
+    # (2026-07-22) 인수금액 — 보수차익(profit_low)에 차감 반영됨. 서빙 폴백(_apply_market_price)이
+    # 재계산할 때도 차감하려면 영속 필요(프로덕션은 Supabase에서 ScoredListing 복원).
+    "assumed_amount",
 ]
 
 # v1(구스키마)에서 이관 대상 컬럼 — court/item_no/doc_id는 v1에 없으므로 '' 기본값.
@@ -425,6 +429,13 @@ def _migrate(conn: sqlite3.Connection) -> None:
         with conn:
             conn.execute(
                 "ALTER TABLE scored_listings ADD COLUMN rights_verified INTEGER NOT NULL DEFAULT 0"
+            )
+    if "assumed_amount" not in cols:
+        # v7 → v8(2026-07-22 빈틈1): 인수금액. 보수차익(profit_low)에 차감 반영. 레거시 행은 0
+        # (인수액 미반영 상태) — 다음 새로고침이 실값·재계산된 profit_low를 채운다.
+        with conn:
+            conn.execute(
+                "ALTER TABLE scored_listings ADD COLUMN assumed_amount INTEGER NOT NULL DEFAULT 0"
             )
 
     # listing_rights: 감정평가 요항점 컬럼 추가. 테이블이 이미 있고 컬럼만 없을 때 ALTER.

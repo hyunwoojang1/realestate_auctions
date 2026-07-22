@@ -36,8 +36,11 @@ def test_listings_type_filter():
 
 def test_listings_default_sorted_by_profit_desc():
     data = _client().get("/api/listings").get_json()
-    profits = [d["expected_profit"] for d in data if d["expected_profit"] is not None]
-    assert profits == sorted(profits, reverse=True)
+    # 정렬키 = 보수차익(profit_low, 인수 보증금 차감) 우선, 없으면 표면차익(2026-07-22 빈틈1).
+    def eff(d):
+        return d["profit_low"] if d.get("profit_low") is not None else d["expected_profit"]
+    keys = [eff(d) for d in data if eff(d) is not None]
+    assert keys == sorted(keys, reverse=True)
 
 
 def test_detail_found():

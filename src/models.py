@@ -111,8 +111,11 @@ class ScoredListing:
     # 표본수는 matched_trades가 그 값(market_sample_count 역할). None=밴드 없음(추정불가/레거시).
     market_band_low: int | None = None    # 검증 하한가(트림 후 최저 평단가 기준, 보수)
     market_band_high: int | None = None   # 검증 기준가(트림 후 중앙값 = est_market_price)
-    profit_low: int | None = None         # 보수 차익 = 검증 하한가 − 취득원가 (추천 판단 기준)
-    profit_high: int | None = None        # 기준 차익 = 검증 기준가 − 취득원가 (= expected_profit)
+    profit_low: int | None = None         # 보수 차익 = 검증 하한가 − 취득원가 − 인수보증금 (추천 판단 기준)
+    profit_high: int | None = None        # 기준 차익 = 검증 기준가 − 취득원가 (= expected_profit, 표면)
+    # (2026-07-22) 낙찰자 인수금액(원, 대항력 보증금 상한). 보수차익(profit_low)에서 차감해
+    # '표면차익 양수인데 보증금 빼면 손해'인 함정 매물이 추천에 뜨지 않게 한다(빈틈1 수정).
+    assumed_amount: int = 0
     # (T5) 밴드 실기반 표본수(최근성+트림 후 실사용 건수). matched_trades(원 매칭수)와 구분.
     # None=레거시(게이트 미적용). 게이트: < band_confident_basis(기본5) → 낮은 신뢰·추천 제외.
     market_sample_basis: int | None = None

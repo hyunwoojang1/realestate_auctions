@@ -74,6 +74,35 @@ def test_hard_gate_high_assumed_amount():
     assert s.grade == "위험"
 
 
+def test_assumed_deposit_subtracted_from_conservative_profit():
+    """빈틈1(2026-07-22): 하드게이트(30%) 아래여도 인수 보증금이 표면차익보다 크면 보수차익 ≤ 0
+    → '차익없음'으로 추천에서 빠진다. 게이트가 아니라 차익계산으로 함정 매물 방어."""
+    # 인수 1억 / 최저가 4억 = 25% < 30% → 하드게이트 아님(이 경로가 종전엔 함정이었다).
+    lst = _base(min_bid_price=400_000_000, assumed_amount=100_000_000,
+                tenant_opposable=True, occupant_type="임차인")
+    assert score.is_hard_gated(lst) is False
+    cost = score.real_acquisition_cost(lst)
+    band_low = cost + 60_000_000                    # 표면 보수차익 +6천만
+    s = score.score_listing(lst, est_market_price=band_low + 40_000_000, matched_trades=3,
+                            market_scope=score.SCOPE_RECOMMENDABLE,
+                            band_low=band_low, band_high=band_low + 80_000_000, band_basis=5)
+    assert s.profit_low == -40_000_000              # 6천만 − 인수 1억 = −4천만
+    assert s.grade == "차익없음"                      # 보수차익 ≤ 0 → 추천 제외
+    assert s.assumed_amount == 100_000_000          # 영속(서빙 폴백 재계산·상세 표시용)
+
+
+def test_no_assumed_keeps_conservative_profit_positive():
+    """대조군: 인수액 0이면 같은 표면차익이 그대로 보수차익 → 추천 유지(과잉 차단 아님)."""
+    lst = _base(min_bid_price=400_000_000, assumed_amount=0)
+    cost = score.real_acquisition_cost(lst)
+    band_low = cost + 60_000_000
+    s = score.score_listing(lst, est_market_price=band_low + 40_000_000, matched_trades=3,
+                            market_scope=score.SCOPE_RECOMMENDABLE,
+                            band_low=band_low, band_high=band_low + 80_000_000, band_basis=5)
+    assert s.profit_low == 60_000_000
+    assert s.grade != "차익없음"
+
+
 def test_fatal_special_right_hard_gate():
     """유치권: 가격갭이 아무리 커도 '위험'으로 강등되어 상위 노출 안 됨."""
     lst = _base(special_rights=["유치권"], min_bid_price=147_000_000, occupant_type="다수점유",

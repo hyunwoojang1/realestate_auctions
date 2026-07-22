@@ -33,6 +33,13 @@ alter table public.auction_listing_rights
 alter table public.auction_scored_listings
     add column if not exists rights_verified boolean not null default false;
 
+-- [2026-07-22 빈틈1] 인수금액(대항력 보증금 상한, 원). 보수차익(profit_low)에서 차감되어
+-- store._COLS 에 추가됐고 store_rest 가 그 목록을 그대로 select/upsert 하므로, **이 컬럼이 없으면
+-- 클라우드 서빙(load_scored)·미러(upsert)가 400 으로 죽는다**. 코드 배포 전에 반드시 선행 실행할 것.
+-- 기존 행은 0(인수액 미반영) — 다음 전량 새로고침이 실값·재계산된 profit_low 를 채운다.
+alter table public.auction_scored_listings
+    add column if not exists assumed_amount bigint not null default 0;
+
 -- [2026-07-13 개편] 물건 사진 썸네일(base64 JPEG) — 상세 히어로 클라우드 서빙용.
 -- 용량 억제 위해 시세추정 가능 물건에만 소수 저장(crawl_rights). RLS on + 정책 없음.
 create table if not exists public.auction_listing_photos (
