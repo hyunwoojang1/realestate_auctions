@@ -160,6 +160,57 @@ def test_rights_normalize_masks_names():
     assert cr.senior_lien == "2021.4.28.근저당권"     # 최선순위는 무손상
 
 
+def test_c1_senior_lien_masks_coowner_names():
+    """(C1 2026-07-22) senior_lien(최선순위=지분 어순 흔함)의 공유자 실명이 마스킹돼야 한다.
+    실측: listing_rights 47행/42사건에 무마스킹 실명이 서빙되고 있었다."""
+    from src.courtauction_detail import normalize
+    cr = normalize({"dspslGdsDxdyInfo": {
+        "tprtyRnkHypthcStngDts": "김민정 지분: 2023.03.23. 가압류\n권병채 지분: 2024.10.14. 강제경매개시결정",
+        "ndstrcRghCtt": "", "sprfcExstcDts": "",
+    }})
+    assert "김민정" not in cr.senior_lien and "권병채" not in cr.senior_lien
+    assert "[성명]" in cr.senior_lien
+    assert "가압류" in cr.senior_lien and "2023.03.23" in cr.senior_lien   # 공시정보 보존
+
+
+def test_c1_corp_names_preserved_in_senior_lien():
+    """(C1) 근저당권자/채권자 뒤 법인명(은행·주식회사·캐피탈)은 보존해야 한다(공시정보)."""
+    assert mask_personal_names("근저당권자 신한은행") == "근저당권자 신한은행"
+    assert mask_personal_names("주식회사 우리캐피탈이 신청") == "주식회사 우리캐피탈이 신청"
+    assert "농협은행" in mask_personal_names("근저당권자 농협은행 가압류권자 이순신")
+    assert "[성명]" in mask_personal_names("근저당권자 농협은행 가압류권자 이순신")   # 사람만 마스킹
+
+
+def test_c1_creditor_role_person_masked():
+    """(C1) '채권자 박보라'처럼 채권자가 자연인이면 마스킹(법인은 위 가드로 보존)."""
+    assert mask_personal_names("채권자 박보라") == "채권자 [성명]"
+
+
+def test_c1_owner_adverb_not_masked():
+    """(C1 오탐가드) '현장조사 당시 소유자'의 '당시'는 성명이 아니다 — 소유자/소유권은 name-first 제외."""
+    assert mask_personal_names("현장조사 당시 소유자가 점유") == "현장조사 당시 소유자가 점유"
+    assert mask_personal_names("본건의 소유권은 채무자에게") == "본건의 소유권은 채무자에게"
+
+
+def test_c1_appraisal_notes_masked():
+    """(C1) appraisal_notes(감정 요항)도 마스킹 경로를 타야 한다."""
+    from src.courtauction_detail import normalize
+    cr = normalize({
+        "dspslGdsDxdyInfo": {"tprtyRnkHypthcStngDts": "2020.1.1.근저당권"},
+        "aeeWevlMnpntLst": [{"aeeWevlMnpntCtt": "임차인 김철수가 점유중임", "aeeWevlMnpntItmCd": "01"}],
+    })
+    assert cr.appraisal_notes and "김철수" not in cr.appraisal_notes[0]["text"]
+    assert "[성명]" in cr.appraisal_notes[0]["text"]
+
+
+def test_c1_convaddr_in_free_text_fields():
+    """(C1) convAddr(정제 소재지)도 마스킹 대상 — 지분물건 주소에 채무자 실명이 섞인다."""
+    from src.courtauction_fields import _FREE_TEXT_FIELDS
+    assert "convAddr" in _FREE_TEXT_FIELDS
+    out = sanitize_row({"convAddr": "부산 사하구 다대동 120-10 채무자 홍길동 지분"})
+    assert "홍길동" not in out["convAddr"] and "[성명]" in out["convAddr"]
+
+
 def test_bigo_masks_lien_claimant_and_keeps_josa():
     """유치권신고인·임차권자 등 역할어 뒤 성명도 마스킹하되 조사는 원문 유지."""
     clean = sanitize_row({"mulBigo": "유치권신고인 윤용섭로부터 공사대금채권 금 229,900,000원"})

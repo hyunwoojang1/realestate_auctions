@@ -521,26 +521,27 @@ def normalize(dma_result: dict, court: str = "", case_no: str = "",
     # 최신이 위로 오게(내림차순) — 상세 테이블 렌더 순서
     schedule.sort(key=lambda x: x["ymd"], reverse=True)
 
-    # 감정평가 요항점 — 감정사가 기재한 이용상태·구조·설비·제시외물건·위반건축물 등 원문.
-    # 빈 값('-'/공백)은 버리고, 항목코드로 라벨을 붙인다(미상 코드는 '감정 요항' 폴백).
+    # (감사 2026-07-15) 개인정보 마스킹 — 명세서 자유텍스트에는 유치권신고인·임차인 **실명**이
+    # 그대로 들어온다("유치권신고인 홍길동로부터 공사대금채권…"). listing_rights 는 Supabase 로
+    # 미러돼 상세 페이지로 서빙되므로 리스트(mulBigo)와 동일 기준으로 저장 전에 마스킹한다.
+    # (2026-07-22 C1) senior_lien(최선순위=근저당권자/가압류권자/공유자 어순)·감정요항에도 실명이
+    # 무마스킹으로 새어 서빙되던 것 수정 — 형제 필드와 동일하게 마스킹한다. 법인명(신한은행 등)은
+    # 마스커의 법인 접미사 가드가 보존한다. 날짜·금액·라벨은 마스커가 안 건드린다.
+    from .courtauction_fields import mask_personal_names  # noqa: PLC0415 — 순환 import 회피
+
+    # 감정평가 요항점 — 감정사 원문(이용상태·구조·설비 등)에 소유자·임차인 실명이 섞여 온다.
     appraisal_notes = []
     for a in (dma_result.get("aeeWevlMnpntLst") or []):
-        text = _sanitize(a.get("aeeWevlMnpntCtt") or "")
+        text = mask_personal_names(_sanitize(a.get("aeeWevlMnpntCtt") or ""))
         if not text or text in ("-", "–"):
             continue
         code = str(a.get("aeeWevlMnpntItmCd") or "")
         appraisal_notes.append({"label": AEE_ITEM_LABELS.get(code, "감정 요항"), "text": text})
 
-    # (감사 2026-07-15) 개인정보 마스킹 — 명세서 자유텍스트에는 유치권신고인·임차인 **실명**이
-    # 그대로 들어온다("유치권신고인 홍길동로부터 공사대금채권…"). listing_rights 는 Supabase 로
-    # 미러돼 상세 페이지로 서빙되므로 리스트(mulBigo)와 동일 기준으로 저장 전에 마스킹한다.
-    # senior_lien(최선순위)·날짜·금액 등 공시정보는 마스커가 건드리지 않는다.
-    from .courtauction_fields import mask_personal_names  # noqa: PLC0415 — 순환 import 회피
-
     return CaseRights(
         court=court, case_no=case_no or (base.get("userCsNo") or ""), item_no=str(item_no or ""),
         surviving_rights=mask_personal_names(_sanitize(gds.get("ndstrcRghCtt") or "")),
-        senior_lien=_sanitize(gds.get("tprtyRnkHypthcStngDts") or ""),
+        senior_lien=mask_personal_names(_sanitize(gds.get("tprtyRnkHypthcStngDts") or "")),
         lien_note=mask_personal_names(_sanitize(gds.get("sprfcExstcDts") or "")),
         remark=mask_personal_names(_sanitize("\n".join(remark_parts))),
         claim_amt=_int(base.get("clmAmt")),
