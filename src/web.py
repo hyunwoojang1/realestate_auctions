@@ -741,9 +741,13 @@ def create_app() -> Flask:
             _cr = CaseRights.from_row(rights_row)
             # (서빙감사 2026-07-12 #13) 빈/부분 명세서는 판정 근거 0 — 배지·rights 둘 다 미표시로
             # 폴백해 '✓ 인수 없음/권리분석 반영됨'으로 오판하지 않는다(목록 가드와 정합).
-            # (2026-07-22) 자유기술란(인수권리·유치권·비고) 전부 빈 요지도 대항력 판정근거 0 →
-            # rights 미표시로 폴백해 '대항력 임차인 발견 안 됨' 초록 오표시를 막는다(삼환 2022타경3289).
-            if _cr.is_empty or not _cr.opposability_assessable:
+            if _cr.is_empty:
+                rights_row = None
+            elif not _cr.opposability_assessable:
+                # (2026-07-22) 자유기술란(인수권리·유치권·비고) 전부 빈 요지 = 대항력 판정근거 0 →
+                # 배지·판정은 만들지 않아 '대항력 임차인 발견 안 됨' 초록 오표시를 막되(삼환
+                # 2022타경3289), 참고정보(명세서 요지 말소기준·기일·감정요항)는 그대로 보여준다.
+                rights = _cr
                 rights_row = None
         if rights_row:
             rights = _cr
