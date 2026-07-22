@@ -1,5 +1,24 @@
 # versions.md — auction-arbitrage 루프 작업 로그 (append-only, 최신순)
 
+## 2026-07-22 14:30 KST — 🏗️ B-2 구현: 현황조사서 전입일 → 전입일 vs 말소기준일 대항력 실판정(로컬)
+- 타 세션이 현황조사서 엔드포인트(selectCurstExmndc.on)를 라이브검증 완료(전입일 mvinDtlCtt 반환,
+  ★case_detail 선행 필수)하여 인수인계 → 그 위에 크롤~판정~서빙 코드 구현(커밋 bf58a89, **로컬**).
+- **구현**: ① client.case_curst_survey(관대한 검증기, 빈 임차인표=정상) ② parse_curst_survey
+  (PII 미수집=성명·주민번호·주소 안읽음, **소유자/임차인 구분 is_tenant_like**=보증금·확정일자·용도·
+  임차부분 신호) ③ analyze_priority(tenant_moveins=) 실전입일 주입 + **not_opposable 판정 신설**
+  (전입>말소기준+명세서 인수문구 없음=소멸, 종전엔 contradiction 오라벨) ④ store listing_tenants
+  테이블+멱등 save/load, store_rest.fetch_tenants 스텁([]) ⑤ crawl_rights: **AUCTION_CRAWL_TENANTS=1**
+  일 때만 물건당 +1콜(기본 OFF=밴 위험 관리) ⑥ web/detail.html: 실전입일 우선판정·근거패널
+  not_opposable·'현황조사서 실전입일' 표기·확정 대항력이면 보증금을 인수액 반영.
+- **검증**: 회귀 테스트 10종(test_curst_tenant), pytest 634 통과·ruff 클린. 복사본 DB 데모로 삼환
+  렌더 실측(전입1996≤말소2002→'대항력 임차인 주의'·최대인수 0.30억=보증금). 소유자 전입(임차신호無)은
+  대항력 제외 확인(false-positive 방지).
+- **미완/다음**: ① 실크롤 수집(AUCTION_CRAWL_TENANTS=1) — 스로틀 해소+크롤 휴지기에 **소량부터**
+  ② Supabase auction_listing_tenants 테이블·미러(store_rest upsert) — 데이터 쌓인 뒤 ③ 프로덕션 배포
+  (지금 배포해도 데이터 0이라 무동작, 불필요 왕복만 늘어 보류). 서빙코드는 tenants=[]이면 기존동작 동일.
+- ⚠️함정 관측: 삼환 실데이터 임차인표는 전입 1가구인데 임차신호 없어 **소유자 전입 추정**(is_tenant_like=
+  False) → 실제 대항력 임차인은 상가임차인 등 별도 회차/구분일 수 있음. 실크롤로 재확인 필요.
+
 ## 2026-07-22 12:55 KST — 🚀 B-1 배포 완료 + B-2 라이브 테스트 소프트차단으로 보류
 - **배포**: main push(305242b..5411709, 내 권리수정 2 + 타세션 건축물대장 4 동반) →
   `deploy_prod.sh HEAD` → 프로덕션 health ok(5411709). 삼환 등 자유란 빈 물건은 이제
