@@ -220,10 +220,13 @@ def main(argv=None) -> int:
         args.no_cloud = True
     elif args.source == "courtauction" and use_live and full_snapshot:
         n = store.replace_all(conn, scored)
-        # scored 전량교체 후 대응 물건이 사라진 고아 권리 정리(rights 무한누적 방지·중복 제거).
+        # scored 전량교체 후 대응 물건이 사라진 고아 자식행 정리(무한누적 방지·중복 제거).
+        # (E2 2026-07-22) rights 뿐 아니라 photos·naver 도 정리(고아 6578·1700 실측).
         pruned = store.prune_orphan_rights(conn)
-        if pruned and not args.json:
-            print(f"  🧹 로컬 고아 권리 {pruned}건 정리(scored 동기화)")
+        pruned_p = store.prune_orphan_photos(conn)
+        pruned_n = store.prune_orphan_naver(conn)
+        if (pruned or pruned_p or pruned_n) and not args.json:
+            print(f"  🧹 로컬 고아 정리(scored 동기화): 권리 {pruned}·사진 {pruned_p}·시세 {pruned_n}건")
     else:
         n = store.upsert(conn, scored)   # 전체 저장
 

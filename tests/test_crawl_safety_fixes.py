@@ -25,6 +25,21 @@ def _scored(case_no: str, arb: float = 80.0) -> ScoredListing:
     )
 
 
+def test_prune_orphan_photos_and_naver(tmp_path):
+    """E2(2026-07-22): scored에 없는 photos·naver 고아행이 rights와 동일하게 정리된다."""
+    conn = store.connect(str(tmp_path / "o.db"))
+    store.upsert(conn, [_scored("KEEP")])                 # 부모(court="",item_no="")
+    store.save_photos(conn, "", "KEEP", "", ["b64keep"], fetched_at="x")   # 부모 있음
+    store.save_photos(conn, "", "ORPH", "", ["b64orph"], fetched_at="x")   # 부모 없음(고아)
+    conn.execute("INSERT OR REPLACE INTO naver_prices (court,case_no,item_no,status) "
+                 "VALUES ('','ORPHN','','no_kb')")        # 부모 없는 시세(고아)
+    conn.commit()
+    assert store.prune_orphan_photos(conn) == 1           # ORPH 사진만 삭제
+    assert store.prune_orphan_naver(conn) == 1            # ORPHN 시세만 삭제
+    assert len(store.load_photos(conn, "", "KEEP", "")) == 1   # 부모 있는 사진 보존
+    assert store.prune_orphan_photos(conn) == 0           # 멱등(재실행 시 0)
+
+
 def test_request_budget_persists_across_clients(tmp_path):
     """D1(2026-07-22): 일일 요청 예산이 클라이언트(프로세스) 간 파일로 공유돼 생성자 리셋을 막는다.
     종전엔 _request_count가 생성자마다 0 → daily_cap이 프로세스마다 새로 시작(하루 6119콜 실측)."""

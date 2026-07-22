@@ -546,14 +546,38 @@ def prune_orphan_rights(conn: sqlite3.Connection) -> int:
     INSERT OR REPLACE 라 한 번 쌓이면 안 지워져 죽은 권리가 무한 누적된다. 풀스냅샷 새로고침
     직후 호출해 rights 를 scored 와 동기화(중복/부풀림 방지). 반환=삭제 건수.
     """
+    return _prune_orphans(conn, "listing_rights")
+
+
+def _prune_orphans(conn: sqlite3.Connection, table: str) -> int:
+    """scored_listings 에 대응 물건이 없는 자식테이블 행(고아) 삭제. 반환=삭제 건수.
+
+    (E2 2026-07-22 QA HIGH) rights 만 정리기가 있어 listing_photos(6578)·naver_prices(1700)
+    고아가 무한 누적됐다(고아 사진행은 Supabase Storage 죽은 JPEG를 가리킴). 풀스냅샷 후 공통 배선.
+    테이블 없으면 0(신규 DB 안전).
+    """
+    has = conn.execute(
+        "SELECT 1 FROM sqlite_master WHERE type='table' AND name=?", (table,)).fetchone()
+    if not has:
+        return 0
     with conn:
         cur = conn.execute(
-            "DELETE FROM listing_rights WHERE NOT EXISTS ("
+            f"DELETE FROM {table} WHERE NOT EXISTS ("  # noqa: S608 — table은 내부 상수만 전달
             "  SELECT 1 FROM scored_listings s"
-            "  WHERE s.court=listing_rights.court AND s.case_no=listing_rights.case_no"
-            "    AND s.item_no=listing_rights.item_no)"
+            f"  WHERE s.court={table}.court AND s.case_no={table}.case_no"
+            f"    AND s.item_no={table}.item_no)"
         )
     return cur.rowcount
+
+
+def prune_orphan_photos(conn: sqlite3.Connection) -> int:
+    """scored 에 없는 listing_photos 고아 삭제(풀스냅샷 후). ⚠ Supabase Storage JPEG GC는 별도."""
+    return _prune_orphans(conn, "listing_photos")
+
+
+def prune_orphan_naver(conn: sqlite3.Connection) -> int:
+    """scored 에 없는 naver_prices 고아 삭제(풀스냅샷 후)."""
+    return _prune_orphans(conn, "naver_prices")
 
 
 def load_rights(conn: sqlite3.Connection, court: str, case_no: str,
