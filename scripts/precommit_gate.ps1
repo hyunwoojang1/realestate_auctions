@@ -53,9 +53,12 @@ if ($env:AUCTION_SKIP_GATE -eq "1") {
 }
 
 # --- 3) ruff on staged .py files only (fast, scoped) ---
-$stagedPy = $staged | Where-Object { $_ -match '\.py$' -and (Test-Path (Join-Path $RepoRoot $_)) }
-if ($stagedPy) {
-    & $Ruff check @stagedPy
+# @() forces an array: a single match would otherwise collapse to a scalar string, and splatting a
+# string in PS5.1 explodes it character-by-character (ruff then gets one-letter args and fails).
+# Caught in production on the first single-file commit; pass the array variable, never @splat.
+$stagedPy = @($staged | Where-Object { $_ -match '\.py$' -and (Test-Path (Join-Path $RepoRoot $_)) })
+if ($stagedPy.Count -gt 0) {
+    & $Ruff check $stagedPy
     if ($LASTEXITCODE -ne 0) { Fail "ruff violations in staged files (see above). Fix or run: .venv\Scripts\ruff.exe check --fix <file>" }
 }
 
