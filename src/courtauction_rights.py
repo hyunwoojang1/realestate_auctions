@@ -183,6 +183,20 @@ _OPPOSABLE_NEGATIONS = (
     "임차권등기의 말소",
 )
 
+# (감사 2026-07-23 P-14) 위 고정 문자열은 **조사 변형을 못 잡는다** — 실측 결과 가장 흔한 표기가
+# "대항력**은** 포기"(574건)인데 목록에 없어(있는 건 "대항력 포기" 494·"대항력을 포기" 175),
+# HUG·주금공이 대항력을 포기한 물건까지 대항력 있음으로 남아 추천에서 강등됐다(강등 248건 중 58건).
+# 조사·부사 삽입을 흡수하는 정규식으로 보완한다. 문자열 목록은 그대로 두고 **둘 다** 검사한다.
+_OPPOSABLE_NEGATION_RES = (
+    re.compile(r"대항력\s*[은는을를]?\s*(?:전부\s*)?포기"),   # 대항력은/을/─ 포기, 대항력포기
+)
+
+
+def _has_negation(text: str) -> bool:
+    """인수-해소(부정) 표현이 있는가 — 고정 문자열 + 조사 변형 정규식 양쪽."""
+    return (any(neg in text for neg in _OPPOSABLE_NEGATIONS)
+            or any(rx.search(text) for rx in _OPPOSABLE_NEGATION_RES))
+
 
 def _strip_negated_clauses(text: str) -> str:
     """인수-해소 표현이 포함된 '절'(문장 조각)을 제거한 텍스트 반환.
@@ -196,7 +210,7 @@ def _strip_negated_clauses(text: str) -> str:
     # 인수됨"처럼 한 문장에 인수-해소와 진짜 인수가 콤마로 이어진 다중임차인 명세서에서, 콤마가 없으면
     # 부정절이 인수절까지 통째로 먹어 인수신호를 미탐하던 것 수정(주석 목표를 실제로 달성).
     for clause in re.split(r"[.\n;·,，]", text or ""):
-        if any(neg in clause for neg in _OPPOSABLE_NEGATIONS):
+        if _has_negation(clause):
             continue
         out.append(clause)
     return " ".join(out)
@@ -222,7 +236,7 @@ def detect_tenant_opposable(myeongsaeseo: str, *others: str) -> bool:
     stripped = _strip_negated_clauses(blob)
     if any(p in stripped for p in _STRONG_PHRASES):
         return True
-    has_release = any(neg in blob for neg in _OPPOSABLE_NEGATIONS)
+    has_release = _has_negation(blob)
     return (not has_release) and any(p in stripped for p in _WEAK_PHRASES)
 
 
