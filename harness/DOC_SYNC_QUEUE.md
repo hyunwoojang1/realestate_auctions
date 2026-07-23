@@ -11,3 +11,4 @@
 
 <!-- 이 아래로 자동 적재 -->
 - [x] 2026-07-23 11:24 KST | code-without-docs commit | files: deploy/crawl_naver.py, src/building_info.py, src/molit_bridge.py, src/molit_client.py, src/pipeline.py — 처리(2026-07-23 11:50): ruff 임포트 정렬 등 기계적 정리만이라 문서 영향 없음. (첫 자동 적재 — 게이트 정상 작동 확인)
+- [x] 2026-07-23 14:32 KST | code-without-docs commit | files: src/courtauction_detail.py, src/pipeline.py, src/score.py — 처리(14:50): README §5에 3항(burden_amount_unknown → 추천 금지) 추가, 확약 미반영 한계 명기. README §5-3
