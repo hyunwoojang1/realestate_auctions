@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """건축물대장 표시 서비스(building_info) 테스트 — 지번 파싱·요약 규칙(순수 부분만)."""
 from src.building_info import _summarize, parse_jibun
 from src.building_register_client import BuildingRecord

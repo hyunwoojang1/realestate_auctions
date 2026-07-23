@@ -378,9 +378,11 @@ def run(use_live: bool = False, deal_ymd: str | None = None,
     표본 게이트 미달이면 종전 국토부 이름매칭 경로로 폴백. 감정가 괴리로 무효화됐으면
     (확정 comps에서 괴리 = 강한 적신호) 이름매칭 폴백도 하지 않는다.
     """
-    from .matcher import estimate_from_complex_trades  # noqa: PLC0415
-    from .matcher import SCOPE_APPRAISAL_MISMATCH  # noqa: PLC0415
     from . import molit_bridge  # noqa: PLC0415
+    from .matcher import (
+        SCOPE_APPRAISAL_MISMATCH,  # noqa: PLC0415
+        estimate_from_complex_trades,  # noqa: PLC0415
+    )
 
     listings = auctions if auctions is not None else load_sample_auctions()
 

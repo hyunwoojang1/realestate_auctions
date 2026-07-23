@@ -47,15 +47,22 @@ Log "=== 권리 크롤 자동실행 시작 (limit=$Limit, skipDeploy=$SkipDeploy
 $result = [ordered]@{ started=(Get-Date -Format "yyyy-MM-dd HH:mm"); phase1=""; crawl_exit=""; phase3=""; rights_before=0; rights_after=0; deployed="no"; verdict="" }
 
 # ---------- Phase 0: 리스트 크롤 종료 확인 ----------
-if (Test-Path (Join-Path $RepoRoot "COURTAUCTION_STOP")) {
+# (2026-07-23 감사수정) exit code 체계: 0=OK / 10=사전검수FAIL / 20=사후검수FAIL / 30=푸시·배포실패 / 40=킬스위치.
+# 종전엔 어떤 실패든 exit 0이라 작업스케줄러 LastTaskResult가 항상 성공으로 찍혔고(7/21 ABORT 실증),
+# 킬스위치 경로는 `break`로 즉사해 리포트조차 안 남았다. 이제 모든 경로가 리포트+알림+exit code를 남긴다.
+$exitCode = 0
+$killed = Test-Path (Join-Path $RepoRoot "COURTAUCTION_STOP")
+if ($killed) {
     Log "[Phase0] COURTAUCTION_STOP 존재 — 킬스위치 켜짐. 중단."
     $result.verdict = "ABORT: kill-switch"
-    ""; break
+    $result.phase1 = "SKIP"
+    $exitCode = 40
 }
+if (-not $killed) {
 $waited = 0
 while ($WaitMinutes -gt 0 -and $waited -lt $WaitMinutes) {
     $busy = Get-CimInstance Win32_Process -Filter "Name='python.exe'" -ErrorAction SilentlyContinue |
-            Where-Object { $_.CommandLine -match "crawl_naver|run.py|--nationwide" }
+            Where-Object { $_.CommandLine -match "crawl_naver|crawl_rights|run.py|--nationwide" }
     if (-not $busy) { break }
     Log "[Phase0] 다른 크롤 진행 중 — 60초 대기 ($waited/$WaitMinutes분)"
     Start-Sleep -Seconds 60; $waited++
@@ -79,6 +86,7 @@ $result.phase1 = if ($pre_ok) { "PASS" } else { "FAIL" }
 if (-not $pre_ok) {
     Log "[Phase1] 사전 검수 실패 — 크롤/배포 안 함."
     $result.verdict = "ABORT: 사전검수 FAIL (크롤 안 함)"
+    $exitCode = 10
 } else {
     # ---------- Phase 2: 권리 크롤 ----------
     Log "[Phase2] crawl_rights --limit $Limit ..."
@@ -104,43 +112,69 @@ if (-not $pre_ok) {
     if ($post_ok) {
         Log "[Phase4] git push ..."
         git push origin main 2>&1 | Tee-Object -FilePath $LogPath -Append
-        if (-not $SkipDeploy) {
+        # (2026-07-23 감사수정) push 실패가 'OK'로 위장되던 것 차단 — exit code 검사.
+        if ($LASTEXITCODE -ne 0) {
+            Log "[Phase4] git push 실패(exit $LASTEXITCODE) — 수동 push 필요"
+            $result.deployed = "push FAILED"
+            $exitCode = 30
+        }
+        if ($exitCode -ne 30 -and -not $SkipDeploy) {
             $bash = @("C:\Program Files\Git\bin\bash.exe","C:\Program Files (x86)\Git\bin\bash.exe") |
                     Where-Object { Test-Path $_ } | Select-Object -First 1
             if ($bash) {
                 Log "[Phase4] deploy_prod.sh via $bash ..."
                 & $bash "scripts/deploy_prod.sh" 2>&1 | Tee-Object -FilePath $LogPath -Append
                 if ($LASTEXITCODE -eq 0) { $result.deployed = "yes"; Log "[Phase4] 배포 성공" }
-                else { $result.deployed = "FAILED"; Log "[Phase4] 배포 실패(exit $LASTEXITCODE) — 수동 배포 필요" }
+                else { $result.deployed = "FAILED"; $exitCode = 30; Log "[Phase4] 배포 실패(exit $LASTEXITCODE) — 수동 배포 필요" }
             } else {
                 $result.deployed = "skip(no-bash)"; Log "[Phase4] Git Bash 못 찾음 — 배포 스킵, 수동 배포 필요"
             }
-        } else { $result.deployed = "skip(-SkipDeploy)"; Log "[Phase4] -SkipDeploy — 배포 생략" }
-        $result.verdict = "OK: 크롤+검수 PASS, 배포=$($result.deployed)"
+        } elseif ($exitCode -ne 30) { $result.deployed = "skip(-SkipDeploy)"; Log "[Phase4] -SkipDeploy — 배포 생략" }
+        if ($exitCode -eq 30) {
+            $result.verdict = "HALT: 크롤+검수 PASS, 푸시/배포 실패($($result.deployed)) — 수동 조치 필요"
+        } else {
+            $result.verdict = "OK: 크롤+검수 PASS, 배포=$($result.deployed)"
+        }
     } else {
         $result.verdict = "HALT: 사후검수 FAIL — 배포 차단(크롤분은 로컬·Supabase 유지)"
+        $exitCode = 20
         Log "[Phase4] 사후 검수 실패 — 배포 안 함."
     }
 }
+}  # end if (-not $killed)
 
 # ---------- 리포트 ----------
+# (2026-07-23 감사수정) 미실행 단계는 '—'로 표기 — 종전엔 Phase3 미실행 시 'N → 0'으로 찍혀
+# 비개발자에게 '데이터 유실'로 오인됐다(7/21 실증).
+$p2Disp = if ("$($result.crawl_exit)" -ne "") { "$($result.crawl_exit) (0=정상·2=차단·3=실패율과다)" } else { "— (미실행)" }
+$p3Disp = if ($result.phase3) { $result.phase3 } else { "— (미실행)" }
+$raDisp = if ($result.phase3) { "$($result.rights_after)" } else { "— (미실행)" }
 $md = @"
 # 권리 크롤 자동실행 리포트
 
 - 실행: $($result.started) ~ $(Get-Date -Format 'yyyy-MM-dd HH:mm') KST
-- **판정: $($result.verdict)**
+- **판정: $($result.verdict)** (exit $exitCode)
 
 | 단계 | 결과 |
 |------|------|
 | Phase1 사전검수 | $($result.phase1) |
-| Phase2 크롤 exit | $($result.crawl_exit) (0=정상·2=차단·3=실패율과다) |
-| Phase3 사후검수 | $($result.phase3) |
-| listing_rights | $($result.rights_before) → $($result.rights_after) |
+| Phase2 크롤 exit | $p2Disp |
+| Phase3 사후검수 | $p3Disp |
+| listing_rights | $($result.rights_before) → $raDisp |
 | 배포 | $($result.deployed) |
 
 - 로그: $LogPath
 - 절차: harness/RIGHTS_CRAWL_RUNBOOK.md
 "@
 $md | Out-File -FilePath $Report -Encoding utf8
-Log "=== 종료: $($result.verdict) ==="
+Log "=== 종료: $($result.verdict) (exit $exitCode) ==="
 Log "리포트: $Report"
+
+# ---------- 운영자 알림 (2026-07-23 도입: 세션 없이도 결과가 폰/ALERTS.log에 남는다) ----------
+$prio = if ($exitCode -eq 0) { "default" } else { "urgent" }
+& powershell.exe -NoProfile -ExecutionPolicy Bypass -File (Join-Path $RepoRoot "scripts\notify.ps1") `
+    -Title "[auction] rights crawl exit=$exitCode" `
+    -Message "$($result.verdict) | phase1=$($result.phase1) crawl=$($result.crawl_exit) phase3=$p3Disp rights=$($result.rights_before)->$raDisp deploy=$($result.deployed)" `
+    -Priority $prio | Out-Null
+
+exit $exitCode

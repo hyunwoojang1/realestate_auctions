@@ -28,7 +28,8 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT))
 
-from src import coords, naver_match, naver_store as ns, store  # noqa: E402
+from src import coords, naver_match, store  # noqa: E402
+from src import naver_store as ns  # noqa: E402
 from src.naver_client import NaverBlocked, NaverClient  # noqa: E402
 
 _CACHE = ROOT / "data" / "naver_cache.json"
@@ -123,6 +124,7 @@ def _backfill_pairs(conn, limit=None, refresh=False, stale_days=None):
     stale_days 지정(증분): 그 일수보다 오래 전 확인된 쌍만 재수집 대상(신선한 쌍은 skip).
     """
     from datetime import datetime, timedelta  # noqa: PLC0415
+
     from src import naver_store as _ns  # noqa: PLC0415
 
     if refresh:

@@ -47,3 +47,14 @@ data/naver_cache.json
 migrate_status.html
 scripts/_ui_xml/
 .courtauction_budget.json
+
+# 세션 임시 산출물(실명 PII 포함 가능 — 감사 2026-07-23: scratch_pii*.txt 6종이 루트에 방치돼
+# `git add -A` 한 번이면 유출되는 상태였다). scratch류는 전부 scratch/ 하위에만 쓰고 커밋 금지.
+/scratch/
+/scratch_*
+
+# 하네스 런타임 상태(자동 생성 — 커밋 불필요)
+harness/ALERTS.log
+harness/watchdog_state.json
+harness/WATCHDOG_LAST.txt
+harness/notify.json

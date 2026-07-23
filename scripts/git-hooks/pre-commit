@@ -1,0 +1,5 @@
+#!/bin/sh
+# auction-arbitrage pre-commit gate (installed into .git/hooks by scripts/install-hooks.ps1).
+# Runs scripts/precommit_gate.ps1: scratch/db block -> doc-drift queue -> ruff -> PII scan -> pytest.
+root="$(git rev-parse --show-toplevel)"
+exec powershell.exe -NoProfile -ExecutionPolicy Bypass -File "$root/scripts/precommit_gate.ps1"

@@ -13,8 +13,8 @@ params: serviceKey, LAWD_CD(법정동코드 5자리), DEAL_YMD(YYYYMM), pageNo, 
 from __future__ import annotations
 
 import logging
-import re
 import random
+import re
 import time
 import xml.etree.ElementTree as ET
 

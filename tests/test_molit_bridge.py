@@ -1,7 +1,6 @@
-# -*- coding: utf-8 -*-
 """국토부 병렬 하이브리드 브리지(H5) 테스트 — 지문 확정·보수 게이트·보충 주입."""
 from src.models import AuctionListing, Trade
-from src.molit_bridge import BridgeIndex, MIN_MATCHES
+from src.molit_bridge import MIN_MATCHES, BridgeIndex
 
 
 def _lst(**kw) -> AuctionListing:
@@ -125,7 +124,7 @@ def test_pipeline_wiring_appends_bridge_rows():
     lookup = {("c", "T", ""): list(NAVER_ROWS)}
     scored = pipeline.run(
         auctions=[lst], trades=POOL_MATCH + [FRESH],
-        real_trades_lookup=lambda l: lookup.get((l.court, l.case_no, str(l.item_no or ""))),
+        real_trades_lookup=lambda li: lookup.get((li.court, li.case_no, str(li.item_no or ""))),
     )
     assert len(scored) == 1
     s = scored[0]

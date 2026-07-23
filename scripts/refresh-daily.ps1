@@ -136,4 +136,15 @@ try {
 "exit : $code" | Tee-Object -FilePath $LogPath -Append
 "log  : $LogPath" | Tee-Object -FilePath $LogPath -Append
 
+# --- 운영자 알림 (2026-07-23 도입) — 실패=urgent, 권리크롤 차단/드리프트=high, 성공=min(무음성) ---
+$rightsNote = ""
+if (-not $SkipRights -and (Test-Path variable:rightsCode)) { $rightsNote = " rights_exit=$rightsCode" }
+$prio = "min"
+if ($code -ne 0) { $prio = "urgent" }
+elseif ($rightsNote -match "rights_exit=[23]") { $prio = "high" }
+& powershell.exe -NoProfile -ExecutionPolicy Bypass -File (Join-Path $RepoRoot "scripts\notify.ps1") `
+    -Title "[auction] daily refresh exit=$code" `
+    -Message "mode=$mode$rightsNote db=$(Split-Path $DbPath -Leaf) log=$(Split-Path $LogPath -Leaf)" `
+    -Priority $prio | Out-Null
+
 exit $code

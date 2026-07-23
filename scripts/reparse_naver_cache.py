@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """T3: naver_cache.json(37MB, 7/15 크롤 원본) 재파싱 → naver_complexes·naver_kb_history 적재.
 
 크롤 0번 — 이미 저장된 원본 응답에서 그동안 버리던 필드(세대수·사용승인일·용적률·주차·

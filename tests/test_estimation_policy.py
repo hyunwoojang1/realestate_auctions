@@ -127,6 +127,7 @@ def test_ranking_puts_unsupported_last():
     """정렬(arb_score None → 뒤) — 미지원 유형이 상위 노출되지 않는다.
     (사용자 2026-07-21) 권리 미확인은 점수 None이 되므로, '상위' 전제인 아파트는 권리 확정본으로."""
     import dataclasses
+
     from src import store
     from src.models import ScoredListing
     conn = store.connect(":memory:")

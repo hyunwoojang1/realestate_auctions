@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """C1 교정 재처리 — naver_cache.json의 real 원본으로 naver_real_trades·complexes를 재구축.
 
 크롤(원본 저장, C1)과 upsert 로직이 분리돼 있어, 취소거래 판정 버그(deleteYn 'O') 수정 후

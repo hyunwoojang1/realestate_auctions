@@ -32,6 +32,24 @@
    사람 결정 대기는 `harness/QUESTIONS.md`(+푸시 알림), 방향 수정은 `harness/STEER.md`.
    LOOP.md의 절대 금지(범위 잠금) 항목은 이 파일 규칙과 동급으로 준수.
 
+## 자동화 하네스 3종 (2026-07-23 도입 — 수동 QA 전쟁 종식용)
+
+**① 커밋 게이트(pre-commit)**: 모든 `git commit`에서 `scripts/precommit_gate.ps1`이 자동 실행 —
+scratch/DB 파일 차단(PII) → 문서 드리프트 감지 → ruff(스테이징 파일만) → PII 잔여 스캔 → pytest 전체.
+실패 시 커밋 차단. 비상 우회는 `AUCTION_SKIP_GATE=1`(scratch/DB 차단은 우회 불가).
+훅 재설치: `scripts/install-hooks.ps1`. **테스트를 게이트에 맞추지 말고 코드를 고칠 것.**
+
+**② 문서 동기화 큐**: 크롤러/판정 코드가 README/docs 없이 커밋되면 `harness/DOC_SYNC_QUEUE.md`에
+자동 적재된다. **모든 세션은 시작 시(그리고 루프는 매 사이클 1단계에서) 이 큐를 확인**하고,
+미처리 항목이 있으면 diff를 읽어 README 해당 섹션·docs/crawler_qa_*를 실코드 기준으로 갱신 후
+`- [x]` 체크한다. "코드 고치면 문서가 따라온다"의 실행 주체는 큐를 소비하는 세션이다.
+
+**③ 알림·워치독**: `scripts/notify.ps1`(ntfy 푸시+`harness/ALERTS.log`)이 refresh-daily·
+rights-crawl-and-ship 종료 시 자동 발송. `AuctionArbitrage-Watchdog` 작업(30분마다,
+`scripts/watchdog.ps1`)이 DailyRefresh 비활성/정체·크롤 ABORT·서빙 다운·push 밀림을 감시해 푸시.
+ntfy 토픽은 `harness/notify.json`(gitignore, 예시는 notify.json.example). rights-crawl-and-ship
+exit code: 0=OK/10=사전검수FAIL/20=사후검수FAIL/30=푸시·배포실패/40=킬스위치.
+
 ## Supabase 스키마/DDL — 에이전트가 직접 실행 (클립보드 금지)
 
 이 프로젝트가 쓰는 Supabase(프로젝트 ref **`trajmfklbyarbkiljogj`**, "Finance AI") 스키마 변경(DDL)이나 임의 SQL은 **에이전트가 Management API로 직접 실행한다.** DDL을 사용자에게 "클립보드에 넣고 대시보드에서 실행" 넘기지 말 것. (사용자 지시 2026-07-13)

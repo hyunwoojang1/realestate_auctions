@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """naver_store(T1) + 국토부 직거래·등기일 파싱(T2) 테스트 — 2026-07-19 complexNo 실거래 개편."""
 import sqlite3
 

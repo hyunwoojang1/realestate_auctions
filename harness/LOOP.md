@@ -28,6 +28,8 @@
 1. **상태 파악**: `versions.md` 최신 3~5개 항목(진짜 최신 상태) → `PROGRESS.md` →
    `harness/BACKLOG.md` → `harness/QUESTIONS.md` 순으로 읽는다.
    미해결 질문에 답이 달렸으면(운영자가 QUESTIONS.md에 답 기입) 해당 항목 잠금 해제.
+   **`harness/DOC_SYNC_QUEUE.md`도 확인** — 미처리 항목(코드만 커밋되고 문서 미갱신)이 있으면
+   이번 사이클에서 해당 diff 기준으로 README·docs/crawler_qa_*를 동기화하고 체크한다(CLAUDE.md ②).
 2. **모드 선택**:
    - BACKLOG에 `[ready]` 항목 있음 → **구현 모드** (3으로)
    - 없음 → **탐색 모드** (2'로)

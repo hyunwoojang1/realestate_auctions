@@ -13,7 +13,7 @@ import sys
 sys.stdout.reconfigure(encoding="utf-8")
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 sys.path.insert(0, ROOT)
-from src.courtauction_fields import _looks_like_name, mask_personal_names
+from src.courtauction_fields import _looks_like_name, mask_personal_names  # noqa: E402
 
 # 잔여 실명 스캔 — 역할라벨 + 구분자 + 토큰. 토큰이 마스커 기준으로 '성명처럼 보이면' 누락 실명.
 # (마스커와 동일한 _looks_like_name 을 써서 법률용어·법인·조사 오탐을 제거 = 정렬된 CI 가드)

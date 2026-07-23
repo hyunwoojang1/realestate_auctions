@@ -1,0 +1,5 @@
+{
+  "enabled": true,
+  "ntfy_topic": "tj-auction-XXXXXXXX",
+  "_설명": "harness/notify.json 으로 복사해 사용. ntfy_topic은 비밀번호처럼 취급(아는 사람은 알림 구독 가능). 폰에 ntfy 앱 설치 후 같은 토픽 구독하면 푸시 수신. notify.json 자체는 .gitignore 대상."
+}
