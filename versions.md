@@ -1,5 +1,22 @@
 # versions.md — auction-arbitrage 루프 작업 로그 (append-only, 최신순)
 
+## 2026-07-23 13:45 KST — 🔓 무료 격차 감사(§5) 완료 → docs/무료_격차_명세서.md + P-09·P-10·P-11
+- **조사**(3관점 병렬, **라이브 탐침 0회** — 예산 5,400+ 소진·타세션 크롤 중이라 정적만): 우리 호출
+  인벤토리 / UI XML(`scripts/_ui_xml`)·문서 정찰 / 유료 서비스 기준선(공개 기능 벤치마킹, 데이터 크롤 금지).
+- **P-09 신규 클래스 — '받아놓고 안 쓰는 것'**(grep 실측): `naver_articles` **41,257행 읽기 0** ·
+  `naver_kb_history` **5,160행 읽기 0** · `naver_complexes` 2,559행(사실상 0). 주석상 의도(호가 근거
+  투명화·추세 교차검증·전세가율)는 전부 미구현 — 크롤 예산·용량 쓰고 기여 0. 소비처 없으면 **수집을 끄는 것**도 선택지.
+- **P-10 — 현황조사서가 일일 파이프라인에 아예 없음**: refresh-daily·rights-crawl-and-ship 어디에도
+  `AUCTION_CRAWL_TENANTS=1`·`--tenants-backfill` 없음(7/23 수동 1회가 전부). P-08(추천 0%)의 상위 원인.
+  crawler_qa_remediation.md B2가 이미 자체 기록해둔 사항 — 알고도 미배선.
+- **P-11 무료 격차 목록**: 추가요청0 퀵윈(spJogCd 15,303·remaeordDay 1,232·dupSaNo/byungSaNo 2,819/1,511·
+  maeAmt 725·상세원문 auctnSuspStatCd/csNm/gdsDspslObjctLst) / 미수집 무료 엔드포인트 **스키마 확정**
+  = `selectAuctnTongSrchRslt.on`(**인근 매각통계=낙찰가율** term3/6/12, BACKLOG B5 원자료를 법원이 무료 집계
+  제공) · `selectAuctnPbancNtcMtrLst.on`(전자공고=취하/정정/취소 공식신호) / **불명 정직표기**: 문건송달
+  (UI XML 14개에 화면 없음) · selectAroundDspslGds(302 미해독) / **범위 밖 확정**: 등기부=유료(법원 UI 명시)·
+  세대열람=방문전제·감정평가서PDF=뷰어 미도달 / **죽은 능력**: canary() 호출 0 · molit_extra 미활성.
+- AUDIT_RUNBOOK 감사 지도 갱신(감사 6종 가동, 다음=표출 정합). 전부 **미수정**(문제지 보존 지시).
+
 ## 2026-07-23 13:35 KST — 🚨 커버리지 감사 신설 → **P-08 CRITICAL: 추천 물건에 현황조사서 0%(구조적)**
 - **신설** `scripts/audit_coverage.py` — 커버리지를 전체 평균이 아니라 **추천등급 기준**으로 본다
   (헌장 §0-①: 위험한 오류는 '문제없음' 쪽에 있다). A.원천별 커버리지(전체vs추천) · B.추천 물건의 권리
