@@ -95,19 +95,8 @@ def test_no_asking_no_dots():
     assert "bg-ask" not in gap_meter_html(_scored())
 
 
-# ---- 웹 통합(샘플 데이터는 밴드 보유) ----
-
-def test_detail_page_renders_band_gauge(monkeypatch):
-    from src import web
-    monkeypatch.setattr(web, "_scored", lambda: [_scored()])
-    c = web.create_app().test_client()
-    html = c.get("/property/G1").get_data(as_text=True)
-    assert "bandgauge" in html and "bg-cost" in html
-
-
-def test_listing_page_renders_band_gauge(monkeypatch):
-    from src import web
-    monkeypatch.setattr(web, "_scored", lambda: [_scored()])
-    c = web.create_app().test_client()
-    html = c.get("/").get_data(as_text=True)
-    assert "bandgauge" in html
+# ---- (웹 통합 테스트 2건 삭제 — 2026-07-23) ----
+# 종전의 test_detail/listing_page_renders_band_gauge 는 "bandgauge" 문자열이 페이지에 있는지
+# 검사했는데, 실제로는 템플릿 어디서도 meter 를 호출하지 않아(맥시멀 대시보드 개편으로 배선 소멸)
+# base.html **인라인 CSS 의 클래스 정의 텍스트**에 매칭돼 통과해온 허상 검사였다.
+# CSS 외부화(base.css)로 허상이 드러나 삭제. 함수 자체의 마크업 계약은 위 단위 테스트가 지킨다.

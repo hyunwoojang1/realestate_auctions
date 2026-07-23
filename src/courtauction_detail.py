@@ -121,14 +121,20 @@ _REASON_UNKNOWN = "사유 미상"
 class ResaleHistory:
     """과거에 낙찰됐다가 되돌아온 이력 — '그 물건 자체의 확정 사실'(통계 아님).
 
-    ⚠️ `last_sold_floor` 는 **그 회차의 최저입찰가**이지 낙찰가가 아니다. 대법원 물건상세
-    응답의 `dspslAmt`(매각금액)는 스키마에만 있고 값이 항상 비어 온다(실측: 매각 회차 15/15 null).
-    화면에서 이걸 '낙찰가'로 부르면 거짓이 된다.
+    두 금액을 **구분해서** 담는다 — 화면에서 섞이면 거짓말이 된다:
+      · `last_sold_floor` = 그 회차의 **최저입찰가**(항상 있음, 물건상세 tsLwsDspslPrc)
+      · `last_sold_price` = **실제 낙찰가**(있을 때만, 검색결과 maeAmt)
+
+    ⚠️ 물건상세(pgj15B)의 `dspslAmt`(매각금액)는 스키마에만 있고 **항상 null**이다
+    (실측: 매각 회차 15/15). 실제 낙찰가는 **검색결과(raw_listings)의 `maeAmt`** 에 있으며,
+    이 값은 재매각 물건에만 채워진다(정상 낙찰 물건은 목록에서 사라지므로).
+    `deploy/backfill_sold_amount.py` 가 schedule 의 매각 회차에 `sold` 키로 주입한다.
     """
     sold_count: int          # 낙찰됐다 되돌아온 횟수
     last_sold_ymd: str       # 가장 최근 매각 기일(YYYY-MM-DD)
     last_sold_floor: int | None   # 그 회차 최저입찰가(원) — 낙찰가 아님
     reason: str              # 대금 미납 / 매각 불허가 / 매각허가 취소 / 사유 미상
+    last_sold_price: int | None = None   # 실제 낙찰가(원). None = 미수집
 
 
 def _sched_key(row) -> str:
@@ -166,6 +172,8 @@ def resale_history(schedule) -> ResaleHistory | None:
     last = sold_idx[-1]
     price = rows[last].get("price")
     floor = price if isinstance(price, int) and price > 0 else None
+    sold = rows[last].get("sold")
+    sold_price = sold if isinstance(sold, int) and sold > 0 else None
 
     reason = _REASON_UNKNOWN
     for r in rows[last + 1:]:
@@ -173,7 +181,7 @@ def resale_history(schedule) -> ResaleHistory | None:
         if mapped:
             reason = mapped        # 마지막 종결 사유가 이긴다
     return ResaleHistory(sold_count=len(sold_idx), last_sold_ymd=_sched_key(rows[last]),
-                         last_sold_floor=floor, reason=reason)
+                         last_sold_floor=floor, reason=reason, last_sold_price=sold_price)
 
 
 @dataclass
@@ -245,15 +253,24 @@ class CaseRights:
 
     @classmethod
     def from_row(cls, row: dict) -> CaseRights:
+        """DB 행 → CaseRights. **없는 컬럼은 dataclass 기본값**으로 남는다.
+
+        (2026-07-23) 목록 경로는 `appraisal_notes`(14.1MB)를 SELECT 하지 않는다. 예전처럼
+        `d.get(k)` 로 채우면 그 필드가 `None` 이 되어 `default_factory=list` 가 무력화되고,
+        이후 `for it in cr.appraisal_notes` 가 TypeError 로 터진다. 키 존재 여부로 갈라
+        **부분 SELECT 를 안전하게 허용**한다(전체 SELECT 경로는 동작 불변).
+        """
         d = dict(row)
         for jkey in ("schedule", "appraisal_notes"):
-            v = d.get(jkey)
+            if jkey not in d:
+                continue
+            v = d[jkey]
             if isinstance(v, str):
                 try:
                     d[jkey] = json.loads(v) if v else []
                 except json.JSONDecodeError:
                     d[jkey] = []
-        return cls(**{k: d.get(k) for k in cls.__dataclass_fields__})  # type: ignore[arg-type]
+        return cls(**{k: d[k] for k in cls.__dataclass_fields__ if k in d})  # type: ignore[arg-type]
 
 
 # ---------------------------------------------------------------------------

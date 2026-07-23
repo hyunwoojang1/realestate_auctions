@@ -125,13 +125,84 @@ def test_malformed_rows_do_not_crash():
 
 
 def test_floor_is_not_a_winning_bid():
-    """last_sold_floor 는 '그 회차 최저입찰가'다 — 낙찰가가 아니다(대법원이 안 준다).
+    """last_sold_floor 는 '그 회차 최저입찰가'다 — 낙찰가가 아니다.
 
-    이 계약이 깨지면 화면이 최저가를 낙찰가로 오표시한다.
+    두 값은 별도 필드로만 존재해야 한다. 이 계약이 깨지면 화면이 최저가를 낙찰가로 오표시한다.
     """
     r = resale_history(REAL_DESC)
     sold_row = next(x for x in REAL_DESC if x["result"] == "매각")
     assert r.last_sold_floor == sold_row["price"]
+    assert r.last_sold_price is None      # schedule 에 sold 키가 없으면 낙찰가는 '미상'
+
+
+# ── 실제 낙찰가(maeAmt → schedule.sold) ──
+
+def test_reads_actual_sold_price_when_injected():
+    """백필이 넣은 sold 키를 낙찰가로 읽는다 — 최저입찰가와 별개 필드."""
+    sched = [dict(r) for r in REAL_DESC]
+    for r in sched:
+        if r["result"] == "매각":
+            r["sold"] = 128_000_000        # 최저 111,230,000 위로 써낸 실제 낙찰가
+    r = resale_history(sched)
+    assert r.last_sold_price == 128_000_000
+    assert r.last_sold_floor == 111_230_000     # 최저가는 그대로 보존
+
+
+def test_sold_price_uses_latest_sale_round():
+    """여러 번 낙찰된 물건은 **가장 최근** 매각 회차의 낙찰가를 쓴다."""
+    sched = [
+        {"ymd": "2026-08-01", "kind": "매각기일", "result": "", "price": 2072000},
+        {"ymd": "2026-03-10", "kind": "대금지급기한", "result": "미납", "price": 0},
+        {"ymd": "2026-01-20", "kind": "매각기일", "result": "매각", "price": 5000000,
+         "sold": 6_100_000},
+        {"ymd": "2025-09-10", "kind": "대금지급기한", "result": "미납", "price": 0},
+        {"ymd": "2025-03-20", "kind": "매각기일", "result": "매각", "price": 25177000,
+         "sold": 31_000_000},
+    ]
+    r = resale_history(sched)
+    assert r.sold_count == 2
+    assert r.last_sold_ymd == "2026-01-20"
+    assert r.last_sold_price == 6_100_000
+
+
+def test_bad_sold_values_are_ignored():
+    """0·음수·문자열 같은 쓰레기 값은 낙찰가로 인정하지 않는다(미상 폴백)."""
+    for bad in (0, -1, "", "abc", None, 3.5):
+        sched = [dict(r) for r in REAL_DESC]
+        for r in sched:
+            if r["result"] == "매각":
+                r["sold"] = bad
+        assert resale_history(sched).last_sold_price is None, bad
+
+
+# ── 백필 스크립트 ──
+
+def test_backfill_injects_into_latest_sale_round():
+    from deploy.backfill_sold_amount import inject
+    sched = [dict(r) for r in REAL_DESC]
+    new, changed = inject(sched, 128_000_000)
+    assert changed is True
+    sold_rows = [r for r in new if r["result"] == "매각"]
+    assert sold_rows[0]["sold"] == 128_000_000
+    # 저장 포맷(최신순) 유지
+    assert [r["ymd"] for r in new] == sorted([r["ymd"] for r in new], reverse=True)
+
+
+def test_backfill_is_idempotent():
+    from deploy.backfill_sold_amount import inject
+    sched = [dict(r) for r in REAL_DESC]
+    new, changed1 = inject(sched, 128_000_000)
+    _, changed2 = inject(new, 128_000_000)
+    assert changed1 is True and changed2 is False
+
+
+def test_backfill_skips_when_no_sale_round():
+    """매각 회차가 없으면 주입하지 않는다 — 데이터 불일치를 조용히 덮지 않는다."""
+    from deploy.backfill_sold_amount import inject
+    plain = [{"ymd": "2026-06-01", "kind": "매각기일", "result": "유찰", "price": 285000000}]
+    new, changed = inject(plain, 99_000_000)
+    assert changed is False
+    assert all("sold" not in r for r in new)
 
 
 # ────────────────────────── 웹 배선 ──────────────────────────
@@ -190,8 +261,22 @@ def test_detail_shows_resale_banner(tmp_path):
     assert "재매각 물건" in body
     assert "대금 미납" in body
     assert "2026-05-03" in body
-    # 낙찰가로 오표시하지 않는다 — 반드시 '최저입찰가'로 라벨링
+    # 낙찰가 미수집 물건은 '최저입찰가'로 라벨링하고 미수집임을 밝힌다
     assert "최저입찰가" in body
+    assert "낙찰가는 미수집" in body
+
+
+def test_detail_shows_actual_sold_price(tmp_path):
+    """낙찰가가 백필된 물건은 '실제 낙찰가'를 보여주고, 최저가와 섞지 않는다."""
+    sched = [dict(r) for r in RESALE_SCHED]
+    for r in sched:
+        if r["result"] == "매각":
+            r["sold"] = 350_000_000        # 최저 3.2억 → 실제 3.5억 낙찰
+    body = _app_client(_seed(tmp_path, sched)).get(
+        "/property/2024타경777").get_data(as_text=True)
+    assert "실제 낙찰가" in body
+    assert "3.50억" in body
+    assert "낙찰가는 미수집" not in body      # 값이 있으면 미수집 문구가 뜨면 안 된다
 
 
 def test_detail_hides_banner_without_history(tmp_path):

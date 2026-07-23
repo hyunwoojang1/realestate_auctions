@@ -301,7 +301,16 @@
       {% if resale.reason == '대금 미납' %}매수인이 잔금을 내지 않아{% elif resale.reason == '매각 불허가' %}법원이 매각을 허가하지 않아{% elif resale.reason == '매각허가 취소' %}매각허가가 취소되어{% else %}그 뒤 절차가 종결되지 않아{% endif %}
       다시 경매에 나왔습니다.
       {% if resale.reason == '대금 미납' %}매수인이 <b>보증금을 포기하면서까지</b> 잔금을 포기했다는 뜻이라, 낙찰 후에야 드러난 문제(명도 곤란·권리 하자·현장 상태 등)가 있었을 수 있습니다.{% else %}불허가·취소 사유가 물건 자체의 하자일 수 있으니 사건기록을 확인하세요.{% endif %}
-      {% if resale.last_sold_floor %}<span class="hint">(당시 회차 최저입찰가 {{ won(resale.last_sold_floor) }} — 낙찰가는 법원이 공개하지 않습니다){% if s.min_bid_price and s.min_bid_price < resale.last_sold_floor %} · 현재 최저가는 그때보다 <b>{{ won(resale.last_sold_floor - s.min_bid_price) }} 낮습니다</b>{% endif %}</span>{% endif %}
+      {#- 낙찰가(maeAmt)가 백필된 물건은 '실제로 얼마에 팔렸나'를 보여준다. 미수집이면 그 회차
+          최저입찰가만 보여주되 **낙찰가로 오인되지 않게** 라벨을 분명히 한다. -#}
+      {% if resale.last_sold_price %}
+      <span class="hint">당시 <b>실제 낙찰가 {{ won(resale.last_sold_price) }}</b>
+        {%- if resale.last_sold_floor %} (그 회차 최저 {{ won(resale.last_sold_floor) }} · {{ '%.0f'|format(resale.last_sold_price / resale.last_sold_floor * 100) }}%){% endif %}
+        {%- if s.min_bid_price and s.min_bid_price < resale.last_sold_price %} · 현재 최저가는 그때 낙찰가보다 <b>{{ won(resale.last_sold_price - s.min_bid_price) }} 낮습니다</b>{% endif %}</span>
+      {% elif resale.last_sold_floor %}
+      <span class="hint">당시 회차 최저입찰가 {{ won(resale.last_sold_floor) }} <b>(낙찰가는 미수집)</b>
+        {%- if s.min_bid_price and s.min_bid_price < resale.last_sold_floor %} · 현재 최저가는 그보다 <b>{{ won(resale.last_sold_floor - s.min_bid_price) }} 낮습니다</b>{% endif %}</span>
+      {% endif %}
       재매각은 <b>입찰보증금이 최저가의 20~30%</b>로 올라가는 경우가 많으니 법원 공고를 반드시 확인하세요.</p>
   </div>
   {% endif %}

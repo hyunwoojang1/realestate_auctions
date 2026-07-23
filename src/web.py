@@ -120,13 +120,22 @@ def _scored():
     return _enrich_naver(pipeline.run())
 
 
+# 권리 로드 최근 실패 기록(모듈 수준) — /health 노출 + fail-closed 게이트용(적대감사 F7).
+# Supabase 스키마 드리프트(400) 등으로 배지가 '전멸'하면 종전엔 경고 로그 한 줄뿐이었고,
+# 히어로의 clean-배지 게이트가 `if not badges: return True` 로 통째로 우회됐다.
+_rights_last_error: dict = {"at": 0.0, "msg": ""}
+
+
 def _rights_rows() -> list[dict]:
     """권리 요지 전량 행. 요청당 1회만 로드(g 캐시) — 배지·재매각이 함께 소비한다.
 
     (2026-07-23) 재매각 배지 도입 전엔 _rights_badges 가 직접 로드했다. 소비자가 둘로
     늘면서 같은 테이블을 요청당 두 번 읽게 되므로 로더를 분리해 캐시한다(왕복 절반).
-    실패는 빈 리스트 — 배지·재매각은 부가 정보라 목록을 막지 않는다.
+    실패는 빈 리스트 폴백이되 **침묵하지 않는다** — g._rights_failed 로 같은 요청 안의
+    소비자(히어로 게이트 등)가 '없음'과 '로드 실패'를 구분하고, 모듈 기록으로 /health 가 노출.
     """
+    import time as _time  # noqa: PLC0415
+
     from flask import has_request_context  # noqa: PLC0415
     if has_request_context() and hasattr(g, "_rightsrows"):
         return g._rightsrows
@@ -141,12 +150,92 @@ def _rights_rows() -> list[dict]:
                 conn.close()
         elif store_rest.enabled():
             rows = store_rest.load_all_rights()
-    except Exception as e:  # noqa: BLE001 — 로드 실패는 '미확인' 폴백(침묵 아님 — 경고 로그)
-        logger.warning("권리 요지 로드 실패 → 배지·재매각 전량 미표시 폴백: %s", e)
+    except Exception as e:  # noqa: BLE001 — 로드 실패는 '미확인' 폴백(침묵 아님 — 에러 로그+플래그)
+        logger.error("권리 요지 로드 실패 → 배지·재매각 전량 미표시 폴백: %s", e)
+        _rights_last_error["at"] = _time.time()
+        _rights_last_error["msg"] = str(e)[:200]
+        if has_request_context():
+            g._rights_failed = True
         rows = []
     if has_request_context():
         g._rightsrows = rows
     return rows
+
+
+# 권리 행에서 파생되는 맵(배지·재매각)의 프로세스 캐시.
+# 배지 판정(summarize)은 11,833건에 **1.6초**가 드는데(실측 2026-07-23) 원천 데이터는
+# 하루 한 번 새로고침 때만 바뀐다. 매 요청 재계산은 순수 낭비다.
+# ⚠️ 스테일 상한(적대감사 F6 정정): 로컬 SQLite 경로는 지문이 파일을 직접 보므로 즉시 반영이
+# 맞지만, 클라우드(REST) 경로의 입력 행 자체가 store_rest 의 TTL 캐시(기본 600초)를 통과한다 —
+# 즉 프로덕션의 실질 스테일 상한 = SUPABASE_CACHE_TTL 이다("스테일 창 없음"은 로컬만의 사실).
+_derived_cache: dict = {"key": None, "badges": None, "resales": None}
+
+
+# 판정이 실제로 읽는 필드 — 지문은 이것들의 변화를 잡아야 한다.
+_FP_FIELDS = ("schedule", "remark", "surviving_rights", "lien_note", "senior_lien")
+
+
+def _rights_fingerprint(rows: list[dict]) -> tuple:
+    """행 집합의 지문 — 한 번 순회(수십 ms)로 1.6초 재계산을 건너뛴다.
+
+    (행 수, 최신 fetched_at)만으로는 부족하다: 같은 크롤 런의 재크롤은 행 수·max(fetched_at)을
+    못 움직인다(런당 now 1회 공유). 1차 보강(필드 길이 합)도 **등길이 수정**('유찰'→'매각',
+    5,000→8,000만원 — 기일 결과 어휘가 전부 2자라 계통적)과 **필드 간 문구 이동**(remark→
+    surviving_rights: 길이합 불변인데 clean↔burden 판정이 뒤집힘)을 놓쳤다(적대감사 F5, 실행 재현).
+    그래서 행마다 판정 필드들을 **crc32 로 체인**(행 내 필드 순서·내용 반영)하고 행 간에는
+    합산한다(행 순서 무관). 출처 식별자를 함께 넣어 DB 간 캐시 누출을 막는다.
+    """
+    import zlib  # noqa: PLC0415
+    src = os.environ.get(DB_ENV) or os.environ.get("SUPABASE_URL") or ""
+    if not rows:
+        return (src, 0, "", 0)
+    latest = ""
+    sig = 0
+    for r in rows:
+        f = r.get("fetched_at") or ""
+        if f > latest:
+            latest = f
+        h = 0
+        for k in _FP_FIELDS:
+            v = r.get(k)
+            if v:
+                s = v if isinstance(v, str) else str(v)
+                h = zlib.crc32(s.encode("utf-8", "ignore"), h)
+            h = zlib.crc32(b"|", h)   # 필드 경계 — 이동·병합이 같은 해시가 되지 않게
+        sig = (sig + h) & 0xFFFFFFFFFFFFFFFF
+    return (src, len(rows), latest, sig)
+
+
+def _derived_maps() -> tuple[dict, dict]:
+    """(배지, 재매각) 맵을 **한 번의 순회**로 만들고 지문 캐시에 담는다.
+
+    이전엔 두 함수가 각자 전체 행을 돌며 `CaseRights.from_row` 를 **중복 수행**했고,
+    그 결과가 매 요청 재계산됐다. 배지 판정만 1.6초다(11,833건, 실측 2026-07-23).
+    원천은 하루 한 번 크롤 때만 바뀌므로 지문이 같으면 그대로 재사용한다.
+    """
+    from .courtauction_detail import CaseRights, resale_history, summarize  # noqa: PLC0415
+    rows = _rights_rows()
+    key = _rights_fingerprint(rows)
+    if _derived_cache["key"] == key and _derived_cache["badges"] is not None:
+        return _derived_cache["badges"], _derived_cache["resales"]
+
+    badges: dict = {}
+    resales: dict = {}
+    for r in rows:
+        cr = CaseRights.from_row(r)
+        uid = f"{cr.court}|{cr.case_no}|{cr.item_no}"
+        # (서빙감사 2026-07-12 #13) 빈/부분 응답(작성일·최선순위·인수권리 전무)은 판정 근거가
+        # 0 이므로 배지를 만들지 않는다 — '✓ 인수 없음'으로 오판하지 않고 '미확인'으로 폴백.
+        # (2026-07-22) 자유기술란 3칸이 전부 빈 요지도 대항력 판정근거 0 → 배지 미생성(초록 오표시 방지).
+        if not (cr.is_empty or not cr.opposability_assessable):
+            badges[uid] = summarize(cr)
+        # 재매각은 **배지 게이트와 무관**하게 판정한다 — 자유기술란이 비어도 기일 이력은 살아 있다.
+        info = resale_history(cr.schedule)
+        if info:
+            resales[uid] = info
+
+    _derived_cache.update(key=key, badges=badges, resales=resales)
+    return badges, resales
 
 
 def _resale_map() -> dict:
@@ -155,35 +244,15 @@ def _resale_map() -> dict:
     '과거에 낙찰됐다가 미납·불허가로 되돌아온 물건'은 통계가 아니라 **그 물건의 확정 사실**이라
     표본 게이트 없이 그대로 표시한다. 판정 단위는 물건(item) — schedule 이 물건별로 다르다.
     """
-    from .courtauction_detail import CaseRights, resale_history  # noqa: PLC0415
-    out = {}
-    for r in _rights_rows():
-        # from_row 가 schedule JSON 파싱·손상 폴백을 이미 담당한다(파싱 로직 중복 금지).
-        cr = CaseRights.from_row(r)
-        info = resale_history(cr.schedule)
-        if info:
-            out[f"{cr.court}|{cr.case_no}|{cr.item_no}"] = info
-    return out
+    return _derived_maps()[1]
 
 
 def _rights_badges() -> dict:
     """(court|case_no|item_no) → RightsBadge. 크롤된 물건만 담긴다(없으면 '미확인' 렌더).
 
-    목록의 '인수 부담' 칩·예상 투입 계산용. rights 테이블은 수백 행 수준이라 요청당
-    로드해도 가볍고, 클라우드는 store_rest 가 TTL 캐시로 왕복을 줄인다.
+    목록의 '인수 부담' 칩·예상 투입 계산용.
     """
-    from .courtauction_detail import CaseRights, summarize  # noqa: PLC0415
-    rows = _rights_rows()
-    out = {}
-    for r in rows:
-        cr = CaseRights.from_row(r)
-        # (서빙감사 2026-07-12 #13) 빈/부분 응답(작성일·최선순위·인수권리 전무)은 판정 근거가
-        # 0 이므로 배지를 만들지 않는다 — '✓ 인수 없음'으로 오판하지 않고 '미확인'으로 폴백.
-        # (2026-07-22) 자유기술란 3칸이 전부 빈 요지도 대항력 판정근거 0 → 배지 미생성(초록 오표시 방지).
-        if cr.is_empty or not cr.opposability_assessable:
-            continue
-        out[f"{cr.court}|{cr.case_no}|{cr.item_no}"] = summarize(cr)
-    return out
+    return _derived_maps()[0]
 
 
 def _naver_map() -> dict:
@@ -299,6 +368,44 @@ def create_app() -> Flask:
     # ── PWA(홈 화면 앱) — iOS Safari '홈 화면에 추가' 시 standalone 앱으로 열리게. ──
     # Vercel rewrite 가 모든 경로를 Flask 로 보내므로 정적 폴더 대신 명시 라우트로 서빙한다.
     _STATIC = ROOT / "static"
+
+    # base.css 콘텐츠 해시(앱 생성 시 1회) — <link href="/base.css?v=..."> 캐시 버스팅.
+    # 인라인 61KB CSS 를 외부화하면서(2026-07-23) 브라우저·SW 캐시가 가능해졌고,
+    # 배포로 파일이 바뀌면 해시가 바뀌어 즉시 새 CSS 를 받는다(immutable 캐시와 안전 공존).
+    import hashlib  # noqa: PLC0415
+    try:
+        _css_v = hashlib.md5((_STATIC / "base.css").read_bytes()).hexdigest()[:8]
+    except OSError:
+        logger.warning("static/base.css 없음 — 스타일이 렌더되지 않습니다(배포 번들 확인 필요)")
+        _css_v = "0"
+    app.jinja_env.globals["base_css_v"] = _css_v
+
+    # 렌더 시각(UTC ISO) — base.html <meta name="rendered-at"> 용. SW 캐시본의 '나이'를
+    # 페이지 스스로 계산해 '저장된 화면 · N분 전 기준' 정직성 표식을 띄운다(적대감사 F4).
+    import datetime as _dt  # noqa: PLC0415
+    app.jinja_env.globals["rendered_at"] = (
+        lambda: _dt.datetime.now(_dt.UTC).isoformat(timespec="seconds"))
+
+    @app.get("/base.css")
+    def base_css():
+        from flask import send_file  # noqa: PLC0415
+        resp = send_file(str(_STATIC / "base.css"), mimetype="text/css")
+        # (적대감사 F9) 영구 캐시는 **현재 해시와 일치하는 v** 에만 준다 — 배포 경계에서
+        # 옛 v URL 로 새 내용이 immutable 1년 고정되는 것을 막는다(불일치·무버전은 no-cache).
+        if request.args.get("v") == _css_v:
+            resp.headers["Cache-Control"] = "public, max-age=31536000, immutable"
+        else:
+            resp.headers["Cache-Control"] = "no-cache"
+        return resp
+
+    @app.get("/sw.js")
+    def service_worker():
+        from flask import send_file  # noqa: PLC0415
+        resp = send_file(str(_STATIC / "sw.js"), mimetype="application/javascript")
+        # SW 스크립트는 no-cache — 브라우저가 매 로드마다 갱신 여부를 확인해야
+        # VERSION 올림(옛 캐시 청소)이 지체 없이 전파된다.
+        resp.headers["Cache-Control"] = "no-cache"
+        return resp
 
     @app.get("/manifest.webmanifest")
     def manifest():
@@ -455,7 +562,10 @@ def create_app() -> Flask:
             if not passes_recommend_gates(s, allow_legacy=False):
                 return False
             if not badges:
-                return True
+                # (적대감사 F7) 배지 '전체 부재'가 **로드 실패**(Supabase 400 등) 때문이면
+                # fail-closed — 권리 게이트를 우회한 히어로 노출 금지. 순수 샘플 모드(권리
+                # 데이터가 원래 없는 로컬)만 종전대로 통과한다.
+                return not getattr(g, "_rights_failed", False)
             b = badges.get(f"{s.court}|{s.case_no}|{s.item_no}")
             return b is not None and b.is_clean
         hero = next((s for s in items if _hero_ok(s)), None) if all_mode else None
@@ -506,7 +616,7 @@ def create_app() -> Flask:
             page=page, total_pages=total_pages, page_url=_page_url,
             mode=mode, coverage=coverage, all_mode=all_mode,
             hero=hero, legacy_only=legacy_only, badges=badges, resales=_resale_map(),
-            won=report.won, pct=report.pct, meter=report.gap_meter_html,
+            won=report.won, pct=report.pct,
             days_until=query.days_until,
             tax_label=tax.PROFILE.label(),
             watched=watchlist.load_watchlist(watchlist.watchlist_path()),
@@ -514,9 +624,15 @@ def create_app() -> Flask:
 
     @app.get("/health")
     def health():
+        import time as _time  # noqa: PLC0415
         src = _probe_source()
         _mark_source(src)
-        return {"status": "ok", "data_source": src}
+        # (적대감사 F7) 권리 로드 최근 실패를 노출 — 배지 전멸(스키마 드리프트 400 등)이
+        # 경고 로그 한 줄로 침묵하지 않게 운영자가 헬스체크에서 바로 본다. 15분 지나면 ok 복귀.
+        rights = "ok"
+        if _rights_last_error["at"] and _time.time() - _rights_last_error["at"] < 900:
+            rights = f"failed: {_rights_last_error['msg']}"
+        return {"status": "ok", "data_source": src, "rights_source": rights}
 
     @app.get("/api/listings")
     def listings():
@@ -936,7 +1052,7 @@ def create_app() -> Flask:
             coord=coord, days_until=query.days_until,
             bldg=bldg, vworld_key=os.environ.get("VWORLD_API_KEY", "").strip(),
             priority=priority,
-            meter=report.gap_meter_html(s, askings=ask_points), won=report.won, pct=report.pct,
+            won=report.won, pct=report.pct,
             gated=gated, gate_reason=", ".join(gate_reasons),
             tax_parts=tax_parts, tax_label=tax.PROFILE.label(),
             watching=watchlist.is_watched(
@@ -987,7 +1103,7 @@ def create_app() -> Flask:
         return render_template(
             "listings.html", items=items, count=len(items), filters=filters,
             badges=digest_badges, days_until=query.days_until,
-            won=report.won, pct=report.pct, meter=report.gap_meter_html,
+            won=report.won, pct=report.pct,
             tax_label=tax.PROFILE.label(),
             data_source=getattr(g, "data_source", "n/a"))
 

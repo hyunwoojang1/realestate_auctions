@@ -60,7 +60,8 @@ def test_index_page_renders():
     assert "아파트 경매 1차 필터" in body   # T7 포지셔닝
     assert "상계주공" in body        # 실데이터 렌더
     assert "보수 기준 차익" in body   # T7 보수 차익 중심 UI
-    assert "gapmeter" in body        # 갭미터 마크업
+    # (2026-07-23) 종전의 'gapmeter in body' 검사 삭제 — 갭미터는 화면에서 렌더되지 않으며
+    # (템플릿 meter 호출 0건), base.html 인라인 CSS 의 클래스 정의에 매칭돼온 허상 검사였다.
     assert "scoreno" not in body     # 점수 UI 제거(사용자 결정 #7)
 
 

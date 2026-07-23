@@ -18,7 +18,7 @@ from datetime import datetime, timedelta, timezone
 import requests
 
 from .models import ScoredListing
-from .store import _COLS  # DRY: 컬럼 정의는 store.py 단일 출처
+from .store import _COLS, _RIGHTS_LIST_COLS  # DRY: 컬럼 정의는 store.py 단일 출처
 
 logger = logging.getLogger(__name__)
 
@@ -178,17 +178,27 @@ _rights_cache: dict = {"at": 0.0, "rows": None}
 
 
 def load_all_rights(use_cache: bool = True) -> list[dict]:
-    """권리 요지 전량(목록 배지 조인용) — listings 와 같은 TTL 캐시."""
+    """권리 요지 전량(목록 배지·재매각 판정용) — listings 와 같은 TTL 캐시.
+
+    `appraisal_notes` 를 **select 에서 제외**한다(store.fetch_all_rights 와 동일 정책):
+    목록 경로에서 안 쓰는데 테이블의 66%(14.1MB)라 REST 로 매번 전송하면 콜드 로딩을 지배한다.
+    상세는 `fetch_rights`(단건, select=*)가 전체 컬럼을 그대로 가져온다.
+    """
     if use_cache and _rights_cache["rows"] is not None and (
             time.time() - _rights_cache["at"] < _CACHE_TTL):
         return _rights_cache["rows"]
     url, key, _ = _cfg()
     rows: list[dict] = []
     offset = 0
+    select = ",".join(_RIGHTS_LIST_COLS)   # 로컬(SQLite)과 같은 컬럼 집합 — 단일 출처
     while True:
         r = requests.get(_endpoint(url, RIGHTS_TABLE), headers=_headers(key),
-                         params={"select": "*", "limit": _PAGE, "offset": offset},
+                         params={"select": select, "limit": _PAGE, "offset": offset},
                          timeout=30)
+        if r.status_code >= 400:
+            # (적대감사 F7) PostgREST 4xx 본문에 원인(누락 컬럼명 등)이 있다 — str(HTTPError)엔
+            # 상태코드·URL뿐이라 본문을 삼키면 스키마 드리프트를 특정할 수 없다.
+            logger.error("auction_listing_rights REST %s: %s", r.status_code, r.text[:300])
         r.raise_for_status()
         batch = r.json()
         rows.extend(batch)

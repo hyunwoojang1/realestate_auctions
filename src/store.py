@@ -69,6 +69,12 @@ _RIGHTS_COLS = [
     "schedule", "appraisal_notes", "fetched_at",
 ]
 
+# 목록(홈·지도) 배지·재매각 판정에 **실제로 쓰이는** 컬럼만. `appraisal_notes` 를 뺀다 —
+# 감정 요항은 상세페이지 전용인데 전체 21.5MB 중 **14.1MB(66%)** 를 차지한다(실측 2026-07-23).
+# SELECT * 로 긁으면 홈 요청마다 그 14MB 를 읽고(클라우드는 REST 로 전송) 콜드 로딩을 지배한다.
+# 상세는 load_rights/fetch_rights(단건)로 전체 컬럼을 그대로 가져오므로 영향 없다.
+_RIGHTS_LIST_COLS = [c for c in _RIGHTS_COLS if c != "appraisal_notes"]
+
 # 임차인 현황(현황조사서 crawl) — 대항력 '실판정'(전입일 vs 말소기준일)의 원천. 물건당 0..N행.
 # ⚠️ PII 미저장: 성명·주민번호·상세주소 없음. 전입일·확정일자·보증금(금액)·점유유형만.
 DDL_TENANTS = """
@@ -397,17 +403,34 @@ def load_tenants(conn: sqlite3.Connection, court: str, case_no: str,
     return [dict(r) for r in rows]
 
 
+# 원본 보존에서 **제외**할 필드 — 사진 바이너리(base64). 감사가 보는 것은 서류 '텍스트'이지
+# 이미지가 아니고, 사진은 listing_photos 에 URL/썸네일로 따로 저장된다.
+# (사고 2026-07-23) 이 제외 없이 응답 전체를 저장했더니 한 물건에 csPicLst 34MB(사진 113장)가
+# 딸려 들어와 auction.db 가 267MB → 4.0GB 로 15배 부풀었다(2,283행에 3.9GB).
+_RAW_DROP_KEYS = ("picFile",)
+
+
+def _strip_binary(obj):
+    """중첩 구조에서 사진 바이너리 키를 제거한 사본을 만든다(원본 dict 는 건드리지 않는다)."""
+    if isinstance(obj, dict):
+        return {k: _strip_binary(v) for k, v in obj.items() if k not in _RAW_DROP_KEYS}
+    if isinstance(obj, list):
+        return [_strip_binary(x) for x in obj]
+    return obj
+
+
 def save_detail_raw(conn: sqlite3.Connection, court: str, case_no: str, item_no: str,
                     doc_type: str, payload: dict, fetched_at: str = "") -> None:
     """물건상세/현황조사서 응답 원본 보존 (감사체계 2026-07-23).
 
-    실명 마스킹(mask_personal_names) → zlib 압축 저장. 같은 (물건, doc_type)은 최신으로 교체.
-    파서(normalize)를 거치지 않은 원문이므로, 파서 버그의 사후 감사·재파싱 재료가 된다.
+    사진 바이너리 제거(_strip_binary) → 실명 마스킹 → zlib 압축 저장.
+    같은 (물건, doc_type)은 최신으로 교체. 파서(normalize)를 거치지 않은 원문이므로,
+    파서 버그의 사후 감사·재파싱 재료가 된다.
     """
     import zlib  # noqa: PLC0415
 
     from .courtauction_fields import mask_personal_names  # noqa: PLC0415 — 순환 import 회피
-    text = json.dumps(payload, ensure_ascii=False, default=str)
+    text = json.dumps(_strip_binary(payload), ensure_ascii=False, default=str)
     blob = zlib.compress(mask_personal_names(text).encode("utf-8"))
     with conn:
         conn.execute(
@@ -658,8 +681,13 @@ def load_rights(conn: sqlite3.Connection, court: str, case_no: str,
 
 
 def fetch_all_rights(conn: sqlite3.Connection) -> list[dict]:
-    """권리 요지 전량(목록 배지 조인용 — 수백 행 수준의 작은 테이블)."""
-    cur = conn.execute("SELECT * FROM listing_rights")
+    """권리 요지 전량(목록 배지·재매각 판정용).
+
+    `appraisal_notes`(감정 요항)는 **의도적으로 제외**한다 — 목록 경로에서 쓰지 않는데
+    테이블 용량의 66%(14.1MB/21.5MB)를 차지해 홈 로딩을 지배했다(실측 2026-07-23).
+    상세페이지는 `load_rights`(단건)로 전체 컬럼을 가져오므로 영향 없다.
+    """
+    cur = conn.execute(f"SELECT {','.join(_RIGHTS_LIST_COLS)} FROM listing_rights")
     return [dict(r) for r in cur.fetchall()]
 
 
