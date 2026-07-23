@@ -1,5 +1,129 @@
 # versions.md — auction-arbitrage 루프 작업 로그 (append-only, 최신순)
 
+## 2026-07-23 11:45 KST — 🔍 블라인드 감사 체계 구축 + 1라운드 실전 → **CRITICAL 6·HIGH 4 / 일치 0**
+- **체계(운영자 설계 합의)**: 독립성은 전송이 아닌 **해석**에 둔다 — 격리 폴더
+  `장현우/auction-blind-audit`(판독관 헌장 CLAUDE.md·판정양식·3-판독 일치제) + 역할 3분리
+  (패커=출제/판독관=블라인드/대조관=채점). 절차=harness/AUDIT_RUNBOOK.md, 오답노트=AUDIT_CASEBOOK.md
+  (C-001~004 소급 등재, 감사 전 '형제 가설' 절차 포함).
+- **코드**: `scripts/audit_pack.py`(적대적 샘플링=클린서빙 추천등급 위주+법원층화+이력제외, 마스킹 꾸러미
+  +정답지 분리) · `scripts/audit_compare.py`(3판독 2/3 합의→우리판정 대조→CRITICAL/HIGH/불안정) ·
+  **원본 보존**=store.listing_detail_raw(마스킹→zlib, pgj15B·curst)+crawl_rights 배선(QA F1 해소 착수)
+  +테스트 3종. pytest **671 passed**·ruff 클린.
+- **1라운드 실측**(round_20260723_1116, 10건×판독관3, 크롤 0): 삼환 검증판독 포함 프로토콜 정상 —
+  블라인드 판독관이 날짜추론만으로 삼환 '위험' 도출. 본라운드 **일치 0·CRITICAL 6·HIGH 4**.
+- **🚨 심문 확정(LLM 아닌 DB 원문 증거)**: 인수권리란에 "매수인에게 대항할 수 있는 임차권등기…잔액
+  매수인 인수" **명시**된 물건이 **차익 유력(청주 51474, 유찰7)·양호(김천 11357)·관심(대구서부 31590·
+  인천 513085)** 으로 서빙 중, 전부 assumed_amount=**0**. 깨진 가정 = **"인수금액 미상→0원"**(rights_score
+  감점만, 하드게이트 미발동) — 모름을 없음으로 서빙하는 삼환 클래스의 금액판. 부수: 비고란 중복저장
+  3건·제주 24871 유찰14+대금미납4연속인데 차익유력·부산서부 1256 공부/현황 호수불일치.
+- **처리**: 파일럿 규칙(운영자 "3회 반복 후 진행")대로 **클래스 수정은 보류** — 수정안(확정 인수문구+
+  금액미상→등급 상한 강등)은 리포트에 기재, 운영자 결정 대기. 리포트=harness/audit/round_20260723_1116/REPORT.md.
+- 평가자: 판독관 30명(독립)×대조관 DB 실측 교차. **시세 가정 명세서 완료** = docs/시세_가정_명세서.md
+  (가정 26종×7카테고리, 반증쿼리 포함, 위험 '상' 9종: A1·A2·A4·C1·C2·C4·D1·E2·E4) — 시세 트랙 감사의 공격 목록.
+
+## 2026-07-23 10:47 KST — 🕷️ step2: 현황조사서(B-2) 백필 크롤 착수 — 대항력 여지 판정 원천 수집
+- **목적**: possible_opposable 로직(09:35)이 값을 내려면 관계미상 전입세대 데이터 필요 → 현황조사서 수집.
+- **타겟팅 신설**(crawl_rights.py `_tenant_targets`+`--tenants-backfill`): 종전 `_targets`는 'rights 미크롤'만
+  잡아 이 케이스 불가. 신규 = **listing_rights有·listing_tenants無·rights_verified=0·말소기준有·미지원유형아님**
+  → **1,270건**(권리미확인 등급 우선). "2,608 권리미확인" 중 1,327은 토지/상가(미지원유형)라 제외 = 아파트/주거만.
+- **검증 배치**(--limit 15→cap이 32건서 제한): 실패0·빈응답0·drift0·차단0, **임차인 192명 저장**(1→199행). B-2 정상.
+- **본크롤 착수**(백그라운드 b7e7w0a9l): `--tenants-backfill --all --cap 7200 --min-interval 5 --max-interval 10
+  --no-cloud`. 남은 ~1,238건×2요청(case_detail+현황조사서)=~2,476, 오늘예산 4,600→~7,076. 403/위장차단 시 즉시중단.
+- **미러 인프라**(store_rest `upsert_tenants` + crawl_rights 미러호출): 현황조사서 크롤 시 Supabase 미러(테이블
+  미배포면 graceful skip). fetch_tenants는 SUPABASE_TENANTS_ENABLED 게이트로 서빙 OFF 유지(프로덕션 무영향).
+- **로컬 우선 근거**: 사용자 접속=Tailscale→로컬 노트북(AUCTION_DB) → 로컬 listing_tenants 쌓이는 대로 상세페이지
+  여지 즉시 노출(web.py 배선 완료). Supabase 테이블 DDL·SUPABASE_TENANTS_ENABLED는 클라우드(Vercel) 파리티용 후속.
+- **남은**: 크롤 완료 시 복구판단(cap=내일이어서·차단=중단·크래시=재개) · **step3 pipeline 임차인조인 재채점**(finding #4)
+  · Supabase auction_listing_tenants 테이블 DDL(usage 예약어 따옴표) + 미러 실행.
+
+## 2026-07-23 10:15 KST — 🤖 자동화 하네스 1차 패키지 — 커밋 게이트·문서동기화 큐·알림·워치독 (수동 QA 전쟁 종식 1탄)
+- **배경**: 6관점 하네스 감사(6에이전트, wf_120afd5a) — 무인 크롤 성공 0회, 알림 코드 0건, ABORT가
+  스케줄러에 성공(exit 0)으로 위장(7/21 실증), 문서·QA가 코드를 수동으로만 추적. 운영자 요청
+  "코드 수정→README/QA 자동 추종, 수동확인 전쟁 종식"으로 착수.
+- **① 커밋 게이트**: `scripts/precommit_gate.ps1` + `scripts/git-hooks/pre-commit`(셔임) +
+  `install-hooks.ps1`(설치완료). 매 커밋: scratch/DB 차단(PII) → 문서드리프트 큐 적재 → ruff(스테이징만)
+  → PII 잔여스캔(src/deploy 변경 시) → pytest 전체. 우회 `AUCTION_SKIP_GATE=1`(차단은 우회 불가).
+- **② 문서 동기화 큐**: `harness/DOC_SYNC_QUEUE.md` 신설 — 크롤러/판정 코드가 README/docs 없이
+  커밋되면 게이트가 자동 적재, 세션이 시작/사이클마다 소비(CLAUDE.md ②·LOOP.md 1단계 규칙 추가).
+- **③ 알림+워치독**: `scripts/notify.ps1`(ntfy JSON publish+`harness/ALERTS.log`, 토픽=notify.json·
+  gitignore) — refresh-daily·rights-crawl-and-ship 말미 배선. `scripts/watchdog.ps1`+작업스케줄러
+  `AuctionArbitrage-Watchdog`(30분, 배터리무관, 등록완료): DailyRefresh 비활성/36h정체·크롤 ABORT/HALT·
+  서빙 /health 다운·push 25+ 밀림 감시, 6h dedup, 하트비트 `WATCHDOG_LAST.txt`.
+- **④ rights-crawl-and-ship.ps1 수술**: exit code 0/10(사전검수)/20(사후검수)/30(푸시·배포실패)/
+  40(킬스위치) 도입 — ABORT=성공 위장 해소. 킬스위치 경로도 리포트+알림 남김(종전 break 즉사).
+  push exit 검사, 미실행 단계 '—' 표기(rights→0 오인 방지), busy regex에 crawl_rights 자신 추가.
+- **⑤ 위생**: ruff 18건 전량 해소(15 autofix+noqa 2+E741 1) → `ruff check .` 클린. 루트 scratch_* 20종
+  (실명 PII 6종 포함)을 `scratch/`로 이동 + .gitignore `/scratch_*`·`/scratch/`·하네스 런타임 등재 —
+  `git add -A` 유출 경로 차단.
+- **증거**: 전 ps1 6종 파서 클린, pytest **668 passed**(회귀 0), 워치독 실행 실측(DailyRefresh Disabled
+  경보 발화·ntfy 수신·ALERTS.log 기록), 스모크에서 버그 2건 즉발견·수정(RepetitionDuration MaxValue
+  XML 오류→10년, ntfy priority 문자열→정수 매핑).
+- **평가자**: 2렌즈 적대적 리뷰(PS5.1 정합·보안운영) 진행 중 — 결과 반영 후 커밋 예정.
+- **다음**: 리뷰 반영→커밋(게이트 dogfood) → Phase1 크롤 수술(warm_session 안전장치 편입·ConnErr 승격·
+  run.py exit 통일) → 관제탑 통합. ntfy 폰 구독=운영자(토픽 harness/notify.json).
+
+## 2026-07-23 09:35 KST — 🔬 possible_opposable 21-에이전트 적대적 리뷰 → 확정 8건 중 크롤前 치명 5건 수정
+- 4렌즈(false-positive·logic-edge·wiring·test-gap)×검증 = 확정8·유력3·기각6. 크롤 스케일 발화 前 필수 수정 반영:
+  - **#1/#6 소유자 과잉경보(HIGH)**: ambiguous_moveins가 gdsPossCtt 무시 → 자가거주(채무자점유) 물건이
+    전부 '여지'로 오발화(진짜 삼환형이 묻힘). `_asserts_owner_occupancy()` 신설로 '소유자/채무자 점유'
+    **명시** 세대만 제외. ⚠️_OWNER_RE(bare '소유자') 재사용 금지 — "소유자와의 관계를 알 수 없는"까지
+    잘못 배제(삼환 재발). possession=None(관계미상)은 통과 → 삼환 여지 유지.
+  - **#2 늦은임차인 가림(HIGH)**: 승격 게이트가 no_basis뿐이라, 말소기준보다 늦은 확정임차인(not_opposable)이
+    있으면 '더 이른 관계미상 세대'가 침묵 소멸. 게이트에 not_opposable 추가 → 다세대 false-negative 수정.
+  - **#3 같은날 경계(MED)**: 전입==말소기준은 익일0시 원칙상 대항력 없음 — 여지 문구 '보다 앞서'→'같거나 앞서' 정정.
+  - **#5/#8 배선 무테스트(HIGH)**: 삼환 여지 렌더가 web.py 'or amoveins' 2곳에만 의존하는데 통합테스트 0.
+    test_web.py에 시드DB(빈요지+관계미상전입)→/property→'대항력 여지' 有·'치명적 인수권리 미발견' 無 가드.
+  - **#7 오해테스트(HIGH)**: test_owner_only_survey가 ambiguous_moveins 인자 생략으로 통과하며 삼환(possession=None)이
+    실서비스선 여지로 뜨는데 '소유자=안전' 거짓보증. 프로덕션 배선과 일치하게 재작성 + 진짜 소유자점유 픽스처 추가.
+  - 헤더칩도 possible_opposable 반영(상단 중립칩 vs 본문 여지 intra-page 모순 제거).
+- 테스트 +해당(소유자regex 경계·늦은임차인·같은날·통합), 전체 **668 passed**(662→).
+- **후속(미수정, 기록)**: #4 스코어링 경로가 amoveins 미참조=목록green vs 상세여지 split → **step3 pipeline
+  임차인조인**에서 해소. confirmed_opposable·opposable_deposit의 같은날 `<=`(익일0시 반영 `<` 재검토·인수액 영향).
+  parse-robustness(_DATE_RE 2자리연도 51건, 현재 무영향·latent). curst 스키마드리프트 카나리 부재(curst크롤 기본OFF).
+
+## 2026-07-23 09:34 KST — 📖 README "권리 판정 엔진 상세" 섹션 신설 (대항력·인수금액 판정 로직)
+- **목적**: 사용자 요청("대항력 임차인·인수금액을 어떻게 판단하는지 아주 자세히") — 크롤링(수집)에
+  이어 **판정 로직**을 문서화. courtauction_rights.py·courtauction_detail.py(analyze_priority·
+  summarize)·score.py·web.py 직접 정독 후 작성, 문구 목록·필터 순서 전부 실코드 인용.
+- **구성(§0~§8)**: 판정 재료(자유란 3칸+현황조사서 — pgj15B에 임차인 표 없음), 전처리 4종(전체일치·
+  절단위 부정절 제거(콤마 포함 이유)·보일러플레이트 2종), 대항력 문구판정(강한 신호 15종+해소 문맥
+  15종+약한 신호 비대칭 설계), 날짜판정(말소기준 vs 전입일, is_tenant_like, verdict 6종 표,
+  possible_opposable 삼환 사례), 인수금액 5단 줄필터(직접부정→이중부정→일반부정 순서 포함)+잔액
+  규칙+줄간 합산(H1), 금액미상 2중 폴백(보증금 #9·opposable_deposit 보정), 특수권리 9종·점유·스코어
+  반영(페널티 수치표·하드게이트 0.30/유치권·지분매각/상한25), **"모름"≠"없음" 3중 가드**(is_empty·
+  opposability_assessable·badge None), 알려진 한계(현황조사서 기본OFF·등기부 미열람·점진 보강 모델).
+- 함정 목록에 11(부정 검사 순서)·12(절 단위 vs 문서 단위 비대칭) 추가. 크롤링 섹션 현황조사서
+  단락은 새 섹션으로 링크 정리.
+
+## 2026-07-23 09:21 KST — 📖 README 크롤링 섹션 전면 재작성 (실코드 기준, 미래 유지보수자용)
+- **목적**: 최근(7/15~7/23) 크롤링 계층 대수정(D1 예산영속·D2 dedup·H4 카나리·C6 사건대조·E1 커버리지
+  플로어·E3 ipcheck 가드·PII C1·현황조사서·molit_bridge·네이버 실거래 대개편)을 README에 반영, "미래의
+  Claude가 코드를 열기 전에 크롤링 전체 그림을 갖는" 수준으로 상세화. 9개 병렬 분석 에이전트가 크롤러
+  전 모듈+versions.md 7/15~7/23을 실측 정독한 노트 기반 — 모든 수치는 실코드 값.
+- **구성 변경**: 크롤러 지도(6종 크롤러×정책 표) 신설, courtauction을 목록/상세·권리/현황조사서/사진/
+  사건검색으로 분해, 예산영속(D1)·backlog resume·exit code 0/1/2/3 계약·H4/C6/E3 방어선 문서화,
+  molit 열린/닫힌달 이원캐시·raw_count 판정·브리지 게이트, 네이버 만원단위 함정·Phase A/B·pair_status,
+  건축HUB·VWorld 체인, PII 3층 방어+사고 연대기, 적재 4중 안전장치+data_gates 9종, refresh-daily 순서
+  (네이버→권리→목록), **"미래 유지보수자를 위한 함정 목록" 10항** 신설.
+- **사실 갱신**: 네이버 지터 실운용 1.0~2.2s(구 2~4s), molit 워커 12(구 8), live-months 24, MaxPages 120,
+  Cash 10억, 스케줄러 Disabled 상태(7/22~), 테스트 고정 건수(530) 제거, 코드-주석 불일치 명기(budget_file
+  은 crawl_rights만 영속).
+
+## 2026-07-23 09:13 KST — 🛠️ 대항력 여지(possible_opposable) 도입 — 관계미상 전입세대 false-negative 수정
+- **문제**: 현황조사서 dlt_ordTsLserLtn 세대 중 임차신호(보증금·확정일자·용도) 없는 '관계 미상' 전입세대를
+  `is_tenant_like=False`로 **소유자 단정→무시**하던 것 = 삼환(2022타경3289) 박성혜 전입 **1996.10.14 <
+  말소기준 2002.4.23** 인데도 대항력 미검출(유료사이트는 '대항력있음' 표기). 원래 지적한 false-negative 재발.
+- **수정**(courtauction_detail.py): `ambiguous_moveins()` 신설(is_tenant_like=False+전입일 있는 세대) +
+  `analyze_priority(ambiguous_moveins=)` → no_basis로 끝났고 관계미상 전입 ≤ 말소기준이면 verdict
+  **`possible_opposable`(대항력 여지)** 로 승격. 확정('있음')보다 약·clean('없음')보다 강한 보수 경고.
+  가드: 말소기준 없으면 미승격, 전입>말소기준이면 미승격(과잉경보 방지), 확정임차인·dates_incomplete는 불덮어씀.
+- **배선**(web.py): amoveins 계산·분기조건·analyze_priority 전달. tenant_opposable은 여지에선 False 유지
+  (있음 과잉주장 금지). **삼환 검증**: 매수적정성 렌더 분기 `possible_opposable(여지)` 확정(초록 미발견 아님).
+- **템플릿**(detail.html): 대항력 판정 블록 '여지 있음' + 매수적정성 5-way에 여지 경고 배너 추가(확인 필요).
+- **테스트** +6(삼환 실측·분리·과잉경보 방지·확정우선·말소기준 필요·dates_incomplete 불덮음), 전체 **662 passed**.
+- ⚠️ 서빙 반영은 재채점 필요(현재 삼환 stored grade는 아직 권리미확인). **step2=권리미확인 2,608건 B-2
+  현황조사서 소량크롤 → step3=pipeline 임차인조인 재채점**이 남음. 이번 커밋은 로직+상세페이지+테스트(크롤 0).
+
 ## 2026-07-23 03:30 KST — ✅ 권리 백로그 크롤 완주(오늘 +4,435, 커버리지 71%→99%) + 최종 재채점
 - 밤샘 크롤(batch2~4, 3~5초 간격, budget 영속·5분 자동감시): listing_rights **11,020→15,455**(오늘 총
   +4,435), 오늘 courtauction 요청 4,532건 **전부 클린·서버차단 0**(위장차단 0). backlog 4,489→**54**

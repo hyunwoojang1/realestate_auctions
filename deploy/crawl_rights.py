@@ -92,6 +92,52 @@ def _targets(conn, limit: int | None, refresh: bool,
     return out[:limit] if limit else out
 
 
+def _tenant_targets(conn, limit: int | None) -> list[dict]:
+    """현황조사서(B-2) 백필 대상: listing_rights 는 있으나 listing_tenants 가 없는 **in-scope** 물건.
+
+    (2026-07-23 step2) 기본 _targets 는 'rights 미크롤' 물건만 잡아 이 케이스를 못 다룬다. 여기선:
+      · listing_rights 존재(요지 크롤 완료) + senior_lien(말소기준) 존재 → 대항력 '여지' 판정 가능
+      · listing_tenants 부재(현황조사서 미수집)
+      · rights_verified=0(권리미확인 계열: 요지 빈칸이라 대항력 미해결 — 삼환 클래스)
+      · 미지원유형(토지·상가 등 아파트차익 비대상) 제외
+    권리미확인 등급 우선 → 유찰 많은 순. 물건당 case_detail(세션컨텍스트)+현황조사서 = 2요청.
+    """
+    rows = conn.execute(
+        """
+        SELECT s.court, s.case_no, s.item_no, s.fail_count, s.grade, r.raw_json
+        FROM scored_listings s
+        JOIN raw_listings r
+          ON r.court = s.court AND r.case_no = s.case_no AND r.item_no = s.item_no
+        JOIN listing_rights lr
+          ON lr.court = s.court AND lr.case_no = s.case_no AND lr.item_no = s.item_no
+         AND TRIM(COALESCE(lr.senior_lien, '')) <> ''
+        LEFT JOIN listing_tenants lt
+          ON lt.court = s.court AND lt.case_no = s.case_no AND lt.item_no = s.item_no
+        WHERE lt.case_no IS NULL
+          AND s.rights_verified = 0
+          AND s.grade <> '미지원유형'
+        """
+    ).fetchall()
+    seen: set = set()
+    out = []
+    for r in rows:
+        key = (r["court"], r["case_no"], str(r["item_no"] or ""))
+        if key in seen:                      # scored⋈raw 다-docid 팬아웃 중복 제거(D2와 동일)
+            continue
+        try:
+            bo = json.loads(r["raw_json"]).get("boCd") or ""
+        except json.JSONDecodeError:
+            bo = ""
+        if not bo:
+            continue
+        seen.add(key)
+        out.append({"court": r["court"], "case_no": r["case_no"], "item_no": r["item_no"],
+                    "bo_cd": bo, "fail": r["fail_count"] or 0,
+                    "prio": 0 if r["grade"] == "권리미확인" else 1})
+    out.sort(key=lambda x: (x["prio"], -x["fail"]))   # 권리미확인 등급 먼저 → 유찰 많은 순
+    return out[:limit] if limit else out
+
+
 def main(argv=None) -> int:
     ap = argparse.ArgumentParser(description="물건상세 권리 요지 배치 크롤")
     ap.add_argument("--db", default=os.environ.get("AUCTION_DB", "auction.db"))
@@ -103,6 +149,10 @@ def main(argv=None) -> int:
     ap.add_argument("--force", action="store_true",
                     help="--estimable 이어받기 무시하고 사진 있는 물건도 전량 재크롤")
     ap.add_argument("--refresh", action="store_true", help="이미 있는 물건도 재크롤")
+    ap.add_argument("--tenants-backfill", action="store_true",
+                    help="현황조사서(B-2) 백필 모드: rights有·tenants無·rights_verified=0·말소기준有·"
+                         "미지원유형아님 물건만 대상(권리미확인 우선). 현황조사서 수집 강제 ON. "
+                         "대항력 여지 판정 원천을 채운다. 물건당 case_detail+현황조사서=2요청.")
     ap.add_argument("--no-cloud", action="store_true", help="Supabase 미러링 생략")
     ap.add_argument("--cap", type=int, default=None,
                     help="일일 요청 상한 오버라이드(기본 500=안티밴 서킷). 대량 백필 시 상향. "
@@ -124,8 +174,12 @@ def main(argv=None) -> int:
                 for x in conn.execute("SELECT court, case_no, item_no FROM listing_photos")}
     refresh = args.refresh or args.estimable
     limit = None if (args.all or args.estimable) else args.limit
-    targets = _targets(conn, limit, refresh, estimable_only=est_only, skip=skip)
-    print(f"[*] 대상 {len(targets)}건 (DB={args.db}, 기존 크롤분 제외={not args.refresh})")
+    if args.tenants_backfill:
+        targets = _tenant_targets(conn, limit)
+        print(f"[*] 현황조사서 백필 대상 {len(targets)}건 (rights有·tenants無·권리미확인·말소기준有·아파트/주거)")
+    else:
+        targets = _targets(conn, limit, refresh, estimable_only=est_only, skip=skip)
+        print(f"[*] 대상 {len(targets)}건 (DB={args.db}, 기존 크롤분 제외={not args.refresh})")
     if not targets:
         return 0
 
@@ -141,7 +195,7 @@ def main(argv=None) -> int:
     client = CourtAuctionClient(**client_kw)
     # 임차인 현황(현황조사서) 동시 수집 — 물건당 +1 요청이라 밴 위험↑. 기본 OFF,
     # AUCTION_CRAWL_TENANTS=1 일 때만 켠다(대항력 실판정 원천. 크롤 완전 휴지기·소량부터 검증).
-    crawl_tenants = os.environ.get("AUCTION_CRAWL_TENANTS") == "1"
+    crawl_tenants = os.environ.get("AUCTION_CRAWL_TENANTS") == "1" or args.tenants_backfill
     ok, fail, skipped_empty, photo_n, tenant_n = 0, 0, 0, 0, 0
     mismatch = 0          # (C6) 응답 사건번호 불일치로 스킵한 건(오사건 저장 차단)
     drift = 0             # (H4) 응답 스키마 드리프트(필드명 변경) 감지 건 — 침묵실패 조기경보
@@ -192,6 +246,13 @@ def main(argv=None) -> int:
                 drift += 1
                 print(f"  [{i}/{len(targets)}] {t['case_no']} ⚠ 스키마 드리프트: {reason}",
                       file=sys.stderr)
+            # (감사체계 2026-07-23) 원본 보존 — 파서를 거치기 전의 응답을 마스킹·압축 저장.
+            # 블라인드 감사·사후 재파싱 재료. 실패해도 크롤은 계속(부수 기능).
+            try:
+                store.save_detail_raw(conn, t["court"], t["case_no"], t["item_no"],
+                                      "pgj15B", dma, fetched_at=now)
+            except Exception as e:  # noqa: BLE001
+                print(f"  [{i}/{len(targets)}] {t['case_no']} raw 보존 실패(무시): {type(e).__name__}")
             cr = normalize(dma, court=t["court"], case_no=t["case_no"],
                            item_no=t["item_no"], fetched_at=now)
             if cr.is_empty:
@@ -210,6 +271,14 @@ def main(argv=None) -> int:
                     # (E3) ipcheck=false/errors = 소프트차단·컨텍스트없음 → '임차인 없음'이 아니다.
                     # 확정(ipcheck=true)일 때만 저장한다 — 빈 리스트로 save하면 기존 임차인 전량삭제.
                     if curst_has_context(survey):
+                        # (감사체계 2026-07-23) 현황조사서 원본 보존 — 조사 서술문("소유자와의
+                        # 관계를 알 수 없는 …")은 파싱 컬럼에 안 남으므로 raw가 유일한 기록.
+                        try:
+                            store.save_detail_raw(conn, t["court"], t["case_no"], t["item_no"],
+                                                  "curst", survey, fetched_at=now)
+                        except Exception as e:  # noqa: BLE001
+                            print(f"  [{i}/{len(targets)}] {t['case_no']} curst raw 보존 실패(무시): "
+                                  f"{type(e).__name__}")
                         tenants = parse_curst_survey(survey)
                         store.save_tenants(conn, t["court"], t["case_no"], t["item_no"],
                                            tenants, fetched_at=now)
@@ -319,6 +388,14 @@ def main(argv=None) -> int:
             print(f"[+] Supabase 사진 미러링 {pn}장")
         except Exception as e:  # noqa: BLE001 — 사진 테이블 미배포/실패는 조용히 skip
             print(f"[!] Supabase 사진 미러링 skip(테이블 미배포?): {e}", file=sys.stderr)
+        if crawl_tenants:
+            # 현황조사서 크롤 시에만 임차인 미러(대항력 여지 원천). 테이블 미배포면 graceful skip.
+            try:
+                trows = [dict(r) for r in conn.execute("SELECT * FROM listing_tenants")]
+                tn = store_rest.upsert_tenants(trows)
+                print(f"[+] Supabase 임차인 미러링 {tn}행")
+            except Exception as e:  # noqa: BLE001 — 임차인 테이블 미배포/실패는 조용히 skip
+                print(f"[!] Supabase 임차인 미러링 skip(테이블 미배포?): {e}", file=sys.stderr)
     conn.close()
     return exit_code
 

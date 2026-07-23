@@ -176,6 +176,21 @@ CREATE TABLE IF NOT EXISTS listing_building (
 );
 """
 
+# (감사체계 2026-07-23) 물건상세(pgj15B)·현황조사서(curst) 원본 보존 — 블라인드 감사·사후 재파싱 재료.
+# 종전엔 normalize 후 원본을 버려 "언제 어떤 필드가 왜 깨졌는지" 사후 재구성이 불가능했다(QA F1).
+# 실명 마스킹 후 zlib 압축 BLOB로 저장(용량 ~1/10). doc_type: 'pgj15B' | 'curst'.
+DDL_DETAIL_RAW = """
+CREATE TABLE IF NOT EXISTS listing_detail_raw (
+    court TEXT NOT NULL DEFAULT '',
+    case_no TEXT NOT NULL,
+    item_no TEXT NOT NULL DEFAULT '',
+    doc_type TEXT NOT NULL,
+    payload BLOB NOT NULL,
+    fetched_at TEXT NOT NULL DEFAULT '',
+    PRIMARY KEY (court, case_no, item_no, doc_type)
+);
+"""
+
 _BUILDING_COLS = ["court", "case_no", "item_no", "status", "approved", "age_years",
                   "main_purpose", "ground_floors", "underground_floors", "total_area_m2",
                   "is_violation", "violation_content", "dong_count", "jibun_addr", "fetched_at"]
@@ -220,6 +235,7 @@ def connect(db_path: str = "auction.db") -> sqlite3.Connection:
     conn.execute(DDL_NAVER)
     conn.execute(DDL_BUILDING)
     conn.execute(DDL_TENANTS)
+    conn.execute(DDL_DETAIL_RAW)
     conn.execute(f"PRAGMA user_version={SCHEMA_VERSION}")
     return conn
 
@@ -375,6 +391,38 @@ def load_tenants(conn: sqlite3.Connection, court: str, case_no: str,
         "SELECT * FROM listing_tenants WHERE court=? AND case_no=? AND item_no=? ORDER BY seq",
         (court, case_no, str(item_no or ""))).fetchall()
     return [dict(r) for r in rows]
+
+
+def save_detail_raw(conn: sqlite3.Connection, court: str, case_no: str, item_no: str,
+                    doc_type: str, payload: dict, fetched_at: str = "") -> None:
+    """물건상세/현황조사서 응답 원본 보존 (감사체계 2026-07-23).
+
+    실명 마스킹(mask_personal_names) → zlib 압축 저장. 같은 (물건, doc_type)은 최신으로 교체.
+    파서(normalize)를 거치지 않은 원문이므로, 파서 버그의 사후 감사·재파싱 재료가 된다.
+    """
+    import zlib  # noqa: PLC0415
+
+    from .courtauction_fields import mask_personal_names  # noqa: PLC0415 — 순환 import 회피
+    text = json.dumps(payload, ensure_ascii=False, default=str)
+    blob = zlib.compress(mask_personal_names(text).encode("utf-8"))
+    with conn:
+        conn.execute(
+            "INSERT OR REPLACE INTO listing_detail_raw "
+            "(court, case_no, item_no, doc_type, payload, fetched_at) VALUES (?,?,?,?,?,?)",
+            (court, case_no, str(item_no or ""), doc_type, blob, fetched_at))
+
+
+def load_detail_raw(conn: sqlite3.Connection, court: str, case_no: str, item_no: str,
+                    doc_type: str) -> dict | None:
+    """보존된 원본을 복원(압축 해제 → JSON). 없으면 None."""
+    import zlib  # noqa: PLC0415
+    row = conn.execute(
+        "SELECT payload FROM listing_detail_raw "
+        "WHERE court=? AND case_no=? AND item_no=? AND doc_type=?",
+        (court, case_no, str(item_no or ""), doc_type)).fetchone()
+    if row is None:
+        return None
+    return json.loads(zlib.decompress(row["payload"]).decode("utf-8"))
 
 
 def _migrate(conn: sqlite3.Connection) -> None:
