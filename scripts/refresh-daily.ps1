@@ -40,7 +40,11 @@ param(
     [string]$DbPath = "",
     [switch]$SkipNaver,        # 네이버 증분 단계 건너뛰기(안티밴 사고 시)
     [switch]$SkipRights,       # 권리(물건상세) 크롤 건너뛰기(안티밴 사고 시)
-    [int]$RightsLimit = 300,   # 권리 크롤 물건 수 상한(일일캡 500 내, 보수차익 우선순 상위부터)
+    [switch]$SkipTenants,      # 현황조사서(B-2) 일일 백필 건너뛰기(안티밴 사고 시)
+    [int]$RightsLimit = 300,   # 권리 크롤 물건 수 상한(보수차익 우선순 상위부터, 신규+기일갱신 재보강)
+    [int]$TenantsLimit = 120,  # 현황조사서 일일 물건 수 상한(물건당 2요청 → ~240요청).
+                               # 우선순위: 추천+빈요지(P-08) → 권리미확인. tenant_checks 로 미시도만.
+    [int]$DetailCap = 800,     # 상세크롤 일일 요청예산(BUDGET_FILE 공유: 권리+현황조사서 합산 상한)
     [int]$NaverStaleDays = 14, # 네이버 실거래 증분 신선도 기준(일). 이보다 오래된 쌍만 재수집
     [int]$MaxPages = 120       # courtauction 시도당 페이지 상한(1p=40건). 25→120(2026-07-20):
                                # 현금 10억 확장으로 대형 시도가 4,515행(113p)까지 실측 — 120p로 전수.
@@ -103,15 +107,21 @@ try {
         "--- 네이버 증분 건너뜀(-SkipNaver) ---" | Tee-Object -FilePath $LogPath -Append
     }
 
-    # --- 권리 크롤(물건상세 매각물건명세서 요지) — 신규 물건이 '권리미확인'으로 영영 남는 것 방지 ---
-    #     (감사 2026-07-20 F1) 종전 일일 새로고침엔 권리 크롤이 아예 없어, 신규 courtauction 물건의
-    #     인수권리·대항력·기일이 수동 실행 전엔 절대 안 채워졌다(전국 24개 법원 통째 미크롤의 원인).
-    #     run.py **앞**에 두어 같은 사이클의 채점(apply_rights_from_rows)이 갓 크롤한 권리를 반영한다.
+    # ══ 증분 파이프라인(2026-07-23 재배선): 발견 → 보강 → 재채점 ══
+    # 법원엔 '변경 피드' API가 없어 증분은 diff 로 만든다: [1] 리스트 전량 스윕(싸다)이 신규·소멸을
+    # 발견하고, [2][3] 상세 보강(비싸다)은 diff 가 고른 신규+변경만, [4] 재채점이 같은 날 반영한다.
+    # 종전엔 권리 크롤이 run.py **앞**이라 오늘 발견된 신규 물건은 내일에야 권리가 붙었다(1일 지연).
+
+    # --- [1/4] 발견+1차 채점: courtauction 리스트 전량 + 국토부 시세 + Supabase ---
+    & $Python @runArgs 2>&1 | Tee-Object -FilePath $LogPath -Append
+    $code = $LASTEXITCODE
+
+    # --- [2/4] 권리 보강(물건상세 명세서 요지): 오늘 발견된 신규 + 기일갱신(유찰 새 회차) 재보강 ---
     #     상위 N건(보수차익 우선), 일일캡·킬스위치(COURTAUCTION_STOP)는 CourtAuctionClient가 관리.
-    #     실패해도 채점을 막지 않는다. -SkipRights 로 건너뜀(안티밴 사고 시).
+    #     실패해도 재채점을 막지 않는다. -SkipRights 로 건너뜀(안티밴 사고 시).
     if (-not $SkipRights) {
-        "--- 권리 크롤(물건상세, 상위 $RightsLimit건) ---" | Tee-Object -FilePath $LogPath -Append
-        & $Python -m deploy.crawl_rights --db $DbPath --limit $RightsLimit 2>&1 | Tee-Object -FilePath $LogPath -Append
+        "--- [2/4] 권리 크롤(신규+재보강, 상위 $RightsLimit건) ---" | Tee-Object -FilePath $LogPath -Append
+        & $Python -m deploy.crawl_rights --db $DbPath --limit $RightsLimit --cap $DetailCap 2>&1 | Tee-Object -FilePath $LogPath -Append
         # (D3 2026-07-22) 권리크롤 종료코드를 **같은 블록에서 즉시** 캡처 — 종전엔 뒤이은 run.py가
         # $LASTEXITCODE를 덮어써 차단(2)·드리프트/실패(3) 승격이 무시됐다(안티밴·침묵실패 방어 무력).
         $rightsCode = $LASTEXITCODE
@@ -121,12 +131,39 @@ try {
             "[!] 권리크롤 실패율/스키마 드리프트 과다(exit 3) — 파서-응답 불일치. 파서 점검 필요." | Tee-Object -FilePath $LogPath -Append
         }
     } else {
-        "--- 권리 크롤 건너뜀(-SkipRights) ---" | Tee-Object -FilePath $LogPath -Append
+        "--- [2/4] 권리 크롤 건너뜀(-SkipRights) ---" | Tee-Object -FilePath $LogPath -Append
     }
 
-    # --- 메인 채점(courtauction 크롤 + 국토부 시세 + 네이버 실거래 주입 + Supabase) ---
-    & $Python @runArgs 2>&1 | Tee-Object -FilePath $LogPath -Append
-    $code = $LASTEXITCODE
+    # --- [3/4] 현황조사서(B-2) 일일 백필 — 대항력 여지 판정 원천 (P-08/P-10 배선) ---
+    #     우선순위: 추천등급+인수권리란 빈칸(초록으로 팔리는데 검증 원천이 막혀있던 클래스) →
+    #     권리미확인. tenant_checks 마커로 미시도 물건만(빈 결과도 기록 → 매일 재크롤 안 함).
+    #     요청예산은 BUDGET_FILE 로 [2]와 합산 관리(-cap $DetailCap).
+    if (-not $SkipRights -and -not $SkipTenants) {
+        "--- [3/4] 현황조사서 백필(상위 $TenantsLimit건, 물건당 2요청) ---" | Tee-Object -FilePath $LogPath -Append
+        & $Python -m deploy.crawl_rights --db $DbPath --tenants-backfill --limit $TenantsLimit --cap $DetailCap 2>&1 | Tee-Object -FilePath $LogPath -Append
+        $tenantsCode = $LASTEXITCODE
+        if ($tenantsCode -eq 2) {
+            "[!] 현황조사서 차단/상한(exit 2) — 예산 소진 또는 밴 의심(수집분은 저장됨)." | Tee-Object -FilePath $LogPath -Append
+        } elseif ($tenantsCode -eq 3) {
+            "[!] 현황조사서 실패율/드리프트 과다(exit 3) — 파서 점검 필요." | Tee-Object -FilePath $LogPath -Append
+        }
+    } else {
+        "--- [3/4] 현황조사서 백필 건너뜀 ---" | Tee-Object -FilePath $LogPath -Append
+    }
+
+    # --- [4/4] 재채점 — 오늘 보강분(권리·임차인)을 같은 날 등급·미러에 반영 ---
+    #     --from-cache: [1]이 방금 저장한 캐시 재사용(courtauction 재크롤 0). 국토부는 캐시DB로
+    #     닫힌 달 0호출. FromCache 모드(오프라인 검증)에선 [1]과 동일 실행이라 생략.
+    if (-not $FromCache) {
+        "--- [4/4] 재채점(--from-cache, 보강분 반영) ---" | Tee-Object -FilePath $LogPath -Append
+        $rescoreArgs = @("run.py", "--source", "courtauction", "--db", $DbPath, "--cash", "$Cash",
+                         "--max-pages", "$MaxPages", "--from-cache")
+        if ($Live) { $rescoreArgs += @("--live", "--live-months", "$LiveMonths") }
+        if ($Ym)   { $rescoreArgs += @("--ym", $Ym) }
+        & $Python @rescoreArgs 2>&1 | Tee-Object -FilePath $LogPath -Append
+        $rescoreCode = $LASTEXITCODE
+        if ($code -eq 0 -and $rescoreCode -ne 0) { $code = $rescoreCode }  # 미완 사이클을 가시화
+    }
 } finally {
     Pop-Location
     $ErrorActionPreference = $prevEAP
@@ -139,9 +176,10 @@ try {
 # --- 운영자 알림 (2026-07-23 도입) — 실패=urgent, 권리크롤 차단/드리프트=high, 성공=min(무음성) ---
 $rightsNote = ""
 if (-not $SkipRights -and (Test-Path variable:rightsCode)) { $rightsNote = " rights_exit=$rightsCode" }
+if ((Test-Path variable:tenantsCode)) { $rightsNote += " tenants_exit=$tenantsCode" }
 $prio = "min"
 if ($code -ne 0) { $prio = "urgent" }
-elseif ($rightsNote -match "rights_exit=[23]") { $prio = "high" }
+elseif ($rightsNote -match "exit=[23]") { $prio = "high" }
 & powershell.exe -NoProfile -ExecutionPolicy Bypass -File (Join-Path $RepoRoot "scripts\notify.ps1") `
     -Title "[auction] daily refresh exit=$code" `
     -Message "mode=$mode$rightsNote db=$(Split-Path $DbPath -Leaf) log=$(Split-Path $LogPath -Leaf)" `

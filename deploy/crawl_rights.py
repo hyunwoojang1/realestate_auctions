@@ -37,19 +37,85 @@ _KST = timezone(timedelta(hours=9))
 # 물건당 저장 사진 수 상한 — 히어로 스와이프용. Supabase 공유티어(500MB) 용량 때문에 무제한은
 # 지양(전물건 전사진=1GB+). 대부분 물건이 이 이하이므로 사실상 '거의 전부'. 환경변수로 조정.
 PHOTO_CAP = int(os.environ.get("AUCTION_PHOTO_CAP", "12"))
-# (2026-07-23) 현황조사서 백필 시작 시각. 이 이후 listing_rights.fetched_at = '오늘 이미 백필 시도함'
-# (빈 현황조사서 물건 포함). _tenant_targets 에서 제외해 재시작 시 재크롤 낭비를 막는다. 재개는
-# 자연히 이어진다(미시도 물건만 남으므로). 다른 날 재사용 시 env 로 갱신.
-_TENANT_BACKFILL_CUTOFF = os.environ.get("AUCTION_TENANT_CUTOFF", "2026-07-23 10:35")
+# ── 증분 크롤 인프라 (2026-07-23 저녁 배선) ─────────────────────────────────────────
+# 법원엔 '변경 피드' API가 없다 → 증분은 우리가 diff 로 만든다.
+#   발견(리스트 전량, 싸다) → 대조(신규/변경/소멸, 공짜) → 보강(상세, 비싸니 신규+변경만)
+#
+# tenant_checks: 현황조사서 '시도 완료' 영속 마커. 현황조사서가 빈(공실 등) 물건은 listing_tenants
+# 에 행이 안 생겨 'lt IS NULL' 필터에 영원히 걸린다 — 종전엔 당일 fetched_at 컷오프 해크로 막았는데
+# (일회성), 이 테이블이 그 자리를 영속으로 대체한다. ipcheck=true 유효 응답을 받은 물건만 기록
+# (소프트차단·네트워크 실패는 미기록 → 자연 재시도).
+
+
+def _ensure_tenant_checks(conn) -> None:
+    """tenant_checks 마커 테이블 보장 + 임차인 보유 물건 자동 시드(있음=확실히 시도됨, 멱등)."""
+    conn.execute("""
+        CREATE TABLE IF NOT EXISTS tenant_checks (
+            court TEXT NOT NULL DEFAULT '',
+            case_no TEXT NOT NULL,
+            item_no TEXT NOT NULL DEFAULT '',
+            checked_at TEXT NOT NULL DEFAULT '',
+            PRIMARY KEY (court, case_no, item_no)
+        )""")
+    conn.execute("""
+        INSERT OR IGNORE INTO tenant_checks (court, case_no, item_no, checked_at)
+        SELECT court, case_no, item_no, MAX(fetched_at) FROM listing_tenants
+        GROUP BY court, case_no, item_no""")
+    conn.commit()
+
+
+def _record_tenant_check(conn, court: str, case_no: str, item_no: str, at: str) -> None:
+    """현황조사서 유효 조회(ipcheck=true) 완료 기록 — 빈 결과여도 '시도 완료'로 남겨 재크롤 낭비 방지."""
+    conn.execute("INSERT OR REPLACE INTO tenant_checks (court, case_no, item_no, checked_at) "
+                 "VALUES (?, ?, ?, ?)", (court, case_no, str(item_no or ""), at))
+    conn.commit()
+
+
+# 재보강 판정에 쓰는 기일 종류 — sale_date(매각기일)와 대응되는 이벤트만 본다.
+# 매각결정기일(매각기일+~1주)까지 포함하면 '기일변경으로 앞당겨진' 물건을 놓친다.
+_SALE_KINDS = ("매각기일", "개찰기일")
+
+
+def _stale_rights_keys(conn) -> set:
+    """변경 재보강 대상: 리스트(scored)의 현재 매각기일이 저장된 요지 schedule 에 없는 물건.
+
+    유찰→새 회차, 기일변경이 나면 리스트는 새 sale_date 를 갖지만 listing_rights.schedule 은
+    옛 회차 그대로다(권리는 1회 크롤 후 방치돼 왔다 — '변경' 축의 공백). 명세서는 회차마다
+    갱신(작성일·최저가·인수문구)될 수 있으므로 재크롤이 필요하다.
+    판정: schedule 에 kind∈_SALE_KINDS 이고 ymd >= 현재 sale_date 인 이벤트가 **없으면** stale.
+    (미래 sale_date 물건만 — 지난 기일 물건 재크롤은 낭비.)
+    """
+    today = datetime.now(_KST).strftime("%Y-%m-%d")
+    stale: set = set()
+    rows = conn.execute("""
+        SELECT s.court, s.case_no, s.item_no, s.sale_date, lr.schedule
+        FROM scored_listings s
+        JOIN listing_rights lr
+          ON lr.court = s.court AND lr.case_no = s.case_no AND lr.item_no = s.item_no
+        WHERE s.sale_date >= ?
+    """, (today,)).fetchall()
+    for court, case_no, item_no, sale_date, sched in rows:
+        try:
+            events = json.loads(sched) if sched else []
+        except json.JSONDecodeError:
+            events = []
+        covered = any((e.get("ymd") or "") >= sale_date and e.get("kind") in _SALE_KINDS
+                      for e in events if isinstance(e, dict))
+        if not covered:
+            stale.add((court, case_no, item_no))
+    return stale
 
 
 def _targets(conn, limit: int | None, refresh: bool,
-             estimable_only: set | None = None, skip: set | None = None) -> list[dict]:
+             estimable_only: set | None = None, skip: set | None = None,
+             stale: set | None = None) -> list[dict]:
     """크롤 대상 (boCd, case_no, item_no, 우선순위 정렬). raw_listings에서 법원코드 조인.
 
     estimable_only 지정 시 사진 저장 대상(시세추정 가능)만 남긴다 — 사진 백필용.
     skip 지정 시 (court,case_no,str(item_no)) 정규화 키가 일치하는 물건을 제외한다 —
     이어받기(resume)용. 예: 이미 사진을 확보한 물건을 건너뛰어 네트워크 단절 후 재개.
+    stale 지정 시(2026-07-23 변경축) 이미 크롤된 물건이라도 그 키는 done 에서 빼서 **재크롤**한다 —
+    유찰 새 회차·기일변경으로 저장된 요지가 낡은 물건(_stale_rights_keys 참조).
     """
     # ⚠ court 를 조인에 반드시 포함(감사 2026-07-10 CRITICAL): 사건번호는 법원별 독립 채번이라
     # court 없이 조인하면 타법원 동명 사건의 boCd 로 크롤해 '엉뚱한 사건의 권리'가 적재된다.
@@ -72,6 +138,8 @@ def _targets(conn, limit: int | None, refresh: bool,
     if not refresh:
         done = {(x["court"], x["case_no"], x["item_no"])
                 for x in conn.execute("SELECT court, case_no, item_no FROM listing_rights")}
+        if stale:
+            done -= stale     # 낡은 요지(새 회차 미반영)는 '크롤됨'에서 제외 → 재보강 대상으로 환원
     for r in rows:
         key_norm = (r["court"], r["case_no"], str(r["item_no"] or ""))
         if key_norm in seen:                 # 이미 이 사건을 타깃에 넣음(팬아웃 중복) — 스킵
@@ -96,38 +164,47 @@ def _targets(conn, limit: int | None, refresh: bool,
     return out[:limit] if limit else out
 
 
+# P-08 추천계열 등급 — 이 물건들이 현황조사서 검증 없이 초록으로 팔리는 것이 가장 위험한 오류다.
+_RECO_GRADES = ("차익 유력", "양호", "관심")
+
+
 def _tenant_targets(conn, limit: int | None) -> list[dict]:
-    """현황조사서(B-2) 백필 대상: listing_rights 는 있으나 listing_tenants 가 없는 **in-scope** 물건.
+    """현황조사서(B-2) 백필 대상 — tenant_checks 미기록(=미시도) + in-scope 물건.
 
-    (2026-07-23 step2) 기본 _targets 는 'rights 미크롤' 물건만 잡아 이 케이스를 못 다룬다. 여기선:
-      · listing_rights 존재(요지 크롤 완료) + senior_lien(말소기준) 존재 → 대항력 '여지' 판정 가능
-      · listing_tenants 부재(현황조사서 미수집)
-      · rights_verified=0(권리미확인 계열: 요지 빈칸이라 대항력 미해결 — 삼환 클래스)
-      · 미지원유형(토지·상가 등 아파트차익 비대상) 제외
-    권리미확인 등급 우선 → 유찰 많은 순. 물건당 case_detail(세션컨텍스트)+현황조사서 = 2요청.
+    공통 조건: listing_rights 존재(말소기준 有 → 여지 판정 가능) · 미지원유형 제외 ·
+    매각기일이 아직 안 지남(지난 물건 크롤은 낭비) · tenant_checks 미기록(빈 결과도 기록되므로
+    재시작/일일 반복에도 같은 물건을 재크롤하지 않는다 — 종전 fetched_at 컷오프 해크 대체).
 
-    ⚠️ (2026-07-23 재시작 낭비 수정) 현황조사서가 '빈'(임차인 0=공실 등) 물건은 크롤해도 listing_tenants
-    가 안 생겨 lt.case_no IS NULL 조건에 계속 걸린다. 크롤러 재시작마다 이들을 우선순위 top부터 재크롤해
-    예산만 태우고 진행이 정체됐다(실측: 재시작 후 budget +39에 crawled +0). listing_rights.fetched_at 이
-    백필 시작(_TENANT_BACKFILL_CUTOFF) 이후면 '오늘 이미 시도함'이므로 제외 → 미시도 물건만 남긴다.
+    대상 클래스 2종 + 우선순위(감사 P-08 반영):
+      prio 0: **추천등급 + 인수권리란 빈칸** — 요지가 '아무 말 안 함'을 근거로 안전 판정된 추천
+              물건(실측 205건). 종전 필터(rights_verified=0)는 이들을 구조적으로 영원히 배제했다
+              ("이미 '미확인' 표시된 안전한 물건만 겨누고, 초록으로 팔리는 물건은 검증 안 함" —
+              감사 헌장 §0-① 정면 위배). 위험 검증 우선으로 예산 재정렬.
+      prio 1: 권리미확인 등급(rights_verified=0) — 삼환 클래스(요지 빈칸 대항력 미해결).
+      prio 2: 그 외 rights_verified=0.
+    물건당 case_detail(세션컨텍스트)+현황조사서 = 2요청.
     """
+    today = datetime.now(_KST).strftime("%Y-%m-%d")
     rows = conn.execute(
         """
-        SELECT s.court, s.case_no, s.item_no, s.fail_count, s.grade, r.raw_json
+        SELECT s.court, s.case_no, s.item_no, s.fail_count, s.grade,
+               s.rights_verified, lr.surviving_rights, r.raw_json
         FROM scored_listings s
         JOIN raw_listings r
           ON r.court = s.court AND r.case_no = s.case_no AND r.item_no = s.item_no
         JOIN listing_rights lr
           ON lr.court = s.court AND lr.case_no = s.case_no AND lr.item_no = s.item_no
          AND TRIM(COALESCE(lr.senior_lien, '')) <> ''
-        LEFT JOIN listing_tenants lt
-          ON lt.court = s.court AND lt.case_no = s.case_no AND lt.item_no = s.item_no
-        WHERE lt.case_no IS NULL
-          AND s.rights_verified = 0
+        LEFT JOIN tenant_checks tc
+          ON tc.court = s.court AND tc.case_no = s.case_no AND tc.item_no = s.item_no
+        WHERE tc.case_no IS NULL
           AND s.grade <> '미지원유형'
-          AND lr.fetched_at < ?
+          AND s.sale_date >= ?
+          AND ( s.rights_verified = 0
+                OR (s.grade IN (?, ?, ?)
+                    AND TRIM(COALESCE(lr.surviving_rights, '')) = '') )
         """,
-        (_TENANT_BACKFILL_CUTOFF,),
+        (today, *_RECO_GRADES),
     ).fetchall()
     seen: set = set()
     out = []
@@ -142,10 +219,15 @@ def _tenant_targets(conn, limit: int | None) -> list[dict]:
         if not bo:
             continue
         seen.add(key)
+        if r["grade"] in _RECO_GRADES:
+            prio = 0                          # P-08: 추천인데 검증 원천이 막혀 있던 클래스 최우선
+        elif r["grade"] == "권리미확인":
+            prio = 1
+        else:
+            prio = 2
         out.append({"court": r["court"], "case_no": r["case_no"], "item_no": r["item_no"],
-                    "bo_cd": bo, "fail": r["fail_count"] or 0,
-                    "prio": 0 if r["grade"] == "권리미확인" else 1})
-    out.sort(key=lambda x: (x["prio"], -x["fail"]))   # 권리미확인 등급 먼저 → 유찰 많은 순
+                    "bo_cd": bo, "fail": r["fail_count"] or 0, "prio": prio})
+    out.sort(key=lambda x: (x["prio"], -x["fail"]))   # 추천+빈요지 → 권리미확인 → 기타
     return out[:limit] if limit else out
 
 
@@ -161,9 +243,9 @@ def main(argv=None) -> int:
                     help="--estimable 이어받기 무시하고 사진 있는 물건도 전량 재크롤")
     ap.add_argument("--refresh", action="store_true", help="이미 있는 물건도 재크롤")
     ap.add_argument("--tenants-backfill", action="store_true",
-                    help="현황조사서(B-2) 백필 모드: rights有·tenants無·rights_verified=0·말소기준有·"
-                         "미지원유형아님 물건만 대상(권리미확인 우선). 현황조사서 수집 강제 ON. "
-                         "대항력 여지 판정 원천을 채운다. 물건당 case_detail+현황조사서=2요청.")
+                    help="현황조사서(B-2) 백필 모드: 미시도(tenant_checks 無)·말소기준有·미래기일 물건. "
+                         "우선순위 = 추천등급+인수권리란 빈칸(P-08) → 권리미확인 → 기타 verified=0. "
+                         "현황조사서 수집 강제 ON. 물건당 case_detail+현황조사서=2요청.")
     ap.add_argument("--no-cloud", action="store_true", help="Supabase 미러링 생략")
     ap.add_argument("--cap", type=int, default=None,
                     help="일일 요청 상한 오버라이드(기본 500=안티밴 서킷). 대량 백필 시 상향. "
@@ -185,12 +267,20 @@ def main(argv=None) -> int:
                 for x in conn.execute("SELECT court, case_no, item_no FROM listing_photos")}
     refresh = args.refresh or args.estimable
     limit = None if (args.all or args.estimable) else args.limit
+    _ensure_tenant_checks(conn)               # 마커 테이블 보장(+임차인 보유분 자동 시드, 멱등)
     if args.tenants_backfill:
         targets = _tenant_targets(conn, limit)
-        print(f"[*] 현황조사서 백필 대상 {len(targets)}건 (rights有·tenants無·권리미확인·말소기준有·아파트/주거)")
+        n_reco = sum(1 for t in targets if t["prio"] == 0)
+        print(f"[*] 현황조사서 백필 대상 {len(targets)}건 "
+              f"(추천+빈요지 {n_reco}·권리미확인계열 {len(targets) - n_reco} · 미시도만)")
     else:
-        targets = _targets(conn, limit, refresh, estimable_only=est_only, skip=skip)
-        print(f"[*] 대상 {len(targets)}건 (DB={args.db}, 기존 크롤분 제외={not args.refresh})")
+        # (2026-07-23 변경축) 유찰 새 회차·기일변경으로 요지가 낡은 물건은 재크롤 대상에 환원.
+        stale = _stale_rights_keys(conn) if not refresh else set()
+        targets = _targets(conn, limit, refresh, estimable_only=est_only, skip=skip, stale=stale)
+        n_stale = sum(1 for t in targets
+                      if (t["court"], t["case_no"], t["item_no"]) in stale)
+        print(f"[*] 대상 {len(targets)}건 (DB={args.db}, 기존 크롤분 제외={not args.refresh}, "
+              f"기일갱신 재보강 {n_stale}건 포함/전체 stale {len(stale)}건)")
     if not targets:
         return 0
 
@@ -293,6 +383,9 @@ def main(argv=None) -> int:
                         tenants = parse_curst_survey(survey)
                         store.save_tenants(conn, t["court"], t["case_no"], t["item_no"],
                                            tenants, fetched_at=now)
+                        # 유효 조회 완료 마커 — 빈 결과(공실 등)도 '시도됨'으로 남겨
+                        # 일일 파이프라인이 같은 물건을 매일 재크롤하지 않게 한다.
+                        _record_tenant_check(conn, t["court"], t["case_no"], t["item_no"], now)
                         tenant_n += sum(1 for x in tenants if x.get("is_tenant_like"))
                     else:
                         print(f"  [{i}/{len(targets)}] {t['case_no']} 현황조사서 미확정"
