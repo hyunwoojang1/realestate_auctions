@@ -506,3 +506,49 @@ def gate_reasons(rights: ParsedRights, min_bid_price: int) -> list[str]:
                 f"인수금액 비율 {ratio * 100:.0f}% (>{CONFIG.assumed_ratio_gate * 100:.0f}%)"
             )
     return reasons
+
+
+# ---------------------------------------------------------------------------
+# 6. 입찰보증금 비율 — 법원이 명세서에 명시한 값 (UX 감사 U-01, 2026-07-23)
+# ---------------------------------------------------------------------------
+# 보증금은 보통 최저매각가격의 10%지만, **재매각·특별매각조건 물건은 20~30%**다.
+# 화면이 이를 반영하지 않고 늘 10%로 계산하면, 사용자가 절반만 준비해 법정에 가고
+# **입찰이 무효 처리된다**(UX 감사에서 3개 페르소나가 독립 지적한 실제 금전 손실 경로).
+# 법원은 이 비율을 명세서 비고에 문장으로 준다 — 실측 609건, 예:
+#   "특별매각조건 매수신청보증금 최저매각가격의 20%"(159) · "재매각임. 매수신청보증금은 …의 20%"(34)
+# 표기 변형(조사·구두점·번호 접두)이 많아 문자열 비교가 아니라 정규식으로 읽는다.
+_DEPOSIT_RATE_RE = re.compile(
+    r"(?:매수신청)?보증금[^\n%]{0,40}?(\d{1,2})\s*%"
+)
+# 상식 범위 밖 값은 오탐(다른 비율 언급이 '보증금' 근처에 있었던 경우)으로 보고 버린다.
+_DEPOSIT_RATE_MIN, _DEPOSIT_RATE_MAX = 10, 30
+
+
+def parse_deposit_rate(*texts: str) -> int | None:
+    """명세서 비고 등에서 **입찰보증금 비율(%)** 을 읽는다. 명시가 없으면 None.
+
+    None 은 '10%'가 아니라 **'법원이 명시하지 않았다'** 는 뜻이다 — 호출부는 이를
+    '통상 10% 가정'으로 쓰되 **추정임을 화면에 밝혀야** 한다(모름을 확정으로 바꾸지 않는다).
+    여러 비율이 언급되면 **가장 큰 값**을 택한다(보수적 — 준비할 현금을 과소평가하지 않는다).
+    """
+    best: int | None = None
+    for t in texts:
+        for m in _DEPOSIT_RATE_RE.finditer(t or ""):
+            try:
+                rate = int(m.group(1))
+            except (TypeError, ValueError):
+                continue
+            if _DEPOSIT_RATE_MIN <= rate <= _DEPOSIT_RATE_MAX and (best is None or rate > best):
+                best = rate
+    return best
+
+
+def bid_deposit(min_bid_price: int, *texts: str) -> tuple[int, int, bool]:
+    """(보증금액, 적용비율%, 법원명시여부). 명시가 없으면 통상 10%로 계산하되 stated=False.
+
+    화면은 stated=False 일 때 반드시 '통상 10% 가정 · 법원 공고 확인'을 함께 표기해야 한다.
+    """
+    rate = parse_deposit_rate(*texts)
+    stated = rate is not None
+    rate = rate if stated else 10
+    return int(round((min_bid_price or 0) * rate / 100)), rate, stated

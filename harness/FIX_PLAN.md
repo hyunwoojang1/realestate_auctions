@@ -65,6 +65,39 @@
 
 ---
 
+---
+
+## U-01 입찰보증금 — 함수 완료 · **배선 인계** (2026-07-23 15:5x)
+
+⚠️ **동시 작업 알림**: 다른 세션이 같은 시각 재매각 기능(`resale_history`·상세 경고 배너·목록 칩)을
+`templates/detail.html`·`src/web.py`·`src/courtauction_detail.py`에 **미커밋 상태로 구현 중**이다.
+충돌을 피해 **순수 함수와 테스트만** 커밋하고 화면 배선은 넘긴다.
+
+**제공되는 것** (`src/courtauction_rights.py`, 테스트 `tests/test_bid_deposit.py` 12종):
+```python
+parse_deposit_rate(*texts) -> int | None      # 명세서에서 보증금 비율(%) — 없으면 None(= '미상')
+bid_deposit(min_bid_price, *texts) -> (금액, 비율, 법원명시여부)
+```
+- 실측 표기 7변형 대응("특별매각조건 매수신청보증금 최저매각가격의 20%" 등, DB 609건 기준)
+- 범위 밖(10~30% 외) 값은 오탐으로 버림, 여러 개면 **큰 값**(현금 과소평가 방지)
+- **None은 10%가 아니라 '법원이 명시 안 함'** — 호출부가 '통상 10% 가정'으로 쓰되 추정임을 표시할 것
+
+**해야 할 배선 1곳** — `templates/detail.html` 입찰보증금 KPI(현재 `s.min_bid_price * 0.1` 하드코딩):
+```jinja
+{# web.py 상세 뷰에서: deposit_amt, deposit_rate, deposit_stated = bid_deposit(
+       s.min_bid_price, rights.remark, rights.lien_note, rights.surviving_rights) #}
+입찰보증금 <span class="s">{% if deposit_stated %}(법원 명시 {{ deposit_rate }}%){% else %}(통상 10% 가정 · 공고 확인){% endif %}</span>
+{{ won(deposit_amt) }}
+```
+- 명시값이 있으면 **라벨이 아니라 금액 자체**가 바뀌어야 한다(현재는 라벨만 "재매각 20~30%"로 바뀌고
+  숫자는 10%인 상태 — UX 감사 U-01의 핵심 미해결분).
+- 미명시(stated=False)면 금액을 단정하지 말고 '가정'임을 같은 줄에 밝힐 것.
+
+**영향 실측**: 법원이 10%가 아닌 비율을 명시한 물건 **309건**(20% 302 · 30% 7),
+그중 **추천등급 24건**. 예: 인천 2024타경584394(관심) 화면 0.07억 → 실제 0.14억.
+
+---
+
 ## 실행 규칙
 
 - 한 번에 하나(P1 → P2 → …). 각 단계마다 pytest 전체 + 관련 감사 재실행으로 **영향 실측**.
