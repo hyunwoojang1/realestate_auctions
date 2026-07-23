@@ -355,6 +355,9 @@ def apply_rights_from_rows(listings: list[AuctionListing],
             special_rights=badge.special,
             tenant_opposable=badge.opposable,
             assumed_amount=badge.assumed,
+            # (감사 2026-07-23 P-01) 인수는 명시됐는데 금액을 못 읽은 상태를 등급 판정까지 전달.
+            # 종전엔 assumed=0으로 뭉개져 '부담 없음'과 구분되지 않았다.
+            burden_amount_unknown=badge.amount_unknown,
             rights_verified=True,
         )
         stats["matched"] += 1

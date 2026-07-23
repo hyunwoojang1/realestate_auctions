@@ -48,29 +48,73 @@ def load_state(path):
     return {"audited_doc_ids": []}
 
 
-def sample_cases(conn, n, state):
+def serving_grades(db_path):
+    """서빙(웹) 시점 등급 — DB 저장 등급과 다르다(P-12).
+
+    서빙은 네이버 KB/호가 폴백으로 시세를 채우고 등급을 재산정하므로, DB에선 '시세추정불가'인
+    물건이 화면에선 '관심/양호'로 추천된다. **사용자가 보는 것**이 서빙 등급이므로 적대적 표본은
+    이쪽을 기준으로 뽑아야 사각지대가 안 생긴다. Flask test_client 사용(네트워크·서버 불요).
+    """
+    os.environ["AUCTION_DB"] = db_path
+    from src.web import create_app  # noqa: PLC0415 — env 설정 후 import
+    rows = json.loads(create_app().test_client().get("/api/listings").get_data(as_text=True))
+    return {(r.get("court"), r.get("case_no"), str(r.get("item_no") or "")): r.get("grade")
+            for r in rows}
+
+
+def sample_cases(conn, n, state, serving=None):
     audited = set(state.get("audited_doc_ids", []))
-    rows = conn.execute(
-        """SELECT s.doc_id, s.court, s.case_no, s.item_no, s.apt_name, s.address,
-                  s.property_type, s.area_m2, s.appraisal_price, s.min_bid_price,
-                  s.fail_count, s.sale_date, s.grade, s.rights_verified,
-                  r.surviving_rights, r.senior_lien, r.lien_note, r.remark,
-                  r.claim_amt, r.demand_end, r.spec_write_ymd, r.court_dept,
-                  r.schedule, r.appraisal_notes
-           FROM scored_listings s JOIN listing_rights r
-             ON s.court=r.court AND s.case_no=r.case_no AND s.item_no=r.item_no
-           WHERE s.rights_verified=1 AND s.grade IN (?,?,?)""",
-        RECOMMEND_GRADES,
-    ).fetchall()
+    if serving is None:
+        rows = conn.execute(
+            """SELECT s.doc_id, s.court, s.case_no, s.item_no, s.apt_name, s.address,
+                      s.property_type, s.area_m2, s.appraisal_price, s.min_bid_price,
+                      s.fail_count, s.sale_date, s.grade, s.rights_verified,
+                      r.surviving_rights, r.senior_lien, r.lien_note, r.remark,
+                      r.claim_amt, r.demand_end, r.spec_write_ymd, r.court_dept,
+                      r.schedule, r.appraisal_notes
+               FROM scored_listings s JOIN listing_rights r
+                 ON s.court=r.court AND s.case_no=r.case_no AND s.item_no=r.item_no
+               WHERE s.rights_verified=1 AND s.grade IN (?,?,?)""",
+            RECOMMEND_GRADES,
+        ).fetchall()
+    else:
+        # 서빙 등급 기준: DB 등급과 무관하게 **화면에서 추천으로 뜨는** 물건 전부.
+        rows = [r for r in conn.execute(
+            """SELECT s.doc_id, s.court, s.case_no, s.item_no, s.apt_name, s.address,
+                      s.property_type, s.area_m2, s.appraisal_price, s.min_bid_price,
+                      s.fail_count, s.sale_date, s.grade, s.rights_verified,
+                      r.surviving_rights, r.senior_lien, r.lien_note, r.remark,
+                      r.claim_amt, r.demand_end, r.spec_write_ymd, r.court_dept,
+                      r.schedule, r.appraisal_notes
+               FROM scored_listings s JOIN listing_rights r
+                 ON s.court=r.court AND s.case_no=r.case_no AND s.item_no=r.item_no"""
+        ).fetchall()
+            if serving.get((r["court"], r["case_no"], str(r["item_no"] or ""))) in RECOMMEND_GRADES]
     pool = [r for r in rows if r["doc_id"] not in audited]
-    random.shuffle(pool)
+    if serving is None:
+        random.shuffle(pool)
+        return _stratify(pool, n)
+    # 사각지대 우선: 서빙에선 추천인데 DB 등급은 추천이 아닌 물건(= 어떤 감사도 본 적 없음).
+    blind = [r for r in pool if r["grade"] not in RECOMMEND_GRADES]
+    rest = [r for r in pool if r["grade"] in RECOMMEND_GRADES]
+    random.shuffle(blind)
+    random.shuffle(rest)
+    picked = _stratify(blind, n)
+    if len(picked) < n:
+        picked += _stratify(rest, n - len(picked))
+    return picked
+
+
+def _stratify(pool, n):
+    """법원별 라운드로빈으로 n건 선정(한 법원에 표본이 몰리는 것 방지)."""
     by_court = {}
     for r in pool:
         by_court.setdefault(r["court"], []).append(r)
     picked = []
-    while len(picked) < min(n, len(pool)):
+    target = min(n, len(pool))
+    while len(picked) < target:
         for c in list(by_court):
-            if by_court[c] and len(picked) < min(n, len(pool)):
+            if by_court[c] and len(picked) < target:
                 picked.append(by_court[c].pop())
     return picked
 
@@ -164,6 +208,9 @@ def main():
     ap.add_argument("--db", default=os.path.join(ROOT, "auction.db"))
     ap.add_argument("--blind-dir", default=BLIND_DIR_DEFAULT)
     ap.add_argument("--seed", type=int, default=None)
+    ap.add_argument("--serving", action="store_true",
+                    help="표본을 **서빙 등급**(사용자가 보는 등급) 기준으로 뽑는다. DB 등급과 다른 "
+                         "사각지대(P-12) 물건을 최우선 배정. 미지정 시 종전대로 DB 등급 기준.")
     args = ap.parse_args()
     if args.seed is not None:
         random.seed(args.seed)
@@ -173,7 +220,8 @@ def main():
     state_path = os.path.join(ROOT, "harness", "audit_state.json")
     state = load_state(state_path)
 
-    picked = sample_cases(conn, args.n, state)
+    serving = serving_grades(os.path.abspath(args.db)) if args.serving else None
+    picked = sample_cases(conn, args.n, state, serving=serving)
     inbox = os.path.join(args.blind_dir, "inbox")
     os.makedirs(inbox, exist_ok=True)
 
@@ -196,7 +244,11 @@ def main():
             "item_no": r["item_no"], "apt_name": r["apt_name"],
             # 정답지(우리 판정 스냅샷) — 블라인드 폴더에는 절대 복사 금지
             "our_grade": r["grade"], "our_rights_verified": r["rights_verified"],
-            "our_call": "없음(클린 서빙)",  # 이 표본풀은 전부 추천등급+권리반영=인수신호 없음으로 서빙 중
+            # 서빙 등급(사용자가 실제로 보는 것) — DB 등급과 다르면 P-12 사각지대 물건이다.
+            "serving_grade": (serving or {}).get(
+                (r["court"], r["case_no"], str(r["item_no"] or ""))) if serving else None,
+            "blind_spot": bool(serving) and r["grade"] not in RECOMMEND_GRADES,
+            "our_call": "없음(클린 서빙)",  # 표본풀 전체가 '인수 신호 없음'으로 추천 서빙 중
             "surviving_rights_empty": not (r["surviving_rights"] or "").strip(),
             "tenants_rows": len(tenants),
         })

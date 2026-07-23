@@ -223,6 +223,9 @@ class PriorityAnalysis:
 
     verdict:
       confirmed_opposable   — 전입 ≤ 말소기준 → 대항력 있음(법원 인수 판정과 일치, 근거 명확)
+      possible_opposable    — 관계 미상 전입세대의 전입 ≤ 말소기준(임차인 확정 아님) → 대항력 '여지'.
+                              (2026-07-23) is_tenant_like=False 를 소유자로 단정해 무시하던
+                              false-negative 방지 — '있음'(확정)보다 약, '없음'(clean)보다 강한 경고.
       not_opposable         — 전입 > 말소기준 → 대항력 없음(낙찰로 소멸, 명세서 인수 문구 없음)
       contradiction         — 전입 > 말소기준인데 명세서는 인수(임차권등기명령 등 특수·파싱오류 검증대상)
       dates_incomplete      — 말소기준은 있으나 전입일 미기재(법원 판정만 신뢰 + 등기부 확인 권고)
@@ -239,7 +242,8 @@ class PriorityAnalysis:
 
 
 def analyze_priority(r: CaseRights,
-                     tenant_moveins: list[str] | None = None) -> PriorityAnalysis:
+                     tenant_moveins: list[str] | None = None,
+                     ambiguous_moveins: list[str] | None = None) -> PriorityAnalysis:
     """CaseRights → 대항력 판정 근거.
 
     말소기준일 = senior_lien 의 첫 날짜. 임차인 전입일 우선순위:
@@ -248,6 +252,11 @@ def analyze_priority(r: CaseRights,
            대항력 없는 물건을 있음으로 오판(false-positive)한다. 대항력은 임차인에게만 성립.
       2) 없으면 명세서 요지 자유텍스트에서 '전입' 라벨 날짜 스캔(구경로, 사실상 빈 요지엔 무력).
     실데이터(1)가 있으면 명세서 요지가 비어 있어도 날짜비교로 직접 대항력을 판정한다.
+
+    ambiguous_moveins (2026-07-23): 임차 신호가 없어(is_tenant_like=False) '임차인 확정'은 못
+    했지만 전입일이 있는 관계 미상 전입세대의 전입일. 확정 판정이 안 서고(no_basis) 이들의 전입이
+    말소기준보다 앞서면 verdict='possible_opposable'(대항력 여지)로 승격한다 — 소유자로 단정해
+    무시하던 false-negative(삼환 2022타경3289 박성혜 1996 ≤ 말소기준 2002)를 막는 보수 경고.
     """
     # 말소기준: senior_lien 의 첫 날짜 + 그 근처 유형 키워드
     senior = _first_date(r.senior_lien or "")
@@ -307,6 +316,31 @@ def analyze_priority(r: CaseRights,
                   f"현황조사서로 확인하세요.")
     else:
         a.verdict = "no_basis"
+
+    # (2026-07-23 대항력 여지 + 리뷰 #2/#3) 확정 임차인으로는 대항력이 안 서지만(no_basis 또는
+    # not_opposable=늦은 임차인이 소멸), 관계 미상 전입세대의 전입이 말소기준과 같거나 앞서면 '여지'로
+    # 경고한다. dlt_ordTsLserLtn 세대는 소유자 본인이 아니라 관계 미상 제3자일 수 있어(법원 원문
+    # "소유자와의 관계를 알 수 없는 ○○ 세대가 전입") 보증금 미기재라도 임차인 가능성을 배제 못 한다
+    # (삼환: 박성혜 1996 ≤ 말소기준 2002). ▶ not_opposable도 포함(#2): '늦은 확정 임차인'이 '더 이른
+    # 관계미상 세대'를 가려 침묵 소멸시키던 다세대 false-negative를 막는다. 이미 부담을 노출하는
+    # dates_incomplete·contradiction·confirmed 는 덮지 않는다. ▶ 대항력은 전입 익일0시 발생이라 같은
+    # 날(==)은 법적으론 없음이나(#3), 여기선 소프트 경고라 보수적으로 포함(<=)하고 문구는 '같거나 앞서'로 표기.
+    if a.verdict in ("no_basis", "not_opposable") and senior and ambiguous_moveins:
+        amb_early = [d for d in (_first_date(str(x)) for x in ambiguous_moveins)
+                     if d and d[0] <= senior[0]]
+        if amb_early:
+            earliest = min(amb_early, key=lambda x: x[0])
+            late_tenant = a.verdict == "not_opposable"
+            a.movein_date = earliest[1]
+            a.movein_source = "현황조사서"
+            a.verdict = "possible_opposable"
+            a.note = (
+                ("확정 임차인은 말소기준보다 늦어 소멸하나, 별도 " if late_tenant else "")
+                + f"현황조사서상 전입세대({earliest[1]})가 말소기준"
+                + f"({a.senior_type or '최선순위'} {a.senior_date})와 같거나 앞서나, 임대차 관계"
+                + "(보증금·확정일자·용도)가 미상입니다. 임차인으로 확정되면 보증금 잔액을 매수인이 "
+                + "인수할 수 있어 대항력 위험을 배제할 수 없습니다 — 등기부·현황조사서 전문으로 "
+                + "반드시 확인하세요.")
     return a
 
 
@@ -386,6 +420,49 @@ def tenant_moveins(tenants: list[dict]) -> list[str]:
     대항력 false-positive 를 막는다."""
     return [t["movein_ymd"] for t in (tenants or [])
             if t.get("is_tenant_like") and t.get("movein_ymd")]
+
+
+# 소유자/채무자 '점유·거주' 명시 판정 — 관계 미상(possession=None 또는 '관계를 알 수 없는' 서술)과 구분.
+# ⚠️ courtauction_rights._OWNER_RE 는 마지막 대안이 bare '소유자'라 "소유자와의 관계를 알 수 없는"까지
+#   매칭 → 삼환형 관계미상 세대를 소유자로 잘못 배제(대항력 false-negative 재발)한다. 재사용 금지.
+#   여기선 소유자/채무자 뒤에 '점유·거주·자가'가 근접(비한글 4자 이내)한 '점유 명시'만 잡는다.
+_OWNER_OCCUPANCY_RE = re.compile(
+    r"(?:소유자|채무자)(?:\s*겸\s*(?:소유자|채무자))?[가이은는을]?[^가-힣\n]{0,4}(?:점유|거주|자가)")
+
+
+def _asserts_owner_occupancy(possession: str | None) -> bool:
+    """현황조사서 점유란(gdsPossCtt)이 소유자/채무자 '점유·거주'를 명시하는가.
+
+    (리뷰 2026-07-23 #1/#6) 법원이 소유자/채무자 점유로 '확정'한 세대는 관계 미상이 아니므로 대항력
+    여지 후보에서 제외한다(소유자는 대항력 원천 부재). 단 "소유자와의 관계를 알 수 없는 …" 같은
+    관계 미상 서술은 소유자 확정이 아니라 오히려 여지 근거이므로 배제하지 않는다(삼환형 — 여지 유지)."""
+    t = possession or ""
+    if not t or "관계를 알 수 없" in t or "관계미상" in t or "관계 미상" in t:
+        return False
+    return bool(_OWNER_OCCUPANCY_RE.search(t))
+
+
+def ambiguous_moveins(tenants: list[dict]) -> list[str]:
+    """임차 신호가 없어(is_tenant_like=False) '임차인 확정'은 못 했지만 전입일이 있는
+    관계 미상 전입세대의 전입일 리스트. 소유자/채무자 '점유 명시' 세대는 제외한다.
+
+    (2026-07-23 대항력 false-negative 수정) 현황조사서 dlt_ordTsLserLtn 에 오르는 세대는
+    전입세대열람 결과 — 소유자 본인이 아니라 '점유·임대차 관계 미상'인 제3자일 수 있다(법원 원문:
+    "소유자와의 관계를 알 수 없는 ○○ 세대가 전입"). 보증금·확정일자·용도가 안 잡혀
+    is_tenant_like=False 라도 소유자로 단정하면 안 된다 — 전입이 말소기준보다 앞서면 대항력
+    임차인일 '여지'가 있다(부산 2022타경3289 삼환: 박성혜 전입 1996 < 말소기준 2002 →
+    유료사이트는 '대항력있음' 표기, 우리는 소유자로 무시하던 버그).
+
+    (리뷰 2026-07-23 #1/#6) 단, 점유란에 '소유자/채무자 점유'가 **명시**된 세대는 법원이 소유자로
+    확정한 것이라 여지에서 제외한다 — 안 그러면 자가거주(담보설정 前 전입) 물건 대부분이 '여지'로
+    오발화해 진짜 관계미상 케이스가 묻힌다. possession=None(관계 미상)은 통과 → 삼환 여지 유지.
+
+    analyze_priority(ambiguous_moveins=...) 에 tenant_moveins(확정 임차인)와 **분리**해 넘긴다 —
+    분석기가 확정('있음')보다 약하고 clean('없음')보다는 강한 '여지(possible_opposable)'로 처리한다.
+    """
+    return [t["movein_ymd"] for t in (tenants or [])
+            if not t.get("is_tenant_like") and t.get("movein_ymd")
+            and not _asserts_owner_occupancy(t.get("possession"))]
 
 
 def opposable_deposit(tenants: list[dict], senior_ymd: str) -> int:

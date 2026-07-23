@@ -494,6 +494,10 @@ def create_app() -> Flask:
             row["burden_status"] = ("clean" if b and b.is_clean
                                     else "burden" if b else "unknown")
             row["assumed_amount"] = b.assumed if b else None
+            # (감사 2026-07-23 P-13) 상세 화면은 "매수인이 인수함"을 표시하는데 API 소비자는
+            # assumed_amount 가 비어 있어 인수를 0으로 계산했다(표본 53/53). 금액 미상을 명시한다 —
+            # CSV(report.csv_text)는 이미 '있음(금액 미상)'·유효차익 공란으로 처리하고 있었다.
+            row["assumed_amount_unknown"] = bool(b and b.amount_unknown)
             out.append(row)
         return jsonify(out)
 
@@ -749,6 +753,7 @@ def create_app() -> Flask:
 
             from .courtauction_detail import (  # noqa: PLC0415
                 CaseRights,
+                ambiguous_moveins,
                 analyze_priority,
                 opposable_deposit,
                 summarize,
@@ -756,17 +761,21 @@ def create_app() -> Flask:
             )
             _cr = CaseRights.from_row(rights_row)
             tmoveins = tenant_moveins(tenants)   # 임차인(소유자 전입 제외) 전입일 실데이터
+            amoveins = ambiguous_moveins(tenants)  # 관계 미상 전입세대(대항력 여지 후보 — 소유자 단정 금지)
             # (서빙감사 2026-07-12 #13) 빈/부분 명세서는 판정 근거 0 — 배지·rights 둘 다 미표시로
             # 폴백해 '✓ 인수 없음/권리분석 반영됨'으로 오판하지 않는다(목록 가드와 정합).
             if _cr.is_empty:
                 rights_row = None
-            elif _cr.opposability_assessable or tmoveins:
-                # 판정 가능: 요지 자유텍스트가 있거나(구경로), 현황조사서 임차인 전입일 실데이터가 있음.
+            elif _cr.opposability_assessable or tmoveins or amoveins:
+                # 판정 가능: 요지 자유텍스트가 있거나(구경로), 현황조사서 임차인 전입일 실데이터가 있거나,
+                # (2026-07-23) 관계 미상 전입세대가 있어 대항력 '여지' 판정이 가능함.
                 rights = _cr
                 badge = summarize(_cr)
                 # 대항력 근거(2026-07-13): 실전입일 있으면 항상 날짜비교, 없으면 부담물건에만(구동작).
-                if tmoveins or not badge.is_clean:
-                    priority = analyze_priority(_cr, tenant_moveins=tmoveins)
+                # (2026-07-23) 관계 미상 전입세대(amoveins)만 있어도 '여지' 판정을 위해 분석한다.
+                if tmoveins or amoveins or not badge.is_clean:
+                    priority = analyze_priority(_cr, tenant_moveins=tmoveins,
+                                                ambiguous_moveins=amoveins)
                 # 현황조사서 전입일로 대항력 확정(전입 ≤ 말소기준)이면 opposable·인수액 보정.
                 confirmed = priority is not None and priority.verdict == "confirmed_opposable"
                 assumed = badge.assumed

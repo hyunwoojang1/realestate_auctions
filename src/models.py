@@ -21,6 +21,10 @@ class AuctionListing:
     sale_date: str        # 매각기일 YYYY-MM-DD
     # ---- 권리 관련 ----
     assumed_amount: int = 0            # 낙찰자가 추가로 떠안는 인수금액(원)
+    # (감사 2026-07-23 P-01) 명세서가 인수를 **명시**했는데 금액을 못 읽은 상태.
+    # 종전엔 이 경우 assumed_amount=0 이 되어 '부담 없음'과 구분 불가 → 인수 명시 물건이
+    # 차익 유력·양호·관심으로 추천됐다(실측 108건). 모름을 0으로 바꾸지 않기 위한 1급 상태.
+    burden_amount_unknown: bool = False
     special_rights: list[str] = field(default_factory=list)  # 유치권/법정지상권/지분 등
     tenant_opposable: bool = False     # 대항력 있는(배당 못 받는) 임차인 존재
     occupant_type: str = "소유자점유"  # 공실 / 임차인 / 소유자점유 / 다수점유 (미상은 보수적으로 점유 가정)
@@ -116,6 +120,9 @@ class ScoredListing:
     # (2026-07-22) 낙찰자 인수금액(원, 대항력 보증금 상한). 보수차익(profit_low)에서 차감해
     # '표면차익 양수인데 보증금 빼면 손해'인 함정 매물이 추천에 뜨지 않게 한다(빈틈1 수정).
     assumed_amount: int = 0
+    # (감사 2026-07-23 P-01) 인수 명시 + 금액 미상. 차감할 금액을 모르므로 보수차익이 과대평가된다
+    # → 추천계열 진입 금지(derive_grade가 '주의'로 상한). 서빙 폴백 재계산에도 필요해 영속한다.
+    burden_amount_unknown: bool = False
     # (T5) 밴드 실기반 표본수(최근성+트림 후 실사용 건수). matched_trades(원 매칭수)와 구분.
     # None=레거시(게이트 미적용). 게이트: < band_confident_basis(기본5) → 낮은 신뢰·추천 제외.
     market_sample_basis: int | None = None

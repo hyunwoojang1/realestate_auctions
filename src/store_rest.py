@@ -356,6 +356,15 @@ def fetch_rights(court: str, case_no: str, item_no: str = "") -> dict | None:
 TENANTS_TABLE = os.environ.get("SUPABASE_TENANTS_TABLE", "auction_listing_tenants")
 
 
+def upsert_tenants(rows: list[dict]) -> int:
+    """임차인 현황(listing_tenants 행 dict) 병합 미러 — 대항력 여지 판정 원천의 클라우드 서빙.
+
+    (2026-07-23 step2) 서빙 게이트(SUPABASE_TENANTS_ENABLED)와 무관하게 데이터는 미리 채워둔다 —
+    게이트는 '읽기'만 막고, 미러 '쓰기'는 데이터를 준비시켜 준다. 테이블 미배포 시 호출측이 graceful skip."""
+    url, key, _ = _cfg()
+    return _post_upsert(url, key, TENANTS_TABLE, rows)
+
+
 def fetch_tenants(court: str, case_no: str, item_no: str = "") -> list[dict]:
     """단건 임차인 현황 조회(클라우드 서빙). 테이블 미배포/미러 전이면 조용히 빈 리스트.
 

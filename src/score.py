@@ -99,7 +99,8 @@ def derive_grade(arb: float | None, *, gated: bool, rights_verified: bool,
                  gap_rate: float | None = None, p_low: int | None = None,
                  market_scope: str | None = None, band_basis: int | None = None,
                  matched_trades: int | None = None,
-                 apply_scope_sample_gates: bool = False) -> str:
+                 apply_scope_sample_gates: bool = False,
+                 burden_amount_unknown: bool = False) -> str:
     """arb+상태 → 등급 라벨 — 채점(국토부)·서빙폴백(KB/호가/전세) **단일 출처**.
 
     (2026-07-17 통합) 이전엔 score_listing과 market_view._apply_market_price가 등급 파생을
@@ -130,6 +131,14 @@ def derive_grade(arb: float | None, *, gated: bool, rights_verified: bool,
             return L["interest"]
         if matched_trades is not None and matched_trades < CONFIG.min_comps_confident and grade == top:
             return second
+    # (감사 2026-07-23 P-01) 명세서가 인수를 **명시**했는데 금액을 못 읽은 경우 — 차감할 금액을
+    # 모르므로 보수차익(p_low)이 과대평가된 값이다. 종전엔 assumed_amount=0 이라 하드게이트도
+    # 안 걸리고 rights_score 감점만 받아 '차익 유력/양호/관심'으로 추천됐다(실측 108건).
+    # 모름을 없음으로 바꾸지 않기 위해 **추천계열 진입을 금지**하고 '주의'로 상한한다.
+    # (금액이 읽힌 경우는 이미 p_low에서 차감되므로 여기 해당 없음.)
+    recommend = {L["top"], L["second"], L["interest"]}
+    if burden_amount_unknown and grade in recommend:
+        return L["caution"]
     return grade
 
 
@@ -203,7 +212,8 @@ def score_listing(listing: AuctionListing, est_market_price: int | None, matched
         arb, gated=gated, rights_verified=listing.rights_verified,
         gap_rate=gap_rate, p_low=p_low, market_scope=market_scope,
         band_basis=band_basis, matched_trades=matched_trades,
-        apply_scope_sample_gates=True)
+        apply_scope_sample_gates=True,
+        burden_amount_unknown=listing.burden_amount_unknown)
 
     # (사용자 2026-07-21) 권리 미확인 = 인수금액을 0으로 가정한 상태 → 차익·점수를 신뢰할 수 없다.
     # arb_score를 None(점수 없음)으로 둬서 점수정렬 상위로 뜨지 않게 한다(함정 방어).
@@ -226,6 +236,7 @@ def score_listing(listing: AuctionListing, est_market_price: int | None, matched
         profit_low=p_low, profit_high=p_high,
         market_comps=[list(c) for c in comps],
         assumed_amount=listing.assumed_amount,
+        burden_amount_unknown=listing.burden_amount_unknown,
     )
 
 
@@ -292,7 +303,9 @@ def _apply_market_price(s: ScoredListing, naver: dict, price: int, price_low: in
     # 게이트 없이 추천 허용(신뢰계수로 이미 하향) → apply_scope_sample_gates=False.
     # gap_rate=None: 옛 폴백은 p_low만 검사했다(price_low≤price라 수학적으론 동치지만 명시적으로 보존).
     grade = derive_grade(arb, gated=gated, rights_verified=s.rights_verified,
-                         gap_rate=None, p_low=p_low, apply_scope_sample_gates=False)
+                         gap_rate=None, p_low=p_low, apply_scope_sample_gates=False,
+                         # (P-01) 서빙 폴백도 같은 규칙 — 인수 명시·금액 미상은 추천 금지.
+                         burden_amount_unknown=s.burden_amount_unknown)
     # (사용자 2026-07-21) 권리 미확인은 서빙 폴백에서도 '점수 없음'으로 — 채점층과 동일 규칙.
     if not s.rights_verified and not gated:
         arb = None
