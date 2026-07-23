@@ -89,8 +89,10 @@
       grid-template-areas:
         "head head"
         "kpi  kpi"
+        "rsl  rsl"
         "gate gate"
         "nums vis"
+        "sim  sim"
         "low  low"
         "foot foot"
         "bar  bar";
@@ -98,12 +100,16 @@
     .dhead{grid-area:head}
     .dkpi{grid-area:kpi;grid-template-columns:repeat(6,1fr);gap:10px}
     .ddetail>.gatebar{grid-area:gate}
+    /* 재매각 배너는 게이트바와 별도 셀 — 같은 grid-area 를 공유하면 두 배너가 겹친다. */
+    .ddetail>.gatebar.resale{grid-area:rsl}
     #col-nums{grid-area:nums}
     #col-vis{grid-area:vis}
     #col-vis .dphoto{height:280px;margin:0}
     #col-vis .dphoto-track{aspect-ratio:auto;height:100%}
     #col-vis .dphoto-empty{height:120px;display:flex;flex-direction:column;justify-content:center;margin:0}
     .dmapcard{margin-top:0;height:300px}
+    .dsim{grid-area:sim}
+    .dsim-body{grid-template-columns:minmax(0,320px) minmax(0,1fr)}
     .dlow{grid-area:low;display:grid;grid-template-columns:minmax(0,2fr) minmax(0,3fr);gap:22px;
       align-items:start;margin-top:var(--sp-5)}
     .dnotes-cols{column-count:2}
@@ -166,6 +172,46 @@
   .ddetail .drow.total .v{font-size:14.5px}
   .ddetail .drow.grand .k{font-weight:700;color:var(--ink-800)}
   .ddetail .drow.grand .v{font-size:17px;font-weight:800}
+
+  /* ── 재매각 경고 배너 — 일반 게이트바(주의색)보다 강한 위험색 ── */
+  .gatebar.resale{background:var(--risk-weak);border-color:var(--risk-line);
+    border-left-color:var(--risk)}
+  .gatebar.resale p{color:var(--risk-strong)}
+  .gatebar.resale .hint{display:block;margin-top:3px;font-weight:500;color:var(--risk);opacity:.85}
+
+  /* ── 입찰가 시뮬레이터 — 가정 입력(왼쪽) + 결과 영수증(오른쪽) ── */
+  .dsim{margin-top:var(--sp-5)}
+  .dsim-body{display:grid;grid-template-columns:minmax(0,1fr);gap:16px;align-items:start}
+  .dsim-in{border:1px solid var(--hairline);border-radius:var(--r-md);background:var(--surface);
+    overflow:hidden}
+  .dsim-f{display:flex;flex-direction:column;gap:5px;padding:10px 14px;
+    border-bottom:1px solid var(--hairline)}
+  .dsim-f:last-child{border-bottom:0}
+  .dsim-f>label{display:flex;justify-content:space-between;align-items:baseline;gap:8px;
+    font-size:12px;font-weight:700;color:var(--ink-700)}
+  .dsim-f .out{font-size:13.5px;font-weight:800;color:var(--ink-900);font-variant-numeric:tabular-nums}
+  .dsim-f .hint{font-size:10.5px;font-weight:500;color:var(--ink-400)}
+  .dsim-f input[type=range]{width:100%;accent-color:var(--brand);height:22px;margin:0;cursor:pointer}
+  .dsim-f input[type=number]{width:100%;font:inherit;font-size:13px;padding:6px 9px;
+    border:1px solid var(--hairline-strong);border-radius:var(--r-sm,6px);background:var(--surface);
+    color:var(--ink-900);font-variant-numeric:tabular-nums}
+  .dsim-grid2{display:grid;grid-template-columns:1fr 1fr;gap:0}
+  .dsim-grid2 .dsim-f:nth-child(odd){border-right:1px solid var(--hairline)}
+  .dsim-out{border:1px solid var(--hairline);border-radius:var(--r-md);background:var(--surface);
+    overflow:hidden}
+  /* 결론 밴드 — 손익분기 입찰가가 이 기능의 헤드라인 */
+  .dsim-hero{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:1px;
+    background:var(--hairline)}
+  .dsim-hero .c{background:var(--surface-sunken);padding:12px 14px}
+  .dsim-hero .k{display:block;font-size:11px;font-weight:700;color:var(--ink-500);margin-bottom:3px}
+  .dsim-hero .v{font-size:19px;font-weight:800;color:var(--ink-900);
+    font-variant-numeric:tabular-nums;line-height:1.2}
+  .dsim-hero .v.gain{color:var(--gain)}
+  .dsim-hero .v.neg{color:var(--risk)}
+  .dsim-hero .s{display:block;font-size:10.5px;font-weight:600;color:var(--ink-400);margin-top:3px}
+  .dsim-out .drow .v{font-variant-numeric:tabular-nums}
+  .dsim-busy{opacity:.45;transition:opacity .12s}
+  @media(min-width:1100px){ .dsim-body{grid-template-columns:minmax(0,340px) minmax(0,1fr);gap:22px} }
 </style>
 {% endblock %}
 
@@ -209,7 +255,7 @@
       </div>
       <p class="meta">{{ s.address }} · {{ s.property_type }} · {{ '%.1f'|format(s.area_m2) }}㎡{% if s.area_m2 %} ({{ pyeong(s.area_m2) }}){% endif %} · 유찰 {{ s.fail_count }}회 · 매각기일 {{ s.sale_date or '미상' }}</p>
       <div class="chiprow" style="display:flex;gap:8px;margin-top:8px;flex-wrap:wrap">
-        {% if rights and rights.opposability_assessable and s.grade == '권리미확인' %}<span class="chip clean">명세서 확인됨</span>{% else %}{{ statuschip(s) }}{% endif %}
+        {% if priority and priority.verdict == 'possible_opposable' %}<span class="chip pending" style="color:var(--risk)"><span class="cdot"></span>대항력 여지</span>{% elif rights and rights.opposability_assessable and s.grade == '권리미확인' %}<span class="chip clean">명세서 확인됨</span>{% else %}{{ statuschip(s) }}{% endif %}
         <span class="chip muted">신뢰 {{ '%.2f'|format(s.confidence) }} · 매칭 {{ s.matched_trades }}건</span>
       </div>
     </div>
@@ -240,6 +286,21 @@
   </div>
 
   <!-- ── 존 3: 통합 게이트 배너 ── -->
+  {#- 재매각 경고(2026-07-23) — 과거에 낙찰됐다가 되돌아온 물건. 이력이 없으면 통째로 미표시.
+      통계가 아니라 이 물건의 확정 사실이라 표본 게이트 없이 그대로 보여준다.
+      ⚠️ 대법원은 낙찰가(dspslAmt)를 안 준다 — 아래 금액은 '그 회차 최저입찰가'이지 낙찰가가 아니다. -#}
+  {% if resale %}
+  <div class="gatebar resale">
+    <span class="ic">↩</span>
+    <p><b>재매각 물건 — 과거 낙찰 후 {{ resale.reason }}{% if resale.sold_count > 1 %} ({{ resale.sold_count }}회 반복){% endif %}.</b>
+      {{ resale.last_sold_ymd }}에 낙찰됐으나
+      {% if resale.reason == '대금 미납' %}매수인이 잔금을 내지 않아{% elif resale.reason == '매각 불허가' %}법원이 매각을 허가하지 않아{% elif resale.reason == '매각허가 취소' %}매각허가가 취소되어{% else %}그 뒤 절차가 종결되지 않아{% endif %}
+      다시 경매에 나왔습니다.
+      {% if resale.reason == '대금 미납' %}매수인이 <b>보증금을 포기하면서까지</b> 잔금을 포기했다는 뜻이라, 낙찰 후에야 드러난 문제(명도 곤란·권리 하자·현장 상태 등)가 있었을 수 있습니다.{% else %}불허가·취소 사유가 물건 자체의 하자일 수 있으니 사건기록을 확인하세요.{% endif %}
+      {% if resale.last_sold_floor %}<span class="hint">(당시 회차 최저입찰가 {{ won(resale.last_sold_floor) }} — 낙찰가는 법원이 공개하지 않습니다){% if s.min_bid_price and s.min_bid_price < resale.last_sold_floor %} · 현재 최저가는 그때보다 <b>{{ won(resale.last_sold_floor - s.min_bid_price) }} 낮습니다</b>{% endif %}</span>{% endif %}
+      재매각은 <b>입찰보증금이 최저가의 20~30%</b>로 올라가는 경우가 많으니 법원 공고를 반드시 확인하세요.</p>
+  </div>
+  {% endif %}
   <div class="gatebar">
     <span class="ic">⚠</span>
     <p><b>권리 확인 완료 전까지 최종 판단 금지.</b> 매각물건명세서·현황조사서·등기부등본으로 인수 권리를 직접 확인하기 전에는 위 수치가 입찰 근거가 될 수 없습니다. 1차 필터용 검토 보조 자료입니다.</p>
@@ -421,9 +482,10 @@
       <div class="drow"><span class="k">최선순위 설정 <span class="hint">(말소기준 — 이보다 늦은 권리는 소멸)</span></span><span class="v" style="font-size:13px;font-weight:600;color:var(--ink-700);white-space:pre-line;text-align:right">{{ rights.senior_lien | deent }}</span></div>
       {% endif %}
       {% if priority and priority.verdict != 'no_basis' %}
-      <div class="dpri {{ 'warn' if priority.verdict=='contradiction' else ('info' if priority.verdict=='dates_incomplete' else 'ok') }}">
+      <div class="dpri {{ 'warn' if priority.verdict in ('contradiction','possible_opposable') else ('info' if priority.verdict=='dates_incomplete' else 'ok') }}">
         <div class="dpri-h">
           {% if priority.verdict=='confirmed_opposable' %}🔎 대항력 판정: <b>있음</b> (매수인 인수 근거 확인)
+          {% elif priority.verdict=='possible_opposable' %}⚠ 대항력 판정: <b>여지 있음</b> (관계 미상 전입세대가 말소기준보다 앞섬)
           {% elif priority.verdict=='not_opposable' %}✅ 대항력 판정: <b>없음</b> (전입일이 말소기준보다 늦어 소멸)
           {% elif priority.verdict=='contradiction' %}⚠ 대항력 판정: <b>확인 필요</b> (날짜와 명세서 불일치)
           {% else %}🔎 대항력 판정: <b>말소기준만 확인</b> (전입일 미기재)
@@ -433,7 +495,7 @@
         <div class="dpri-cmp">
           <span>말소기준 <b>{{ priority.senior_type or '최선순위' }} {{ priority.senior_date or '—' }}</b></span>
           <span class="vs">vs</span>
-          <span>임차인 전입 <b{% if priority.movein_date %}{% if priority.verdict=='confirmed_opposable' %} style="color:var(--risk)"{% endif %}{% endif %}>{{ priority.movein_date or '명세서 미기재' }}</b></span>
+          <span>{% if priority.verdict=='possible_opposable' %}전입세대{% else %}임차인 전입{% endif %} <b{% if priority.movein_date %}{% if priority.verdict in ('confirmed_opposable','possible_opposable') %} style="color:var(--risk)"{% endif %}{% endif %}>{{ priority.movein_date or '명세서 미기재' }}</b></span>
         </div>
         <div class="dpri-note">{{ priority.note }}</div>
       </div>
@@ -497,6 +559,104 @@
 
   </div>
 
+  <!-- ══════ 입찰가 시뮬레이터 — "그래서 얼마까지 써도 되나" ══════ -->
+  {#- 슬라이더 범위: 하한은 법적으로 최저입찰가(그 아래로는 입찰 자체가 무효), 상한은 매도가와
+      최저가2배 중 큰 값. sim/sim_in 은 web.property_detail 이 서버에서 한 벌 계산해 넘긴 초기값이라
+      JS가 꺼져 있어도 숫자가 보인다(점진적 향상). -#}
+  {%- set sim_bid_max = [(sim.sell or 0), (s.min_bid_price * 2)]|max -%}
+  <div class="dsim" id="bidsim" data-type="{{ s.property_type }}"
+       data-area="{{ s.area_m2 or 0 }}" data-minbid="{{ s.min_bid_price }}">
+    <div class="dstep-head"><span class="dstep-num">₩</span>
+      <h2>입찰가 시뮬레이터 <span class="sub">· 명도·대출·양도세까지 넣은 <b>실현</b> 손익 — 위 계산서(표면차익)와 다릅니다</span></h2></div>
+    <div class="dsim-body">
+
+      <!-- 왼쪽: 가정 입력 -->
+      <div class="dsim-in">
+        <div class="dsim-f">
+          <label for="sm-bid">입찰가 <span class="out" id="sm-bid-out">{{ won_fine(sim.bid) }}</span></label>
+          <input type="range" id="sm-bid" min="{{ s.min_bid_price }}" max="{{ sim_bid_max }}"
+                 step="500000" value="{{ sim.bid }}">
+          <span class="hint">최저입찰가 {{ won(s.min_bid_price) }} 이상만 유효 · 취득세는 이 금액으로 재계산됩니다</span>
+        </div>
+        <div class="dsim-f">
+          <label for="sm-sell">예상 매도가 <span class="hint">만원</span></label>
+          <input type="number" id="sm-sell" min="0" step="100" value="{{ (sim.sell / 10000)|round|int }}">
+          <span class="hint">{% if s.market_band_low %}기본값 = 실거래 검증 하한가 {{ won(s.market_band_low) }}(보수){% elif s.est_market_price %}기본값 = 추정 시세 {{ won(s.est_market_price) }}{% else %}이 물건은 시세 추정이 없습니다 — 직접 입력하세요{% endif %}</span>
+        </div>
+        <div class="dsim-f">
+          <label for="sm-months">보유기간 <span class="out" id="sm-months-out">{{ sim_in.holding_months }}개월</span></label>
+          <input type="range" id="sm-months" min="0" max="120" step="6" value="{{ sim_in.holding_months }}">
+          <span class="hint">1년↓ 70% · 2년↓ 60% 단기 양도세 · 3년↑ 장기보유공제 시작</span>
+        </div>
+        <div class="dsim-grid2">
+          <div class="dsim-f">
+            <label for="sm-ltv">대출 LTV <span class="out" id="sm-ltv-out">{{ (sim_in.loan_ltv * 100)|round|int }}%</span></label>
+            <input type="range" id="sm-ltv" min="0" max="{{ (bidsim_cfg.MAX_LTV * 100)|round|int }}"
+                   step="5" value="{{ (sim_in.loan_ltv * 100)|round|int }}">
+          </div>
+          <div class="dsim-f">
+            <label for="sm-rate">대출 금리 <span class="out" id="sm-rate-out">{{ '%.1f'|format(sim_in.loan_rate * 100) }}%</span></label>
+            <input type="range" id="sm-rate" min="0" max="10" step="0.1"
+                   value="{{ '%.1f'|format(sim_in.loan_rate * 100) }}">
+          </div>
+          <div class="dsim-f">
+            <label for="sm-eviction">명도비 <span class="hint">만원</span></label>
+            <input type="number" id="sm-eviction" min="0" step="10" value="{{ (sim_in.eviction_cost / 10000)|round|int }}">
+          </div>
+          <div class="dsim-f">
+            <label for="sm-repair">수리비 <span class="hint">만원</span></label>
+            <input type="number" id="sm-repair" min="0" step="10" value="{{ (sim_in.repair_cost / 10000)|round|int }}">
+          </div>
+          <div class="dsim-f">
+            <label for="sm-unpaid">미납관리비 <span class="hint">만원</span></label>
+            <input type="number" id="sm-unpaid" min="0" step="10" value="{{ (sim_in.unpaid_fees / 10000)|round|int }}">
+          </div>
+          <div class="dsim-f">
+            <label for="sm-registry">법무·채권 <span class="hint">만원</span></label>
+            <input type="number" id="sm-registry" min="0" step="10" value="{{ (sim_in.registry_cost / 10000)|round|int }}">
+          </div>
+        </div>
+        <div class="dsim-f">
+          <label for="sm-assumed">인수금액 <span class="hint">만원 · 대항력 보증금 등</span></label>
+          <input type="number" id="sm-assumed" min="0" step="100" value="{{ (sim_in.assumed_amount / 10000)|round|int }}">
+          <span class="hint">{% if badge and badge.assumed %}권리분석 반영값 {{ won(badge.assumed) }}(보증금 전액 인수 최악 상한){% elif badge and badge.amount_unknown %}⚠ 인수 부담이 있으나 <b>명세서에 금액 미기재</b> — 등기부로 확인해 직접 입력하세요{% elif badge %}명세서 확인 결과 인수 부담 없음{% else %}권리분석 전 — 0으로 가정됨(실제 부담이 있을 수 있음){% endif %}</span>
+        </div>
+      </div>
+
+      <!-- 오른쪽: 결과 -->
+      <div class="dsim-out">
+        <div class="dsim-hero">
+          <div class="c"><span class="k">손익분기 입찰가</span>
+            <span class="v" id="sm-be">{{ won_fine(sim.breakeven_bid) if sim.breakeven_bid is not none else '—' }}</span>
+            <span class="s" id="sm-headroom">{% if sim.breakeven_headroom is not none %}현재 입찰가 대비 {{ '+' if sim.breakeven_headroom >= 0 else '' }}{{ won_fine(sim.breakeven_headroom) }}{% else %}이 조건에선 어떤 금액도 손익분기 미달{% endif %}</span></div>
+          <div class="c"><span class="k">세후 순익</span>
+            <span class="v {{ 'gain' if sim.net_profit > 0 else 'neg' }}" id="sm-net">{{ won_fine(sim.net_profit) }}</span>
+            <span class="s">양도세·이자·명도까지 차감</span></div>
+          <div class="c"><span class="k">자기자본수익률</span>
+            <span class="v {{ 'gain' if (sim.roi or 0) > 0 else 'neg' }}" id="sm-roi">{% if sim.roi is not none %}{{ '%.1f'|format(sim.roi * 100) }}%{% else %}—{% endif %}</span>
+            <span class="s" id="sm-roi-ann">{% if sim.roi_annual is not none %}연환산 {{ '%.1f'|format(sim.roi_annual * 100) }}%{% else %}실투자금 없음{% endif %}</span></div>
+        </div>
+
+        <div class="dsec-h">취득 단계</div>
+        <div class="drow"><span class="k">입찰가</span><span class="v" id="sm-r-bid">{{ won_fine(sim.bid) }}</span></div>
+        <div class="drow"><span class="k">+ 취득세 <span class="hint">({{ tax_label }} · 입찰가 기준 재계산)</span></span><span class="v" id="sm-acqtax">{{ won_fine(sim.acquisition_tax) }}</span></div>
+        <div class="drow"><span class="k">+ 인지세</span><span class="v" id="sm-stamp">{{ won_fine(sim.stamp_tax) }}</span></div>
+        <div class="drow"><span class="k">+ 법무·채권</span><span class="v" id="sm-registry-r">{{ won_fine(sim.registry_cost) }}</span></div>
+        <div class="drow"><span class="k">+ 인수금·명도·수리·미납</span><span class="v" id="sm-other">{{ won_fine(sim.other_costs) }}</span></div>
+        <div class="drow total"><span class="k">= 총투입</span><span class="v" id="sm-total">{{ won_fine(sim.total_acquisition) }}</span></div>
+        <div class="drow"><span class="k">− 대출 <span class="hint">(경락잔금대출)</span></span><span class="v" id="sm-loan">{{ won_fine(sim.loan_amount) }}</span></div>
+        <div class="drow total"><span class="k">= 실투자금 <span class="hint">(내 돈)</span></span><span class="v" id="sm-equity">{{ won_fine(sim.equity) }}</span></div>
+
+        <div class="dsec-h">보유·매도 단계</div>
+        <div class="drow"><span class="k">− 대출이자 <span class="hint">(거치식 단순이자)</span></span><span class="v neg" id="sm-interest">{{ won_fine(sim.interest_total) }}</span></div>
+        <div class="drow"><span class="k">− 매도 중개보수 <span class="hint">(상한요율)</span></span><span class="v neg" id="sm-fee">{{ won_fine(sim.agent_fee) }}</span></div>
+        <div class="drow"><span class="k">− 양도세+지방소득세 <span class="hint" id="sm-trate">{{ sim.transfer_detail['세율'] }}</span></span><span class="v neg" id="sm-ttax">{{ won_fine(sim.transfer_tax) }}</span></div>
+        <div class="drow grand"><span class="k">= 세후 순익</span><span class="v" id="sm-net2">{{ won_fine(sim.net_profit) }}</span></div>
+      </div>
+    </div>
+    <div class="dnote">↳ <b>전부 가정 기반 추정</b>이며 세무 자문이 아닙니다. 보수적으로 잡은 부분: 명도비·수리비·미납관리비·이자는 양도세 <b>필요경비 미공제</b>(실제로는 자본적지출 일부가 인정될 수 있어 세금이 더 적을 수 있음), 1세대1주택 비과세·장기보유 표2(최대 80%) <b>미적용</b>, 중개보수는 <b>상한요율</b>. 오피스텔은 취득세만 비주택(4.6%)이고 양도세 단기세율은 주택(70/60%)으로 봅니다. 실제 낙찰가는 경쟁에 따라 달라집니다. <a href="/guide#tax">↳ 세금 가이드</a></div>
+  </div>
+
   <!-- ══════ 아래: 판단 · 참고 (매수 적정성 | 감정 요항) ══════ -->
   <div class="dlow">
     <div class="dpane">
@@ -524,6 +684,13 @@
       <div class="dbanner risk">⚠ <b>대항력 있는 임차인(또는 임차권등기) 신호</b> — 배당에서 보증금이 전액 변제되지 않으면 잔액을 매수인이 인수할 수 있습니다. 위 명세서 요지와 배당요구·확정일자를 반드시 확인하세요.</div>
       <div class="drow"><span class="k">최대 인수{% if not listing.assumed_amount %} <span class="hint">(명세서에 보증금 미기재 — 등기부 확인)</span>{% else %} <span class="hint">(보증금 상한)</span>{% endif %}</span><span class="v neg">{{ won(listing.assumed_amount) if listing.assumed_amount else '금액 미상' }}</span></div>
       <div class="drow"><span class="k">대항력 임차인</span><span class="v neg">있음(문구 검출)</span></div>
+      <div class="drow"><span class="k">점유</span><span class="v" style="font-size:14px;color:var(--ink-700)">{{ listing.occupant_type }}</span></div>
+    {% elif priority and priority.verdict == 'possible_opposable' %}
+    <div class="dstep-head"><span class="dstep-num risk">⚠</span>
+      <h2>매수 적정성 <span class="sub risk">· 대항력 여지 — 확인 필요</span></h2></div>
+    <div class="dpanel risk">
+      <div class="dbanner risk">⚠ <b>대항력 여지 있는 전입세대</b> — 현황조사서상 전입일({{ priority.movein_date }})이 말소기준({{ priority.senior_date }})보다 앞서나, 임대차 관계(보증금·확정일자)가 미상입니다. 임차인으로 확정되면 보증금 잔액을 매수인이 인수할 수 있어 위험을 배제할 수 없습니다. 등기부·현황조사서 전문을 반드시 확인하세요.</div>
+      <div class="drow"><span class="k">대항력 임차인</span><span class="v neg">여지 있음(관계 미상)</span></div>
       <div class="drow"><span class="k">점유</span><span class="v" style="font-size:14px;color:var(--ink-700)">{{ listing.occupant_type }}</span></div>
     {% elif badge and not badge.is_clean %}
     <div class="dstep-head"><span class="dstep-num risk">⚠</span>
@@ -880,6 +1047,112 @@
   if(rng) rng.addEventListener('click',function(e){ var b=e.target.closest('button'); if(!b)return;
     rangeMode=b.dataset.r; rng.querySelectorAll('button').forEach(function(x){ x.setAttribute('aria-pressed', x===b); }); draw(); });
   draw();
+})();
+</script>
+
+<script>
+/* 입찰가 시뮬레이터 — 입력 변경 시 /api/bidsim 재계산.
+   세율·요율을 JS에 복제하지 않는다: 계산은 전부 서버(src/bidsim.py)가 하고 여기선 표시만 한다
+   (지식문서 §5 ↔ bidsim.py 단일 출처 유지 — JS에 세금 로직이 생기면 두 곳이 반드시 갈린다).
+   JS가 꺼져 있어도 서버가 렌더한 초기값이 그대로 남는다(점진적 향상). */
+(function(){
+  var root = document.getElementById('bidsim');
+  if(!root || !window.fetch) return;
+  var $ = function(id){ return document.getElementById(id); };
+  var out = root.querySelector('.dsim-out');
+
+  /* report._won_fine 과 동일 표기: 1억 이상은 'X.XX억', 미만은 '만원/원'.
+     (인지세 15만·법무비 50만이 전부 '0.00억'으로 뭉개지지 않게 — 서버 렌더와 문자열이 일치해야
+     슬라이더를 처음 움직이는 순간 표기가 튀지 않는다.) */
+  function won(v){
+    if(v === null || v === undefined) return '—';
+    if(Math.abs(v) >= 1e8){
+      if(Math.round(v / 1e8 * 100) / 100 === 0) return '0.00억';   /* 음수 제로 정규화 */
+      return (v / 1e8).toFixed(2) + '억';
+    }
+    var man = Math.round(v / 1e4);
+    if(man === 0) return v ? Math.round(v).toLocaleString('ko-KR') + '원' : '0원';
+    return man.toLocaleString('ko-KR') + '만원';
+  }
+  function manwon(id){ var n = parseFloat($(id).value); return isFinite(n) ? Math.round(n * 10000) : 0; }
+  function setTxt(id, txt){ var el = $(id); if(el) el.textContent = txt; }
+  function setSign(id, v){ var el = $(id); if(!el) return;
+    el.classList.toggle('gain', v > 0); el.classList.toggle('neg', v <= 0); }
+
+  function params(){
+    var p = new URLSearchParams();
+    p.set('bid', $('sm-bid').value);
+    p.set('sell', manwon('sm-sell'));
+    p.set('months', $('sm-months').value);
+    p.set('ltv', (parseFloat($('sm-ltv').value) || 0) / 100);
+    p.set('rate', (parseFloat($('sm-rate').value) || 0) / 100);
+    p.set('eviction', manwon('sm-eviction'));
+    p.set('repair', manwon('sm-repair'));
+    p.set('unpaid', manwon('sm-unpaid'));
+    p.set('registry', manwon('sm-registry'));
+    p.set('assumed', manwon('sm-assumed'));
+    p.set('type', root.dataset.type || '');
+    p.set('area', root.dataset.area || '0');
+    return p;
+  }
+
+  /* 슬라이더 라벨은 왕복 없이 즉시 갱신(응답 지연 중에도 손이 멈추지 않게). */
+  function echo(){
+    setTxt('sm-bid-out', won(parseInt($('sm-bid').value, 10)));
+    setTxt('sm-months-out', $('sm-months').value + '개월');
+    setTxt('sm-ltv-out', $('sm-ltv').value + '%');
+    setTxt('sm-rate-out', parseFloat($('sm-rate').value).toFixed(1) + '%');
+  }
+
+  function render(d){
+    setTxt('sm-be', d.breakeven_bid === null ? '—' : won(d.breakeven_bid));
+    setTxt('sm-headroom', d.breakeven_headroom === null
+      ? '이 조건에선 어떤 금액도 손익분기 미달'
+      : '현재 입찰가 대비 ' + (d.breakeven_headroom >= 0 ? '+' : '') + won(d.breakeven_headroom));
+    setTxt('sm-net', won(d.net_profit));   setSign('sm-net', d.net_profit);
+    setTxt('sm-net2', won(d.net_profit));
+    setTxt('sm-roi', d.roi === null ? '—' : (d.roi * 100).toFixed(1) + '%');
+    setSign('sm-roi', d.roi === null ? 0 : d.roi);
+    setTxt('sm-roi-ann', d.roi_annual === null
+      ? (d.roi === null ? '실투자금 없음' : '보유기간 0 — 연환산 불가')
+      : '연환산 ' + (d.roi_annual * 100).toFixed(1) + '%');
+    setTxt('sm-r-bid', won(d.bid));
+    setTxt('sm-acqtax', won(d.acquisition_tax));
+    setTxt('sm-stamp', won(d.stamp_tax));
+    setTxt('sm-registry-r', won(d.registry_cost));
+    setTxt('sm-other', won(d.other_costs));
+    setTxt('sm-total', won(d.total_acquisition));
+    setTxt('sm-loan', won(d.loan_amount));
+    setTxt('sm-equity', won(d.equity));
+    setTxt('sm-interest', won(d.interest_total));
+    setTxt('sm-fee', won(d.agent_fee));
+    setTxt('sm-ttax', won(d.transfer_tax));
+    setTxt('sm-trate', d.transfer_detail['세율']);
+  }
+
+  var timer = null, seq = 0;
+  function recalc(){
+    echo();
+    if(timer) clearTimeout(timer);
+    timer = setTimeout(function(){
+      var my = ++seq;
+      if(out) out.classList.add('dsim-busy');
+      fetch('/api/bidsim?' + params().toString(), {headers:{'Accept':'application/json'}})
+        .then(function(r){ if(!r.ok) throw new Error('HTTP ' + r.status); return r.json(); })
+        .then(function(d){ if(my !== seq) return;   /* 늦게 온 옛 응답이 최신값을 덮지 않게 */
+          render(d); if(out) out.classList.remove('dsim-busy'); })
+        .catch(function(e){ if(my !== seq) return;
+          /* 침묵실패 금지 — 옛 숫자를 그대로 두면 사용자가 갱신됐다고 오인한다. */
+          if(out) out.classList.remove('dsim-busy');
+          setTxt('sm-headroom', '계산 실패 — 값이 갱신되지 않았습니다');
+          console.warn('bidsim 재계산 실패', e); });
+    }, 180);
+  }
+
+  root.querySelectorAll('input').forEach(function(el){
+    el.addEventListener('input', recalc);
+    el.addEventListener('change', recalc);
+  });
 })();
 </script>
 {% endblock %}

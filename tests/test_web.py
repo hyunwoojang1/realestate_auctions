@@ -90,6 +90,45 @@ def test_property_detail_shows_hard_gate_reason():
     assert "인수 위험" in body and "유치권" in body
 
 
+def _seed_possible_opposable_db(tmp_path):
+    """빈요지(말소기준 2002만)+관계미상 전입세대(1996, possession=None)를 DB에 시드 → 삼환형."""
+    from src.courtauction_detail import CaseRights, parse_curst_survey
+    db = str(tmp_path / "opp.db")
+    conn = store.connect(db)
+    court, case_no, item_no = "부산서부지원", "2022타경3289", "1"
+    s = ScoredListing(
+        case_no=case_no, apt_name="삼환아파트", address="부산 사하구 다대동", property_type="아파트",
+        area_m2=84.9,
+        appraisal_price=370_000_000, min_bid_price=181_300_000, fail_count=2, sale_date="2026-07-28",
+        est_market_price=None, matched_trades=0, confidence=0.6, real_acquisition_cost=190_000_000,
+        expected_profit=None, gap_rate=None, gap_score=0.0, rights_score=85.0, liquidity_score=50.0,
+        arb_score=None, grade="권리미확인", court=court, item_no=item_no,
+    )
+    store.replace_all(conn, [s])
+    cr = CaseRights(court=court, case_no=case_no, item_no=item_no,
+                    senior_lien="2002. 4. 23. 근저당권", spec_write_ymd="2026-04-06")
+    store.save_rights(conn, [cr.to_row()])
+    recs = parse_curst_survey({"ipcheck": True, "dlt_ordTsLserLtn": [
+        {"mvinDtlCtt": "1996.10.14", "gdsPossCtt": None, "lesDposDts": None,
+         "lesUsgDts": None, "lesPartCtt": None, "rgstryCrtcpCfmtnCtt": None}]})
+    store.save_tenants(conn, court, case_no, item_no, recs, fetched_at="2026-07-23")
+    conn.close()
+    return db, case_no
+
+
+def test_property_detail_possible_opposable_banner(tmp_path, monkeypatch):
+    """리뷰 #5/#8 회귀가드: web.py 배선(amoveins)+템플릿 end-to-end. 빈요지+관계미상 전입세대(1996<
+    말소기준2002) 물건의 상세페이지가 '대항력 여지' 경고를 띄우고 '치명적 인수권리 미발견' 초록은 안 띄운다."""
+    db, case_no = _seed_possible_opposable_db(tmp_path)
+    monkeypatch.setenv("AUCTION_DB", db)
+    r = create_app().test_client().get(f"/property/{case_no}")
+    assert r.status_code == 200
+    body = r.get_data(as_text=True)
+    assert "대항력 여지" in body                       # 여지 경고 렌더(상단칩+판정블록+매수적정성)
+    assert "치명적 인수권리 미발견" not in body          # 거짓 clean(초록) 아님 — 이번 수정의 핵심 불변식
+    assert "1996-10-14" in body and "2002-04-23" in body  # 전입 vs 말소기준 날짜 근거 노출
+
+
 def test_index_filter_form_and_selection():
     body = _client().get("/?type=오피스텔").get_data(as_text=True)
     assert 'value="오피스텔" selected' in body  # 선택값 유지

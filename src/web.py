@@ -19,6 +19,7 @@ from flask import Flask, abort, g, jsonify, redirect, render_template, request
 
 from . import (
     backtest,
+    bidsim,
     casesearch,
     compare,
     digest,
@@ -119,13 +120,16 @@ def _scored():
     return _enrich_naver(pipeline.run())
 
 
-def _rights_badges() -> dict:
-    """(court|case_no|item_no) → RightsBadge. 크롤된 물건만 담긴다(없으면 '미확인' 렌더).
+def _rights_rows() -> list[dict]:
+    """권리 요지 전량 행. 요청당 1회만 로드(g 캐시) — 배지·재매각이 함께 소비한다.
 
-    목록의 '인수 부담' 칩·예상 투입 계산용. rights 테이블은 수백 행 수준이라 요청당
-    로드해도 가볍고, 클라우드는 store_rest 가 TTL 캐시로 왕복을 줄인다.
+    (2026-07-23) 재매각 배지 도입 전엔 _rights_badges 가 직접 로드했다. 소비자가 둘로
+    늘면서 같은 테이블을 요청당 두 번 읽게 되므로 로더를 분리해 캐시한다(왕복 절반).
+    실패는 빈 리스트 — 배지·재매각은 부가 정보라 목록을 막지 않는다.
     """
-    from .courtauction_detail import CaseRights, summarize  # noqa: PLC0415
+    from flask import has_request_context  # noqa: PLC0415
+    if has_request_context() and hasattr(g, "_rightsrows"):
+        return g._rightsrows
     rows: list[dict] = []
     db_path = os.environ.get(DB_ENV)
     try:
@@ -137,9 +141,39 @@ def _rights_badges() -> dict:
                 conn.close()
         elif store_rest.enabled():
             rows = store_rest.load_all_rights()
-    except Exception as e:  # noqa: BLE001 — 배지 실패는 목록을 막지 않음(미확인으로 폴백)
-        logger.warning("권리 배지 로드 실패 → 전량 '미확인' 폴백: %s", e)
-        return {}
+    except Exception as e:  # noqa: BLE001 — 로드 실패는 '미확인' 폴백(침묵 아님 — 경고 로그)
+        logger.warning("권리 요지 로드 실패 → 배지·재매각 전량 미표시 폴백: %s", e)
+        rows = []
+    if has_request_context():
+        g._rightsrows = rows
+    return rows
+
+
+def _resale_map() -> dict:
+    """(court|case_no|item_no) → ResaleHistory. 재매각 아닌 물건은 키 자체가 없다.
+
+    '과거에 낙찰됐다가 미납·불허가로 되돌아온 물건'은 통계가 아니라 **그 물건의 확정 사실**이라
+    표본 게이트 없이 그대로 표시한다. 판정 단위는 물건(item) — schedule 이 물건별로 다르다.
+    """
+    from .courtauction_detail import CaseRights, resale_history  # noqa: PLC0415
+    out = {}
+    for r in _rights_rows():
+        # from_row 가 schedule JSON 파싱·손상 폴백을 이미 담당한다(파싱 로직 중복 금지).
+        cr = CaseRights.from_row(r)
+        info = resale_history(cr.schedule)
+        if info:
+            out[f"{cr.court}|{cr.case_no}|{cr.item_no}"] = info
+    return out
+
+
+def _rights_badges() -> dict:
+    """(court|case_no|item_no) → RightsBadge. 크롤된 물건만 담긴다(없으면 '미확인' 렌더).
+
+    목록의 '인수 부담' 칩·예상 투입 계산용. rights 테이블은 수백 행 수준이라 요청당
+    로드해도 가볍고, 클라우드는 store_rest 가 TTL 캐시로 왕복을 줄인다.
+    """
+    from .courtauction_detail import CaseRights, summarize  # noqa: PLC0415
+    rows = _rights_rows()
     out = {}
     for r in rows:
         cr = CaseRights.from_row(r)
@@ -237,6 +271,8 @@ def create_app() -> Flask:
     app.json.sort_keys = False
     # 전용면적 평 환산은 모든 화면(홈·리스트·상세)에서 쓰므로 Jinja 전역으로 한 번만 등록.
     app.jinja_env.globals["pyeong"] = report.pyeong
+    # 시뮬레이터 영수증은 소액(인지세 15만·법무비 50만)이 섞여 억 단위 표기로는 전부 '0.00억'이 된다.
+    app.jinja_env.globals["won_fine"] = report.won_fine
 
     # 법원 자유텍스트 HTML 엔티티 복원 필터. 크롤 시점(_sanitize)에서 이미 해제하지만,
     # 재크롤 전 DB/Supabase 에 남은 옛 데이터(&amp;quot; &lt; …)를 렌더 시점에도 복원해
@@ -469,7 +505,7 @@ def create_app() -> Flask:
             "listings.html", items=items, count=total, filters=filters, chips=chips,
             page=page, total_pages=total_pages, page_url=_page_url,
             mode=mode, coverage=coverage, all_mode=all_mode,
-            hero=hero, legacy_only=legacy_only, badges=badges,
+            hero=hero, legacy_only=legacy_only, badges=badges, resales=_resale_map(),
             won=report.won, pct=report.pct, meter=report.gap_meter_html,
             days_until=query.days_until,
             tax_label=tax.PROFILE.label(),
@@ -746,6 +782,18 @@ def create_app() -> Flask:
         except Exception as e:  # noqa: BLE001 — 임차인 로드 실패는 상세 페이지를 막지 않음
             logger.warning("임차인 현황 로드 실패(%s %s): %s", s.court, s.case_no, e)
 
+        # (2026-07-23) 재매각 이력 — 위 rights_row 를 그대로 쓰므로 추가 조회 0.
+        # 권리 요지가 비어 배지가 안 만들어지는 물건도 기일 이력은 살아 있으므로 별도로 계산한다
+        # (rights_row 를 None 으로 되돌리는 아래 가드보다 **먼저** 뽑아야 한다).
+        from .courtauction_detail import CaseRights as _CR  # noqa: PLC0415
+        from .courtauction_detail import resale_history  # noqa: PLC0415
+        resale = None
+        if rights_row:
+            try:
+                resale = resale_history(_CR.from_row(rights_row).schedule)
+            except Exception as e:  # noqa: BLE001 — 재매각 표시는 부가 정보, 페이지를 막지 않음
+                logger.warning("재매각 이력 판정 실패(%s %s): %s", s.court, s.case_no, e)
+
         badge = None
         priority = None
         if rights_row:
@@ -858,8 +906,19 @@ def create_app() -> Flask:
                 bldg = brow
             else:
                 bldg = building_info.get_building_summary(s.address)
+        # (2026-07-23) 입찰가 시뮬레이터 초기값 — 서버에서 한 벌 계산해 넘긴다(JS 없어도 값이 보이게).
+        # 이후 슬라이더 조작은 /api/bidsim 이 같은 _sim_payload 로 계산 — 두 경로가 갈리지 않는다.
+        # 매도가 기본 = 검증 하한가(보수) → 추정시세 → 없으면 0(사용자가 직접 입력).
+        sim_input = bidsim.SimInput(
+            bid_price=s.min_bid_price,
+            property_type=s.property_type,
+            area_m2=s.area_m2 or 0.0,
+            sell_price=s.market_band_low or s.est_market_price or 0,
+            assumed_amount=(badge.assumed if badge else 0),
+        )
         return render_template(
             "detail.html", s=s, listing=listing, chart=chart, rights=rights, badge=badge,
+            sim=_sim_payload(sim_input), sim_in=sim_input, bidsim_cfg=bidsim, resale=resale,
             coord=coord, days_until=query.days_until,
             bldg=bldg, vworld_key=os.environ.get("VWORLD_API_KEY", "").strip(),
             priority=priority,
@@ -872,6 +931,33 @@ def create_app() -> Flask:
             sample_gate_low=sample_gate_low, band_confident=band_confident_basis(),
             ask_points=ask_points, ask_overstated=ask_overstated, photos=photos,
         )
+
+    @app.get("/api/bidsim")
+    def bidsim_api():
+        """입찰가 시뮬레이터 — 순수 계산(DB 무접근). 상세페이지 슬라이더가 입력마다 호출한다.
+
+        물건 식별자가 아니라 **가정 전부를 쿼리로** 받는다 — DB 왕복이 없어 빠르고,
+        계산 로직이 파이썬 한 곳에만 존재한다(JS에 세율을 복제하지 않는다 = 단일 출처).
+        """
+        a = request.args
+        inp = bidsim.SimInput(
+            bid_price=_clamp_int(a.get("bid"), 0, _MAX_WON),
+            property_type=(a.get("type") or "")[:40],
+            area_m2=_clamp_float(a.get("area"), 0.0, 100_000.0, 0.0),
+            sell_price=_clamp_int(a.get("sell"), 0, _MAX_WON),
+            holding_months=_clamp_int(a.get("months"), 0, 600,
+                                      bidsim.DEFAULT_HOLDING_MONTHS),
+            assumed_amount=_clamp_int(a.get("assumed"), 0, _MAX_WON),
+            eviction_cost=_clamp_int(a.get("eviction"), 0, _MAX_COST,
+                                     bidsim.DEFAULT_EVICTION),
+            repair_cost=_clamp_int(a.get("repair"), 0, _MAX_COST),
+            unpaid_fees=_clamp_int(a.get("unpaid"), 0, _MAX_COST),
+            registry_cost=_clamp_int(a.get("registry"), 0, _MAX_COST,
+                                     bidsim.DEFAULT_REGISTRY),
+            loan_ltv=_clamp_float(a.get("ltv"), 0.0, 1.0, bidsim.DEFAULT_LTV),
+            loan_rate=_clamp_float(a.get("rate"), 0.0, 0.30, bidsim.DEFAULT_LOAN_RATE),
+        )
+        return jsonify(_sim_payload(inp))
 
     @app.get("/digest")
     def digest_page():
@@ -1051,6 +1137,57 @@ def create_app() -> Flask:
 def _truthy(val: str | None) -> bool:
     """env flag → bool. 미설정/빈값/0/false/no/off 는 False."""
     return (val or "").strip().lower() in {"1", "true", "yes", "on"}
+
+
+# 시뮬레이터 입력 상한 — 사용자 입력이 그대로 계산에 들어가므로 방어적으로 자른다.
+_MAX_WON = 10_000_000_000_000     # 10조(현실 경매가 상한을 한참 넘김)
+_MAX_COST = 10_000_000_000        # 부대비용 항목 상한 100억
+
+
+def _clamp_int(raw: str | None, lo: int, hi: int, default: int = 0) -> int:
+    """쿼리 문자열 → [lo, hi] 정수. 파싱 실패·미입력은 default(침묵 0 폴백 금지)."""
+    if raw is None or raw == "":
+        return default
+    try:
+        return max(lo, min(hi, int(float(raw))))
+    except (TypeError, ValueError):
+        return default
+
+
+def _clamp_float(raw: str | None, lo: float, hi: float, default: float) -> float:
+    if raw is None or raw == "":
+        return default
+    try:
+        return max(lo, min(hi, float(raw)))
+    except (TypeError, ValueError):
+        return default
+
+
+def _sim_payload(inp: bidsim.SimInput) -> dict:
+    """SimInput → 시뮬레이션 결과 JSON(템플릿 초기 렌더·API 공용 — 두 경로가 갈리지 않게)."""
+    r = bidsim.simulate(inp)
+    be = bidsim.breakeven_bid(inp)
+    return {
+        "bid": inp.bid_price,
+        "sell": inp.sell_price,
+        "acquisition_tax": r.acquisition_tax,
+        "stamp_tax": r.stamp_tax,
+        "registry_cost": r.registry_cost,
+        "other_costs": r.other_costs,
+        "total_acquisition": r.total_acquisition,
+        "loan_amount": r.loan_amount,
+        "equity": r.equity,
+        "interest_total": r.interest_total,
+        "agent_fee": r.agent_fee,
+        "capital_gain": r.capital_gain,
+        "transfer_tax": r.transfer_tax,
+        "transfer_detail": r.transfer_detail,
+        "net_profit": r.net_profit,
+        "roi": r.roi,
+        "roi_annual": r.roi_annual,
+        "breakeven_bid": be,
+        "breakeven_headroom": (be - inp.bid_price) if be is not None else None,
+    }
 
 
 if __name__ == "__main__":

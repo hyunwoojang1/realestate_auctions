@@ -20,6 +20,15 @@
 {%- endif -%}
 {%- endmacro -%}
 
+{#- 재매각 칩 — 과거에 낙찰됐다가 미납·불허가로 되돌아온 물건. 이력 없으면 아무것도 안 그린다.
+    통계가 아니라 그 물건의 확정 사실이라 표본 게이트 없이 표시한다. -#}
+{%- macro resalechip(rs, sm=True) -%}
+{%- if rs -%}
+{%- set cls = 'chip' + (' sm' if sm else '') -%}
+<span class="{{ cls }} risk" title="{{ rs.last_sold_ymd }} 낙찰 후 {{ rs.reason }}로 다시 경매에 나온 물건입니다. 낙찰자가 포기했거나 법원이 매각을 불허한 사유를 확인하세요.">↩ 재매각{% if rs.sold_count > 1 %} {{ rs.sold_count }}회{% endif %}</span>
+{%- endif -%}
+{%- endmacro -%}
+
 {%- macro pricecell(s) -%}
 {%- set fb = s.market_scope == 'same_dong_fallback' -%}
 {%- set soft = s.market_source in ('ask', 'lease') -%}
@@ -36,12 +45,13 @@
 {%- set b = badges.get(s.court ~ '|' ~ s.case_no ~ '|' ~ s.item_no) if badges is defined else none -%}
 {%- set p_adj = (p - b.assumed) if (p is not none and b and b.assumed) else p -%}
 {%- set d = days_until(s.sale_date) -%}
+{%- set rs = resales.get(s.court ~ '|' ~ s.case_no ~ '|' ~ s.item_no) if resales is defined else none -%}
 <a class="scard" href="{{ proplink(s) }}">
   <div class="sc-nm">{{ s.apt_name or s.property_type }}</div>
   <div class="sc-ad">{{ s.address }} · {{ s.property_type }} · {{ '%.0f'|format(s.area_m2) }}㎡{% if s.area_m2 %} ({{ pyeong(s.area_m2) }}){% endif %}</div>
   <div class="sc-tags">
     {% if d is not none and 0 <= d <= 7 %}<span class="chip sm soon">임박 D-{{ d }}</span>{% endif %}
-    {{ burdenchip(b) }}{{ statuschip(s, sm=True, skip_pending=(b is not none)) }}
+    {{ resalechip(rs) }}{{ burdenchip(b) }}{{ statuschip(s, sm=True, skip_pending=(b is not none)) }}
   </div>
   <div class="sc-nums">
     <div class="c"><div class="k">최저입찰가</div><div class="v">{{ won(s.min_bid_price) }}</div></div>
@@ -192,7 +202,7 @@
           <input type="hidden" name="court" value="{{ s.court }}"><input type="hidden" name="item" value="{{ s.item_no }}">
           <button type="submit" class="pk-star" title="{% if on %}관심 해제{% else %}관심 등록{% endif %}">{% if on %}★{% else %}☆{% endif %}</button>
         </form>
-        {{ burdenchip(b) }}{{ statuschip(s, sm=True, skip_pending=(b is not none)) }}
+        {{ resalechip(resales.get(s.court ~ '|' ~ s.case_no ~ '|' ~ s.item_no) if resales is defined else none) }}{{ burdenchip(b) }}{{ statuschip(s, sm=True, skip_pending=(b is not none)) }}
       </div>
     </div>
     <div class="r"><div class="pk-val">{{ won(s.min_bid_price) }}</div><div class="pk-vsub">유찰 {{ s.fail_count }}회</div></div>
@@ -224,7 +234,7 @@
         <a class="nm rowlink" href="{{ proplink(s) }}">{{ loop.index }}. {{ s.apt_name or s.property_type }}</a>
         <div class="ad">{{ s.address }} · {{ s.property_type }} · {{ '%.0f'|format(s.area_m2) }}㎡{% if s.area_m2 %} ({{ pyeong(s.area_m2) }}){% endif %}</div>
       </div>
-      <span style="flex:none;position:relative;z-index:2">{{ burdenchip(b) }}{{ statuschip(s, sm=True, skip_pending=(b is not none)) }}</span>
+      <span style="flex:none;position:relative;z-index:2">{{ resalechip(resales.get(s.court ~ '|' ~ s.case_no ~ '|' ~ s.item_no) if resales is defined else none) }}{{ burdenchip(b) }}{{ statuschip(s, sm=True, skip_pending=(b is not none)) }}</span>
     </div>
     <div class="mstats">
       <div class="ms"><span class="k">최저입찰가</span><b>{{ won(s.min_bid_price) }}</b></div>

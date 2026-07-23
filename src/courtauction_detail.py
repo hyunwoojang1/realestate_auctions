@@ -105,6 +105,77 @@ def is_substantive(text: str | None) -> bool:
     return True
 
 
+# ── 재매각 판정(2026-07-23) — 낙찰됐다가 미납·불허가로 되돌아온 물건 ──
+# 기일 결과 → 사용자에게 보일 사유. 우선순위가 아니라 '마지막 종결 사유'를 채택한다.
+_RESALE_REASONS: dict[str, str] = {
+    "미납": "대금 미납",
+    "최고가매각불허가결정": "매각 불허가",
+    "차순위매각불허가결정": "매각 불허가",
+    "최고가매각허가취소결정": "매각허가 취소",
+    "차순위매각허가취소결정": "매각허가 취소",
+}
+_REASON_UNKNOWN = "사유 미상"
+
+
+@dataclass(frozen=True)
+class ResaleHistory:
+    """과거에 낙찰됐다가 되돌아온 이력 — '그 물건 자체의 확정 사실'(통계 아님).
+
+    ⚠️ `last_sold_floor` 는 **그 회차의 최저입찰가**이지 낙찰가가 아니다. 대법원 물건상세
+    응답의 `dspslAmt`(매각금액)는 스키마에만 있고 값이 항상 비어 온다(실측: 매각 회차 15/15 null).
+    화면에서 이걸 '낙찰가'로 부르면 거짓이 된다.
+    """
+    sold_count: int          # 낙찰됐다 되돌아온 횟수
+    last_sold_ymd: str       # 가장 최근 매각 기일(YYYY-MM-DD)
+    last_sold_floor: int | None   # 그 회차 최저입찰가(원) — 낙찰가 아님
+    reason: str              # 대금 미납 / 매각 불허가 / 매각허가 취소 / 사유 미상
+
+
+def _sched_key(row) -> str:
+    """정렬 키 — ymd 문자열. 값이 없거나 이상하면 빈 문자열(가장 앞으로)."""
+    if not isinstance(row, dict):
+        return ""
+    v = row.get("ymd")
+    return v if isinstance(v, str) else ""
+
+
+def resale_history(schedule) -> ResaleHistory | None:
+    """기일 이력 → 재매각 정보. 재매각이 아니면 None(배지 미표시).
+
+    판정 규칙:
+      · 결과가 '매각'인 회차가 있고, **그보다 늦은 기일이 존재**해야 '되돌아온 것'이다.
+        (방금 낙찰돼 뒤 기일이 없는 물건은 재매각이 아니다 — 아직 진행 중일 뿐.)
+      · 사유는 마지막 매각 **이후**의 종결 결과에서 읽는다(허가결정만 있으면 '사유 미상').
+      · 입력이 최신순이든 오름차순이든 결과가 같도록 내부에서 정렬한다(저장은 최신순).
+    저장 스키마가 드리프트해도(키 누락·타입 이상) 예외를 던지지 않는다 — 배지는 부가 정보라
+    페이지를 깨뜨리면 안 된다.
+    """
+    if not schedule:
+        return None
+    rows = [r for r in schedule if isinstance(r, dict)]
+    if not rows:
+        return None
+    rows = sorted(rows, key=_sched_key)
+
+    sold_idx = [i for i, r in enumerate(rows) if r.get("result") == "매각"]
+    # 마지막 매각 뒤에 더 늦은 기일이 없으면 되돌아온 게 아니다.
+    sold_idx = [i for i in sold_idx if i < len(rows) - 1]
+    if not sold_idx:
+        return None
+
+    last = sold_idx[-1]
+    price = rows[last].get("price")
+    floor = price if isinstance(price, int) and price > 0 else None
+
+    reason = _REASON_UNKNOWN
+    for r in rows[last + 1:]:
+        mapped = _RESALE_REASONS.get(r.get("result") or "")
+        if mapped:
+            reason = mapped        # 마지막 종결 사유가 이긴다
+    return ResaleHistory(sold_count=len(sold_idx), last_sold_ymd=_sched_key(rows[last]),
+                         last_sold_floor=floor, reason=reason)
+
+
 @dataclass
 class CaseRights:
     """물건상세에서 뽑은 권리·기일 요지 — 저장(listing_rights)·렌더 단위."""

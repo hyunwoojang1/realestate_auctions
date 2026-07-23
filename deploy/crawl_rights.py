@@ -37,6 +37,10 @@ _KST = timezone(timedelta(hours=9))
 # 물건당 저장 사진 수 상한 — 히어로 스와이프용. Supabase 공유티어(500MB) 용량 때문에 무제한은
 # 지양(전물건 전사진=1GB+). 대부분 물건이 이 이하이므로 사실상 '거의 전부'. 환경변수로 조정.
 PHOTO_CAP = int(os.environ.get("AUCTION_PHOTO_CAP", "12"))
+# (2026-07-23) 현황조사서 백필 시작 시각. 이 이후 listing_rights.fetched_at = '오늘 이미 백필 시도함'
+# (빈 현황조사서 물건 포함). _tenant_targets 에서 제외해 재시작 시 재크롤 낭비를 막는다. 재개는
+# 자연히 이어진다(미시도 물건만 남으므로). 다른 날 재사용 시 env 로 갱신.
+_TENANT_BACKFILL_CUTOFF = os.environ.get("AUCTION_TENANT_CUTOFF", "2026-07-23 10:35")
 
 
 def _targets(conn, limit: int | None, refresh: bool,
@@ -101,6 +105,11 @@ def _tenant_targets(conn, limit: int | None) -> list[dict]:
       · rights_verified=0(권리미확인 계열: 요지 빈칸이라 대항력 미해결 — 삼환 클래스)
       · 미지원유형(토지·상가 등 아파트차익 비대상) 제외
     권리미확인 등급 우선 → 유찰 많은 순. 물건당 case_detail(세션컨텍스트)+현황조사서 = 2요청.
+
+    ⚠️ (2026-07-23 재시작 낭비 수정) 현황조사서가 '빈'(임차인 0=공실 등) 물건은 크롤해도 listing_tenants
+    가 안 생겨 lt.case_no IS NULL 조건에 계속 걸린다. 크롤러 재시작마다 이들을 우선순위 top부터 재크롤해
+    예산만 태우고 진행이 정체됐다(실측: 재시작 후 budget +39에 crawled +0). listing_rights.fetched_at 이
+    백필 시작(_TENANT_BACKFILL_CUTOFF) 이후면 '오늘 이미 시도함'이므로 제외 → 미시도 물건만 남긴다.
     """
     rows = conn.execute(
         """
@@ -116,7 +125,9 @@ def _tenant_targets(conn, limit: int | None) -> list[dict]:
         WHERE lt.case_no IS NULL
           AND s.rights_verified = 0
           AND s.grade <> '미지원유형'
-        """
+          AND lr.fetched_at < ?
+        """,
+        (_TENANT_BACKFILL_CUTOFF,),
     ).fetchall()
     seen: set = set()
     out = []

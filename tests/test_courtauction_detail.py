@@ -430,3 +430,102 @@ def test_priority_movein_label_with_singo():
                    senior_lien="2020.1.1. 근저당권")
     a = analyze_priority(r)
     assert a.movein_date == "2019-01-01" and a.verdict == "confirmed_opposable"
+
+
+# ---- 2026-07-23 대항력 여지 (관계 미상 전입세대 → possible_opposable) ----
+
+def _samhwan_tenant():
+    """부산 2022타경3289 삼환 현황조사서 실측: 박성혜 전입 1996.10.14, 임차 신호 전무."""
+    return {"movein_ymd": "1996-10-14", "confirm_ymd": "", "deposit": 0,
+            "possession": "", "usage": "", "part": "", "is_tenant_like": False}
+
+
+def test_ambiguous_moveins_split_from_tenant():
+    """관계 미상 전입세대(is_tenant_like=False)는 tenant_moveins 엔 빠지고 ambiguous_moveins 엔 잡힌다."""
+    from src.courtauction_detail import ambiguous_moveins, tenant_moveins
+    tenants = [
+        _samhwan_tenant(),                                              # 관계 미상
+        {"movein_ymd": "2020-01-01", "is_tenant_like": True},          # 확정 임차인
+    ]
+    assert tenant_moveins(tenants) == ["2020-01-01"]
+    assert ambiguous_moveins(tenants) == ["1996-10-14"]
+
+
+def test_priority_possible_opposable_samhwan():
+    """삼환 실측: 요지 빈칸이지만 말소기준 2002 + 관계미상 전입 1996 → 대항력 '여지'(false-negative 수정)."""
+    from src.courtauction_detail import ambiguous_moveins, analyze_priority
+    r = CaseRights(surviving_rights="", lien_note="", remark="",
+                   senior_lien="2002. 4. 23. 근저당권", spec_write_ymd="2026-04-06")
+    amoveins = ambiguous_moveins([_samhwan_tenant()])
+    a = analyze_priority(r, tenant_moveins=[], ambiguous_moveins=amoveins)
+    assert a.verdict == "possible_opposable"
+    assert a.movein_date == "1996-10-14" and a.senior_date == "2002-04-23"
+    assert a.senior_type == "근저당권" and a.movein_source == "현황조사서"
+
+
+def test_priority_ambiguous_after_senior_not_flagged():
+    """관계 미상 전입이 말소기준보다 '늦으면' 대항력 여지 없음 → no_basis 유지(과잉경보 방지)."""
+    from src.courtauction_detail import analyze_priority
+    r = CaseRights(surviving_rights="", senior_lien="2002. 4. 23. 근저당권")
+    a = analyze_priority(r, tenant_moveins=[], ambiguous_moveins=["2010-05-01"])
+    assert a.verdict == "no_basis"
+
+
+def test_priority_ambiguous_needs_senior():
+    """말소기준 날짜가 없으면 비교 불가 → 여지로 승격하지 않는다(no_basis)."""
+    from src.courtauction_detail import analyze_priority
+    r = CaseRights(surviving_rights="", senior_lien="")
+    a = analyze_priority(r, tenant_moveins=[], ambiguous_moveins=["1996-10-14"])
+    assert a.verdict == "no_basis"
+
+
+def test_priority_confirmed_tenant_beats_ambiguous():
+    """확정 임차인 전입이 있으면 confirmed_opposable 이 우선 — 여지로 강등되지 않는다."""
+    from src.courtauction_detail import analyze_priority
+    r = CaseRights(surviving_rights="을구 3번 임차권등기 매수인 인수",
+                   senior_lien="2002. 4. 23. 근저당권")
+    a = analyze_priority(r, tenant_moveins=["1998-01-01"],
+                         ambiguous_moveins=["1996-10-14"])
+    assert a.verdict == "confirmed_opposable" and a.movein_date == "1998-01-01"
+
+
+def test_priority_ambiguous_does_not_override_dates_incomplete():
+    """말소기준+인수문구(dates_incomplete)가 이미 선 판정은 관계 미상 세대가 덮어쓰지 않는다."""
+    from src.courtauction_detail import analyze_priority
+    r = CaseRights(surviving_rights="을구 5번 임차권등기 있음. 배당 부족 시 매수인 인수",
+                   senior_lien="2024.2.2. 압류")
+    a = analyze_priority(r, tenant_moveins=[], ambiguous_moveins=["1996-10-14"])
+    assert a.verdict == "dates_incomplete"
+
+
+def test_priority_late_tenant_does_not_mask_early_ambiguous():
+    """리뷰 #2: 말소기준보다 '늦은' 확정 임차인(not_opposable)이 있어도, '더 이른' 관계미상 세대는
+    possible_opposable로 살아난다 — 늦은 임차인이 이른 세대를 침묵 소멸시키던 다세대 false-negative 수정."""
+    from src.courtauction_detail import analyze_priority
+    r = CaseRights(surviving_rights="", senior_lien="2002. 4. 23. 근저당권")
+    a = analyze_priority(r, tenant_moveins=["2010-05-01"], ambiguous_moveins=["1996-10-14"])
+    assert a.verdict == "possible_opposable" and a.movein_date == "1996-10-14"
+    assert "소멸하나" in a.note                    # 늦은 확정 임차인 소멸 사실도 문구에 명시
+
+
+def test_priority_possible_note_says_same_or_earlier_on_equal_date():
+    """리뷰 #3: 전입일 == 말소기준일(같은 날)이면 '앞서'가 아니라 '같거나 앞서'로 정확히 표기(익일0시 원칙)."""
+    from src.courtauction_detail import analyze_priority
+    r = CaseRights(surviving_rights="", senior_lien="2002. 4. 23. 근저당권")
+    a = analyze_priority(r, tenant_moveins=[], ambiguous_moveins=["2002-04-23"])
+    assert a.verdict == "possible_opposable"
+    assert "같거나 앞서" in a.note and "보다 앞서나" not in a.note
+
+
+def test_asserts_owner_occupancy_precision():
+    """리뷰 #1/#6: '소유자/채무자 점유' 명시는 배제 대상이나, '관계를 알 수 없는' 서술은 배제 금지(삼환형 유지)."""
+    from src.courtauction_detail import _asserts_owner_occupancy
+    assert _asserts_owner_occupancy("소유자 점유") is True
+    assert _asserts_owner_occupancy("채무자(소유자) 점유") is True
+    assert _asserts_owner_occupancy("소유자가 점유") is True
+    assert _asserts_owner_occupancy("채무자 겸 소유자 점유") is True
+    # 관계 미상 서술 — 소유자 확정 아님 → 배제하면 안 됨(삼환 false-negative 재발 방지)
+    assert _asserts_owner_occupancy("소유자와의 관계를 알 수 없는 세대가 전입") is False
+    assert _asserts_owner_occupancy("임차인 점유") is False
+    assert _asserts_owner_occupancy(None) is False
+    assert _asserts_owner_occupancy("") is False

@@ -15,8 +15,9 @@ from src.courtauction_detail import (
     tenant_moveins,
 )
 
-# 부산서부 2022타경3289(삼환) 실측 구조: 임차 신호 없는 단독 전입 = 소유자로 추정.
-OWNER_SURVEY = {
+# 부산서부 2022타경3289(삼환) 실측 구조: 임차 신호·점유표기 전무(gdsPossCtt=None) = 관계 미상 세대.
+# 법원도 소유자로 확정 못 한 '관계 미상' — is_tenant_like=False 지만 소유자 단정 금지(대항력 여지 후보).
+AMBIGUOUS_SURVEY = OWNER_SURVEY = {
     "ipcheck": True,
     "dma_curstExmnMngInf": {"cortOfcCd": "B000414", "csNo": "20220130003289", "ordTsCnt": 1},
     "dlt_ordTsLserLtn": [
@@ -25,6 +26,15 @@ OWNER_SURVEY = {
          # PII — 파서가 절대 읽으면 안 되는 필드
          "ENRRNO": "AB12CD==암호화주민번호", "basAddr": "부산광역시 사하구 다대동 …",
          "objctDtlAddr": "205동 2004호"},
+    ],
+}
+
+# 법원이 '소유자/채무자 점유'로 확정한 세대 — 관계 미상이 아니므로 대항력 여지에서 제외돼야 한다.
+CONFIRMED_OWNER_SURVEY = {
+    "ipcheck": True,
+    "dlt_ordTsLserLtn": [
+        {"mvinDtlCtt": "2005.03.10", "gdsPossCtt": "채무자(소유자) 점유", "lesUsgDts": None,
+         "lesPartCtt": None, "rgstryCrtcpCfmtnCtt": None, "lesDposDts": None},
     ],
 }
 
@@ -66,13 +76,38 @@ def test_tenant_moveins_excludes_owner():
     assert tenant_moveins(parse_curst_survey(TENANT_SURVEY)) == ["1996-10-14"]
 
 
-def test_owner_only_survey_does_not_flag_opposable():
-    """삼환 시나리오: 자유란 빈 CaseRights + 소유자 전입만 → 대항력으로 오판하면 안 됨."""
+def test_ambiguous_survey_confirmed_path_alone_is_no_basis():
+    """확정 임차인 경로(tenant_moveins)만 넘기면 관계미상 세대는 빠져 no_basis — is_tenant_like 게이트가
+    소유자 오판(false-positive)을 막는다는 원래 불변식은 그대로 유지된다."""
     cr = CaseRights(court="부산서부지원", case_no="2022타경3289", item_no="1",
                     senior_lien=SENIOR_2002)
-    tm = tenant_moveins(parse_curst_survey(OWNER_SURVEY))     # []
+    tm = tenant_moveins(parse_curst_survey(AMBIGUOUS_SURVEY))     # []
     p = analyze_priority(cr, tenant_moveins=tm)
-    assert p.verdict == "no_basis"                # 임차인 전입일 없음(소유자만) → 판정근거 없음
+    assert p.verdict == "no_basis"
+
+
+def test_ambiguous_survey_flags_possible_opposable():
+    """삼환 실제 서빙경로(리뷰 #7): 관계미상 세대(possession=None) + ambiguous_moveins → 대항력 '여지'.
+    종전 test_owner_only...가 인자 생략으로 no_basis를 단언하던 거짓 안전을 프로덕션 배선과 일치시킴."""
+    from src.courtauction_detail import ambiguous_moveins
+    cr = CaseRights(court="부산서부지원", case_no="2022타경3289", item_no="1",
+                    senior_lien=SENIOR_2002)
+    recs = parse_curst_survey(AMBIGUOUS_SURVEY)
+    am = ambiguous_moveins(recs)                 # ['1996-10-14'] — possession=None이라 통과
+    assert am == ["1996-10-14"]
+    p = analyze_priority(cr, tenant_moveins=tenant_moveins(recs), ambiguous_moveins=am)
+    assert p.verdict == "possible_opposable" and p.movein_date == "1996-10-14"
+
+
+def test_confirmed_owner_occupancy_excluded_from_opposable():
+    """리뷰 #1/#6: 법원이 '채무자(소유자) 점유'로 확정한 세대는 여지에서 제외 → no_basis(소유자 과잉경보 방지)."""
+    from src.courtauction_detail import ambiguous_moveins
+    cr = CaseRights(court="X", case_no="1", item_no="1", senior_lien="2018.6.1. 근저당권")
+    recs = parse_curst_survey(CONFIRMED_OWNER_SURVEY)   # 전입 2005 < 말소기준 2018 이지만 소유자 확정
+    assert ambiguous_moveins(recs) == []               # 점유 명시 소유자 → 여지 후보 제외
+    p = analyze_priority(cr, tenant_moveins=tenant_moveins(recs),
+                         ambiguous_moveins=ambiguous_moveins(recs))
+    assert p.verdict == "no_basis"
 
 
 def test_real_tenant_before_senior_is_confirmed_opposable():

@@ -5,6 +5,7 @@ import csv
 import html
 import io
 import json
+import math
 from collections.abc import Iterable
 from pathlib import Path
 
@@ -23,6 +24,24 @@ def _won(v) -> str:
 
 def _pct(v) -> str:
     return "-" if v is None else f"{v*100:.0f}%"
+
+
+def _won_fine(v) -> str:
+    """1억 이상은 'X.XX억', 미만은 '만원/원' — 작은 금액이 뭉개지지 않는 표기.
+
+    _won 은 억 단위 고정이라 인지세 15만원·법무비 50만원이 전부 '0.00억'으로 보인다.
+    시뮬레이터 영수증처럼 소액 항목이 섞이는 표에서 쓴다(목록·기존 화면은 _won 유지 — 무회귀).
+    """
+    if v is None:
+        return "-"
+    if abs(v) >= 100_000_000:
+        return _won(v)
+    # JS Math.round 와 동일한 half-up(+∞ 방향) — 파이썬 round()는 banker's rounding이라
+    # 5,000원 같은 정확히 .5 경계에서 서버 렌더와 슬라이더 갱신 표기가 갈린다.
+    man = math.floor(v / 10_000 + 0.5)
+    if man == 0:
+        return "0원" if not v else f"{v:,.0f}원"
+    return f"{man:,}만원"
 
 
 _PYEONG = 3.3058   # 1평 = 3.3058㎡ (query._PYEONG 와 동일 상수)
@@ -194,6 +213,7 @@ def gap_meter_html(s: ScoredListing, askings: list | None = None) -> str:
 
 # 웹 템플릿(src/web.py)에서 재사용하는 공개 별칭 — 금액 포맷 로직 공유
 won = _won
+won_fine = _won_fine
 pct = _pct
 pyeong = _pyeong
 
