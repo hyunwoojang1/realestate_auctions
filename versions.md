@@ -1,5 +1,21 @@
 # versions.md — auction-arbitrage 루프 작업 로그 (append-only, 최신순)
 
+## 2026-07-23 16:30 KST — 🚀 **푸시·프로덕션 배포 완료** + 🔥 **배포 중 발견한 자기 회귀 즉시 수정**
+- **배포**: 두 세션 작업을 합쳐 커밋(f54ed6a) → `git push`(**35커밋**, origin/main 5411709→f54ed6a)
+  → `scripts/deploy_prod.sh` 로 Vercel 프로덕션 배포·헬스체크 통과.
+- **🔥 배포 검증 중 발견한 CRITICAL(내가 만든 회귀)**: 프로덕션 `/api/listings` 가 **6건(샘플)** 만
+  반환. `/health` 는 `data_source: db` 라 침묵 실패였다. 원인 = 오늘 P-01 수정에서 `_COLS` 에 추가한
+  **`burden_amount_unknown` 컬럼이 Supabase 테이블에 없어** 조회가 깨지고 샘플로 폴백.
+  → Management API로 `ALTER TABLE auction_scored_listings ADD COLUMN IF NOT EXISTS
+  burden_amount_unknown boolean NOT NULL DEFAULT false` 실행. **복구 확인: 14,440건·추천 634건**.
+  ⚠️ **교훈(다음 스키마 변경 시 필수)**: 로컬 SQLite DDL·마이그레이션만 고치면 **프로덕션이 조용히
+  샘플로 떨어진다**. `_COLS` 변경 = Supabase ALTER 동반이 규칙. 헬스체크가 이걸 못 잡는 것도 문제
+  (data_source=db 인데 행이 6건) → 서빙 행수 하한 체크 추가 검토.
+- **라이브 검증(프로덕션)**: 상세 `2025타경507316`(더샵센트럴파크1)에서 **재매각 배너**("대금 미납") ·
+  **입찰가 시뮬레이터**("손익분기 입찰가") · 낙찰가 미표시 계약("최저입찰가 8.96억 — 낙찰가는 법원이
+  공개하지 않습니다") 전부 렌더 확인. 목록에 재매각 칩 노출. `/api/bidsim` 정상 응답.
+- 전체 **758 passed · ruff 클린**으로 게이트 통과 후 배포.
+
 ## 2026-07-23 16:00 KST — 🔧 **수정 #3: U-01 입찰보증금 비율** (함수·테스트 완료, 배선 인계)
 - ⚠️ **동시 작업 확인**: 다른 세션이 같은 시각 **재매각 기능을 이미 구현 중**이었다 —
   `resale_history()`(기일이력→재매각 판정, 샘플 2025타경507316에서 `reason='대금 미납'` 정확 동작) ·
