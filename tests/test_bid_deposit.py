@@ -59,3 +59,55 @@ def test_bid_deposit_defaults_to_ten_but_flags_unstated():
     amount, rate, stated = bid_deposit(896_000_000, "")
     assert (rate, stated) == (10, False)
     assert amount == 89_600_000
+
+
+# ────────────────────────── 웹 배선 (상세페이지 KPI) ──────────────────────────
+
+def _seed_and_client(tmp_path, remark, min_bid=896_000_000):
+    """비고에 보증금 비율이 있는 물건 1건을 담은 임시 DB + 클라이언트."""
+    import json
+    import os
+
+    from src import store
+    from src.models import ScoredListing
+    db = tmp_path / "dep.db"
+    conn = store.connect(str(db))
+    s = ScoredListing(
+        case_no="2025타경507316", apt_name="보증금테스트", address="인천 연수구",
+        property_type="아파트", area_m2=129.1, appraisal_price=1_280_000_000,
+        min_bid_price=min_bid, fail_count=1, sale_date="2026-07-30",
+        est_market_price=1_370_000_000, matched_trades=5, confidence=1.0,
+        real_acquisition_cost=910_000_000, expected_profit=460_000_000, gap_rate=0.35,
+        gap_score=90.0, rights_score=85.0, liquidity_score=80.0, arb_score=86.0,
+        grade="차익 유력", court="인천지방법원", item_no="1", rights_verified=True,
+        market_band_low=1_300_000_000, profit_low=390_000_000,
+    )
+    store.replace_all(conn, [s])
+    store.save_rights(conn, [{
+        "court": "인천지방법원", "case_no": "2025타경507316", "item_no": "1",
+        "surviving_rights": "", "senior_lien": "2021. 5. 3. 근저당권", "lien_note": "",
+        "remark": remark, "claim_amt": None, "demand_end": "", "spec_write_ymd": "2026-04-06",
+        "court_dept": "", "schedule": json.dumps([], ensure_ascii=False),
+        "appraisal_notes": "[]", "fetched_at": "2026-07-23",
+    }])
+    conn.close()
+    os.environ["AUCTION_DB"] = str(db)
+    from src.web import create_app
+    return create_app().test_client()
+
+
+def test_detail_uses_court_stated_rate(tmp_path):
+    """법원이 20%를 명시하면 화면 금액이 1.79억(=8.96억×20%)이어야 한다 — 0.90억이 아니다."""
+    body = _seed_and_client(tmp_path, "- 재매각. 매수신청보증금은 최저매각가격의 20%임").get(
+        "/property/2025타경507316").get_data(as_text=True)
+    assert "법원 명시 20%" in body
+    assert "1.79억" in body          # 실제 필요액
+    assert "(통상 10%)" not in body  # 옛 하드코딩 라벨이 남아 있으면 안 됨
+
+
+def test_detail_marks_assumption_when_not_stated(tmp_path):
+    """법원 명시가 없으면 10%로 계산하되 **'가정'임을 밝힌다**(모름을 확정으로 바꾸지 않는다)."""
+    body = _seed_and_client(tmp_path, "아파트로 이용중임").get(
+        "/property/2025타경507316").get_data(as_text=True)
+    assert "통상 10% 가정" in body
+    assert "0.90억" in body

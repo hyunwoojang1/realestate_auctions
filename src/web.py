@@ -794,6 +794,18 @@ def create_app() -> Flask:
             except Exception as e:  # noqa: BLE001 — 재매각 표시는 부가 정보, 페이지를 막지 않음
                 logger.warning("재매각 이력 판정 실패(%s %s): %s", s.court, s.case_no, e)
 
+        # (UX 감사 U-01, 2026-07-23) 입찰보증금 — 통상 최저가의 10%지만 **재매각·특별매각조건은
+        # 20~30%** 이고 법원이 그 비율을 명세서 비고에 문장으로 준다(실측 609건). 종전엔 화면이 늘
+        # 10%로 계산해 재매각 물건의 필요 현금을 **절반으로** 알려줬다 → 그대로 법정에 가면 입찰 무효.
+        # ⚠️ 재매각과 같은 이유로 **가드보다 먼저** 계산한다 — 비율은 비고에 있는데, 자유기술란이
+        # 비면 아래에서 rights_row 가 None 이 되어 비고까지 함께 사라진다.
+        # 명시가 없으면 stated=False → 화면이 '통상 10% 가정'임을 밝힌다(모름을 확정으로 바꾸지 않음).
+        from .courtauction_rights import bid_deposit  # noqa: PLC0415
+        _rr = rights_row or {}
+        deposit_amount, deposit_rate, deposit_stated = bid_deposit(
+            s.min_bid_price, _rr.get("remark") or "", _rr.get("lien_note") or "",
+            _rr.get("surviving_rights") or "")
+
         badge = None
         priority = None
         if rights_row:
@@ -918,6 +930,8 @@ def create_app() -> Flask:
         )
         return render_template(
             "detail.html", s=s, listing=listing, chart=chart, rights=rights, badge=badge,
+            deposit_amount=deposit_amount, deposit_rate=deposit_rate,
+            deposit_stated=deposit_stated,
             sim=_sim_payload(sim_input), sim_in=sim_input, bidsim_cfg=bidsim, resale=resale,
             coord=coord, days_until=query.days_until,
             bldg=bldg, vworld_key=os.environ.get("VWORLD_API_KEY", "").strip(),

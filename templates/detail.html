@@ -275,7 +275,11 @@
   <div class="dkpi">
     <div class="dkpi-t"><span class="k">감정가</span><span class="v">{{ won(s.appraisal_price) }}</span></div>
     <div class="dkpi-t"><span class="k">최저입찰가{% if cut_rate is not none and cut_rate > 0.01 %}<span class="badge">−{{ (cut_rate*100)|round|int }}%</span>{% endif %}</span><span class="v">{{ won(s.min_bid_price) }}</span></div>
-    <div class="dkpi-t"><span class="k">입찰보증금 <span class="s">{% if is_reauction %}(재매각 20~30%){% else %}(통상 10%){% endif %}</span></span><span class="v">{{ won((s.min_bid_price * 0.1)|round|int) }}{% if is_reauction %}<span class="s" style="color:var(--caution)" title="재매각(전 낙찰자 대금미납)은 통상 보증금 20~30% — 최저가의 2~3배 현금 필요"> ×2~3</span>{% endif %}</span></div>
+    {#- 입찰보증금(UX 감사 U-01) — 법원이 명세서 비고에 비율을 명시하면(재매각·특별매각조건은
+        20~30%) **그 비율로 계산한 실제 금액**을 보여준다. 종전엔 늘 10% 고정이라 재매각 물건에서
+        필요 현금을 절반으로 알려줬고, 그대로 법정에 가면 입찰이 무효 처리된다.
+        명시가 없으면 '통상 10% 가정'임을 라벨에 밝힌다 — 모름을 확정으로 바꾸지 않는다. -#}
+    <div class="dkpi-t"><span class="k">입찰보증금 <span class="s">{% if deposit_stated %}(법원 명시 {{ deposit_rate }}%){% elif is_reauction %}(통상 10% 가정 · 재매각은 20~30%){% else %}(통상 10% 가정){% endif %}</span></span><span class="v">{{ won(deposit_amount) }}{% if deposit_stated and deposit_rate > 10 %}<span class="s" style="color:var(--caution)" title="법원이 명세서 비고에 매수신청보증금 {{ deposit_rate }}%를 명시한 물건입니다 — 통상 10%의 {{ (deposit_rate / 10)|round(1) }}배 현금이 필요합니다"> ×{{ (deposit_rate / 10)|round(1) }}</span>{% elif not deposit_stated and is_reauction %}<span class="s" style="color:var(--caution)" title="재매각(전 낙찰자 대금미납)은 통상 보증금 20~30% — 법원 공고를 반드시 확인하세요"> ×2~3?</span>{% endif %}</span></div>
     <div class="dkpi-t"><span class="k">{% if s.market_source == 'kb' %}KB 시세{% elif s.market_source == 'ask' %}호가 기반 시세{% elif s.market_source == 'lease' %}전세 역산 시세{% elif s.market_band_low is not none %}실거래 시세 <span class="s">(검증 하한)</span>{% elif s.est_market_price %}추정 시세{% else %}시세{% endif %}</span><span class="v">{% if s.market_band_low is not none %}{{ won(s.market_band_low) }}{% elif s.est_market_price %}{{ won(s.est_market_price) }}{% else %}—{% endif %}</span></div>
     <div class="dkpi-t hot{% if hero_worst is not none and hero_worst < 0 %} neg{% endif %}">
       <span class="k">예상 차익{% if has_burden %} <span class="s">(최대 인수 반영)</span>{% endif %}</span>
