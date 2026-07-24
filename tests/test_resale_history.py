@@ -275,7 +275,7 @@ def test_detail_shows_actual_sold_price(tmp_path):
     body = _app_client(_seed(tmp_path, sched)).get(
         "/property/2024타경777").get_data(as_text=True)
     assert "실제 낙찰가" in body
-    assert "3.50억" in body
+    assert "350,000,000원" in body   # 상세 본문은 원 단위 콤마(2026-07-24)
     assert "낙찰가는 미수집" not in body      # 값이 있으면 미수집 문구가 뜨면 안 된다
 
 

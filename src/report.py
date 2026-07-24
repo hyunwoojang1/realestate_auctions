@@ -26,6 +26,17 @@ def _pct(v) -> str:
     return "-" if v is None else f"{v*100:.0f}%"
 
 
+def _won_num(v) -> str:
+    """원 단위 콤마 표기('312,000,000원') — 물건 상세 본문용(사용자 결정 2026-07-24).
+
+    홈·리스트는 한눈 비교가 목적이라 _won('3.12억')을 유지하고, 상세는 정확한 원 단위를
+    보여준다. 차트 축/호버 라벨(JS)은 공간 제약으로 억 표기 그대로 둔다.
+    """
+    if v is None:
+        return "-"
+    return f"{round(v):,}원"
+
+
 def _won_fine(v) -> str:
     """1억 이상은 'X.XX억', 미만은 '만원/원' — 작은 금액이 뭉개지지 않는 표기.
 
@@ -214,6 +225,7 @@ def gap_meter_html(s: ScoredListing, askings: list | None = None) -> str:
 # 웹 템플릿(src/web.py)에서 재사용하는 공개 별칭 — 금액 포맷 로직 공유
 won = _won
 won_fine = _won_fine
+won_num = _won_num
 pct = _pct
 pyeong = _pyeong
 

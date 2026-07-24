@@ -1094,7 +1094,9 @@ def create_app() -> Flask:
             coord=coord, days_until=query.days_until,
             bldg=bldg, vworld_key=os.environ.get("VWORLD_API_KEY", "").strip(),
             priority=priority,
-            won=report.won, pct=report.pct,
+            # 상세 본문은 원 단위 콤마 표기(사용자 결정 2026-07-24) — 홈/리스트는 억 유지.
+            # won_fine(계산서)도 콤마로: 컨텍스트 인자가 jinja 전역보다 우선한다.
+            won=report.won_num, won_fine=report.won_num, pct=report.pct,
             gated=gated, gate_reason=", ".join(gate_reasons),
             tax_parts=tax_parts, tax_label=tax.PROFILE.label(),
             watching=watchlist.is_watched(

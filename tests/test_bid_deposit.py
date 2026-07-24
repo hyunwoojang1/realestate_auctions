@@ -63,7 +63,7 @@ def test_bid_deposit_defaults_to_ten_but_flags_unstated():
 
 # ────────────────────────── 웹 배선 (상세페이지 KPI) ──────────────────────────
 
-def _seed_and_client(tmp_path, remark, min_bid=896_000_000):
+def _seed_and_client(tmp_path, remark, min_bid=896_000_000, fail_count=1):
     """비고에 보증금 비율이 있는 물건 1건을 담은 임시 DB + 클라이언트."""
     import json
     import os
@@ -75,7 +75,7 @@ def _seed_and_client(tmp_path, remark, min_bid=896_000_000):
     s = ScoredListing(
         case_no="2025타경507316", apt_name="보증금테스트", address="인천 연수구",
         property_type="아파트", area_m2=129.1, appraisal_price=1_280_000_000,
-        min_bid_price=min_bid, fail_count=1, sale_date="2026-07-30",
+        min_bid_price=min_bid, fail_count=fail_count, sale_date="2026-07-30",
         est_market_price=1_370_000_000, matched_trades=5, confidence=1.0,
         real_acquisition_cost=910_000_000, expected_profit=460_000_000, gap_rate=0.35,
         gap_score=90.0, rights_score=85.0, liquidity_score=80.0, arb_score=86.0,
@@ -97,17 +97,24 @@ def _seed_and_client(tmp_path, remark, min_bid=896_000_000):
 
 
 def test_detail_uses_court_stated_rate(tmp_path):
-    """법원이 20%를 명시하면 화면 금액이 1.79억(=8.96억×20%)이어야 한다 — 0.90억이 아니다."""
+    """법원이 20%를 명시하면 화면 금액이 179,200,000원(=8.96억×20%)이어야 한다."""
     body = _seed_and_client(tmp_path, "- 재매각. 매수신청보증금은 최저매각가격의 20%임").get(
         "/property/2025타경507316").get_data(as_text=True)
     assert "법원 명시 20%" in body
-    assert "1.79억" in body          # 실제 필요액
+    assert "179,200,000원" in body   # 실제 필요액 — 상세 본문은 원 단위 콤마(2026-07-24)
     assert "(통상 10%)" not in body  # 옛 하드코딩 라벨이 남아 있으면 안 됨
 
 
-def test_detail_marks_assumption_when_not_stated(tmp_path):
-    """법원 명시가 없으면 10%로 계산하되 **'가정'임을 밝힌다**(모름을 확정으로 바꾸지 않는다)."""
+def test_detail_no_assumption_label_when_not_stated(tmp_path):
+    """비율 미명시 일반 물건은 10%로 계산하되 상시 라벨은 없다(사용자 결정 2026-07-24)."""
     body = _seed_and_client(tmp_path, "아파트로 이용중임").get(
         "/property/2025타경507316").get_data(as_text=True)
-    assert "통상 10% 가정" in body
-    assert "0.90억" in body
+    assert "통상 10% 가정" not in body
+    assert "89,600,000원" in body
+
+
+def test_detail_warns_reauction_when_rate_not_stated(tmp_path):
+    """비율 미명시 **재매각**(유찰 0회+저감)은 보증금이 실제 20~30%일 수 있어 경고를 유지한다."""
+    body = _seed_and_client(tmp_path, "아파트로 이용중임", fail_count=0).get(
+        "/property/2025타경507316").get_data(as_text=True)
+    assert "재매각 — 20~30% 가능" in body

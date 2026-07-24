@@ -73,6 +73,7 @@
   .ptc-legend .sw.minbid{background:var(--ink-800)}
   .ptc .ptc-tt{background:#fff;color:var(--ink-900);border:1px solid var(--hairline-strong);box-shadow:var(--e3);min-width:150px}
   .ptc .ptc-tt::after{border-top-color:#fff}
+  .ptc .ptc-tt.below::after{border-bottom-color:#fff}
   .ptc .ptc-tt .th{font-size:12px;font-weight:800;color:var(--ink-900);padding-bottom:5px;margin-bottom:5px;border-bottom:1px solid var(--hairline)}
   .ptc .ptc-tt .tr{display:flex;justify-content:space-between;gap:16px;font-size:12px;font-weight:600;margin-top:3px}
   .ptc .ptc-tt .tr .n{font-weight:700}
@@ -310,8 +311,9 @@
     {#- 입찰보증금(UX 감사 U-01) — 법원이 명세서 비고에 비율을 명시하면(재매각·특별매각조건은
         20~30%) **그 비율로 계산한 실제 금액**을 보여준다. 종전엔 늘 10% 고정이라 재매각 물건에서
         필요 현금을 절반으로 알려줬고, 그대로 법정에 가면 입찰이 무효 처리된다.
-        명시가 없으면 '통상 10% 가정'임을 라벨에 밝힌다 — 모름을 확정으로 바꾸지 않는다. -#}
-    <div class="dkpi-t"><span class="k">입찰보증금 <span class="s">{% if deposit_stated %}(법원 명시 {{ deposit_rate }}%){% elif is_reauction %}(통상 10% 가정 · 재매각은 20~30%){% else %}(통상 10% 가정){% endif %}</span></span><span class="v">{{ won(deposit_amount) }}{% if deposit_stated and deposit_rate > 10 %}<span class="s" style="color:var(--caution)" title="법원이 명세서 비고에 매수신청보증금 {{ deposit_rate }}%를 명시한 물건입니다 — 통상 10%의 {{ (deposit_rate / 10)|round(1) }}배 현금이 필요합니다"> ×{{ (deposit_rate / 10)|round(1) }}</span>{% elif not deposit_stated and is_reauction %}<span class="s" style="color:var(--caution)" title="재매각(전 낙찰자 대금미납)은 통상 보증금 20~30% — 법원 공고를 반드시 확인하세요"> ×2~3?</span>{% endif %}</span></div>
+        '(통상 10% 가정)' 상시 라벨은 제거(사용자 결정 2026-07-24) — 단, 비율 미명시 **재매각**은
+        실제 보증금이 20~30%일 수 있어 경고를 유지한다(모름을 확정으로 바꾸지 않는다). -#}
+    <div class="dkpi-t"><span class="k">입찰보증금{% if deposit_stated %} <span class="s">(법원 명시 {{ deposit_rate }}%)</span>{% elif is_reauction %} <span class="s">(재매각 — 20~30% 가능 · 공고 확인)</span>{% endif %}</span><span class="v">{{ won(deposit_amount) }}{% if deposit_stated and deposit_rate > 10 %}<span class="s" style="color:var(--caution)" title="법원이 명세서 비고에 매수신청보증금 {{ deposit_rate }}%를 명시한 물건입니다 — 통상 10%의 {{ (deposit_rate / 10)|round(1) }}배 현금이 필요합니다"> ×{{ (deposit_rate / 10)|round(1) }}</span>{% elif not deposit_stated and is_reauction %}<span class="s" style="color:var(--caution)" title="재매각(전 낙찰자 대금미납)은 통상 보증금 20~30% — 법원 공고를 반드시 확인하세요"> ×2~3?</span>{% endif %}</span></div>
     <div class="dkpi-t"><span class="k">{% if s.market_source == 'kb' %}KB 시세{% elif s.market_source == 'ask' %}호가 기반 시세{% elif s.market_source == 'lease' %}전세 역산 시세{% elif s.market_band_low is not none %}실거래 시세 <span class="s">(검증 하한)</span>{% elif s.est_market_price %}추정 시세{% else %}시세{% endif %}</span><span class="v">{% if s.market_band_low is not none %}{{ won(s.market_band_low) }}{% elif s.est_market_price %}{{ won(s.est_market_price) }}{% else %}—{% endif %}</span></div>
     <div class="dkpi-t hot{% if hero_worst is not none and hero_worst < 0 %} neg{% endif %}">
       <span class="k">예상 차익{% if has_burden %} <span class="s">(최대 인수 반영)</span>{% endif %}</span>
@@ -1085,7 +1087,14 @@
     if(sp!=null&&!(near&&near.cls==='min'))
       rows+='<div class="tr"><span class="n" style="color:var(--ink-700)">유찰 최저가</span><span class="w">'+won(sp)+'</span></div>';
     tt.innerHTML='<div class="th">'+head+'</div>'+rows;
-    tt.style.left=(clientX-cw.left)+'px'; tt.style.top=(clientY-cw.top)+'px';
+    // 배치(QA 2026-07-24) — chartwrap 이 overflow-x:auto(모바일 가로스크롤용)라 위로 삐져나간
+    // 카드는 잘린다. ① 위 여백이 모자라면 커서 아래로 플립(.below), ② 좌우 가장자리는 카드가
+    // 컨테이너 안에 들도록 클램프, ③ 가로 스크롤 상태에선 scrollLeft 만큼 보정(absolute 좌표계).
+    var lx=clientX-cw.left+cwrap.scrollLeft, ty=clientY-cw.top;
+    tt.classList.toggle('below', ty - tt.offsetHeight - 14 < 0);
+    var half=tt.offsetWidth/2, minX=cwrap.scrollLeft, maxX=minX+cw.width;
+    lx=Math.max(minX+half+4, Math.min(maxX-half-4, lx));
+    tt.style.left=lx+'px'; tt.style.top=ty+'px';
   }
   svg.addEventListener('mousemove',function(e){ moveAt(e.clientX, e.clientY); });
   svg.addEventListener('mouseleave',hide);
@@ -1146,18 +1155,12 @@
   var $ = function(id){ return document.getElementById(id); };
   var out = root.querySelector('.dsim-out');
 
-  /* report._won_fine 과 동일 표기: 1억 이상은 'X.XX억', 미만은 '만원/원'.
-     (인지세 15만·법무비 50만이 전부 '0.00억'으로 뭉개지지 않게 — 서버 렌더와 문자열이 일치해야
-     슬라이더를 처음 움직이는 순간 표기가 튀지 않는다.) */
+  /* report._won_num 과 동일 표기: 원 단위 콤마('312,000,000원') — 상세 본문 표기 통일
+     (사용자 결정 2026-07-24). 서버 렌더와 문자열이 일치해야 슬라이더를 처음 움직이는
+     순간 표기가 튀지 않는다. */
   function won(v){
     if(v === null || v === undefined) return '—';
-    if(Math.abs(v) >= 1e8){
-      if(Math.round(v / 1e8 * 100) / 100 === 0) return '0.00억';   /* 음수 제로 정규화 */
-      return (v / 1e8).toFixed(2) + '억';
-    }
-    var man = Math.round(v / 1e4);
-    if(man === 0) return v ? Math.round(v).toLocaleString('ko-KR') + '원' : '0원';
-    return man.toLocaleString('ko-KR') + '만원';
+    return Math.round(v).toLocaleString('ko-KR') + '원';
   }
   function manwon(id){ var n = parseFloat($(id).value); return isFinite(n) ? Math.round(n * 10000) : 0; }
   function setTxt(id, txt){ var el = $(id); if(el) el.textContent = txt; }
