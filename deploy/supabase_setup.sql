@@ -54,5 +54,11 @@ alter table public.auction_scored_listings enable row level security;
 alter table public.auction_scored_listings
     add column if not exists market_comps jsonb not null default '[]'::jsonb;
 
+-- [기존 테이블 마이그레이션 2026-07-24] 매각 개시시각(raw maeHh1 'HHMM') 미러 컬럼.
+-- 클라우드 서빙은 raw_listings 가 없어 파생 불가 → run.py 가 미러 직전 주입(store._sale_time_map).
+-- 없으면 query.bidding_closed 가 10:00 폴백 가정으로 동작(2026-07-24 Management API 로 적용 완료).
+alter table public.auction_scored_listings
+    add column if not exists sale_time text not null default '';
+
 -- 확인: 아래가 rows=0(테이블 준비됨)으로 나오면 성공. 이관 스크립트가 3,751건을 채웁니다.
 select count(*) as rows from public.auction_scored_listings;

@@ -247,6 +247,12 @@ def main(argv=None) -> int:
     if use_live and not args.no_cloud:
         from src import store_rest  # noqa: PLC0415
         if store_rest.enabled():
+            # (2026-07-24) sale_time(매각 개시시각 maeHh1) 파생 주입 후 미러 — Vercel 은
+            # raw_listings 가 없어 스스로 파생 불가. 이게 빠지면 프로덕션 bidding_closed 가
+            # 10:00 폴백 가정으로만 동작한다. scored 는 채점 직후 객체라 sale_time="" 상태.
+            sale_times = store._sale_time_map(conn)
+            for s in scored:
+                s.sale_time = sale_times.get((s.court, s.case_no, s.item_no), "")
             try:
                 if full_snapshot:
                     cn = store_rest.replace_all(scored)

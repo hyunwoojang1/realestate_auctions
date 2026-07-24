@@ -1,5 +1,16 @@
 # versions.md — auction-arbitrage 루프 작업 로그 (append-only, 최신순)
 
+## 2026-07-24 17:52 KST — ☁ Supabase sale_time 정밀 미러(당일 마감컷오프 10:00 폴백 해소)
+- **무엇**: ① Supabase `auction_scored_listings.sale_time text default ''` 컬럼 추가(Management
+  API 직접 실행·supabase_setup.sql 에 ALTER 문서화) ② store_rest: _payload 에 sale_time 포함 +
+  load_scored select/복원(NULL→"") ③ run.py: 클라우드 미러 직전 store._sale_time_map(conn) 으로
+  scored 에 개시시각 주입(Vercel 은 raw_listings 없어 스스로 파생 불가) ④ 일회성 백필
+  `deploy/backfill_sale_time.py`(클라우드 존재 키만 PK+sale_time 부분 merge upsert, --dry-run).
+- **효과**: 프로덕션 bidding_closed 가 물건별 실제 개시시각(09:55/10:30 등)으로 정밀 판정 —
+  종전엔 전 물건 10:00 가정(±30분 오차를 2h 버퍼가 흡수). 세션2 백로그 이행.
+- **증거**: 백필 실측 14,941/14,941건 주입·재로드 검증 100%. 전체 pytest 894 passed
+  (신규: select/복원 대칭 2종 + 페이로드 미러 1종, upsert 페이로드 키 계약 갱신).
+
 ## 2026-07-24 17:35 KST — 🛡️ 커밋 게이트 untracked-import 검사 신설(500 사고 클래스 봉쇄)
 - **무엇**: staged .py 가 import 하는 레포-로컬 모듈이 "디스크에 있지만 tracked도 staged도 아닌"
   경우 커밋 차단. `scripts/check_untracked_imports.py`(ast 파싱: 상대/절대/`from pkg import sub`

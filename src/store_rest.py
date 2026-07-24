@@ -101,7 +101,9 @@ def load_scored(use_cache: bool = True) -> list[ScoredListing]:
     url, key, table = _cfg()
     # market_comps 는 _COLS 밖 별도 jsonb 컬럼 — select 에 명시하지 않으면 응답에서 빠져
     # 상세 차트 실거래 점이 프로덕션에서만 0개가 되는 버그(2026-07-20 수정). 저장(_payload)과 대칭.
-    select = ",".join([*_COLS, "market_comps"])
+    # sale_time(2026-07-24): 당일 마감 컷오프 정밀 판정용 미러 — 없으면 query.bidding_closed 가
+    # 10:00 폴백 가정으로만 동작한다(±30분 오차를 2h 버퍼가 흡수하던 상태).
+    select = ",".join([*_COLS, "market_comps", "sale_time"])
     rows: list[dict] = []
     offset = 0
     while True:
@@ -126,7 +128,8 @@ def load_scored(use_cache: bool = True) -> list[ScoredListing]:
             break
         offset += _PAGE
     result = [ScoredListing(**{c: row.get(c) for c in _COLS},
-                            market_comps=row.get("market_comps") or [])
+                            market_comps=row.get("market_comps") or [],
+                            sale_time=row.get("sale_time") or "")
               for row in rows]
     _cache["rows"] = result
     _cache["at"] = time.time()
@@ -140,6 +143,9 @@ def _payload(s: ScoredListing) -> dict:
     # 이게 빠져 프로덕션 차트에 실거래 점이 안 찍히던 문제 수정(2026-07-13). 컬럼 없으면 mirror가
     # 400 → run.py 가 로컬 보존하고 넘어감(supabase_setup.sql 의 ALTER 선행 필요).
     d["market_comps"] = row.get("market_comps") or []
+    # sale_time(2026-07-24): _COLS 밖 파생 필드지만 클라우드 서빙(Vercel)은 raw_listings 가 없어
+    # 스스로 파생할 수 없다 → 미러에 포함. run.py 가 미러 직전 _sale_time_map 으로 주입한다.
+    d["sale_time"] = row.get("sale_time") or ""
     return d
 
 

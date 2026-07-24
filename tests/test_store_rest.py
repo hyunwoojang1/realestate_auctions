@@ -94,6 +94,44 @@ def test_load_scored_selects_and_restores_market_comps(monkeypatch):
     assert items[0].market_comps == [["202401", 368000000], ["200812", 145000000]]
 
 
+def test_load_scored_selects_and_restores_sale_time(monkeypatch):
+    """(2026-07-24) sale_time 은 _COLS 밖 미러 컬럼 — select 에 빠지면 프로덕션
+    bidding_closed 가 전 물건 10:00 폴백 가정으로만 동작한다(±30분 오차).
+    저장(_payload)·로드 양쪽 대칭을 고정한다."""
+    seen = {}
+
+    def fake_get(url, headers=None, params=None, timeout=None):
+        seen["params"] = params
+        row = _row(case_no="2024타경1")
+        row["sale_time"] = "1030"
+        return FakeResp([row])
+
+    monkeypatch.setattr(store_rest.requests, "get", fake_get)
+    items = store_rest.load_scored(use_cache=False)
+    assert "sale_time" in seen["params"]["select"].split(",")
+    assert items[0].sale_time == "1030"
+    # 컬럼 NULL(구행)은 "" 로 강등 — bidding_closed 의 10:00 폴백 경로 유지
+    monkeypatch.setattr(store_rest.requests, "get",
+                        lambda *a, **k: FakeResp([_row(case_no="c2")]))
+    items = store_rest.load_scored(use_cache=False)
+    assert items[0].sale_time == ""
+
+
+def test_payload_mirrors_sale_time(monkeypatch):
+    """run.py 가 미러 직전 주입한 sale_time 이 upsert 페이로드에 실린다."""
+    posted = {}
+
+    def fake_post(url, headers=None, json=None, timeout=None):
+        posted["row"] = json[0]
+        return FakeResp()
+
+    monkeypatch.setattr(store_rest.requests, "post", fake_post)
+    s = _sl(case_no="t1")
+    s.sale_time = "0955"
+    store_rest.upsert([s])
+    assert posted["row"]["sale_time"] == "0955"
+
+
 def test_load_scored_paginates(monkeypatch):
     pages = iter([
         [_row(case_no=f"c{i}") for i in range(store_rest._PAGE)],  # 꽉 참 → 다음 페이지 요청
@@ -141,8 +179,9 @@ def test_upsert_chunks(monkeypatch):
 
     def fake_post(url, headers=None, json=None, timeout=None):
         posted.append(len(json))
-        # 페이로드 = 스칼라 컬럼(_COLS) + market_comps(차트 실거래 점 jsonb). 비컬럼(rights_verified 등) 금지.
-        assert set(json[0].keys()) == set(_COLS) | {"market_comps"}
+        # 페이로드 = 스칼라 컬럼(_COLS) + market_comps(차트 jsonb) + sale_time(마감컷오프 미러).
+        # 그 외 비컬럼(rights_verified 등) 금지.
+        assert set(json[0].keys()) == set(_COLS) | {"market_comps", "sale_time"}
         return FakeResp()
 
     monkeypatch.setattr(store_rest.requests, "post", fake_post)
