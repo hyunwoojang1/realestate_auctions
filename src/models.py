@@ -133,6 +133,11 @@ class ScoredListing:
     # 시세·차익 출처. market_source: "kb"(KB부동산) | "molit"(국토부 추정) | "none"(시세없음).
     naver: dict | None = None
     market_source: str = ""
+    # (2026-07-24) 서빙 전용(비영속 — store._COLS 밖). 매각 개시시각 "HHMM"(raw maeHh1).
+    # load_scored가 raw를 맵으로 조인(_sale_time_map)해 주입한다 — raw_listings 복합키가
+    # 유일하지 않아(중복 5천여건) SQL JOIN하면 물건이 증식하므로 맵/최신1건 방식이다(되돌리지 말 것).
+    # 당일 입찰 마감(개시+버퍼) 경과 물건을 추천에서 내리는 데 쓴다(query.bidding_closed). 미상이면 "".
+    sale_time: str = ""
 
     @property
     def uid(self) -> str:

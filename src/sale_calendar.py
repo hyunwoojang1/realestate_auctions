@@ -51,12 +51,21 @@ def group_by_date(items: list[ScoredListing]) -> list[dict]:
     } for d in sorted(groups)]
 
 
-def split_upcoming(items: list[ScoredListing],
-                   today: str) -> tuple[list[ScoredListing], list[ScoredListing]]:
-    """(예정, 과거) 분리 — 오늘 기일은 예정에 포함. 기일 미상은 양쪽 모두 제외."""
-    dated = _dated(items)
-    return ([s for s in dated if s.sale_date >= today],
-            [s for s in dated if s.sale_date < today])
+def split_upcoming(items: list[ScoredListing], today: str,
+                   now=None) -> tuple[list[ScoredListing], list[ScoredListing]]:
+    """(예정, 과거) 분리 — 오늘 기일은 입찰 마감(개시+버퍼) 전이면 예정, 지났으면 과거로.
+    기일 미상은 양쪽 모두 제외. now 미지정 시 bidding_closed가 현재시각을 쓴다(당일 마감 판정)."""
+    from .query import bidding_closed  # 지연 import(순환 회피)
+    up: list[ScoredListing] = []
+    past: list[ScoredListing] = []
+    for s in _dated(items):
+        if s.sale_date > today:
+            up.append(s)
+        elif s.sale_date < today:
+            past.append(s)
+        else:  # 오늘 기일 — 시각 컷오프로 예정/과거 판정
+            (past if bidding_closed(s, now) else up).append(s)
+    return up, past
 
 
 def month_groups(items: list[ScoredListing]) -> list[dict]:

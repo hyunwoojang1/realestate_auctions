@@ -433,6 +433,21 @@ def create_app() -> Flask:
         resp.headers["Cache-Control"] = "public, max-age=604800"   # 1주 캐시
         return resp
 
+    # ── 딜 시뮬(신분·기간 전략 비교, GOAL_DEAL_SIM Phase 3) ──
+    # 엔진은 정적 JS(세율 하드코딩 없음), 세율·규제 데이터는 Jinja 전역으로 템플릿에 주입 —
+    # detail 라우트 시그니처를 건드리지 않아 _dealsim.html include 만으로 동작한다.
+    @app.get("/dealsim.js")
+    def dealsim_engine():
+        from flask import send_file  # noqa: PLC0415
+        resp = send_file(str(ROOT / "static" / "dealsim.js"), mimetype="application/javascript")
+        resp.headers["Cache-Control"] = "no-cache"   # 배포 즉시 새 엔진 반영(용량 작아 재검증 비용 미미)
+        return resp
+
+    from . import regulation  # noqa: PLC0415
+    app.jinja_env.globals["regulation_classify"] = regulation.classify
+    app.jinja_env.globals["dealsim_rules_json"] = (
+        ROOT / "data" / "dealsim_rules.json").read_text(encoding="utf-8")
+
     @app.get("/apple-touch-icon.png")
     def apple_icon():
         return _png("apple-touch-icon.png")
@@ -455,7 +470,6 @@ def create_app() -> Flask:
 
     @app.get("/")
     def index():
-        import datetime as _dt  # noqa: PLC0415
 
         from . import tax  # noqa: PLC0415
         # (2026-07-20) 사건번호 라우팅 — 홈 검색창에 "2025-101763"처럼 사건번호를 넣으면
@@ -466,7 +480,12 @@ def create_app() -> Flask:
             return redirect(f"/find?q={quote(_q0)}")
         badges = _rights_badges()
         all_scored = _scored()   # 전체 채점 결과(출처 표시는 _scored 내부에서)
-        today = _dt.date.today()
+        now_dt = query.now_kst()          # KST 벽시계 — 서버 TZ 무관(리뷰 MEDIUM)
+        today = now_dt.date()
+
+        # (2026-07-24) 당일 입찰 마감(개시시각+버퍼) 경과 물건은 실질 입찰 불가 → 추천·임박에서 제외.
+        def _biddable(s):
+            return not query.bidding_closed(s, now_dt)
 
         def _clean(s):
             b = badges.get(f"{s.court}|{s.case_no}|{s.item_no}")
@@ -488,12 +507,12 @@ def create_app() -> Flask:
             "eval": len(evaluable),
             "noise": len(all_scored) - len(evaluable),
             "pos": sum(1 for s in evaluable if (query.decision_profit(s) or 0) > 0),
-            "soon": sum(1 for s in evaluable if query.is_soon(s, today)),
+            "soon": sum(1 for s in evaluable if query.is_soon(s, today) and _biddable(s)),
             "clean": sum(1 for s in evaluable if _clean(s)),
             "high": sum(1 for s in evaluable if query.is_high_profit(s)),
         }
         chip_ct = {
-            "soon": sum(1 for s in chip_base if query.is_soon(s, today)),
+            "soon": sum(1 for s in chip_base if query.is_soon(s, today) and _biddable(s)),
             "clean": sum(1 for s in chip_base if _clean(s)),
             "high": sum(1 for s in chip_base if query.is_high_profit(s)),
         }
@@ -543,7 +562,8 @@ def create_app() -> Flask:
         if chip_clean:
             items = [s for s in items if _clean(s)]
         if chip_soon:
-            items = [s for s in items if query.is_soon(s, today)]
+            # (리뷰 HIGH) 검색(q) 중엔 마감물건도 유지 — 검색은 감추지 않는다. q 없을 때만 마감 제외.
+            items = [s for s in items if query.is_soon(s, today) and (bool(q) or _biddable(s))]
         if chip_high:
             items = [s for s in items if query.is_high_profit(s)]
         items = query.sort_items(items, sort, burden_of=burden,
@@ -555,6 +575,11 @@ def create_app() -> Flask:
         if sort != "profit_asc" and not all_mode and not q:
             items = [s for s in items
                      if (query.decision_profit(s) or 0) - burden(s) > 0]
+
+        # (2026-07-24) 기본·추천 뷰에선 당일 입찰 마감(개시+버퍼 경과) 물건을 숨긴다 — 이미 입찰
+        # 불가라 추천 노출이 헛물(죽전자이2차 사례). 이름검색(q)·전체탐색(all)에선 유지(검색은 찾게).
+        if not all_mode and not q:
+            items = [s for s in items if _biddable(s)]
 
         # 모드: 전체 탐색 / 검색·칩 결과 / (필터 없음) 엄선 추천
         if all_mode:
@@ -1107,7 +1132,10 @@ def create_app() -> Flask:
         min_profit_eok = request.args.get("min_profit", type=float)
         min_profit = int(min_profit_eok * 1e8) if min_profit_eok else None
         digest_badges = _rights_badges()
-        items = digest.top_listings(_scored(), n=n, min_profit=min_profit,
+        # (2026-07-24) 추천 다이제스트도 당일 입찰 마감 물건 제외 — 홈 추천과 동일 기준(리뷰 HIGH).
+        _now = query.now_kst()
+        _biddable_items = [s for s in _scored() if not query.bidding_closed(s, _now)]
+        items = digest.top_listings(_biddable_items, n=n, min_profit=min_profit,
                                     badges=digest_badges)
         filters = {"min_profit": request.args.get("min_profit", ""), "type": "", "region": "",
                    "sort": query.DEFAULT_SORT, "clean": ""}

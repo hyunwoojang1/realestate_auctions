@@ -759,16 +759,37 @@ def fetch_ranked(conn: sqlite3.Connection) -> list[dict]:
     return [dict(r) for r in cur.fetchall()]
 
 
+def _sale_time_map(conn: sqlite3.Connection) -> dict[tuple[str, str, str], str]:
+    """(court,case_no,item_no) → 매각 개시시각 maeHh1('HHMM'). 당일 입찰 마감 판정용(비영속).
+
+    ⚠️ raw_listings는 복합키가 유일하지 않다(재수집·이력으로 중복 5천여건 실측) → JOIN하면
+    물건이 증식한다. raw를 한 번만 스캔해 맵을 만들고(O(n)), 최신 fetched_at이 이기도록
+    ASC 순회로 나중(최신) 값이 덮어쓴다. 값 있는 행만 담아 빈값이 최신값을 지우지 않게 한다.
+    """
+    m: dict[tuple[str, str, str], str] = {}
+    for court, case_no, item_no, hh in conn.execute(
+        "SELECT court, case_no, item_no, json_extract(raw_json, '$.maeHh1') "
+        "FROM raw_listings ORDER BY fetched_at ASC"
+    ):
+        if hh:
+            m[(court, case_no, item_no)] = hh
+    return m
+
+
 def load_scored(conn: sqlite3.Connection) -> list[ScoredListing]:
     """DB에 저장된 채점결과를 ScoredListing 객체로 복원(차익 스코어순).
 
     웹 서버가 매 요청마다 라이브 API를 호출하지 않고, 새로고침 작업이
     적재해둔 결과를 그대로 서빙하기 위한 읽기 경로.
     """
+    sale_times = _sale_time_map(conn)
     out = []
     for r in fetch_ranked(conn):
         kw = {c: r[c] for c in _COLS}
         kw["market_comps"] = _parse_comps(r["market_comps"] if "market_comps" in r.keys() else None)
+        # (2026-07-24) 매각 개시시각(maeHh1) 파생 주입 — 당일 마감 물건 서빙 제외용(비영속).
+        # JOIN 증식을 피해 맵 조인(_sale_time_map). 미상은 "".
+        kw["sale_time"] = sale_times.get((r["court"], r["case_no"], r["item_no"]), "")
         # sqlite는 bool을 0/1 정수로 돌려준다 — dataclass 계약(bool)에 맞춰 복원.
         # (truthy 비교는 통과하지만 `is True` 류 검사와 직렬화에서 어긋난다.)
         kw["rights_verified"] = bool(kw.get("rights_verified"))

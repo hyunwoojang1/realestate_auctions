@@ -58,6 +58,41 @@ def is_soon(s: ScoredListing, today: _dt.date | None = None, within: int = SOON_
     return d is not None and 0 <= d <= within
 
 
+# (2026-07-24) 당일 입찰 마감 컷오프 — 데이터엔 개시시각(maeHh1)만 있고 실제 마감은 법원별로
+# 개시 후 1~1.8h(11:00~11:50)로 다르다. 개시 + BID_CLOSE_BUFFER_MIN(기본 120분=정오 근방,
+# 최장 마감+개찰을 덮음)을 넘으면 '오늘 매각 종료'로 본다. 유효 물건을 실수로 숨기지 않도록
+# 버퍼는 넉넉히 잡는다(조정은 이 상수 한 줄).
+BID_CLOSE_BUFFER_MIN = 120
+_KST = _dt.timezone(_dt.timedelta(hours=9))
+
+
+def now_kst() -> _dt.datetime:
+    """KST 벽시계(naive). sale_date·sale_time(maeHh1)은 KST 기준 원문이라, 서버가 UTC로 떠도
+    (Docker/Vercel 기본) 컷오프가 9시간 밀리지 않게 KST로 고정한 뒤 tz 정보를 떼어 naive 비교한다.
+    프로젝트 다른 모듈(store·crawl_rights)의 KST 하드코딩과 같은 규약."""
+    return _dt.datetime.now(_KST).replace(tzinfo=None)
+
+
+def bidding_closed(s: ScoredListing, now: _dt.datetime | None = None) -> bool:
+    """매각 '오늘' 물건의 입찰 마감(추정)이 지났는가.
+
+    오늘 기일이 아니면(과거·미래·미상) False — 과거 제외는 is_soon/split_upcoming의 날짜 판정이 맡는다.
+    개시시각(sale_time "HHMM") 파싱 실패·미상·비정상 시각이면 통상 개시 10:00을 가정한다.
+    now 미지정 시 KST 벽시계(now_kst) — 서버 TZ와 무관하게 일관.
+    """
+    now = now or now_kst()
+    if days_until(s.sale_date, now.date()) != 0:
+        return False
+    hh, mm = 10, 0
+    t = (s.sale_time or "").strip()
+    if len(t) == 4 and t.isdigit():
+        h, m = int(t[:2]), int(t[2:])
+        if h < 24 and m < 60:   # 비정상 시각("2530" 등)은 기본 10:00 유지 — 전 페이지 500 방지
+            hh, mm = h, m
+    close = _dt.datetime.combine(now.date(), _dt.time(hh, mm)) + _dt.timedelta(minutes=BID_CLOSE_BUFFER_MIN)
+    return now > close
+
+
 def is_high_profit(s: ScoredListing, threshold: int = HIGH_PROFIT_THRESHOLD) -> bool:
     """보수 기준 차익이 threshold(기본 2억) 이상."""
     p = decision_profit(s)
