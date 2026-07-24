@@ -5,46 +5,64 @@ lawd_cd 가 없어(2026-07-24 실측) 주소 토큰 매칭으로 판정한다 �
 유일한 부분규제 시(화성: 동탄구만)는 '동탄' 토큰이 없으면 **'check'(확인 필요)** 로
 돌려 오판 대신 모름을 표출한다(모름≠아님 — 감사 원칙).
 
-토허구역은 지정기간이 있다(예: 서울 전역 ~2026-12-31). 판정 시점이 만료를 지나면
-자동으로 미적용 + '재지정 확인 필요' 노트를 남긴다 — 데이터 부패가 조용히 오답이
-되지 않게 하는 가드.
+토허 만료일도 **JSON 의 `land_permit_expiry` 필드에서 읽는다**(감사 확정: 종전 하드코딩은
+"이 파일만 갱신" 규칙과 모순 — 재지정 고시를 JSON 에 반영해도 판정이 안 바뀌는 드리프트).
+판정 시점이 만료를 지나면 자동 미적용 + '재지정 확인 필요' 노트 — 데이터 부패가 조용히
+오답이 되지 않게 하는 가드. 시각은 KST 기준(서버리스는 UTC — date.today() 금지).
 """
 from __future__ import annotations
 
 import json
-from datetime import date
+import logging
+from datetime import date, datetime, timedelta, timezone
 from functools import lru_cache
 from pathlib import Path
 
+logger = logging.getLogger(__name__)
+
 _ZONES_PATH = Path(__file__).resolve().parent.parent / "data" / "regulated_zones.json"
+_KST = timezone(timedelta(hours=9))
 
 
 @lru_cache(maxsize=1)
-def _zones() -> dict:
-    with open(_ZONES_PATH, encoding="utf-8") as f:
-        return json.load(f)
+def _zones() -> dict | None:
+    """데이터 로드 — 실패해도 앱을 죽이지 않는다(판정만 '확인 필요'로 강등)."""
+    try:
+        with open(_ZONES_PATH, encoding="utf-8") as f:
+            return json.load(f)
+    except (OSError, json.JSONDecodeError):
+        logger.error("regulated_zones.json 로드 실패 — 규제 판정 비활성(배포 번들 확인)")
+        return None
+
+
+def _today_kst() -> date:
+    return datetime.now(_KST).date()
 
 
 def basis_date() -> str:
-    return _zones()["_meta"]["basis_date"]
+    z = _zones()
+    return z["_meta"]["basis_date"] if z else "?"
 
 
-def _match_adjusted(address: str) -> tuple[bool | str, str | None]:
-    """조정대상지역(=투기과열지구) 판정 → (True/False/'check', 지역명)."""
-    z = _zones()["adjusted_and_overheated"]
-    if address.startswith(z["seoul"]["match"]["sido_prefix"]):
-        return True, z["seoul"]["scope"]
+def _match_adjusted(address: str) -> tuple[bool | str, str | None, str | None]:
+    """조정대상지역(=투기과열지구) 판정 → (True/False/'check', 지역명, 토허만료일)."""
+    z = _zones()
+    if z is None:
+        return "check", None, None
+    ao = z["adjusted_and_overheated"]
+    if address.startswith(ao["seoul"]["match"]["sido_prefix"]):
+        return True, ao["seoul"]["scope"], ao["seoul"].get("land_permit_expiry")
     needs_check: str | None = None
-    for area in z["gyeonggi"]:
+    for area in ao["gyeonggi"]:
         m = area["match"]
         if any(tok in address for tok in m.get("tokens", [])):
-            return True, area["name"]
+            return True, area["name"], area.get("land_permit_expiry")
         for tok in m.get("needs_check_tokens", []):
             if tok in address:
                 needs_check = area["name"]
     if needs_check:
-        return "check", needs_check
-    return False, None
+        return "check", needs_check, None
+    return False, None, None
 
 
 def classify(address: str, is_apartment: bool = True, as_of: date | None = None) -> dict:
@@ -53,21 +71,23 @@ def classify(address: str, is_apartment: bool = True, as_of: date | None = None)
     반환: adjusted(True/False/'check') · land_permit(bool) · zone_name · basis_date · notes[].
     토허구역은 아파트 한정 지정이라 is_apartment=False 면 land_permit 은 항상 False.
     """
-    today = as_of or date.today()
-    adjusted, zone_name = _match_adjusted(address or "")
+    today = as_of or _today_kst()
+    adjusted, zone_name, expiry_s = _match_adjusted(address or "")
     notes: list[str] = []
     if adjusted == "check":
-        notes.append(f"{zone_name}: 부분 규제 시 — 규제 여부 확인 필요(비규제 가정 계산)")
+        notes.append(f"{zone_name or '규제 데이터'}: 판정 불가 — 규제 여부 확인 필요(비규제 가정 계산)")
 
     land_permit = False
-    if adjusted is True and is_apartment:
-        # 토허 광역 지정은 조정지역 목록과 동일 범위 + 만료일 존재. 만료 가드 필수.
-        expiry = date(2027, 12, 31) if zone_name in ("구리시", "용인시 기흥구", "화성시 동탄구") \
-            else date(2026, 12, 31)
-        if today <= expiry:
+    if adjusted is True and is_apartment and expiry_s:
+        try:
+            expiry = date.fromisoformat(expiry_s)
+        except ValueError:
+            expiry = None
+            notes.append("토허 만료일 형식 오류 — regulated_zones.json 확인 필요")
+        if expiry and today <= expiry:
             land_permit = True
             notes.append("토지거래허가구역(아파트) — 경매 낙찰은 허가 불요·실거주 의무 미적용, 매도 시 매수인은 허가 대상")
-        else:
+        elif expiry:
             notes.append(f"토허구역 지정기간({expiry.isoformat()}) 경과 — 재지정 여부 확인 필요")
     return {
         "adjusted": adjusted,

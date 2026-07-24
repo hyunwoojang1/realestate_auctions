@@ -24,9 +24,9 @@ from .tax import BuyerProfile
 # ── 기본 가정값(§5-1·§5-3) — UI 슬라이더의 초기값이자, 사용자가 전부 조절할 수 있다. ──
 DEFAULT_EVICTION = 3_000_000      # 명도비(이사합의금·강제집행) — 물건별 편차 큼
 DEFAULT_REGISTRY = 500_000        # 법무사 보수 + 국민주택채권 할인 등 등기 부대비
-DEFAULT_LTV = 0.70                # 경락잔금대출 통상 수준
-DEFAULT_LOAN_RATE = 0.05          # 연 이자율
-DEFAULT_HOLDING_MONTHS = 24       # 보유기간(2년 = 단기세율 회피 하한)
+DEFAULT_LTV = 0.70                # 경락잔금대출 통상 수준 (사용자 결정 D2: 낙찰가 70% 기본)
+DEFAULT_LOAN_RATE = 0.055         # 연 이자율 — 2금융 경락잔금 통상(사용자 결정 D8, 2026-07-24)
+DEFAULT_HOLDING_MONTHS = 6        # 보유기간 — 단기매매 전략 기본(사용자 결정, 2026-07-24. 종전 24)
 MAX_LTV = 0.80                    # 방공제·신용 감안 상한 캡
 
 # ── 양도소득세(§5-5) ──

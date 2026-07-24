@@ -445,8 +445,14 @@ def create_app() -> Flask:
 
     from . import regulation  # noqa: PLC0415
     app.jinja_env.globals["regulation_classify"] = regulation.classify
-    app.jinja_env.globals["dealsim_rules_json"] = (
-        ROOT / "data" / "dealsim_rules.json").read_text(encoding="utf-8")
+    # 규칙 파일 부재가 앱 부팅을 죽이면 안 된다(콜드부팅 실패 = 사이트 전체 500 — 2026-07-24 전례).
+    # 실패 시 "null" 주입 → 템플릿 JS 가 존만 비활성하고 나머지 페이지는 정상.
+    try:
+        app.jinja_env.globals["dealsim_rules_json"] = (
+            ROOT / "data" / "dealsim_rules.json").read_text(encoding="utf-8")
+    except OSError:
+        logger.error("data/dealsim_rules.json 없음 — 딜 시뮬 존 비활성(배포 번들 확인 필요)")
+        app.jinja_env.globals["dealsim_rules_json"] = "null"
 
     @app.get("/apple-touch-icon.png")
     def apple_icon():

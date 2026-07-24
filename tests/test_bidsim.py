@@ -20,7 +20,8 @@ def _inp(**kw):
     """3억 아파트(84㎡) 기본 시나리오 — 개별 테스트가 필요한 필드만 덮어쓴다."""
     base = dict(
         bid_price=300_000_000, property_type="아파트", area_m2=84.0,
-        sell_price=400_000_000, holding_months=24, profile=P1,
+        sell_price=400_000_000, holding_months=24, loan_rate=0.05, profile=P1,
+        # 황금값은 명시 파라미터로 고정 — 기본값(D2/D8 사용자 결정으로 변경 가능)에 의존하지 않는다.
     )
     base.update(kw)
     return bidsim.SimInput(**base)
@@ -333,9 +334,9 @@ def test_bidsim_api_defaults_and_garbage_input():
 
 def test_bidsim_api_clamps_ltv_and_rate():
     """LTV·금리 상한 클램프 — 사용자 입력이 그대로 계산에 들어가지 않는다."""
-    d = _client().get("/api/bidsim?bid=100000000&sell=200000000&ltv=999&rate=999").get_json()
+    d = _client().get("/api/bidsim?bid=100000000&sell=200000000&months=24&ltv=999&rate=999").get_json()
     assert d["loan_amount"] == round(100_000_000 * bidsim.MAX_LTV)
-    # 금리 상한 30%로 잘려 이자가 유한하다(2년 기준)
+    # 금리 상한 30%로 잘려 이자가 유한하다(명시한 24개월 = 2년 기준)
     assert d["interest_total"] == round(d["loan_amount"] * 0.30 * 2)
 
 

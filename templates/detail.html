@@ -93,6 +93,7 @@
         "gate gate"
         "nums vis"
         "sim  sim"
+        "dlz  dlz"
         "low  low"
         "foot foot"
         "bar  bar";
@@ -228,7 +229,9 @@
   .dsim-hero .s{display:block;font-size:10.5px;font-weight:600;color:var(--ink-400);margin-top:3px}
   .dsim-out .drow .v{font-variant-numeric:tabular-nums}
   .dsim-busy{opacity:.45;transition:opacity .12s}
-  @media(min-width:1100px){ .dsim-body{grid-template-columns:minmax(0,340px) minmax(0,1fr);gap:22px} }
+  .dsim-cols{display:grid;grid-template-columns:1fr;gap:0 26px;align-items:start}
+  @media(min-width:1100px){ .dsim-body{grid-template-columns:minmax(0,340px) minmax(0,1fr);gap:22px}
+    .dsim-cols{grid-template-columns:1fr 1fr} }
 </style>
 {% endblock %}
 
@@ -679,6 +682,10 @@
             <span class="s" id="sm-roi-ann">{% if sim.roi_annual is not none %}연환산 {{ '%.1f'|format(sim.roi_annual * 100) }}%{% else %}실투자금 없음{% endif %}</span></div>
         </div>
 
+        {# 넓은 화면에서 취득/보유·매도 두 단계를 2단으로 접어 결과 패널 높이를 절반으로
+           (2026-07-24 사용자 피드백 "오른쪽이 굳이 너무 크다") — 모바일은 세로 스택 유지. #}
+        <div class="dsim-cols">
+        <div>
         <div class="dsec-h">취득 단계</div>
         <div class="drow"><span class="k">입찰가</span><span class="v" id="sm-r-bid">{{ won_fine(sim.bid) }}</span></div>
         <div class="drow"><span class="k">+ 취득세 <span class="hint">({{ tax_label }} · 입찰가 기준 재계산)</span></span><span class="v" id="sm-acqtax">{{ won_fine(sim.acquisition_tax) }}</span></div>
@@ -688,16 +695,22 @@
         <div class="drow total"><span class="k">= 총투입</span><span class="v" id="sm-total">{{ won_fine(sim.total_acquisition) }}</span></div>
         <div class="drow"><span class="k">− 대출 <span class="hint">(경락잔금대출)</span></span><span class="v" id="sm-loan">{{ won_fine(sim.loan_amount) }}</span></div>
         <div class="drow total"><span class="k">= 실투자금 <span class="hint">(내 돈)</span></span><span class="v" id="sm-equity">{{ won_fine(sim.equity) }}</span></div>
-
+        </div>
+        <div>
         <div class="dsec-h">보유·매도 단계</div>
         <div class="drow"><span class="k">− 대출이자 <span class="hint">(거치식 단순이자)</span></span><span class="v neg" id="sm-interest">{{ won_fine(sim.interest_total) }}</span></div>
         <div class="drow"><span class="k">− 매도 중개보수 <span class="hint">(상한요율)</span></span><span class="v neg" id="sm-fee">{{ won_fine(sim.agent_fee) }}</span></div>
         <div class="drow"><span class="k">− 양도세+지방소득세 <span class="hint" id="sm-trate">{{ sim.transfer_detail['세율'] }}</span></span><span class="v neg" id="sm-ttax">{{ won_fine(sim.transfer_tax) }}</span></div>
         <div class="drow grand"><span class="k">= 세후 순익</span><span class="v" id="sm-net2">{{ won_fine(sim.net_profit) }}</span></div>
+        </div>
+        </div>
       </div>
     </div>
     <div class="dnote">↳ <b>전부 가정 기반 추정</b>이며 세무 자문이 아닙니다. 보수적으로 잡은 부분: 명도비·수리비·미납관리비·이자는 양도세 <b>필요경비 미공제</b>(실제로는 자본적지출 일부가 인정될 수 있어 세금이 더 적을 수 있음), 1세대1주택 비과세·장기보유 표2(최대 80%) <b>미적용</b>, 중개보수는 <b>상한요율</b>. 오피스텔은 취득세만 비주택(4.6%)이고 양도세 단기세율은 주택(70/60%)으로 봅니다. 실제 낙찰가는 경쟁에 따라 달라집니다. <a href="/guide#tax">↳ 세금 가이드</a></div>
   </div>
+
+  {# 신분·기간 전략 비교(딜 시뮬) — 위 시뮬레이터의 입력을 구독하는 자매 존 #}
+  {% include "_dealsim.html" %}
 
   <!-- ══════ 아래: 판단 · 참고 (매수 적정성 | 감정 요항) ══════ -->
   <div class="dlow">

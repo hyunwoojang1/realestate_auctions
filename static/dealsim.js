@@ -139,31 +139,41 @@
     var repair = o.repairCost || 0;
 
     if (o.profile === 'corp') {
-      // 법인: 경비 폭넓게 인정(이자·명도비·중개보수 포함). 주택이면 추가과세 +20%p(토글 시 제외).
+      // 법인 본세: 경비 폭넓게 인정(이자·명도비·중개보수 포함 — 손금).
       var profit = o.salePrice - (o.bid + o.acqTaxTotal + stamp + registry + o.assumedAmount
                                   + o.evictCost + o.unpaidMgmt + repair + o.interest + fee);
       var base = corpIncomeTax(rules, profit);
+      // 추가과세(§55조의2) 과표는 본세와 별도: 양도가액 − **장부가액**(취득원가 자본화분 =
+      // 낙찰가+취득세+인지세+등기+인수금). 이자(기간비용)·중개보수(양도비용)·명도비는 장부가액이
+      // 아니므로 여기서 빼면 추가과세 과소(낙관) — 감사 확정 결함의 수정.
+      var addBase = Math.max(0, o.salePrice - (o.bid + o.acqTaxTotal + stamp + registry + o.assumedAmount));
       var add = 0;
-      if (o.housingForTransfer && profit > 0) {
+      if (o.housingForTransfer && addBase > 0) {
         if (o.applyCorpAuctionExclusion) {
           notes.push('경매취득 3년 내 양도 추가과세 제외 토글 적용 중 — 제3자 낙찰 법인 적용 여부는 유권해석 필요(기본은 미적용)');
         } else {
-          add = Math.round(profit * rules.corp.housing_addtax);
+          add = Math.round(addBase * rules.corp.housing_addtax);
         }
       }
       national = Math.max(0, base + add);
       method = '법인세(10~25% 구간)' + (add ? ' + 주택 추가과세 20%p' : '');
     } else if (o.profile === 'dealer') {
-      // 매매사업자: 경비 폭넓게 인정. 중과대상(조정지역 & 세대 2주택 이상)만 §64 비교과세,
-      // 그 외 주택 단기는 **기본세율 종합과세**(§64 가 단기세율을 인용하지 않음 — 원문 검증 확정).
+      // 매매사업자: 종소세 후보는 경비 폭넓게(이자·명도 포함). 중과대상(조정지역 & 세대 2주택 이상)만
+      // §64 비교과세, 그 외 주택 단기는 **기본세율 종합과세**(§64 가 단기세율 미인용 — 원문 검증 확정).
       var p = o.salePrice - (o.bid + o.acqTaxTotal + stamp + registry + o.assumedAmount
                              + o.evictCost + o.unpaidMgmt + repair + o.interest + fee);
       var cands = [basicIncomeTax(rules, p)];
       method = '종합소득세(기본세율)';
       if (o.housingForTransfer && o.adjusted && o.housesAfter >= 2) {
+        // §64 비교 후보의 과표는 '주택등매매차익' = **양도소득 방식**(시행령 §122: 매매가액 −
+        // §97 필요경비(취득가액·양도비) − 기본공제 250만). 이자·명도비 등 일반경비는 여기 불산입 —
+        // 광의 경비 차익(p)으로 계산하면 세액 과소(낙관), 감사 확정 결함의 수정.
+        var tbase = Math.max(0, o.salePrice
+          - (o.bid + o.acqTaxTotal + stamp + registry + fee + o.assumedAmount)
+          - R.basic_deduction_annual);
         var sur = o.housesAfter >= 3 ? R.multi_home_surcharge.homes_3_plus : R.multi_home_surcharge.homes_2;
-        cands.push(surchargedTax(rules, p, sur));
-        if (o.holdMonths < 24) cands.push(Math.round(Math.max(0, p) * (o.holdMonths < 12 ? R.short_term.housing.lt_1y : R.short_term.housing.lt_2y)));
+        cands.push(surchargedTax(rules, tbase, sur));
+        if (o.holdMonths < 24) cands.push(Math.round(tbase * (o.holdMonths < 12 ? R.short_term.housing.lt_1y : R.short_term.housing.lt_2y)));
         method = '비교과세(§64) — 종소세 vs 중과/단기 중 큰 세액';
         notes.push('조정대상지역 + 세대 ' + o.housesAfter + '주택 → 중과대상 주택으로 비교과세 진입');
       } else if (o.holdMonths < 24) {
@@ -240,17 +250,21 @@
     };
   }
 
-  // 소유 구간 [취득일, 취득일+holdMonths]가 6월 1일(재산세·종부세 과세기준일)을 지나는가
-  function spansJune1(acqDateStr, holdMonths) {
+  // 소유 구간 [취득일, 취득일+holdMonths]가 6월 1일(재산세·종부세 과세기준일)을 몇 번 지나는가.
+  // 18·30개월 보유는 6/1 을 2~3번 만날 수 있다 — 1회로 고정하면 다년 보유 세후익 과대(감사 확정 결함).
+  function countJune1(acqDateStr, holdMonths) {
     var a = new Date(acqDateStr + 'T00:00:00');
-    if (isNaN(a)) return false;
+    if (isNaN(a)) return 0;
     var b = new Date(a); b.setMonth(b.getMonth() + holdMonths);
+    var n = 0;
     for (var y = a.getFullYear(); y <= b.getFullYear(); y++) {
       var j = new Date(y, 5, 1); // 6/1
-      if (j > a && j <= b) return true;
+      if (j > a && j <= b) n++;
     }
-    return false;
+    return n;
   }
+
+  function spansJune1(acqDateStr, holdMonths) { return countJune1(acqDateStr, holdMonths) > 0; }
 
   // ── 프로필 1개 전체 현금흐름 ─────────────────────────────────────────
   function simulateProfile(rules, facts, inputs, profile, holdMonths) {
@@ -272,10 +286,13 @@
 
     var tl = facts.saleDate ? timeline(facts.saleDate) : null;
     var propTax = 0, propNote = null;
-    if (tl && facts.isHousingAcq && spansJune1(tl.payment_deadline, holdMonths)) {
-      var pt = propertyTaxApprox(rules, inputs.salePrice);
-      propTax = pt.total;
-      propNote = '보유 구간이 6/1(과세기준일)을 지남 — 재산세 약식 ' + pt.assumption;
+    if (tl && facts.isHousingAcq) {
+      var nJune = countJune1(tl.payment_deadline, holdMonths);
+      if (nJune > 0) {
+        var pt = propertyTaxApprox(rules, inputs.salePrice);
+        propTax = pt.total * nJune;   // 연도별 발생 — 다년 보유는 곱한다
+        propNote = '보유 구간이 6/1(과세기준일)을 ' + nJune + '회 지남 — 재산세 약식 ×' + nJune + ' (' + pt.assumption + ')';
+      }
     }
 
     var st = saleTax(rules, {
@@ -300,13 +317,20 @@
     };
   }
 
-  // 손익분기 매도가 역산(이분탐색 — 순익은 매도가에 단조증가)
+  // 손익분기 매도가 역산(이분탐색 — 순익은 매도가에 단조증가).
+  // ⚠ 근을 반드시 괄호로 감싼다: 상한에서 순익이 음수인 채 탐색하면 상한값(임의 캡)이 그대로
+  // 반환돼 손익분기가 1억+ 낮게 표시됐다(인수액 큰 물건 + 매도가 0 초기값 — 감사 확정 결함).
   function breakeven(rules, facts, inputs, profile, holdMonths) {
-    var lo = 1000000, hi = Math.max(inputs.bidPrice * 4, inputs.salePrice * 3);
+    function net(x) {
+      return simulateProfile(rules, facts, Object.assign({}, inputs, { salePrice: x }), profile, holdMonths).netProfit;
+    }
+    var lo = 0, hi = Math.max(inputs.bidPrice * 4, inputs.salePrice * 3, 100000000);
+    var guard = 0;
+    while (guard++ < 50 && net(hi) <= 0) hi *= 2;   // 상한 배증 확장으로 근 포섭
+    if (net(hi) <= 0) return null;                   // 이 조건에선 손익분기 자체가 없음(정직 표기)
     for (var i = 0; i < 60; i++) {
       var mid = (lo + hi) / 2;
-      var r = simulateProfile(rules, facts, Object.assign({}, inputs, { salePrice: mid }), profile, holdMonths);
-      if (r.netProfit > 0) hi = mid; else lo = mid;
+      if (net(mid) > 0) hi = mid; else lo = mid;
     }
     return Math.round(hi);
   }
@@ -324,11 +348,13 @@
       current[p].breakeven = breakeven(rules, facts, inputs, p, inputs.holdMonths);
     });
     var warnings = [];
+    if (facts.rightsUnverified) warnings.push('권리분석 미확인 물건 — 인수금·명도비가 기본 가정(0·최소)으로 계산됨. 명세서·등기부 확인 전에는 이 숫자를 하한으로 믿지 말 것');
     if (facts.burdenUnknown) warnings.push('인수금액 미상 — 아래 숫자는 하한이 아님(명세서 인수 명시·금액 불명)');
     if (facts.regulated && facts.regulated.adjusted === 'check') warnings.push('규제지역 판정 불가(화성시 비동탄 등) — 비규제 가정으로 계산, 확인 필요');
     if (facts.regulated && facts.regulated.landPermit) warnings.push('토지거래허가구역 — 경매 낙찰은 허가 불요(법 §14②2호)·실거주 의무도 미적용, 단 매도 시 매수인은 허가 대상');
     if (facts.isHousingAcq === false && facts.housingForTransfer) warnings.push('오피스텔: 취득세는 4.6%(비주택), 양도세는 주거용 사용 시 주택 취급 가정 — 실사용에 따라 달라짐');
-    if ((facts.areaM2 || 0) > 85) warnings.push('전용 85㎡ 초과: 매매사업자·법인 매도 시 건물분 부가세 10% 발생 가능(미계산)');
+    // 부가세 리스크: 85㎡ 초과 주택뿐 아니라 상가·업무용 오피스텔·토지는 면적 무관(감사 확정 — 종전엔 85 초과만 경고)
+    if (!facts.isHousingAcq || (facts.areaM2 || 0) > 85) warnings.push('매매사업자·법인 매도 시 건물분 부가세 10% 발생 가능(85㎡ 초과 주택·상가·업무용 오피스텔 — 미계산)');
     warnings.push('종부세 미계산(법인·매매사업자는 6/1 보유 시 별도 유의) · DSR/개인 소득 미반영 · 세무 조언 아님(기준일 ' + rules._meta.basis_date + ')');
     return { matrix: matrix, current: current, warnings: warnings, bands: MONTH_BANDS };
   }
@@ -338,7 +364,8 @@
     longTermDeductionRate: longTermDeductionRate,
     basicIncomeTax: basicIncomeTax, corpIncomeTax: corpIncomeTax,
     saleTax: saleTax, propertyTaxApprox: propertyTaxApprox, timeline: timeline,
-    spansJune1: spansJune1, simulateProfile: simulateProfile, breakeven: breakeven, simulate: simulate,
+    spansJune1: spansJune1, countJune1: countJune1,
+    simulateProfile: simulateProfile, breakeven: breakeven, simulate: simulate,
     MONTH_BANDS: MONTH_BANDS,
   };
   if (typeof module !== 'undefined' && module.exports) module.exports = api;
