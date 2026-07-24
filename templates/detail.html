@@ -173,6 +173,15 @@
   .ddetail .drow.grand .k{font-weight:700;color:var(--ink-800)}
   .ddetail .drow.grand .v{font-size:17px;font-weight:800}
 
+  /* ── 원문 바로가기 — 카드 헤더의 소형 링크 + 클립보드 토스트 ── */
+  .srclink{margin-left:6px;font-size:11.5px;font-weight:700;color:var(--brand);
+    text-decoration:none;white-space:nowrap;letter-spacing:0}
+  .srclink:hover{text-decoration:underline}
+  .copy-toast{position:fixed;left:50%;bottom:calc(64px + env(safe-area-inset-bottom,0px));
+    transform:translateX(-50%);z-index:81;background:var(--ink-800);color:var(--surface);
+    border-radius:999px;padding:9px 16px;font-size:12.5px;font-weight:700;max-width:88vw;
+    box-shadow:0 6px 20px rgba(0,0,0,.25);pointer-events:none}
+
   /* ── 재매각 경고 배너 — 일반 게이트바(주의색)보다 강한 위험색 ── */
   .gatebar.resale{background:var(--risk-weak);border-color:var(--risk-line);
     border-left-color:var(--risk)}
@@ -240,6 +249,14 @@
 {%- set has_burden = badge and (badge.assumed or badge.amount_unknown) -%}
 {%- set hero_p = hero_worst -%}{# 하위 블록 호환 — 최악값 #}
 {%- set cut_rate = (1 - s.min_bid_price / s.appraisal_price) if s.appraisal_price > 0 else none -%}
+{#- 원문 바로가기(2026-07-24) — 데이터의 원천 사이트로 직행하는 다리.
+    · 법원경매: SPA 라 물건 딥링크 불가(파라미터가 메모리 전달 — 라이브 프로브로 확정).
+      대신 **경매사건검색 화면**(PGJ159M00, w2xPath 직행 검증됨)을 열고 사건번호를 클립보드에
+      복사한다 — 법원 선택 + 붙여넣기 한 번이면 도착.
+    · 네이버: complex_no 로 단지 페이지 완전 딥링크(new.land). 매칭 물건(2,835건)만 노출.
+    · 등기: 인터넷등기소는 로그인·유료라 딥링크 없음 — 열람 첫 화면 + 소재지 주소 복사. -#}
+{%- set court_src_url = 'https://www.courtauction.go.kr/pgj/index.on?w2xPath=/pgj/ui/pgj100/PGJ159M00.xml' -%}
+{%- set naver_complex = s.naver.complex_no if s.naver and s.naver.complex_no else none -%}
 
 <a class="back" href="/">← 1차 필터 목록</a>
 
@@ -264,7 +281,11 @@
         <input type="hidden" name="court" value="{{ s.court }}"><input type="hidden" name="item" value="{{ s.item_no }}">
         <button type="submit">{% if watching %}★ 관심 해제{% else %}☆ 관심 등록{% endif %}</button>
       </form>
-      <a class="primary" href="https://www.courtauction.go.kr" target="_blank" rel="noopener">법원경매 원문 →</a>
+      {% if naver_complex %}<a href="https://new.land.naver.com/complexes/{{ naver_complex }}" target="_blank" rel="noopener">네이버 시세 ↗</a>{% endif %}
+      <a class="js-copyopen" href="https://www.iros.go.kr/" target="_blank" rel="noopener"
+         data-copy="{{ s.address }}" data-msg="주소가 복사되었습니다 — 등기소 부동산 열람 검색창에 붙여넣으세요">등기 열람 ↗</a>
+      <a class="primary js-copyopen" href="{{ court_src_url }}" target="_blank" rel="noopener"
+         data-copy="{{ s.case_no }}" data-msg="사건번호 복사됨 — {{ s.court }} 선택 후 붙여넣으세요">법원 원문 ↗</a>
     </div>
   </div>
   </div><!-- /dhead -->
@@ -461,7 +482,7 @@
     <!-- KB 시세·호가·전세 (네이버 경유) -->
     {% if s.naver and s.naver.status in ('matched_kb','matched_ask') %}
     <div class="dstep-head"><span class="dstep-num">KB</span>
-      <h2>KB 시세·호가·전세 <span class="sub">· 네이버 경유</span> {{ srcpill('kb') }}</h2></div>
+      <h2>KB 시세·호가·전세 <span class="sub">· 네이버 경유</span> {{ srcpill('kb') }}{% if naver_complex %} <a class="srclink" href="https://new.land.naver.com/complexes/{{ naver_complex }}" target="_blank" rel="noopener">네이버에서 보기 ↗</a>{% endif %}</h2></div>
     <div class="dpanel">
       {% if s.naver.kb_avg %}
       <div class="kbband">
@@ -484,7 +505,7 @@
     {% if rights %}
     <!-- 법원 매각물건명세서 요지 -->
     <div class="dstep-head"><span class="dstep-num{% if rights.has_risk_text %} risk{% else %} ok{% endif %}">§</span>
-      <h2>법원 매각물건명세서 요지 <span class="sub">· 물건상세 수집 {{ rights.fetched_at[:10] }}</span></h2></div>
+      <h2>법원 매각물건명세서 요지 <span class="sub">· 물건상세 수집 {{ rights.fetched_at[:10] }}</span> <a class="srclink js-copyopen" href="{{ court_src_url }}" target="_blank" rel="noopener" data-copy="{{ s.case_no }}" data-msg="사건번호 복사됨 — {{ s.court }} 선택 후 붙여넣으세요">법원 원문 ↗</a></h2></div>
     <div class="dpanel{% if rights.has_risk_text %} risk{% endif %}">
       {% if rights.surviving_is_real %}
       <div class="dbanner risk">⛔ <b>매수인에게 인수되는 권리</b> — {{ rights.surviving_rights | deent }}</div>
@@ -755,7 +776,8 @@
       <input type="hidden" name="court" value="{{ s.court }}"><input type="hidden" name="item" value="{{ s.item_no }}">
       <button type="submit">{% if watching %}★ 관심 해제{% else %}☆ 관심 등록{% endif %}</button>
     </form>
-    <a class="primary" href="https://www.courtauction.go.kr" target="_blank" rel="noopener">법원경매 원문 →</a>
+    <a class="primary js-copyopen" href="{{ court_src_url }}" target="_blank" rel="noopener"
+       data-copy="{{ s.case_no }}" data-msg="사건번호 복사됨 — {{ s.court }} 선택 후 붙여넣으세요">법원 원문 ↗</a>
   </div>
 
 </div>
@@ -1060,6 +1082,34 @@
   if(rng) rng.addEventListener('click',function(e){ var b=e.target.closest('button'); if(!b)return;
     rangeMode=b.dataset.r; rng.querySelectorAll('button').forEach(function(x){ x.setAttribute('aria-pressed', x===b); }); draw(); });
   draw();
+})();
+</script>
+
+<script>
+/* 원문 바로가기 — 새 탭은 앵커 기본 동작(target=_blank)에 맡기고, 같은 제스처 안에서
+   식별자(사건번호/주소)를 클립보드에 복사 + 안내 토스트. 법원 SPA 는 물건 딥링크가 없어서
+   (파라미터 메모리 전달 — 2026-07-24 프로브) '사건검색 화면 직행 + 붙여넣기 1회'가 최단 경로다.
+   클립보드 실패(비보안 컨텍스트·권한)해도 새 탭은 열린다 — 링크가 주기능, 복사는 보조. */
+(function(){
+  var links = document.querySelectorAll('.js-copyopen');
+  if (!links.length) return;
+  var toast = document.createElement('div');
+  toast.className = 'copy-toast';
+  toast.hidden = true;
+  document.body.appendChild(toast);
+  var tm;
+  links.forEach(function(a){
+    a.addEventListener('click', function(){
+      var txt = a.getAttribute('data-copy');
+      if (txt && navigator.clipboard && navigator.clipboard.writeText) {
+        navigator.clipboard.writeText(txt).catch(function(){});
+      }
+      toast.textContent = a.getAttribute('data-msg') || '복사되었습니다';
+      toast.hidden = false;
+      clearTimeout(tm);
+      tm = setTimeout(function(){ toast.hidden = true; }, 4000);
+    });
+  });
 })();
 </script>
 
