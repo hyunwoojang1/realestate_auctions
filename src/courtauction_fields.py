@@ -480,6 +480,29 @@ def parse_row(raw: dict) -> CourtAuctionRecord:
     )
 
 
+# ── 부분 지분 매각 검출 (2026-07-24, 실사고: 죽전자이2차 2025타경55336) ──
+# 지분 표기는 비고(mulBigo)가 아니라 **maejibun(매각지분)** 필드에 온다 — 종전엔 비고만
+# 검출기에 넣어 1/2 지분(감정 3.55억 = 온전가의 절반)이 같은 단지 온전 세대 실거래로
+# 채점돼 허구 차익 3.69억·점수 95.5 '차익 유력'으로 서빙됐다(미탐 클래스 실측 5건).
+# 경계(실데이터 확정 — 오탐은 온전 물건을 오배제하므로 양쪽 다 지킨다):
+#   · "N분의M … 지분" / "N/M … 지분"(20자 내 결합)  → 부분 지분
+#   · '전원' 포함("공유자 전원의 지분 전부")        → 온전 매각 — 제외
+#   · 대지권 비율("500분의 21.7849")               → '지분' 결합 없음 — 자연 제외
+#   · 비고의 '공유자 우선매수' 문구                 → 공유자 존재 = 부분 지분 보조 신호
+_SHARE_FRACTION_RE = re.compile(r"(?:\d+\s*분의\s*[\d.]+|\d+\s*/\s*\d+)[^\n]{0,20}?지분")
+_COOWNER_PREEMPT_RE = re.compile(r"공유자.{0,10}우선\s*매수")
+
+
+def is_partial_share(maejibun: str | None, note: str | None) -> bool:
+    """이 매각이 온전 소유권이 아닌 '부분 지분'인가 — maejibun 우선, 비고 공유자문구 보조."""
+    mj = maejibun or ""
+    if "전원" in mj:
+        return False          # '공유자 전원의 지분 전부' = 100% 온전 매각
+    if _SHARE_FRACTION_RE.search(mj):
+        return True
+    return bool(_COOWNER_PREEMPT_RE.search(note or ""))
+
+
 def to_auction_listing(rec: CourtAuctionRecord) -> AuctionListing:
     """차익 스코어 파이프라인(matcher/score)이 쓰는 기존 모델로 변환.
 
@@ -501,6 +524,11 @@ def to_auction_listing(rec: CourtAuctionRecord) -> AuctionListing:
     )
 
     special = detect_special_rights(rec.note) if rec.note else []
+    # (2026-07-24) 부분 지분은 maejibun 필드로 검출 — '지분' 라벨이 있으면 matcher 의
+    # estimate_market 이 SCOPE_SHARE_SALE 로 시세 자체를 거부한다(온전가 비교 무의미).
+    if "지분" not in special and is_partial_share(
+            (rec.raw or {}).get("maejibun"), rec.note):
+        special = [*special, "지분"]
     # 비고 기반 Tier-0 권리 힌트. 상세(D) 보강 시 apply_rights 가 덮어쓴다.
     opposable = detect_tenant_opposable(rec.note) if rec.note else False
     assumed = detect_assumed_amount(rec.note) if rec.note else 0
