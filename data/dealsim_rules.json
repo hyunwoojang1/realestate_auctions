@@ -1,0 +1,118 @@
+{
+  "_meta": {
+    "basis_date": "2026-07-24",
+    "derived_from": "data/tax_rules.json (8도메인 원문 검증·적대 재검증 완료분만 압축)",
+    "disclaimer": "세무 조언 아님. 모든 세율은 기준일 현재 검증본 — 의사결정 전 세무사·원문 확인 필수.",
+    "units": "세율은 소수(0.01=1%), 금액은 원"
+  },
+  "acquisition": {
+    "housing_standard_brackets": {
+      "le_600m": 0.01,
+      "600m_to_900m_formula": "rate = clamp(price * 2 / 300000000 - 3, 1, 3) / 100",
+      "gt_900m": 0.03
+    },
+    "housing_surcharge": {
+      "adjusted": { "homes_2": 0.08, "homes_3_plus": 0.12 },
+      "non_adjusted": { "homes_2": "standard", "homes_3": 0.08, "homes_4_plus": 0.12 },
+      "corp": 0.12,
+      "note_temp_2home": "일시적 2주택(기한 내 종전주택 처분)은 조정지역이라도 표준세율 — 엔진은 표준·중과 병기 표시"
+    },
+    "non_housing_total": 0.046,
+    "edu_tax": { "standard_formula": "취득세율 × 0.1 (1%→0.1% ... 3%→0.3%)", "surcharge_or_nonhousing": 0.004 },
+    "farm_special_tax": {
+      "housing_le_85m2": 0.0,
+      "housing_gt_85m2": { "standard": 0.002, "surcharge_8": 0.006, "surcharge_12": 0.010 },
+      "included_in_non_housing_total": 0.002
+    },
+    "auction": { "timing": "매각대금 완납일 = 취득일 (등기 무관)", "tax_base": "낙찰가(사실상취득가격)", "rate_relief": "없음 — 일반 매매와 동일 매트릭스", "filing": "완납일부터 60일 내 신고납부" }
+  },
+  "transfer_individual": {
+    "short_term": {
+      "housing": { "lt_1y": 0.70, "lt_2y": 0.60 },
+      "non_housing": { "lt_1y": 0.50, "lt_2y": 0.40 },
+      "presale_right": { "lt_1y": 0.70, "ge_1y": 0.60 }
+    },
+    "basic_brackets": [
+      { "upto": 14000000, "rate": 0.06, "deduction": 0 },
+      { "upto": 50000000, "rate": 0.15, "deduction": 1260000 },
+      { "upto": 88000000, "rate": 0.24, "deduction": 5760000 },
+      { "upto": 150000000, "rate": 0.35, "deduction": 15440000 },
+      { "upto": 300000000, "rate": 0.38, "deduction": 19940000 },
+      { "upto": 500000000, "rate": 0.40, "deduction": 25940000 },
+      { "upto": 1000000000, "rate": 0.42, "deduction": 35940000 },
+      { "upto": null, "rate": 0.45, "deduction": 65940000 }
+    ],
+    "local_surtax": 0.10,
+    "basic_deduction_annual": 2500000,
+    "multi_home_surcharge": {
+      "adjusted_area_only": true, "homes_2": 0.20, "homes_3_plus": 0.30,
+      "status": "2026-05-10 양도분부터 재개(유예 종료)", "vs_short_term": "단기세율 세액과 경합 시 큰 쪽(비교과세)",
+      "ltd_excluded": "중과 대상은 장기보유특별공제 배제"
+    },
+    "expenses": "취득세·중개·법무·자본적지출·양도비 필요경비 인정",
+    "auction_note": "낙찰자 취득가액 = 낙찰가 + 인수한 대항력 보증금(국심 2006서3481) + 부대비용. 보유기간 기산 = 대금완납일"
+  },
+  "dealer": {
+    "comp_tax_targets": ["분양권(보유기간 불문 70%/60% 경합)", "비사업용토지(+10%p 경합)", "미등기(70%)", "조정대상지역 중과대상 주택(소법 §104⑦ — 세대 2주택 이상 등)"],
+    "plain_house_short_term": {
+      "rule": "중과대상 아닌 주택의 단기 매매차익은 비교과세 대상 아님 — 기본세율(6~45%) 종합과세",
+      "verified": true,
+      "impact": "개인 단기 70%/60% 대비 매매사업자의 핵심 이점. 단 조정지역 + 세대 다주택이면 §104⑦로 비교과세 진입"
+    },
+    "brackets": "transfer_individual.basic_brackets 와 동일(소법 §55)",
+    "local_surtax": 0.10,
+    "interest_deductible": true,
+    "interim_return": "매매일 속한 달 말일부터 2개월 내 예정신고(기본세율 계산), 확정신고에서 §64 정산",
+    "business_recognition_risk": "계속·반복성 등 사업성 인정 필요 — 매매사업자 등록만으로 불충분, 과세관청 부인 가능(검증 확정)",
+    "jongbu_note": "재고주택도 종부세 합산과세 + 주택 수 포함(6/1 보유 시)"
+  },
+  "corp": {
+    "brackets_fy2026": [
+      { "upto": 200000000, "rate": 0.10 },
+      { "upto": 20000000000, "rate": 0.20 },
+      { "upto": 300000000000, "rate": 0.22 },
+      { "upto": null, "rate": 0.25 }
+    ],
+    "note_fy": "2026-01-01 이후 개시 사업연도부터(이전 개시분은 9/19/21/24%)",
+    "housing_addtax": 0.20,
+    "unregistered_addtax": 0.40,
+    "nonbiz_land_addtax": 0.10,
+    "local_surtax": 0.10,
+    "auction_3yr_addtax_exclusion": {
+      "rule": "저당권 실행·대물변제로 취득한 주택을 3년 내 양도 시 주택 추가과세(20%p) 제외 — 법인세법 시행령 §92조의2②3호 원문 확정",
+      "default_apply": false,
+      "caution": "제3자 경매 낙찰 법인에 적용되는지는 유권해석 확인 필요(채권자 취득 케이스 중심 해석 가능성) — 엔진 기본 미적용, 토글+경고로만 노출"
+    },
+    "acq_housing_effective": { "le_85m2": 0.124, "gt_85m2": 0.134 },
+    "acq_lowvalue_exclusion": "공시 1억 이하(비수도권 2억 이하) 주택은 12% 중과 제외"
+  },
+  "holding": {
+    "prop_tax_assessment_date": "06-01",
+    "prop_tax_taxpayer": "6/1 현재 사실상 소유자(잔금일·등기일 중 빠른 날 기준) — 경매는 대금완납일",
+    "prop_tax_housing_brackets": [
+      { "upto": 60000000, "rate": 0.001, "base": 0, "over": 0 },
+      { "upto": 150000000, "rate": 0.0015, "base": 60000, "over": 60000000 },
+      { "upto": 300000000, "rate": 0.0025, "base": 195000, "over": 150000000 },
+      { "upto": null, "rate": 0.004, "base": 570000, "over": 300000000 }
+    ],
+    "city_area_rate": 0.0014,
+    "edu_tax_on_prop": 0.20,
+    "fair_market_ratio": 0.60,
+    "approx_official_price_ratio": { "value": 0.70, "assumption": true, "note": "공시가격 미보유 — 시세×0.7 근사(가정 칩 필수)" },
+    "jongbu": { "v1": "미계산 — 경고만", "individual_deduction": 900000000, "one_home_deduction": 1200000000, "corp": "공제 0원·단일세율 2.7%/5.0% — 법인 6/1 보유 시 경고 표시" }
+  },
+  "vat": {
+    "v1": "미계산 — 조건 해당 시 경고만",
+    "warn_when": "매매사업자·법인이 전용 85㎡ 초과 주택 또는 상가·업무용 오피스텔 매매 시 건물분 부가세 10% 발생 가능(토지분 면세)"
+  },
+  "costs": {
+    "_note": "docs/tax-auction-knowledge.md §5 및 src/bidsim.py 상수와 1:1 — 같은 페이지의 입찰가 시뮬레이터와 숫자가 어긋나지 않도록 교차검증 테스트(test_dealsim_crosscheck)가 지킨다. 바꿀 땐 세 곳을 함께.",
+    "stamp_brackets": [[10000000, 0], [30000000, 20000], [50000000, 40000], [100000000, 70000], [1000000000, 150000], [null, 350000]],
+    "agent_fee_housing": [[50000000, 0.006, 250000], [200000000, 0.005, 800000], [900000000, 0.004, null], [1200000000, 0.005, null], [1500000000, 0.006, null], [null, 0.007, null]],
+    "agent_fee_residential_officetel": 0.005,
+    "agent_fee_nonhousing": 0.009,
+    "residential_officetel_max_m2": 85.0,
+    "registry_default": 500000,
+    "ltd": { "per_year": 0.02, "min_years": 3, "max_rate": 0.30 }
+  }
+}

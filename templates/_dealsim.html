@@ -1,0 +1,248 @@
+{#- 딜 시뮬레이션 — 신분·기간 전략 비교 존 (GOAL_DEAL_SIM Phase 3, 2026-07-24).
+
+    위 입찰가 시뮬레이터(bidsim)와 질문 분담:
+      bidsim = "그래서 얼마까지 써도 되나" (개인 정밀 — 인지세·중개보수·장특공)
+      딜심   = "어떤 신분·기간 전략으로 접근하나" (개인/매매사업자/법인 × 보유기간 매트릭스)
+    입찰가·매도가·대출·명도비 등 **모든 가정 입력은 bidsim 의 입력을 그대로 구독**한다 —
+    같은 페이지에서 두 계산기가 다른 가정을 쓰면 신뢰가 무너진다(U-04/U-05 감사 교훈).
+    개인 컬럼 숫자는 bidsim 과 원 단위 일치(test_dealsim_crosscheck 가 보증, 인수금 반영만 의도적 차이).
+    계산은 전부 클라이언트(static/dealsim.js) — 세율 단일 출처는 data/dealsim_rules.json. -#}
+{% set ds_reg = regulation_classify(s.address or '', s.property_type == '아파트') %}
+<div class="dlz" id="dealsim"
+     data-minbid="{{ s.min_bid_price }}" data-area="{{ s.area_m2 or 0 }}"
+     data-type="{{ s.property_type }}" data-saledate="{{ s.sale_date or '' }}"
+     data-occupant="{{ listing.occupant_type if listing else '' }}"
+     data-burden-unknown="{{ '1' if badge and badge.amount_unknown else '0' }}">
+<style>
+  .dlz{margin-top:var(--sp-5)}
+  /* 상위 .ddetail 그리드는 명명 영역제 — 자리를 안 주면 자동배치로 엉뚱한 행에 꽂힌다. */
+  @media(min-width:1100px){ .dlz{grid-area:dlz} }
+  .dlz-regrow{display:flex;flex-wrap:wrap;gap:8px;align-items:center;margin:10px 0 14px}
+  .dlz-chip{display:inline-flex;align-items:center;gap:5px;font-size:11.5px;font-weight:700;
+    padding:4px 10px;border-radius:999px;border:1px solid var(--hairline);background:var(--surface)}
+  .dlz-chip.on{border-color:color-mix(in srgb, var(--risk) 45%, transparent);color:var(--risk)}
+  .dlz-chip.permit{border-color:color-mix(in srgb, var(--brand) 45%, transparent);color:var(--brand)}
+  .dlz-chip.check{border-color:color-mix(in srgb, var(--caution) 55%, transparent);color:var(--caution)}
+  .dlz-chip .bd{font-weight:500;color:var(--ink-400)}
+  .dlz-ctl{display:flex;flex-wrap:wrap;gap:14px 22px;align-items:center;padding:10px 14px;
+    border:1px solid var(--hairline);border-radius:var(--r-md);background:var(--surface);margin-bottom:12px}
+  .dlz-ctl label{font-size:12px;font-weight:700;color:var(--ink-700);display:flex;gap:8px;align-items:center}
+  .dlz-ctl select{font:inherit;font-size:12.5px;padding:4px 8px;border:1px solid var(--hairline);
+    border-radius:8px;background:var(--surface)}
+  .dlz-ctl .sync{font-size:11px;font-weight:500;color:var(--ink-400)}
+  .dlz-tablewrap{overflow-x:auto;border:1px solid var(--hairline);border-radius:var(--r-md);background:var(--surface)}
+  .dlz-table{width:100%;border-collapse:collapse;font-variant-numeric:tabular-nums;min-width:640px}
+  .dlz-table th,.dlz-table td{padding:9px 14px;text-align:right;font-size:13px;border-bottom:1px solid var(--hairline)}
+  .dlz-table th:first-child,.dlz-table td:first-child{text-align:left}
+  .dlz-table thead th{font-size:11.5px;font-weight:800;color:var(--ink-500);background:var(--surface-sunken)}
+  .dlz-table thead th .s{display:block;font-size:10px;font-weight:500;color:var(--ink-400)}
+  .dlz-table td .roi{display:block;font-size:10.5px;font-weight:600;color:var(--ink-400)}
+  .dlz-table td .mth{display:block;font-size:10px;font-weight:500;color:var(--ink-400);max-width:190px;margin-left:auto}
+  .dlz-table tr.cur td{background:color-mix(in srgb, var(--brand) 5%, transparent)}
+  .dlz-table td.gain{color:var(--gain);font-weight:800}
+  .dlz-table td.neg{color:var(--risk);font-weight:800}
+  .dlz-table tr.sec td{font-size:12px;color:var(--ink-700)}
+  .dlz-table tr.grand td{font-weight:800;font-size:13.5px;border-top:2px solid var(--ink-900);border-bottom:0}
+  .dlz-k .h{display:block;font-size:10px;font-weight:500;color:var(--ink-400)}
+  .dlz-warn{margin:12px 0 0;padding:0;list-style:none;display:flex;flex-direction:column;gap:4px}
+  .dlz-warn li{font-size:11.5px;color:var(--ink-500);padding-left:16px;position:relative}
+  .dlz-warn li::before{content:'⚠';position:absolute;left:0;font-size:10px;color:var(--caution)}
+  .dlz-warn li.info::before{content:'ℹ';color:var(--ink-400)}
+</style>
+
+  <div class="dstep-head"><span class="dstep-num">⚖</span>
+    <h2>신분·기간 전략 비교 <span class="sub">· 같은 물건, <b>개인 / 매매사업자 / 법인</b>은 세후가 다릅니다 — 위 시뮬레이터 가정 그대로</span></h2></div>
+
+  {# ── 규제지역 배지(기준일 상시 노출 — 데이터 부패 방지 원칙) ── #}
+  <div class="dlz-regrow">
+    {% if ds_reg.adjusted == true %}
+      <span class="dlz-chip on">조정대상지역 · 투기과열지구 <span class="bd">{{ ds_reg.zone_name }}</span></span>
+    {% elif ds_reg.adjusted == 'check' %}
+      <span class="dlz-chip check">규제 여부 확인 필요 <span class="bd">{{ ds_reg.zone_name }} — 비규제 가정 계산</span></span>
+    {% else %}
+      <span class="dlz-chip">비규제지역</span>
+    {% endif %}
+    {% if ds_reg.land_permit %}
+      <span class="dlz-chip permit">토지거래허가구역 · <b>경매는 허가 불요</b> <span class="bd">실거주 의무도 미적용</span></span>
+    {% endif %}
+    <span class="dlz-chip"><span class="bd">규제 기준일 {{ ds_reg.basis_date }} · 세율 원문 검증본</span></span>
+  </div>
+
+  <div class="dlz-ctl">
+    <label for="dlz-houses">현재 보유 주택
+      <select id="dlz-houses">
+        <option value="0" selected>없음 (이번이 첫 주택)</option>
+        <option value="1">1주택 (취득 후 2주택)</option>
+        <option value="2">2주택 (취득 후 3주택)</option>
+        <option value="3">3주택 이상</option>
+      </select>
+    </label>
+    <label for="dlz-corpx" title="법인세법 시행령 §92조의2②3호 — 저당권 실행 취득 주택 3년 내 양도 시 추가과세 20%p 제외. 제3자 낙찰 법인에 적용되는지는 유권해석 확인 필요라 기본 미적용.">
+      <input type="checkbox" id="dlz-corpx"> 법인 경매취득 3년 특례 <span class="sync">(유권해석 필요)</span>
+    </label>
+    <span class="sync">입찰가·매도가·대출·명도비 등은 위 시뮬레이터 입력을 그대로 씁니다 · 대출 기본 70%</span>
+  </div>
+
+  <div class="dlz-tablewrap">
+    <table class="dlz-table" aria-label="신분별 세후 순익 비교">
+      <thead><tr>
+        <th>세후 순익 <span class="s">보유기간별 · 매도가 동일</span></th>
+        <th>개인 <span class="s">양도세 (단기 70/60%)</span></th>
+        <th>매매사업자 <span class="s">종합소득세 (사업성 인정 전제)</span></th>
+        <th>법인 <span class="s">법인세 + 주택 추가과세</span></th>
+      </tr></thead>
+      <tbody id="dlz-body">
+        <tr><td colspan="4" style="text-align:center;color:var(--ink-400)">계산 준비 중…</td></tr>
+      </tbody>
+    </table>
+  </div>
+  <ul class="dlz-warn" id="dlz-warn"></ul>
+  <div class="dnote">↳ 세율은 <b>원문 검증본(기준일 {{ ds_reg.basis_date }})</b> 기준이며 <b>세무 자문이 아닙니다</b> — 개정·개별 사정(세대 구성, 사업성 판정, 감면)에 따라 달라질 수 있어 의사결정 전 세무사 확인이 필요합니다. 매매사업자는 이 물건 단독 계산(다른 종합소득 미반영)이고, 재산세는 6/1 보유 시 약식(공시가=시세×70% 가정), 종부세·부가세는 미계산(경고로만 표시). <a href="/guide#tax">↳ 세금 가이드</a></div>
+
+  <script type="application/json" id="dlz-rules">{{ dealsim_rules_json | safe }}</script>
+  <script type="application/json" id="dlz-reg">{{ {'adjusted': ds_reg.adjusted, 'landPermit': ds_reg.land_permit} | tojson }}</script>
+  <script src="/dealsim.js"></script>
+  <script>
+  (function(){
+    'use strict';
+    var root = document.getElementById('dealsim');
+    if (!root || !window.DealSim) return;
+    var RULES = JSON.parse(document.getElementById('dlz-rules').textContent);
+    var REG = JSON.parse(document.getElementById('dlz-reg').textContent);
+    var TYPE = root.dataset.type || '';
+    var AREA = parseFloat(root.dataset.area) || 0;
+    var HOUSING_ACQ = ['아파트','연립','다세대','단독','주택','빌라'].some(function(t){ return TYPE.indexOf(t) >= 0; });
+    var IS_OFFI = TYPE.indexOf('오피스텔') >= 0;
+    var LS_KEY = 'dealsim.g';   // 전역 기억: 주택 수·법인 특례 토글
+
+    function fmt(v){
+      var sign = v < 0 ? '−' : '';
+      var a = Math.abs(v);
+      if (a >= 100000000) return sign + (a / 100000000).toFixed(2) + '억';
+      return sign + Math.round(a / 10000).toLocaleString() + '만';
+    }
+    // bidsim 입력 구독 헬퍼 — 없으면(레이아웃 변경 등) 폴백값으로 계속 동작한다.
+    function val(id, fallback, mult){
+      var el = document.getElementById(id);
+      if (!el) return fallback;
+      var v = parseFloat(el.value);
+      return isNaN(v) ? fallback : v * (mult || 1);
+    }
+
+    function gatherInputs(){
+      return {
+        bidPrice: val('sm-bid', parseInt(root.dataset.minbid, 10) || 0),
+        salePrice: val('sm-sell', 0, 10000),
+        loanRatio: val('sm-ltv', 70) / 100,
+        interestRate: val('sm-rate', 5.5) / 100,
+        holdMonths: val('sm-months', 6),
+        evictCost: val('sm-eviction', 100, 10000),
+        repairCost: val('sm-repair', 0, 10000),
+        unpaidMgmt: val('sm-unpaid', 0, 10000),
+        registryCost: val('sm-registry', 50, 10000),
+        housesOwned: parseInt(document.getElementById('dlz-houses').value, 10) || 0,
+        applyCorpAuctionExclusion: document.getElementById('dlz-corpx').checked,
+      };
+    }
+    function gatherFacts(){
+      return {
+        isHousingAcq: HOUSING_ACQ && !IS_OFFI,
+        housingForTransfer: HOUSING_ACQ || IS_OFFI,   // 오피스텔은 양도세만 주택 취급(보수 — bidsim §5-5 동일)
+        feeKind: IS_OFFI ? 'officetel' : (HOUSING_ACQ ? 'housing' : 'nonhousing'),
+        areaM2: AREA,
+        assumedAmount: Math.round(val('sm-assumed', 0, 10000)),
+        burdenUnknown: root.dataset.burdenUnknown === '1',
+        saleDate: root.dataset.saledate || null,
+        regulated: { adjusted: REG.adjusted, landPermit: REG.landPermit },
+      };
+    }
+
+    var PROFILES = ['individual', 'dealer', 'corp'];
+    var BAND_LABEL = {6: '1년 미만 매도 <span class="h">6개월 가정 · 개인 70%</span>',
+                      18: '1~2년 매도 <span class="h">18개월 가정 · 개인 60%</span>',
+                      30: '2년 이상 매도 <span class="h">30개월 가정 · 기본세율</span>'};
+
+    function cell(r, band){
+      var cls = r.netProfit > 0 ? 'gain' : 'neg';
+      var roi = r.roi !== null ? (r.roi * 100).toFixed(1) + '%' : '—';
+      return '<td class="' + cls + '">' + fmt(r.netProfit) +
+             '<span class="roi">수익률 ' + roi + (band ? '' : ' · ' + r.saleTax.method) + '</span></td>';
+    }
+
+    function render(){
+      var inputs = gatherInputs(), facts = gatherFacts();
+      var res = DealSim.simulate(RULES, facts, inputs);
+      var months = inputs.holdMonths;
+      var curBand = months < 12 ? 6 : months < 24 ? 18 : 30;
+      var html = '';
+      res.bands.forEach(function(band, bi){
+        html += '<tr class="' + (band === curBand ? 'cur' : '') + '"><td class="dlz-k">' + BAND_LABEL[band] + '</td>';
+        PROFILES.forEach(function(p){ html += cell(res.matrix[p][bi], true); });
+        html += '</tr>';
+      });
+      html += '<tr class="sec"><td class="dlz-k">취득세 <span class="h">현재 입찰가 기준</span></td>';
+      PROFILES.forEach(function(p){ html += '<td>' + fmt(res.current[p].acquisition.total) + '</td>'; });
+      html += '</tr><tr class="sec"><td class="dlz-k">실투자금 <span class="h">총투입 − 대출(기본 70%)</span></td>';
+      PROFILES.forEach(function(p){ html += '<td>' + fmt(res.current[p].cash) + '</td>'; });
+      html += '</tr><tr class="sec"><td class="dlz-k">매도세금 <span class="h">현재 보유기간 ' + months + '개월</span></td>';
+      PROFILES.forEach(function(p){
+        var c = res.current[p];
+        html += '<td>' + fmt(c.saleTax.total) + '<span class="mth">' + c.saleTax.method + '</span></td>';
+      });
+      html += '</tr><tr class="grand"><td class="dlz-k">손익분기 매도가 <span class="h">이 가격 이상에 팔아야 본전</span></td>';
+      PROFILES.forEach(function(p){ html += '<td>' + fmt(res.current[p].breakeven) + '</td>'; });
+      html += '</tr>';
+      document.getElementById('dlz-body').innerHTML = html;
+
+      var warn = document.getElementById('dlz-warn');
+      warn.innerHTML = res.warnings.map(function(w, i){
+        var info = i === res.warnings.length - 1;   // 마지막(면책 종합)은 정보 톤
+        return '<li' + (info ? ' class="info"' : '') + '></li>';
+      }).join('');
+      // 경고 문구는 textContent 로 — 데이터 유래 문자열의 HTML 해석 금지(XSS 가드).
+      Array.prototype.forEach.call(warn.children, function(li, i){ li.textContent = res.warnings[i]; });
+      var props = res.current[PROFILES[0]];
+      if (props.propNote) {
+        var li = document.createElement('li'); li.textContent = props.propNote; warn.appendChild(li);
+      }
+    }
+
+    // ── 명도비 D7 디폴트(공실 0 / 점유 100만) — 페이지 로드 시 1회, 공유 입력에 반영 ──
+    var ev = document.getElementById('sm-eviction');
+    if (ev) {
+      var occupant = root.dataset.occupant || '';
+      ev.value = occupant.indexOf('공실') >= 0 ? 0 : 100;
+      ev.dispatchEvent(new Event('input', { bubbles: true }));   // bidsim 도 같은 값으로 재계산
+    }
+
+    // 전역 기억 복원(주택 수·법인 특례)
+    try {
+      var saved = JSON.parse(localStorage.getItem(LS_KEY) || '{}');
+      if (saved.houses != null) document.getElementById('dlz-houses').value = String(saved.houses);
+      if (saved.corpx) document.getElementById('dlz-corpx').checked = true;
+    } catch (e) { /* 저장값 손상 시 기본값 */ }
+
+    var timer = null;
+    function recalc(){
+      clearTimeout(timer);
+      timer = setTimeout(function(){
+        try {
+          localStorage.setItem(LS_KEY, JSON.stringify({
+            houses: parseInt(document.getElementById('dlz-houses').value, 10) || 0,
+            corpx: document.getElementById('dlz-corpx').checked }));
+        } catch (e) { /* 시크릿 모드 등 — 기억만 포기 */ }
+        render();
+      }, 120);
+    }
+
+    ['sm-bid','sm-sell','sm-months','sm-ltv','sm-rate','sm-eviction','sm-repair',
+     'sm-unpaid','sm-registry','sm-assumed'].forEach(function(id){
+      var el = document.getElementById(id);
+      if (el) { el.addEventListener('input', recalc); el.addEventListener('change', recalc); }
+    });
+    document.getElementById('dlz-houses').addEventListener('change', recalc);
+    document.getElementById('dlz-corpx').addEventListener('change', recalc);
+    render();
+  })();
+  </script>
+</div>
