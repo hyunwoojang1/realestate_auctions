@@ -258,3 +258,49 @@ def test_apply_rights_feeds_score_gate():
     # 유치권 포함 → 권리점수 0, 게이트 상한 적용
     assert score.rights_score(risky) == 0.0
     assert score.is_hard_gated(risky) is True
+
+
+# ---- 불확실('알 수 없음') vs 부존재('없음') 구분 (2026-07-24 실사고) ------------------
+
+def test_uncertain_is_not_absence_daejikwon():
+    """번영로하늘채 실문구 — '대지권 유무는 알 수 없음'의 '없음'이 광역 부정어에 걸려
+    부존재로 오분류 → 대지권미등기 미탐 → 온전가 comps로 '차익 유력'(차익 1.17억) 서빙.
+    '알 수 없음'은 부존재가 아니라 **불확실** = 위험 신호다(§7 모름≠없음)."""
+    t = "대지권 미등기이며 대지권 유무는 알 수 없음. 최저매각가격에 적정대지권을 포함한 가격임."
+    assert "대지권미등기" in detect_special_rights(t)
+
+
+def test_uncertain_variant_rosehill():
+    """로즈힐 실문구(장문·복합절) — 같은 클래스."""
+    t = ("본건 구문건물의 대지권의 목적인 토지의 표시 중 6 내지 10 토지가 추가되었으나 "
+         "이에 관하여 대지권 미등기이며, 대지권 유무는 알 수 없음. "
+         "최저매각가격에 위 6 내지 10 토지를 대지권 가격에 포함하여 평가함")
+    assert "대지권미등기" in detect_special_rights(t)
+
+
+def test_true_absence_still_excluded():
+    """진짜 부존재 명시는 여전히 미검출 — 불확실 우선 규칙이 오탐을 만들면 안 된다."""
+    assert "대지권미등기" not in detect_special_rights("대지권 등기 완료. 해당사항없음.")
+    assert "유치권" not in detect_special_rights("유치권 신고 없음")
+    assert "유치권" not in detect_special_rights("유치권 성립 여지 없음")
+
+
+def test_uncertain_lien_is_flagged():
+    """유치권도 동일 규범 — '성립 여부는 알 수 없음'은 위험(불확실)이지 부존재가 아니다."""
+    assert "유치권" in detect_special_rights("유치권 신고가 있으나 그 성립 여부는 알 수 없음")
+
+
+# ---- '선순위 전입' 약신호 (2026-07-24 한울아파트 실사고) ------------------------------
+
+def test_senior_movein_weak_signal():
+    """한울아파트 실문구 — 법원이 명세서 비고에 '선순위 전입 임차인 있음'을 적었는데
+    사전에 없어 clean 통과('양호' 서빙). 해소 표현이 없으면 대항력 여지로 본다."""
+    assert detect_tenant_opposable("선순위 전입 임차인 있음") is True
+    assert detect_tenant_opposable("선순위전입 세대 있음") is True
+
+
+def test_senior_movein_released_is_safe():
+    """해소 표현(대항력 포기 등)이 있으면 약신호는 발동하지 않는다 — HUG 포기조건 보호."""
+    assert detect_tenant_opposable(
+        "선순위 전입 임차인 있음. 임차인 및 임차권승계인 주택도시보증공사의 "
+        "매수인에 대한 대항력 포기조건 매각") is False

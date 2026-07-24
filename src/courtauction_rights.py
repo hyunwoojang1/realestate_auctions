@@ -58,11 +58,25 @@ _SPECIAL_NEGATIONS = (
     "없음", "없다", "없슴", "없는 것으로",
 )
 
+# (2026-07-24 실사고 — 번영로하늘채 2024타경110502) "대지권 유무는 **알 수 없음**"의 '없음'이
+# 위 광역 부정어에 걸려 부존재로 오분류 → 대지권미등기 미탐 → 온전가 comps 로 '차익 유력'
+# (차익 1.17억) 서빙. '알 수 없음/확인 안 됨/불분명'은 부존재(absent)가 아니라 **불확실**
+# (unknown)이며, 이 파서의 규범(§7 모름≠없음)상 오히려 위험 신호다 — 부정어 검사보다 우선한다.
+_UNCERTAIN_RE = re.compile(r"알\s*수\s*없|확인\s*(?:되지\s*않|할\s*수\s*없|되지\s*아니)|불분명")
+
 
 def _appears_unnegated(variant: str, blob: str) -> bool:
-    """variant 가 부존재 문맥이 아닌 절에 한 번이라도 나오면 True(부존재 명시 절은 제외)."""
+    """variant 가 부존재 문맥이 아닌 절에 한 번이라도 나오면 True(부존재 명시 절은 제외).
+
+    같은 절에 불확실 표현('알 수 없음' 등)이 있으면 부정어가 있어도 검출을 유지한다 —
+    '유무는 알 수 없음'은 존재를 부정한 것이 아니라 판단 불가를 명시한 것이다(위험).
+    """
     for clause in re.split(r"[.\n;·]", blob):
-        if variant in clause and not any(neg in clause for neg in _SPECIAL_NEGATIONS):
+        if variant not in clause:
+            continue
+        if _UNCERTAIN_RE.search(clause):
+            return True
+        if not any(neg in clause for neg in _SPECIAL_NEGATIONS):
             return True
     return False
 
@@ -218,7 +232,10 @@ def _strip_negated_clauses(text: str) -> str:
 
 # 약한 신호 — 존재만으로 위험 추정하는 phrase(임차권등기 자체). 문서에 해소 표현이 하나라도
 # 있으면 이 신호는 억제한다(말소동의·대항력 포기가 다른 절에 있는 경우가 흔함 — 실측 15건 오탐).
-_WEAK_PHRASES = ("임차권등기",)
+# (2026-07-24 실사고 — 한울아파트 2026타경50254) 법원이 명세서 비고에 '선순위 전입 임차인
+# 있음'을 적었는데 사전에 없어 clean('양호') 통과. 선순위 전입 = 전입일이 말소기준보다 앞
+# = 대항력 여지 — 해소 표현(HUG 대항력 포기 등)이 없을 때만 발동하는 약신호로 추가.
+_WEAK_PHRASES = ("임차권등기", "선순위 전입", "선순위전입")
 _STRONG_PHRASES = tuple(p for p in _OPPOSABLE_PHRASES if p not in _WEAK_PHRASES)
 
 

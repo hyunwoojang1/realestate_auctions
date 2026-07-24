@@ -186,7 +186,8 @@ def gate_share_sale(conn) -> GateResult:
         bigo = (d.get("mulBigo") or "") + (d.get("alias") or "")
         if is_partial_share(d.get("maejibun"), d.get("mulBigo")):
             bad.append(f"{r['case_no']}(지분:{(d.get('maejibun') or bigo)[:20]})")
-        elif any(k in bigo for k in ("지분", "건물만", "대지권없", "대지권 없", "대지권미등기")):
+        elif any(k in bigo for k in ("지분", "건물만", "대지권없", "대지권 없", "대지권미등기",
+                                     "대지권 미등기")):   # 띄어쓰기 변형(번영로 실사고 2026-07-24)
             bad.append(f"{r['case_no']}({bigo[:20]})")
     return GateResult("지분·건물만·대지권 신호인데 시세 매칭됨", ok=not bad,
                       count=len(bad), samples=bad[:5])
