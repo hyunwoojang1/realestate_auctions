@@ -459,7 +459,11 @@ def _apply_window_mult(s: ScoredListing, lst: AuctionListing, m, mult: float) ->
     grade = derive_grade(
         arb, gated=is_hard_gated(lst), rights_verified=lst.rights_verified,
         gap_rate=s.gap_rate, p_low=s.profit_low, market_scope=m.scope,
-        band_basis=m.basis, matched_trades=m.matched, apply_scope_sample_gates=True)
+        band_basis=m.basis, matched_trades=m.matched, apply_scope_sample_gates=True,
+        # (버그수정 2026-07-23) 이 경로가 플래그를 안 넘겨 인수-미상 상한이 무력화됐다 —
+        # 재채점 실측 55건이 여기로 새어 '관심'으로 남았다. derive_grade 호출부는 **전부**
+        # burden_amount_unknown 을 넘겨야 한다(현재 호출부 3곳: 여기·score_listing·_apply_market_price).
+        burden_amount_unknown=lst.burden_amount_unknown)
     return dataclasses.replace(s, arb_score=arb, grade=grade,
                                confidence=round(s.confidence * mult, 2))
 

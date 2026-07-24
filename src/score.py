@@ -125,12 +125,15 @@ def derive_grade(arb: float | None, *, gated: bool, rights_verified: bool,
         # top/second는 grade_of가 쓰는 grade_thresholds에서 직접 읽는다(grade_labels registry와
         # 비교하면 두 출처가 갈릴 때 강등이 조용히 무력화됨 — 리뷰 지적, 옛 코드와 동일하게 단일출처).
         top, second = CONFIG.grade_thresholds[0][1], CONFIG.grade_thresholds[1][1]
+        # (버그수정 2026-07-23) 종전엔 여기서 **곧바로 return** 해, 아래 인수-미상 상한을 통째로
+        # 건너뛰었다 — 재채점 실측에서 **117건**이 상한을 우회해 추천에 남았다. 값만 바꾸고
+        # 함수 끝까지 흘려보낸다. elif 로 '첫 매칭 하나만 적용'이라는 종전 의미도 유지한다.
         if market_scope not in ("", SCOPE_RECOMMENDABLE) and grade in (top, second):
-            return L["interest"]
-        if band_basis is not None and band_basis < band_confident_basis() and grade in (top, second):
-            return L["interest"]
-        if matched_trades is not None and matched_trades < CONFIG.min_comps_confident and grade == top:
-            return second
+            grade = L["interest"]
+        elif band_basis is not None and band_basis < band_confident_basis() and grade in (top, second):
+            grade = L["interest"]
+        elif matched_trades is not None and matched_trades < CONFIG.min_comps_confident and grade == top:
+            grade = second
     # (감사 2026-07-23 P-01) 명세서가 인수를 **명시**했는데 금액을 못 읽은 경우 — 차감할 금액을
     # 모르므로 보수차익(p_low)이 과대평가된 값이다. 종전엔 assumed_amount=0 이라 하드게이트도
     # 안 걸리고 rights_score 감점만 받아 '차익 유력/양호/관심'으로 추천됐다(실측 108건).
