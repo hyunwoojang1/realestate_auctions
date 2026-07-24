@@ -13,7 +13,7 @@ from __future__ import annotations
 
 from .config import CONFIG
 from .matcher import SCOPE_SAME_COMPLEX_SAME_AREA as SCOPE_RECOMMENDABLE
-from .matcher import band_confident_basis, is_estimation_supported
+from .matcher import SCOPE_SHARE_SALE, band_confident_basis, is_estimation_supported
 from .models import AuctionListing, ScoredListing
 
 
@@ -330,6 +330,12 @@ def market_view(s: ScoredListing, naver: dict | None) -> ScoredListing:
     import dataclasses  # noqa: PLC0415
     if naver is None:
         return s
+    # (2026-07-24 실사고 2차 경로 — 죽전자이2차) 지분 매각(scope=share_sale)은 어떤 폴백도
+    # 타지 않는다. 채점층이 '온전가 비교 무의미'로 시세를 지운 물건에 KB(=온전 세대 시세)가
+    # 폴백되면 허구 차익이 서빙에서 재생산된다(실측: est 교정 직후 KB 6.6억으로 되살아남).
+    # 표시용 페이로드만 첨부 — KB 숫자 자체는 참고 카드로 보이되 차익·등급 재계산은 금지.
+    if s.market_scope == SCOPE_SHARE_SALE:
+        return dataclasses.replace(s, naver=naver, market_source="none")
     # 국토부 실거래 최우선 — est 있으면 실거래 유지, 표시용 페이로드만 첨부.
     if s.est_market_price and s.est_market_price > 0:
         # (T8b, 2026-07-19) KB 교차검증 플래그 — 추정시세가 KB 밴드를 크게 벗어나면 표시용 신호를

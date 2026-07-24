@@ -103,3 +103,33 @@ def test_share_flag_kills_market_estimate():
     est = estimate_market(lst, trades=[])
     assert est.scope == SCOPE_SHARE_SALE
     assert est.est is None
+
+
+def test_serving_kb_fallback_respects_share_sale():
+    """서빙 폴백(KB→호가→전세)이 지분 물건을 온전가로 되살리지 않는다 — **두 번째 사고 경로**.
+
+    실사고(2026-07-24, 프로덕션 검산에서 발견): 죽전자이의 est 를 지워 '시세추정불가'로
+    교정했더니, market_view 의 KB 폴백이 **온전 세대 KB 시세 6.6억**으로 차익·등급을
+    재계산해 되살렸다(신뢰 0.75 · 매칭 0건). 채점층이 '온전가 비교 무의미'로 정한 물건은
+    서빙층의 어떤 시세 사다리도 타면 안 된다 — 표시용 페이로드만 첨부한다.
+    """
+    from src.matcher import SCOPE_SHARE_SALE
+    from src.models import ScoredListing
+    from src.score import market_view
+    s = ScoredListing(
+        case_no="2025타경55336", apt_name="죽전자이2차", address="경기도 용인시",
+        property_type="아파트", area_m2=84.89, appraisal_price=355_000_000,
+        min_bid_price=248_500_000, fail_count=1, sale_date="2026-07-24",
+        est_market_price=None, matched_trades=0, confidence=0.6,
+        real_acquisition_cost=251_233_500, expected_profit=None, gap_rate=None,
+        gap_score=0.0, rights_score=85.0, liquidity_score=100.0, arb_score=None,
+        grade="시세추정불가", court="수원지방법원", item_no="1", rights_verified=True,
+        market_scope=SCOPE_SHARE_SALE,
+    )
+    naver = {"status": "matched_kb", "kb_low": 630_000_000, "kb_avg": 660_000_000,
+             "kb_high": 710_000_000, "complex_no": "17540"}
+    out = market_view(s, naver)
+    assert out.est_market_price is None          # KB 로 시세가 되살아나면 안 된다
+    assert out.arb_score is None and out.profit_low is None
+    assert out.grade == "시세추정불가"
+    assert out.naver == naver                    # 참고 표시용 페이로드는 유지(정보 은폐 아님)
