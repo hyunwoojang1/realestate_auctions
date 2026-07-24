@@ -1,5 +1,22 @@
 # versions.md — auction-arbitrage 루프 작업 로그 (append-only, 최신순)
 
+## 2026-07-24 15:2x KST — 🚑 **프로덕션 500 핫픽스**: c910a2d 커밋 누락 파일 6개 복구(685a88d)
+- **사고**: 03e031d 배포 직후 프로덕션 전면 500. 원인 = **직전 타 세션 커밋 c910a2d**(입찰
+  마감 컷오프)가 `web.py` 에 `from . import regulation` 을 넣었는데 **`src/regulation.py` 등
+  신규 6파일을 커밋에서 누락**(untracked) — 작업 워킹트리에선 돌아가 커밋 게이트(pytest)도
+  통과하지만, **클린 체크아웃(deploy_prod 의 worktree) = 부팅 즉사**하는 클래스.
+- **진단**: HEAD 클린 워크트리 로컬 부팅 재현 → `ImportError: cannot import name 'regulation'`
+  즉시 특정. 의존 체인 추적(regulation.py→regulated_zones.json, create_app→dealsim_rules.json
+  read_text, /dealsim.js 라우트→static/dealsim.js).
+- **복구**: 누락 6파일(src/regulation.py·data/regulated_zones.json·data/dealsim_rules.json·
+  data/tax_rules.json·static/dealsim.js·templates/_dealsim.html) 클린 워크트리 복사 부팅 검증
+  (health/home/dealsim.js 전부 200) 후 핫픽스 커밋 685a88d → 배포 → **프로덕션 200 복구** +
+  번영로하늘채 '시세추정불가' 검산 ✓. (detail.html 의 dealsim include 는 타 세션 미커밋 WIP —
+  HEAD detail 은 무참조라 화면 무영향, 그쪽 완성 시 커밋하면 즉시 완결.)
+- **재발 방지 메모(운영)**: 커밋 게이트가 워킹트리에서 pytest 를 돌려 **untracked 의존 파일
+  누락을 못 잡는다** — "커밋된 파이썬이 import 하는 모듈이 전부 tracked 인가" 검사(예:
+  `git ls-files` 대조)를 게이트에 추가할 가치. 이번엔 기록만(게이트 수정은 타 세션 조율 후).
+
 ## 2026-07-24 15:0x KST — 🔍 **특수물건 전수 센서스 + 핸들링**(사용자 지시: 특수상황 다 가져와 처리)
 - **센서스(활성 14,941 × 텍스트 6원천 × 키워드 21종 + spJogCd 코드 해독)**:
   - **spJogCd 의미 확정**(텍스트 상관): 4301=법정지상권/제시외 · 4302=토지별도등기 ·
@@ -128,6 +145,12 @@
   검산 쿼리: 3건 모두 grade=시세추정불가·scope=share_sale 확인.
 - **남는 관찰(후속)**: 동래에코하임(감정 2.56억 vs 최저 283만 = 1.1%)은 지분이 아닌
   다른 문제(대지권만 매각 의심) — 어제 재매각(351만 낙찰→미납)과 겹치는 물건. 별도 조사 가치.
+
+## 2026-07-24 15:15 KST — ➖ 딜심 매트릭스에서 수익률(ROI) 제거 (사용자 결정)
+- 근거: 대출 70% 레버리지 기반이라 수익률이 수백%로 부풀어 보이고, 보유기간별 이자 변동까지 얽혀
+  판단을 흐림 → **세후 순익 금액만** 표시. 엔진(dealsim.js)의 roi 계산은 유지(표시만 제거).
+- Playwright 재검증(수익률 부재 단언·배치 단언·JS 에러 0), 새 비포/애프터:
+  경매-비포애프터\상세_딜시뮬_수익률제거_인천용현동.png. 배포 승인 대기 상태 유지.
 
 ## 2026-07-24 15:00 KST — 🔧 배치 버그 수정 + 시뮬레이터 2단 압축 (사용자 피드백)
 - **🐛 그리드 자동배치 버그**: 상위 `.ddetail` 이 명명 영역제(grid-template-areas)라 자리 없는 새 존이
