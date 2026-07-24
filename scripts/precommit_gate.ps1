@@ -75,6 +75,15 @@ if ($crawlerTouched) {
     }
 }
 
+# --- 4.5) untracked-import check: staged .py importing repo-local modules that are
+# neither tracked nor staged (clean-checkout boot-failure class, 2026-07-24 500 incident).
+# Local pytest cannot catch this (file exists in the working tree), so it runs here.
+$stagedAnyPy = @($staged | Where-Object { $_ -match '\.py$' })
+if ($stagedAnyPy.Count -gt 0) {
+    & $Python (Join-Path $RepoRoot "scripts\check_untracked_imports.py")
+    if ($LASTEXITCODE -ne 0) { Fail "untracked-import check failed - commit would break clean checkout (Vercel). git add the missing module(s) first." }
+}
+
 # --- 5) full pytest when code/tests staged (the actual regression gate) ---
 $codeTouched = $staged | Where-Object { $_ -match '^(src|tests|deploy)/' -or $_ -eq 'run.py' }
 if ($codeTouched) {

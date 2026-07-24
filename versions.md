@@ -1,5 +1,18 @@
 # versions.md — auction-arbitrage 루프 작업 로그 (append-only, 최신순)
 
+## 2026-07-24 17:35 KST — 🛡️ 커밋 게이트 untracked-import 검사 신설(500 사고 클래스 봉쇄)
+- **무엇**: staged .py 가 import 하는 레포-로컬 모듈이 "디스크에 있지만 tracked도 staged도 아닌"
+  경우 커밋 차단. `scripts/check_untracked_imports.py`(ast 파싱: 상대/절대/`from pkg import sub`
+  전 형태 해석, try/except ImportError 선택적 import 제외) + `precommit_gate.ps1` step 4.5 배선
+  (pytest 앞, AUCTION_SKIP_GATE 존중).
+- **왜**: 15:2x 프로덕션 500 사고(c910a2d 가 web.py 에 `from . import regulation` 넣고
+  src/regulation.py untracked 누락) — 워킹트리 pytest 로는 원리상 못 잡는 클래스라 게이트에
+  git ls-files 대조 검사로 봉쇄. 세션3 백로그 "커밋 게이트 untracked-import 검사" 이행.
+- **증거**: 유닛 9종(tests/test_untracked_import_gate.py, 사고 원형·BOM·try/except·삭제staged 등)
+  + 실레포 라이브 재현(untracked 모듈 import staged → exit 1 차단, 정상 상태 → exit 0) 실측.
+- **함정 2개 실측**: ① git rev-parse subprocess 에 encoding="utf-8" 없으면 한글 레포 경로에서
+  cp949 크래시 ② BOM 파일은 ast.parse SyntaxError 로 조용히 건너뜀 → utf-8-sig 읽기로 해결.
+
 ## 2026-07-24 16:20 KST — ✅ Phase 4: 딜심 5관점 감사(24에이전트) → 확정 11클래스 전부 수정 → 883 passed
 - **감사**: 5렌즈(세법정합·계산엣지·UI연동·보수성·배포리스크) 병렬 + 발견별 적대 검증. 원발견 19
   = 유니크 11클래스, 전부 isReal 확정·전부 수정. 배포 전에 잡은 낙관 편향 3건이 백미:
