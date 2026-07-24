@@ -134,6 +134,14 @@
   .dhead-acts{display:none}
   @media(min-width:1100px){.dhead-acts{display:flex}}
   @media(max-width:1099px){ .dkpi{grid-template-columns:repeat(2,1fr)} }
+  /* 320px대: nowrap 라벨·값이 타일 min-content 를 키워 페이지가 가로로 넘친다(2026-07-24 QA ④)
+     — 줄바꿈 허용 + 폭 강제 축소(minmax(0,1fr)). */
+  @media(max-width:479px){
+    .dkpi{grid-template-columns:repeat(2,minmax(0,1fr))}
+    .dkpi-t{padding:10px 12px 11px}
+    .dkpi-t .k{white-space:normal}
+    .dkpi-t .v{font-size:17px;white-space:normal;overflow-wrap:anywhere}
+  }
 
   /* ── 콤팩트 표·카드(밀도 상향) — base 기본값보다 행간·패딩·폰트를 조임 ── */
   .ddetail .drow{padding:7px 14px;gap:12px}

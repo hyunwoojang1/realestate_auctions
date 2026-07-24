@@ -136,6 +136,10 @@
   <span style="color:var(--ink-400)">미지원유형·시세추정불가 {{ coverage.noise }}건은 <a href="/?all=1">전체 탐색 →</a></span>
   {% endif %}
 </div>
+{% else %}
+{# /digest 등 재사용 라우트 — 검색 패널이 없으면 h1도 없어지므로 최소 제목을 보장(2026-07-24 QA ⑥) #}
+<a class="back" href="/">← 1차 필터 목록</a>
+<h1 class="page-h2" style="margin-top:12px">추천 다이제스트</h1>
 {% endif %}
 
 <!-- 결과 헤더 -->

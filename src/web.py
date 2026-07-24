@@ -475,7 +475,14 @@ def create_app() -> Flask:
         # 평가 가능(시세 추정된) 물건 = 검색 우선 홈의 기본 모수. 89% 노이즈(미지원·시세추정불가)는
         # 여기서 빠지고 '전체 탐색'(all=1)에서만 보인다.
         evaluable = [s for s in all_scored if query.is_evaluable(s)]
-        # 커버리지·칩 카운트(활성 필터와 무관하게 고정) — 정직한 밀도 노출.
+        burden = _burden_of(badges)
+        # 칩 카운트 모수(2026-07-24 QA HIGH①) — 기본 뷰는 손해물건(효과차익 ≤ 0)을 숨기므로
+        # (아래 items 필터), 칩 배지도 같은 모수로 세야 '803 클릭 → 429건' 불일치가 없다.
+        # sort=profit_asc 로 손해를 일부러 보는 경우만 예외인데, 칩은 기본 뷰 진입 UI라 기본 기준.
+        chip_base = [s for s in evaluable
+                     if (query.decision_profit(s) or 0) - burden(s) > 0]
+        # 커버리지(활성 필터와 무관하게 고정) — 정직한 밀도 노출. 요약 스트립용 전수 통계라
+        # 칩과 달리 손해 숨김을 적용하지 않는다(적재 전수 기준).
         coverage = {
             "total": len(all_scored),
             "eval": len(evaluable),
@@ -484,6 +491,11 @@ def create_app() -> Flask:
             "soon": sum(1 for s in evaluable if query.is_soon(s, today)),
             "clean": sum(1 for s in evaluable if _clean(s)),
             "high": sum(1 for s in evaluable if query.is_high_profit(s)),
+        }
+        chip_ct = {
+            "soon": sum(1 for s in chip_base if query.is_soon(s, today)),
+            "clean": sum(1 for s in chip_base if _clean(s)),
+            "high": sum(1 for s in chip_base if query.is_high_profit(s)),
         }
 
         all_mode = request.args.get("all") == "1"
@@ -521,7 +533,6 @@ def create_app() -> Flask:
             except ValueError:
                 budget = ""
 
-        burden = _burden_of(badges)
         # 이름 검색 시엔 전체 모수에서 찾는다 — 사용자가 본 단지가 시세추정 안 된 유형이어도
         # '없다'가 아니라 '찾았다'가 되도록(평가가능 모수로 좁히면 빌라·상가는 통째로 숨음).
         base = all_scored if (all_mode or q) else evaluable
@@ -584,11 +595,11 @@ def create_app() -> Flask:
                 args[param] = on_value
             qs = urlencode(args)
             return "/?" + qs if qs else "/"
-        seoul_ct = sum(1 for s in evaluable if matches_region(s.address, "서울"))
+        seoul_ct = sum(1 for s in chip_base if matches_region(s.address, "서울"))
         chips = [
-            {"label": "인수 없음", "count": coverage["clean"], "active": chip_clean, "href": _toggle("clean")},
-            {"label": "매각기일 임박", "count": coverage["soon"], "active": chip_soon, "href": _toggle("soon")},
-            {"label": "고차익 2억+", "count": coverage["high"], "active": chip_high, "href": _toggle("high")},
+            {"label": "인수 없음", "count": chip_ct["clean"], "active": chip_clean, "href": _toggle("clean")},
+            {"label": "매각기일 임박", "count": chip_ct["soon"], "active": chip_soon, "href": _toggle("soon")},
+            {"label": "고차익 2억+", "count": chip_ct["high"], "active": chip_high, "href": _toggle("high")},
             {"label": "관심지역 서울", "count": seoul_ct, "active": region == "서울",
              "href": _toggle("region", "서울")},
         ]
@@ -1187,14 +1198,47 @@ def create_app() -> Flask:
 
     @app.get("/calendar")
     def calendar_page():
+        import re as _re  # noqa: PLC0415
         from datetime import date as _date  # noqa: PLC0415
         items = _scored()
         show_all = request.args.get("all") == "1"
         today = _date.today().isoformat()
         upcoming, past = sale_calendar.split_upcoming(items, today)
-        months = sale_calendar.month_groups(items if show_all else upcoming)
+        months_all = sale_calendar.month_groups(items if show_all else upcoming)
+        # (2026-07-24 QA HIGH②) 전체 월 일괄 렌더는 HTML 6MB·DOM 15만 노드 — 선택한 한 달만
+        # 렌더하고 나머지 달은 카운트 링크로 노출한다. month 미지정 시 오늘이 속한(이후 첫) 달.
+        sel = request.args.get("month", "")
+        if not _re.fullmatch(r"\d{4}-(0[1-9]|1[0-2])", sel):
+            sel = ""
+        if not sel and months_all:
+            sel = next((m["month"] for m in months_all if m["month"] >= today[:7]),
+                       months_all[-1]["month"])
+        months = [m for m in months_all if m["month"] == sel]
+        month_index = [{"month": m["month"], "count": m["count"]} for m in months_all]
+        # 한 달에 수천 건이 몰리는 분포(기일이 근월 집중)라 월 분리만으론 부족 — 월 안에서도
+        # 400건 단위로 끊는다(날짜 경계 유지). 400건 ≈ 200KB — 모바일 안전권.
+        CAL_PAGE = 400
+        cal_page = None
+        if months:
+            m0 = months[0]
+            flat = [(day["date"], s) for day in m0["days"] for s in day["items"]]
+            try:
+                pageno = max(1, int(request.args.get("page", 1)))
+            except (TypeError, ValueError):
+                pageno = 1
+            pages_m = max(1, (len(flat) + CAL_PAGE - 1) // CAL_PAGE)
+            pageno = min(pageno, pages_m)
+            days: list[dict] = []
+            for d, s in flat[(pageno - 1) * CAL_PAGE:pageno * CAL_PAGE]:
+                if not days or days[-1]["date"] != d:
+                    days.append({"date": d, "items": []})
+                days[-1]["items"].append(s)
+            months = [{"month": m0["month"], "count": len(flat), "days": days}]
+            if pages_m > 1:
+                cal_page = {"page": pageno, "pages": pages_m, "total": len(flat)}
         return render_template(
             "calendar.html", months=months, today=today, show_all=show_all,
+            month_index=month_index, sel_month=sel, cal_page=cal_page,
             upcoming_count=len(upcoming), past_count=len(past),
             unknown_count=sale_calendar.unknown_date_count(items),
             won=report.won, weekday=sale_calendar.weekday_kr,
@@ -1260,6 +1304,23 @@ def create_app() -> Flask:
         return render_template("methodology.html", cfg=score.CONFIG, cal=cal, prec=prec,
                                won=report.won, tax_label=tax.PROFILE.label(),
                                data_source=getattr(g, "data_source", "n/a"))
+
+    # (2026-07-24 QA ⑦) 기동 직후 첫 요청이 콜드 캐시(권리배지 파생캐시 등)로 계산돼
+    # 웜업 후와 칩 카운트가 달라지는 문제 — 백그라운드로 한 번 미리 데워 첫 응답부터
+    # 정상상태와 동일하게 만든다. 실패해도 서빙엔 영향 없음(다음 요청이 다시 계산).
+    def _warm_caches():
+        try:
+            _rights_badges()
+            _scored()
+            logger.info("캐시 웜업 완료(권리배지·채점결과)")
+        except Exception as e:  # noqa: BLE001 — 웜업 실패는 치명 아님, 로그만
+            logger.warning("캐시 웜업 실패(무시하고 요청 시 계산): %s", e)
+
+    # pytest(앱을 다회 생성)와 명시적 opt-out(AUCTION_WARM=0)에선 웜업 생략.
+    if (os.environ.get("AUCTION_WARM", "1") != "0"
+            and "PYTEST_CURRENT_TEST" not in os.environ):
+        import threading  # noqa: PLC0415
+        threading.Thread(target=_warm_caches, name="warm-caches", daemon=True).start()
 
     return app
 

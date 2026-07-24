@@ -686,9 +686,16 @@ table.params{border-collapse:collapse;width:100%;font-size:var(--t-data);backgro
 /* ============================================================
    Stats Page (Claude Design · stats)
    ============================================================ */
-.grid-2{display:grid;grid-template-columns:1fr 1fr;gap:var(--sp-4)}
-@media(max-width:859px){.grid-2{grid-template-columns:1fr}}
-.scard{background:var(--surface);border:1px solid var(--hairline);border-radius:var(--r-lg);box-shadow:var(--e1);padding:var(--sp-5) var(--sp-6)}
+/* minmax(0,1fr): 1fr(=minmax(auto,1fr))는 카드 내용의 min-content 아래로 못 줄어서
+   320px에서 페이지 가로 넘침을 만든다(2026-07-24 QA ④). */
+.grid-2{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:var(--sp-4)}
+@media(max-width:859px){.grid-2{grid-template-columns:minmax(0,1fr)}}
+.scard{background:var(--surface);border:1px solid var(--hairline);border-radius:var(--r-lg);box-shadow:var(--e1);padding:var(--sp-5) var(--sp-6);min-width:0}
+@media(max-width:479px){
+  .scard{padding:var(--sp-4)}
+  .bar-row{grid-template-columns:64px minmax(0,1fr) auto}
+  .bar-row__val .sub{display:block}
+}
 .scard-title{margin:0 0 var(--sp-4);font-size:15px;font-weight:700;color:var(--ink-900)}
 .scard-title .sub{font-weight:500;color:var(--ink-400);font-size:13px}
 .bars{display:flex;flex-direction:column;gap:10px}

@@ -27,6 +27,19 @@
   {% endif %}
 </div>
 
+{# 월 내비게이션(2026-07-24) — 한 번에 한 달만 렌더. 나머지 달은 카운트 링크. #}
+{% if month_index %}
+<div class="chips" style="margin-top:var(--sp-3)">
+  {% for mi in month_index %}
+  {% if mi.month == sel_month %}
+  <span class="chip" style="background:var(--brand);color:#fff;border-color:var(--brand)">{{ mi.month[:4] }}.{{ mi.month[5:] }} <b>{{ mi.count }}건</b></span>
+  {% else %}
+  <a class="chip" href="/calendar?month={{ mi.month }}{% if show_all %}&all=1{% endif %}">{{ mi.month[:4] }}.{{ mi.month[5:] }} <b>{{ mi.count }}건</b></a>
+  {% endif %}
+  {% endfor %}
+</div>
+{% endif %}
+
 {% for m in months %}
 <h2 class="cal-month">{{ m.month[:4] }}년 {{ m.month[5:] | int }}월 <span class="cnt">{{ m.count }}건</span></h2>
 <div class="cal-card">
@@ -50,8 +63,16 @@
 </div>
 {% endfor %}
 
+{% if cal_page %}
+<div class="chips" style="margin-top:var(--sp-4)">
+  {% if cal_page.page > 1 %}<a class="chip" href="/calendar?month={{ sel_month }}&page={{ cal_page.page - 1 }}{% if show_all %}&all=1{% endif %}">← 이전</a>{% endif %}
+  <span class="chip">{{ cal_page.page }} / {{ cal_page.pages }} 페이지 · 이 달 {{ cal_page.total }}건</span>
+  {% if cal_page.page < cal_page.pages %}<a class="chip" href="/calendar?month={{ sel_month }}&page={{ cal_page.page + 1 }}{% if show_all %}&all=1{% endif %}">다음 →</a>{% endif %}
+</div>
+{% endif %}
+
 {% if not months %}
-<div class="empty2" style="margin-top:var(--sp-6)">표시할 일정이 없습니다.
+<div class="empty2" style="margin-top:var(--sp-6)">{% if month_index %}이 달에는 표시할 일정이 없습니다. 위의 월 링크에서 다른 달을 선택하세요.{% else %}표시할 일정이 없습니다.{% endif %}
 {% if not show_all and past_count %}<br><a href="/calendar?all=1">지난 기일 포함 →</a>{% endif %}</div>
 {% endif %}
 
