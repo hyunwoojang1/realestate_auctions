@@ -60,5 +60,10 @@ alter table public.auction_scored_listings
 alter table public.auction_scored_listings
     add column if not exists sale_time text not null default '';
 
+-- [기존 테이블 마이그레이션 2026-07-24] 저층(1~2층·지하) 시세 보정 배율(floor_adjust).
+-- est/밴드에 이미 곱해진 값의 기록 — UI 정직성 표기·감사 대조용(Management API 로 적용 완료).
+alter table public.auction_scored_listings
+    add column if not exists floor_mult double precision not null default 1.0;
+
 -- 확인: 아래가 rows=0(테이블 준비됨)으로 나오면 성공. 이관 스크립트가 3,751건을 채웁니다.
 select count(*) as rows from public.auction_scored_listings;

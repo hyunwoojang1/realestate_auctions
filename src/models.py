@@ -126,6 +126,9 @@ class ScoredListing:
     # (T5) 밴드 실기반 표본수(최근성+트림 후 실사용 건수). matched_trades(원 매칭수)와 구분.
     # None=레거시(게이트 미적용). 게이트: < band_confident_basis(기본5) → 낮은 신뢰·추천 제외.
     market_sample_basis: int | None = None
+    # (2026-07-24 층 보정) 저층(1~2층·지하) 시세 하향 배율(floor_adjust) — est/밴드에 이미
+    # 곱해진 값의 기록. 1.0=무보정. UI 정직성 표기('저층 보정 −N%')·감사 대조용으로 영속.
+    floor_mult: float = 1.0
     # 상세 시간축 차트용 개별 실거래 점 [(deal_ym, price)] — 최신순, 다년치 맥락 포함.
     # 밴드 산정과 독립(맥락 표시용). 저장 시 JSON 텍스트로 직렬화(store). 기본 빈 리스트.
     market_comps: list[tuple[str, int]] = field(default_factory=list)

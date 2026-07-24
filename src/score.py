@@ -148,7 +148,8 @@ def derive_grade(arb: float | None, *, gated: bool, rights_verified: bool,
 def score_listing(listing: AuctionListing, est_market_price: int | None, matched_trades: int,
                   market_scope: str = "", band_low: int | None = None,
                   band_high: int | None = None, band_basis: int | None = None,
-                  comps: tuple[tuple[str, int], ...] = ()) -> ScoredListing:
+                  comps: tuple[tuple[str, int], ...] = (),
+                  floor_mult: float = 1.0) -> ScoredListing:
     """한 물건을 채점해 ScoredListing 반환.
 
     market_scope(T3): 시세 비교군의 출처. ""=레거시 호출(스코프 게이트 미적용).
@@ -240,6 +241,7 @@ def score_listing(listing: AuctionListing, est_market_price: int | None, matched
         market_comps=[list(c) for c in comps],
         assumed_amount=listing.assumed_amount,
         burden_amount_unknown=listing.burden_amount_unknown,
+        floor_mult=floor_mult,   # (2026-07-24) est/밴드에 이미 반영된 층 보정 배율의 기록
     )
 
 
@@ -292,6 +294,16 @@ def _apply_market_price(s: ScoredListing, naver: dict, price: int, price_low: in
     권리 하드게이트(위험)·권리미확인은 시세로 풀리지 않으므로 보존한다. 차익은 하한밴드(보수)로 판정.
     """
     import dataclasses  # noqa: PLC0415
+
+    from . import floor_adjust  # noqa: PLC0415
+    # (2026-07-24 층 보정) KB/호가/전세는 단지 단위 시세라 저층(1~2층·지하) 물건엔 과대 —
+    # 전국 실측 기본계수로 하향(폴백엔 comps 가 없어 단지 실측 불가). 채점 경로(est)만 보정하면
+    # 저층 물건이 폴백에서만 비싸 보이는 비대칭이 생긴다.
+    fmult = floor_adjust.default_multiplier(floor_adjust.subject_floor(s.address))
+    if fmult < 1.0:
+        price = int(price * fmult)
+        price_low = int(price_low * fmult)
+        price_high = int(price_high * fmult)
     cost = s.real_acquisition_cost or 0
     gap_rate = (price - cost) / price if price else 0.0
     gap = gap_score_from_rate(gap_rate)
@@ -316,7 +328,8 @@ def _apply_market_price(s: ScoredListing, naver: dict, price: int, price_low: in
         s, est_market_price=price, market_band_low=price_low, market_band_high=price_high,
         expected_profit=price - cost, profit_low=p_low, profit_high=price_high - cost,
         gap_rate=round(gap_rate, 4), gap_score=gap, arb_score=arb, grade=grade,
-        confidence=confidence, market_scope=SCOPE_RECOMMENDABLE, market_source=source, naver=naver)
+        confidence=confidence, market_scope=SCOPE_RECOMMENDABLE, market_source=source, naver=naver,
+        floor_mult=fmult)
 
 
 def market_view(s: ScoredListing, naver: dict | None) -> ScoredListing:

@@ -14,6 +14,7 @@ import re
 import statistics
 from dataclasses import dataclass
 
+from . import floor_adjust
 from .models import AuctionListing, Trade
 
 logger = logging.getLogger(__name__)
@@ -73,6 +74,8 @@ class MarketEstimate:
     # 날짜 있는 건만, 최신순 COMPS_CAP개. 밴드 산정과 무관(맥락 표시용) — 다년치까지 담아
     # 차트가 "언제부터 어떻게" 형성됐는지 보이게 한다. 성공 추정 시에만 채운다.
     comps: tuple[tuple[str, int], ...] = ()
+    # (2026-07-24 층 보정) est/밴드에 이미 곱해진 저층 하향 배율. 1.0=무보정(비저층/층 미상).
+    floor_mult: float = 1.0
 
 
 def _area_band() -> float:
@@ -347,7 +350,14 @@ def estimate_market(listing: AuctionListing, trades: list[Trade]) -> MarketEstim
                      listing.case_no, basis, _band_min_basis())
         return MarketEstimate(None, matched_count, scope, basis=basis)
     median_ppm2 = statistics.median(ppm2_list)
-    est = int(round(median_ppm2 * listing.area_m2))
+    # (2026-07-24 층 보정) 저층(1~2층·지하) 물건은 층 무시 중앙값이 시세를 부풀린다(실측
+    # 1층 −7.6%·2층 −5.5%). 비교군의 저층/상층 실측 비율(양측 3건↑), 부족하면 전국 계수로
+    # 하향한다. 비저층·층 미상은 1.0(무보정 — 모름≠할인). 감정가 가드보다 먼저 곱해
+    # '보정된 최종 주장'을 검증한다(감정가는 실제 층을 이미 반영).
+    fmult, _fm_basis = floor_adjust.floor_multiplier(
+        floor_adjust.subject_floor(listing.address),
+        [(t.floor, t.price_per_m2()) for t in recent if t.area_m2 > 0])
+    est = int(round(median_ppm2 * listing.area_m2 * fmult))
     # 감정가 교차검증 — 상한(전 scope 공통 2.5배) + 폴백 전용 강화 상·하한(서빙감사 #8·#10).
     # same_dong_fallback 은 '같은 동 다른 단지'라 상·하향 왜곡이 크다(신축이 est 부풀림 1.5~2.2배,
     # 구축·소형이 est 끌어내림 ≤0.6배). 감정평가사가 이 정도를 놓칠 확률은 사실상 0 → 무효화.
@@ -360,7 +370,8 @@ def estimate_market(listing: AuctionListing, trades: list[Trade]) -> MarketEstim
                            listing.case_no, est, listing.appraisal_price, ratio, scope)
             return MarketEstimate(None, matched_count, SCOPE_APPRAISAL_MISMATCH, basis=basis)
     # (T4) 2선 밴드 — 하한가: 트림 후 최저 평단가(보수), 기준가: 트림 후 중앙값(=est, 호환 유지).
-    band_low = int(round(min(ppm2_list) * listing.area_m2))
+    # 층 보정 배율은 밴드 양끝에 동일 적용(밴드폭 가드의 est/band_low 비율은 배율 불변).
+    band_low = int(round(min(ppm2_list) * listing.area_m2 * fmult))
     # (T8, 2026-07-19) 폴백 밴드폭 가드 — 트림 후에도 밴드가 비정상적으로 넓으면 같은 동의
     # '다른 단지'들이 섞였다는 신호(진천태왕아너스 실사고: 감정가 1.33배라 감정가 가드는 통과했지만
     # 밴드 2.68~4.69억). 틀린 시세를 자신 있게 말하느니 '시세추정불가'가 정직하다.
@@ -369,7 +380,7 @@ def estimate_market(listing: AuctionListing, trades: list[Trade]) -> MarketEstim
                        listing.case_no, band_low, est, est / band_low)
         return MarketEstimate(None, matched_count, SCOPE_BAND_TOO_WIDE, basis=basis)
     return MarketEstimate(est, matched_count, scope, band_low=band_low, band_high=est,
-                          basis=basis, comps=_pack_comps(matched))
+                          basis=basis, comps=_pack_comps(matched), floor_mult=fmult)
 
 
 # ---------------------------------------------------------------------------
@@ -395,26 +406,37 @@ def estimate_from_complex_trades(listing: AuctionListing,
     _sr = listing.special_rights or []
     if "지분" in _sr or "대지권미등기" in _sr:
         return MarketEstimate(None, 0, SCOPE_SHARE_SALE), 1.0
-    pts: list[tuple[int, int]] = []   # (ym_int, price)
+    pts: list[tuple[int, int, int]] = []   # (ym_int, price, floor — 0=미상)
     for r in rows:
         ymd = str(r["trade_ymd"] if not isinstance(r, dict) else r.get("trade_ymd", ""))
         price = int(r["price"] if not isinstance(r, dict) else r.get("price", 0) or 0)
+        if isinstance(r, dict):
+            fl = int(r.get("floor") or 0)
+        else:
+            try:
+                fl = int(r["floor"] or 0)
+            except (IndexError, KeyError):
+                fl = 0   # 층 컬럼 없는 하위호환 행 — 미상 취급(보정 표본에서 제외)
         m = _ym_to_int(ymd[:6])
         if m is None or price <= 0:
             continue
-        pts.append((m, price))
+        pts.append((m, price, fl))
     if not pts:
         return MarketEstimate(None, 0, SCOPE_NO_COMPS), 1.0
     pts.sort(reverse=True)
     latest = pts[0][0]
     matched_count = len(pts)
+    subj_floor = floor_adjust.subject_floor(listing.address)
     for window, mult in WINDOW_LADDER:
-        prices = [p for m, p in pts if m >= latest - window]
+        prices = [p for m, p, _f in pts if m >= latest - window]
         trimmed = trim_outliers([float(p) for p in prices])
         basis = len(trimmed)
         if basis < _band_min_basis():
             continue   # 이 창으로는 표본 부족 — 다음 창으로 확장
-        est = int(round(statistics.median(trimmed)))
+        # (2026-07-24 층 보정) 같은 평형이라 가격 자체로 저층/상층 비율 산출(창 내 표본 기준).
+        fmult, _fm_basis = floor_adjust.floor_multiplier(
+            subj_floor, [(f, float(p)) for m, p, f in pts if m >= latest - window])
+        est = int(round(statistics.median(trimmed) * fmult))
         # 감정가 교차검증 — 확정 단지 comps라도 상한(2.5배) + 하한(0.35배) 가드 유지(안전망).
         # 하한: 네이버가 상가·지하를 소형 주거유닛에 오매칭하면 est가 감정가의 0.1배로 붕괴 →
         # '확정단지'라도 극단 저비율은 오매칭 신호로 무효화(밤샘검수 2026-07-21).
@@ -424,16 +446,16 @@ def estimate_from_complex_trades(listing: AuctionListing,
                 logger.warning("감정가 괴리(확정단지, %s): est %s vs 감정 %s (배율 %.3f) — 시세 무효화",
                                listing.case_no, est, listing.appraisal_price, ratio)
                 return MarketEstimate(None, matched_count, SCOPE_APPRAISAL_MISMATCH, basis=basis), 1.0
-        band_low = int(round(min(trimmed)))
-        comps = tuple((_int_to_ym(m), p) for m, p in pts[:COMPS_CAP])
+        band_low = int(round(min(trimmed) * fmult))
+        comps = tuple((_int_to_ym(m), p) for m, p, _f in pts[:COMPS_CAP])
         if mult < 1.0:
             logger.info("창 확장(%s): %d개월 창 basis %d — 신뢰 ×%.2f",
                         listing.case_no, window, basis, mult)
         return MarketEstimate(est, matched_count, SCOPE_SAME_COMPLEX_SAME_AREA,
                               band_low=band_low, band_high=est, basis=basis,
-                              comps=comps), mult
+                              comps=comps, floor_mult=fmult), mult
     # 60개월로도 부족 — 표본 게이트 미달(마지막 창 기준 basis 기록)
-    prices = [p for m, p in pts if m >= latest - WINDOW_LADDER[-1][0]]
+    prices = [p for m, p, _f in pts if m >= latest - WINDOW_LADDER[-1][0]]
     basis = len(trim_outliers([float(p) for p in prices]))
     return MarketEstimate(None, matched_count, SCOPE_SAME_COMPLEX_SAME_AREA, basis=basis), 1.0
 

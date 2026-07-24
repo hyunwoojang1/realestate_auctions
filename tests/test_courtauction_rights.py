@@ -222,6 +222,18 @@ def test_apply_rights_is_immutable_and_maps_fields():
     assert out.min_bid_price == base.min_bid_price
 
 
+def test_apply_rights_preserves_maejibun_share_label():
+    """(2026-07-24) maejibun 검출 '지분'은 요지 기반 대체 병합에도 보존 — 죽전자이 부활 방지."""
+    import dataclasses as _dc
+    base = _dc.replace(_base_listing(), special_rights=["지분"])
+    out = apply_rights(base, ParsedRights(special_rights=["가처분"]))
+    assert "지분" in out.special_rights
+    assert "가처분" in out.special_rights
+    # 요지에도 지분이 있으면 중복 추가하지 않는다
+    out2 = apply_rights(base, ParsedRights(special_rights=["지분"]))
+    assert out2.special_rights.count("지분") == 1
+
+
 def test_apply_rights_backfills_missing_appraisal():
     base = _base_listing()
     base.appraisal_price = 0                    # 리스트에서 감정가 누락 상황

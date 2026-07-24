@@ -1,6 +1,33 @@
 # versions.md — auction-arbitrage 루프 작업 로그 (append-only, 최신순)
 
-## 2026-07-24 17:52 KST — ☁ Supabase sale_time 정밀 미러(당일 마감컷오프 10:00 폴백 해소)
+## 2026-07-24 18:45 KST — 🏢 저층(1~2층) 시세 보정 도입 + 🚨 지분 라벨 병합 소실 수정(게이트 FAIL 3건)
+- **층 보정(신규, 세션3 백로그 최고가치 항목)**: `src/floor_adjust.py` — 물건 층=주소 파싱(실측
+  99.5%), 저층(1~2층·지하)이면 비교군 저층/상층 실측 비율(양측 3건↑, 클램프 [0.65,1.0]·상향금지)
+  또는 전국 실측 계수(1층·지하 0.92 / 2층 0.945 — naver 실거래 710개 단지·평형 실측)로 est·밴드
+  하향. 적용 3경로: estimate_market·estimate_from_complex_trades(채점) + _apply_market_price
+  (서빙 KB/호가/전세 폴백, 기본계수). 배율은 `floor_mult` 신규 영속 컬럼(SQLite v10 마이그레이션
+  + Supabase DDL 적용완료)·상세페이지 '저층 보정 −N%' 행 표기. 명세서 E7 신설(옛 가정 '층 무관' 파기).
+- **재채점 실측**: 보정 259건(단지실측 65·전국계수 194), 할인 중앙 5.5%·최대 35%. 등급 변화
+  22건(차익유력→양호 2 등), **보수차익 양수→음수 뒤집힘 18건**(허구 차익 제거). 추천계열 328→325.
+  저층인데 무보정 8건은 단지 실측상 저층이 안 싼 단지(비율≥1 클램프)로 정상.
+- **🚨 지분 라벨 병합 소실(재채점이 발견한 별건 CRITICAL)**: 1차 재채점서 품질게이트 FAIL 3건 —
+  **죽전자이2차가 '차익 유력 6.5억'으로 부활**해 있었다. 원인=apply_rights/apply_rights_from_rows
+  가 요지 기반 badge.special 로 special_rights 를 **대체**하면서 maejibun(리스트 원천) 검출
+  '지분' 라벨을 소실(권리 요지엔 그 신호가 없음 — 12:51 권리 재크롤이 트리거). 수정=병합 2곳에서
+  '지분' 보존. 재채점 2차: 죽전·고양60546·군산21051(동명사건, 군산건만 지분) 전부 share_sale
+  복귀·**전 게이트 PASS**·Supabase 전량 미러(14,941건, 18:27). 게이트가 사람 대신 잡아낸 사례.
+- **증거**: 전체 pytest 914 passed(층 18종+지분보존 2종 신규), 비포/애프터
+  `장현우\경매-비포애프터\20260724_저층보정_비포애프터.png`(의정부민락푸르지오 1층: 시세
+  4.00→3.68억·보수차익 0.89→0.57억·차익유력→양호), 클라우드 검산 adjusted 259/share 106.
+
+## 2026-07-24 18:20 KST — ⏰ DailyRefresh 스케줄러 활성화 + 세무사 질문지(docs)
+- **스케줄러**: AuctionArbitrage-DailyRefresh Disabled→**Ready**(사용자 승인, 다음 실행 7/25
+  05:30). 배터리 설정 보정(AllowStartIfOnBatteries·DontStopIfGoingOnBatteries — econ 스케줄러
+  때와 동일 함정). 이로써 재채점·마감컷오프·게이트 발효가 수동 의존에서 벗어남.
+- **질문지**: `docs/세무사_질문지_법인경매특례.md` — Q1 법인세법 시행령 §92조의2②3호(저당권
+  실행 취득 3년)의 제3자 낙찰 적용 여부(핵심 변수) + 매매사업자 비교과세·인수보증금 취득가액·
+  지방 저가주택 2억 범위·매매사업자 등록 실무. tax_rules.json uncertainties 기반.
+ — ☁ Supabase sale_time 정밀 미러(당일 마감컷오프 10:00 폴백 해소)
 - **무엇**: ① Supabase `auction_scored_listings.sale_time text default ''` 컬럼 추가(Management
   API 직접 실행·supabase_setup.sql 에 ALTER 문서화) ② store_rest: _payload 에 sale_time 포함 +
   load_scored select/복원(NULL→"") ③ run.py: 클라우드 미러 직전 store._sale_time_map(conn) 으로

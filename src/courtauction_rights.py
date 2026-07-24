@@ -486,6 +486,14 @@ def apply_rights(listing: AuctionListing, rights: ParsedRights) -> AuctionListin
     if appraisal <= 0 and rights.appraisal_amount > 0:
         appraisal = rights.appraisal_amount
 
+    # (2026-07-24 게이트 FAIL 3건 원인) '지분'은 리스트 원천(maejibun 필드) 검출 — 권리 요지
+    # (명세서·현황조사서)에는 이 신호가 없을 수 있어, 요지 기반으로 **대체**하면 지분 라벨이
+    # 소실돼 지분 물건에 온전가 시세가 부활한다(죽전자이 6.5억 허구 차익 재발 실측).
+    # 매각 대상의 속성(지분)은 권리 문서의 속성이 아니므로 병합에서 보존한다.
+    special = list(rights.special_rights)
+    if "지분" in (listing.special_rights or []) and "지분" not in special:
+        special = [*special, "지분"]
+
     return AuctionListing(
         case_no=listing.case_no,
         court=listing.court,
@@ -500,7 +508,7 @@ def apply_rights(listing: AuctionListing, rights: ParsedRights) -> AuctionListin
         fail_count=listing.fail_count,
         sale_date=listing.sale_date,
         assumed_amount=rights.assumed_amount,
-        special_rights=list(rights.special_rights),
+        special_rights=special,
         tenant_opposable=rights.tenant_opposable,
         occupant_type=rights.occupant_type,
         rights_verified=True,   # 물건상세 권리분석 반영됨 → '권리미확인' 해제, 하드게이트 실작동

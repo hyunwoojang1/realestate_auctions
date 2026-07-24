@@ -37,6 +37,7 @@ CREATE TABLE IF NOT EXISTS scored_listings (
     rights_verified INTEGER NOT NULL DEFAULT 0,
     assumed_amount INTEGER NOT NULL DEFAULT 0,
     burden_amount_unknown INTEGER NOT NULL DEFAULT 0,
+    floor_mult REAL NOT NULL DEFAULT 1.0,
     PRIMARY KEY (court, case_no, item_no)
 );
 """
@@ -221,6 +222,9 @@ _COLS = [
     # (감사 2026-07-23 P-01) 인수 명시인데 금액 미상 — 추천계열 진입 금지 판정에 쓰인다.
     # 서빙 폴백도 같은 규칙을 적용해야 하므로 영속.
     "burden_amount_unknown",
+    # (2026-07-24 층 보정) 저층(1~2층·지하) 시세 하향 배율(floor_adjust). 1.0=무보정.
+    # UI 정직성 표기('저층 보정 −N%')와 감사 대조에 필요해 영속.
+    "floor_mult",
 ]
 
 # v1(구스키마)에서 이관 대상 컬럼 — court/item_no/doc_id는 v1에 없으므로 '' 기본값.
@@ -519,6 +523,13 @@ def _migrate(conn: sqlite3.Connection) -> None:
             conn.execute(
                 "ALTER TABLE scored_listings "
                 "ADD COLUMN burden_amount_unknown INTEGER NOT NULL DEFAULT 0"
+            )
+    if "floor_mult" not in cols:
+        # v9 → v10(2026-07-24 층 보정): 저층 시세 하향 배율. 레거시 행은 1.0(무보정 상태가
+        # 사실) — 다음 재채점이 실값·보정된 시세를 채운다.
+        with conn:
+            conn.execute(
+                "ALTER TABLE scored_listings ADD COLUMN floor_mult REAL NOT NULL DEFAULT 1.0"
             )
 
     # listing_rights: 감정평가 요항점 컬럼 추가. 테이블이 이미 있고 컬럼만 없을 때 ALTER.

@@ -350,9 +350,15 @@ def apply_rights_from_rows(listings: list[AuctionListing],
             out.append(lst)          # 빈 요지 = 판정근거 0 → '없음'이 아니라 '모름'
             continue
         badge = summarize(cr)
+        # (2026-07-24 게이트 FAIL 3건 원인) '지분'은 maejibun(리스트 원천) 검출 — 요지 기반
+        # badge.special 로 **대체**하면 라벨이 소실돼 지분 물건에 온전가 시세가 부활한다
+        # (죽전자이 실측: 권리 재크롤 후 '차익 유력 6.5억' 재발). apply_rights 와 동일 보존.
+        special = badge.special
+        if "지분" in (lst.special_rights or []) and "지분" not in special:
+            special = [*special, "지분"]
         enriched = dataclasses.replace(
             lst,
-            special_rights=badge.special,
+            special_rights=special,
             tenant_opposable=badge.opposable,
             assumed_amount=badge.assumed,
             # (감사 2026-07-23 P-01) 인수는 명시됐는데 금액을 못 읽은 상태를 등급 판정까지 전달.
@@ -434,7 +440,8 @@ def run(use_live: bool = False, deal_ymd: str | None = None,
             m = estimate_market(lst, trade_pool)
         s = score_listing(lst, m.est, m.matched, market_scope=m.scope,
                           band_low=m.band_low, band_high=m.band_high,
-                          band_basis=m.basis, comps=m.comps)
+                          band_basis=m.basis, comps=m.comps,
+                          floor_mult=m.floor_mult)
         if mult < 1.0 and s.arb_score is not None:
             s = _apply_window_mult(s, lst, m, mult)
         scored.append(s)

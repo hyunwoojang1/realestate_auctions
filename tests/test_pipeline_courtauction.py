@@ -236,6 +236,23 @@ def test_apply_rights_from_rows_requires_exact_item_no():
     assert out[0].assumed_amount == 0
 
 
+def test_apply_rights_from_rows_preserves_maejibun_share_label():
+    """(2026-07-24 게이트 FAIL 3건 회귀 방지) maejibun 검출 '지분'은 권리 병합에 지워지면 안 된다.
+
+    실사고: 죽전자이2차 — 리스트 maejibun('갑구 2번 2분의 1 지분')으로 '지분' 라벨을 받았는데,
+    권리 재크롤 후 apply_rights_from_rows 가 요지 기반 badge.special 로 **대체**하면서 라벨이
+    소실 → 온전가 시세로 '차익 유력 6.5억' 부활(재채점 실측). 요지에 지분 신호가 없어도
+    리스트 원천 라벨은 보존해야 한다.
+    """
+    import dataclasses as _dc
+    lst = _dc.replace(_listing(), special_rights=["지분"])
+    surviving = "등기된 부동산에 관한 권리는 매각으로 모두 말소됨"   # 요지에 지분 신호 없음
+    out, stats = pipeline.apply_rights_from_rows([lst], [_rights_row(surviving=surviving)])
+    assert stats["matched"] == 1
+    assert "지분" in out[0].special_rights
+    assert out[0].rights_verified is True
+
+
 def test_courtauction_listings_flow_through_scoring():
     """실매물을 pipeline.run에 넣어 ScoredListing까지 — 샘플 시세로 채점(시세 없으면 추정불가)."""
     fake = FakeClient(_records())
