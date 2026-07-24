@@ -36,6 +36,27 @@ def main():
     def add(aid, title, n, rec, note=""):
         F.append((aid, title, n, rec, note))
 
+    # ---- A7: 부분 지분 매각인데 est 매겨짐(2026-07-24 죽전자이 실사고 회귀 감사) ----
+    # 검출·게이트와 같은 판정 함수(is_partial_share)를 쓴다 — 세 층이 갈리면 사각이 재현된다.
+    # 정상 상태 = 0건. 1건이라도 나오면 검출 우회 신규 표기가 생긴 것(표기 변형 수집 후 보강).
+    import sys as _sys
+    _sys.path.insert(0, ROOT)
+    from src.courtauction_fields import is_partial_share  # noqa: E402
+    rows = conn.execute(
+        """SELECT s.grade, s.case_no, r.raw_json FROM scored_listings s
+           JOIN raw_listings r
+             ON r.court=s.court AND r.case_no=s.case_no AND r.item_no=s.item_no
+           WHERE s.est_market_price IS NOT NULL"""
+    ).fetchall()
+    a7 = []
+    for r in rows:
+        d = json.loads(r["raw_json"])
+        if is_partial_share(d.get("maejibun"), d.get("mulBigo")):
+            a7.append(r)
+    add("A7", "부분 지분 매각(maejibun/공유자문구)인데 온전가 시세가 매겨짐 — 0건이어야 정상",
+        len(a7), sum(1 for r in a7 if r["grade"] in REC),
+        f"est 보유 {len(rows)}건 전수 · 실사고=죽전자이 허구차익 3.69억")
+
     # ---- A4: 네이버 확정(same_complex_same_area)인데 감정가 대비 배율이 의심 구간 ----
     rows = conn.execute(
         """SELECT grade, est_market_price e, appraisal_price a FROM scored_listings

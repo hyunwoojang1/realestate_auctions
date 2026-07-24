@@ -71,6 +71,32 @@ def test_gate_share_sale_catches_bigo(tmp_path):
     assert not r.ok and r.count == 1
 
 
+def test_gate_share_sale_catches_maejibun(tmp_path):
+    """(2026-07-24 강화 — 죽전자이 실사고) 비고가 침묵해도 maejibun 지분 표기를 잡는다.
+
+    종전 게이트는 비고만 봐서 '갑구 2번 2분의 1 [성명] 지분 전부'(비고엔 공유자 우선매수
+    문구뿐) 물건이 온전가 시세 6.5억·허구 차익 3.69억으로 서빙되는 것을 통과시켰다.
+    """
+    conn = _mk_db(tmp_path)
+    _seed(conn, est=650_000_000, raw_extra={
+        "maejibun": "갑구 2번 2분의 1 [성명] 지분 전부",
+        "mulBigo": "공유자의 우선매수신고는 1회에 한하여 행사할 수 있음",
+    })
+    r = data_gates.gate_share_sale(conn)
+    assert not r.ok and r.count == 1
+
+
+def test_gate_share_sale_passes_whole_and_landright(tmp_path):
+    """온전 매각('전원')·대지권 비율 표기는 게이트가 잡지 않는다 — 정상 물건 오배제 금지."""
+    conn = _mk_db(tmp_path)
+    _seed(conn, case_no="2025타경2", est=400_000_000,
+          raw_extra={"maejibun": "공유자 전원의 지분 전부"})
+    _seed(conn, case_no="2025타경3", est=300_000_000,
+          raw_extra={"maejibun": "대지권 비율 : 500분의 21.7849"})
+    r = data_gates.gate_share_sale(conn)
+    assert r.ok, r.samples
+
+
 def test_gate_stale_sale_catches_expired(tmp_path):
     conn = _mk_db(tmp_path)
     _seed(conn, sale_date="2020-01-01")

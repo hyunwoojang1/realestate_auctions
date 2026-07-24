@@ -14,3 +14,7 @@
 - [x] 2026-07-23 14:32 KST | code-without-docs commit | files: src/courtauction_detail.py, src/pipeline.py, src/score.py — 처리(14:50): README §5에 3항(burden_amount_unknown → 추천 금지) 추가, 확약 미반영 한계 명기. README §5-3
 - [ ] 2026-07-23 15:03 KST | code-without-docs commit | files: src/courtauction_rights.py
 - [ ] 2026-07-23 16:03 KST | code-without-docs commit | files: src/courtauction_rights.py
+- [ ] 2026-07-23 22:49 KST | code-without-docs commit | files: deploy/crawl_rights.py
+- [ ] 2026-07-24 10:22 KST | code-without-docs commit | files: src/pipeline.py, src/score.py
+- [x] 2026-07-24 13:21 KST | code-without-docs commit | files: src/courtauction_fields.py — 처리(2026-07-24 14:2x): 지분 검출(is_partial_share·maejibun) — README §6에 '부분 지분 검출' 절+경계표 추가, docs/시세_가정_명세서.md G5 신설(깨진 가정 실증·수정 기록).
+- [x] 2026-07-24 13:27 KST | code-without-docs commit | files: src/score.py — 처리(2026-07-24 14:2x): market_view share_sale 폴백 차단 — README §6 '서빙 폴백 차단' 문단 + 명세서 G5-3에 함께 기술.

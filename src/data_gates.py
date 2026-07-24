@@ -165,7 +165,16 @@ def gate_join_integrity(conn) -> GateResult:
 
 
 def gate_share_sale(conn) -> GateResult:
-    """지분/건물만/대지권미등기 문구가 원본 비고에 있는데 온전 물건처럼 시세가 매겨진 경우."""
+    """지분/건물만/대지권미등기 신호가 원본에 있는데 온전 물건처럼 시세가 매겨진 경우.
+
+    (2026-07-24 강화 — 죽전자이2차 실사고) 종전엔 비고(mulBigo)만 봤는데 지분 표기는
+    **maejibun 필드**에 온다("갑구 2번 2분의 1 [성명] 지분 전부") — 이 게이트도 검출기와
+    똑같은 사각지대라 1/2 지분이 온전가 시세·차익 3.69억으로 서빙되는 것을 통과시켰다.
+    검출기와 **같은 판정 함수**(courtauction_fields.is_partial_share)를 공유한다 —
+    채점 검출과 적재 게이트가 다른 규칙을 쓰면 한쪽 사각이 다른 쪽에서 재현된다.
+    비고 키워드 검사(건물만·대지권 계열 + 명시적 '지분')는 백업으로 유지.
+    """
+    from .courtauction_fields import is_partial_share  # noqa: PLC0415 — 순환 회피
     bad = []
     for r in _rows(conn, """
         select s.court, s.case_no, s.item_no, r.raw_json
@@ -175,9 +184,11 @@ def gate_share_sale(conn) -> GateResult:
     """):
         d = json.loads(r["raw_json"])
         bigo = (d.get("mulBigo") or "") + (d.get("alias") or "")
-        if any(k in bigo for k in ("지분", "건물만", "대지권없", "대지권 없", "대지권미등기")):
+        if is_partial_share(d.get("maejibun"), d.get("mulBigo")):
+            bad.append(f"{r['case_no']}(지분:{(d.get('maejibun') or bigo)[:20]})")
+        elif any(k in bigo for k in ("지분", "건물만", "대지권없", "대지권 없", "대지권미등기")):
             bad.append(f"{r['case_no']}({bigo[:20]})")
-    return GateResult("지분·건물만·대지권 문구인데 시세 매칭됨", ok=not bad,
+    return GateResult("지분·건물만·대지권 신호인데 시세 매칭됨", ok=not bad,
                       count=len(bad), samples=bad[:5])
 
 
