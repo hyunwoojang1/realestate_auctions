@@ -500,6 +500,14 @@ def main(argv=None) -> int:
                 print(f"[+] Supabase 임차인 미러링 {tn}행")
             except Exception as e:  # noqa: BLE001 — 임차인 테이블 미배포/실패는 조용히 skip
                 print(f"[!] Supabase 임차인 미러링 skip(테이블 미배포?): {e}", file=sys.stderr)
+            # (2026-07-25 V6) 점유관계 요지 미러 — 상세 신설 섹션의 클라우드 서빙 동등성.
+            # 로컬은 curst 원본에서 즉석 파싱하지만 Vercel 은 이 테이블만 읽는다.
+            try:
+                svrows = store.survey_rows(conn)
+                sn = store_rest.upsert_survey(svrows)
+                print(f"[+] Supabase 점유관계 미러링 {sn}건")
+            except Exception as e:  # noqa: BLE001 — 미배포/실패는 조용히 skip(로컬 서빙 무영향)
+                print(f"[!] Supabase 점유관계 미러링 skip(테이블 미배포?): {e}", file=sys.stderr)
     conn.close()
     return exit_code
 

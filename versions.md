@@ -1,5 +1,15 @@
 # versions.md — auction-arbitrage 루프 작업 로그 (append-only, 최신순)
 
+## 2026-07-25 12:10 KST — ☁️ 점유관계 클라우드 미러(auction_listing_survey) + 백필 1,357건
+- **왜**: 배포 직전 발견 — Vercel 프로덕션은 Supabase REST 를 읽는데 curst 원본은 로컬 SQLite
+  에만 있어, V6 점유관계 섹션이 프로덕션에서 통째로 안 나올 뻔함(로컬/클라우드 서빙 비동등).
+- **무엇**: ① Supabase `auction_listing_survey` 신설(Management API 로 DDL 실행, RLS on·정책
+  없음=service key 전용 관례, supabase_rights.sql 에도 기록) ② store.survey_rows() — raw 전량
+  → 요지 행 변환(possession \n join) ③ store_rest.upsert_survey/fetch_survey(가져올 때 리스트
+  복원, 실패=None=섹션 미표시) ④ web.py REST 폴백 배선 ⑤ crawl_rights 미러 단계 추가(임차인
+  미러 옆) ⑥ **백필 1,357건 업서트 + REST 왕복 검증**(부산 1435: 3줄 원문·[성명] 마스킹·임차0).
+- **증거**: pytest 918 passed(왕복 테스트 신규), fetch_survey 실측 JSON 일치.
+
 ## 2026-07-25 11:35 KST — 🏗 상세페이지 V6 실이식 (문서 3종 연속 + 점유관계 신설 + 정보밀도)
 - **사용자 확정 범위**: V1 문서 연속 스택 + 기일내역만 V3 타임라인, **시뮬레이터·전략존·차트는 불변**.
 - **데이터**: `courtauction_detail.curst_possession()` 신설 — curst 원본(dlt_ordTsRlet.gdsPossCtt·

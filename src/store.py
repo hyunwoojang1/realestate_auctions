@@ -456,6 +456,36 @@ def load_detail_raw(conn: sqlite3.Connection, court: str, case_no: str, item_no:
     return json.loads(zlib.decompress(row["payload"]).decode("utf-8"))
 
 
+def survey_rows(conn: sqlite3.Connection) -> list[dict]:
+    """listing_detail_raw(curst) 전량 → '부동산의 점유관계' 요지 행(클라우드 미러용, 2026-07-25).
+
+    로컬 서빙은 원본에서 즉석 파싱하지만 Vercel(REST)은 원본 미러가 없으므로,
+    파싱 결과를 auction_listing_survey 로 밀어 서빙 동등성을 만든다.
+    possession 리스트는 '\\n' join(1행=1물건). 원문 없음(None)은 행 자체를 만들지 않는다."""
+    import zlib  # noqa: PLC0415
+
+    from .courtauction_detail import curst_possession  # noqa: PLC0415
+    out: list[dict] = []
+    rows = conn.execute(
+        "SELECT court, case_no, item_no, fetched_at, payload "
+        "FROM listing_detail_raw WHERE doc_type='curst'").fetchall()
+    for r in rows:
+        try:
+            data = json.loads(zlib.decompress(r["payload"]).decode("utf-8"))
+        except Exception:  # noqa: BLE001 — 개별 손상 페이로드는 건너뜀(미러는 계속)
+            continue
+        sv = curst_possession(data)
+        if not sv:
+            continue
+        out.append({
+            "court": r["court"], "case_no": r["case_no"], "item_no": r["item_no"],
+            "addr": sv["addr"], "possession": "\n".join(sv["possession"]),
+            "etc": sv["etc"], "exam_dates": sv["exam_dates"],
+            "tenant_count": sv["tenant_count"], "fetched_at": r["fetched_at"] or "",
+        })
+    return out
+
+
 def _migrate(conn: sqlite3.Connection) -> None:
     """구스키마 자동 이관 — v1(case_no 단일 PK) → v2(복합 PK) → v3(market_scope).
 

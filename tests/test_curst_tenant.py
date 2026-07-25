@@ -239,3 +239,20 @@ def test_curst_possession_none_when_empty():
     assert curst_possession({}) is None
     assert curst_possession({"ipcheck": True, "dlt_ordTsRlet": [{}]}) is None
     assert curst_possession("문자열") is None
+
+
+def test_survey_rows_mirror_roundtrip(tmp_path):
+    """(2026-07-25) 점유관계 클라우드 미러 행 생성 — raw 저장→파싱→행 변환 왕복."""
+    from src import store
+    conn = store.connect(str(tmp_path / "s.db"))
+    store.save_detail_raw(conn, "부산지방법원", "2025타경1435", "1", "curst",
+                          POSSESSION_SURVEY, fetched_at="2026-07-25")
+    rows = store.survey_rows(conn)
+    assert len(rows) == 1
+    r = rows[0]
+    assert r["addr"].startswith("부산광역시")
+    assert r["possession"].count("\n") == 2          # 3줄 → \n 2개
+    assert "홍길동" not in r["possession"]            # 저장 마스킹 + 파서 마스킹 이중화
+    assert r["tenant_count"] == 0
+    assert r["fetched_at"] == "2026-07-25"
+    conn.close()

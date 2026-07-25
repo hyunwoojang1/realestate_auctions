@@ -372,6 +372,45 @@ def fetch_rights(court: str, case_no: str, item_no: str = "") -> dict | None:
 TENANTS_TABLE = os.environ.get("SUPABASE_TENANTS_TABLE", "auction_listing_tenants")
 
 
+# 현황조사 '부동산의 점유관계' 요지 미러(2026-07-25 V6) — 상세 신설 섹션의 클라우드 서빙.
+SURVEY_TABLE = os.environ.get("SUPABASE_SURVEY_TABLE", "auction_listing_survey")
+
+
+def upsert_survey(rows: list[dict]) -> int:
+    """점유관계 요지(store.survey_rows 산출 행) 병합 미러. 테이블 미배포면 호출측 graceful skip."""
+    url, key, _ = _cfg()
+    return _post_upsert(url, key, SURVEY_TABLE, rows)
+
+
+def fetch_survey(court: str, case_no: str, item_no: str = "") -> dict | None:
+    """단건 점유관계 요지 조회(클라우드 서빙) — 템플릿 survey 컨텍스트와 동형으로 반환.
+
+    possession 은 저장 시 '\\n' join → 여기서 리스트로 복원(curst_possession 반환형과 동일).
+    미배포/미러 전/실패는 None — 섹션 미표시(모름≠없음), 페이지는 정상."""
+    try:
+        url, key, _ = _cfg()
+        r = requests.get(_endpoint(url, SURVEY_TABLE), headers=_headers(key),
+                         params={"select": "*", "court": f"eq.{court}",
+                                 "case_no": f"eq.{case_no}",
+                                 "item_no": f"eq.{item_no or ''}", "limit": 1},
+                         timeout=15)
+        if r.status_code >= 400:      # 테이블 미배포(404/400 등) → 미크롤 취급
+            return None
+        rows = r.json()
+        if not rows:
+            return None
+        row = rows[0]
+        return {
+            "addr": row.get("addr") or "",
+            "possession": [ln for ln in (row.get("possession") or "").split("\n") if ln],
+            "etc": row.get("etc") or "",
+            "exam_dates": row.get("exam_dates") or "",
+            "tenant_count": row.get("tenant_count"),
+        }
+    except Exception:  # noqa: BLE001 — 점유관계 조회 실패는 상세 페이지를 막지 않음
+        return None
+
+
 def upsert_tenants(rows: list[dict]) -> int:
     """임차인 현황(listing_tenants 행 dict) 병합 미러 — 대항력 여지 판정 원천의 클라우드 서빙.
 

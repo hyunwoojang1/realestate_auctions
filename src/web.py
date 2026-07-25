@@ -955,6 +955,9 @@ def create_app() -> Flask:
                 if _sv_raw:
                     from .courtauction_detail import curst_possession  # noqa: PLC0415
                     survey = curst_possession(_sv_raw)
+            elif store_rest.enabled():
+                # 클라우드(Vercel) 서빙 — 크롤 시 미러된 요지 테이블(auction_listing_survey)에서.
+                survey = store_rest.fetch_survey(s.court, s.case_no, s.item_no)
         except Exception as e:  # noqa: BLE001 — 점유관계 실패는 상세 페이지를 막지 않음
             logger.warning("점유관계 로드 실패(%s %s): %s", s.court, s.case_no, e)
 

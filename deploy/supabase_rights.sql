@@ -102,3 +102,20 @@ end $$;
 
 -- 확인: rows=0 이면 준비 완료(크롤 미러가 채웁니다).
 select count(*) as rows from public.auction_listing_rights;
+
+-- [2026-07-25 V6 점유관계] 현황조사서 '부동산의 점유관계' 요지 미러 — 상세 페이지 신설 섹션의
+-- 클라우드 서빙용(로컬은 listing_detail_raw(curst)에서 즉석 파싱, Vercel은 이 테이블을 읽음).
+-- 원문 자유기술은 저장 전 실명 마스킹 완료분. RLS on + 정책 없음 = service key 전용(관례 동일).
+create table if not exists public.auction_listing_survey (
+    court        text not null default '',
+    case_no      text not null,
+    item_no      text not null default '',
+    addr         text not null default '',   -- 조사 소재지
+    possession   text not null default '',   -- 점유관계 원문(줄바꿈 \n 구분)
+    etc          text not null default '',   -- 기타(현칭 등)
+    exam_dates   text not null default '',   -- 집행관 조사일시
+    tenant_count integer,                    -- 신고 임차인 수(null=미상, 0=신고 없음 — 구분 유지)
+    fetched_at   text not null default '',
+    primary key (court, case_no, item_no)
+);
+alter table public.auction_listing_survey enable row level security;
