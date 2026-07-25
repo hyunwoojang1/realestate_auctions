@@ -501,6 +501,44 @@ def parse_curst_survey(data: dict) -> list[dict]:
     return out
 
 
+def curst_possession(data: dict) -> dict | None:
+    """현황조사서 응답 dict → '부동산의 점유관계' 표시용 요지 (2026-07-25 사용자 요구).
+
+    상세 페이지가 "최선순위만 보여주고 점유관계를 안 보여주면 뭘 보고 판단하냐"는 지적의
+    응답 — 집행관 조사 원문(폐문부재/전입세대확인 결과 등)을 소재지·점유관계·기타·조사일시
+    구조로 돌려준다. 원문이 전혀 없으면 None(섹션 미표시 — 모름을 확정으로 바꾸지 않음).
+
+    자유기술(gdsPossCtt·printRltnDts)은 방어적으로 실명 마스킹 — 크롤 시점 마스킹과 이중화
+    (구버전 크롤 페이로드가 미마스킹일 수 있음). tenant_count 는 법원이 접수한 임차인 신고
+    수(lesCnt) — 0 은 '신고 임차인 없음'이라는 그 자체로 중요한 사실이라 None 과 구분한다."""
+    from .courtauction_fields import mask_personal_names  # noqa: PLC0415 — 순환 임포트 회피
+
+    if not isinstance(data, dict):
+        return None
+    res = data.get("result") if isinstance(data.get("result"), dict) else data
+    if not isinstance(res, dict):
+        return None
+    mng = res.get("dma_curstExmnMngInf") if isinstance(res.get("dma_curstExmnMngInf"), dict) else {}
+    rlets = res.get("dlt_ordTsRlet") or []
+    r0 = rlets[0] if rlets and isinstance(rlets[0], dict) else {}
+    poss_raw = html.unescape(str(r0.get("gdsPossCtt") or ""))
+    poss_raw = re.sub(r"<br\s*/?>", "\n", poss_raw).replace("\r", "")
+    lines = [mask_personal_names(ln.strip()) for ln in poss_raw.split("\n") if ln.strip()]
+    etc = mask_personal_names(" ".join(str(mng.get("printRltnDts") or "").split()))
+    exam_dates = " ".join(str(mng.get("exmnDtDts") or "").split())
+    addr = " ".join(str(r0.get("printSt") or "").split())
+    les_cnt = r0.get("lesCnt")
+    if not (lines or etc):
+        return None
+    return {
+        "addr": addr,
+        "possession": lines,
+        "etc": etc,
+        "exam_dates": exam_dates,
+        "tenant_count": les_cnt if isinstance(les_cnt, int) else None,
+    }
+
+
 def tenant_moveins(tenants: list[dict]) -> list[str]:
     """임차인 레코드 중 **is_tenant_like** 이고 전입일이 있는 것들의 전입일 리스트.
 

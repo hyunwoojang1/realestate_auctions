@@ -198,3 +198,44 @@ def test_store_tenants_roundtrip(tmp_path):
     store.save_tenants(conn, "부산서부지원", "2022타경3289", "1", recs, fetched_at="2026-07-22")
     assert len(store.load_tenants(conn, "부산서부지원", "2022타경3289", "1")) == 1
     conn.close()
+
+
+# ══════ curst_possession — '부동산의 점유관계' 표시 요지 (2026-07-25) ══════
+# 부산 2025타경1435(수안동) 실측 구조: 폐문부재 + 전입세대확인 소유자 세대 + lesCnt=0.
+POSSESSION_SURVEY = {
+    "ipcheck": True,
+    "dma_curstExmnMngInf": {
+        "cortOfcCd": "B000410", "csNo": "20250130001435",
+        "exmnDtDts": "2025년04월18일10시06분 2025년04월25일12시20분 ",
+        "printRltnDts": "본건은 현칭 `영화아파트` 임.",
+    },
+    "dlt_ordTsRlet": [{
+        "gdsPossCtt": ("① 폐문부재하여 안내문을 현관문과 우편함에 꽂아두었으나 연락이 없어 "
+                       "점유 및 임대차 관계 알 수 없었음. \r<br />② 전입세대확인서에 소유자 "
+                       "홍길동 세대가 전입되어 있음. \r<br />③ 외국인체류확인서에 해당사항 없음.<br />"),
+        "printSt": "부산광역시 동래구 수안동 32-2  5층503호",
+        "lesCnt": 0,
+    }],
+    "dlt_ordTsLserLtn": [],
+}
+
+
+def test_curst_possession_parses_lines_and_masks_pii():
+    from src.courtauction_detail import curst_possession
+    got = curst_possession(POSSESSION_SURVEY)
+    assert got is not None
+    assert got["addr"] == "부산광역시 동래구 수안동 32-2 5층503호"
+    assert len(got["possession"]) == 3                      # <br /> 기준 3줄 분리
+    assert "폐문부재" in got["possession"][0]
+    assert "홍길동" not in " ".join(got["possession"])       # 실명 마스킹(방어적 이중화)
+    assert "소유자" in got["possession"][1]                  # 역할 단어는 보존
+    assert got["etc"] == "본건은 현칭 `영화아파트` 임."
+    assert got["tenant_count"] == 0                          # 0 = '신고 임차인 없음'(중요 사실)
+    assert "2025년04월18일" in got["exam_dates"]
+
+
+def test_curst_possession_none_when_empty():
+    from src.courtauction_detail import curst_possession
+    assert curst_possession({}) is None
+    assert curst_possession({"ipcheck": True, "dlt_ordTsRlet": [{}]}) is None
+    assert curst_possession("문자열") is None

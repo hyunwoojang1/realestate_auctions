@@ -65,6 +65,37 @@
   .dnotes-cols{column-count:1;column-gap:40px}
   .dnotes-cols .drow{break-inside:avoid}
 
+  /* ── V6 개편(2026-07-25): 판정 뱃지·기일 타임라인·대장 칩·사진|지도·기일|대장 듀오 ── */
+  .dvband{display:flex;flex-wrap:wrap;gap:6px;margin:0 0 10px}
+  .vtag{display:inline-flex;align-items:center;gap:4px;padding:3px 10px;border-radius:var(--r-pill);
+    font-size:11.5px;font-weight:700;line-height:1.5;border:1px solid var(--hairline-strong);
+    background:var(--surface);color:var(--ink-600)}
+  .vtag.ok{background:var(--gain-weak);color:var(--gain-strong);border-color:var(--gain-line)}
+  .vtag.warn{background:var(--caution-weak);color:var(--caution);border-color:var(--caution-line)}
+  .vtag.risk{background:var(--risk-weak);color:var(--risk-strong);border-color:var(--risk-line)}
+  .dtl{padding:4px 0}
+  .dtl-ev{display:flex;gap:12px;padding:6px 14px;align-items:baseline;font-size:13px}
+  .dtl-ev .dt{flex:0 0 92px;color:var(--ink-500);font-weight:600;font-variant-numeric:tabular-nums}
+  .dtl-ev .pv{font-weight:700;font-variant-numeric:tabular-nums}
+  .dtl-ev.fail .pv{color:var(--ink-500);text-decoration:line-through}
+  .dtl-ev.next{background:var(--risk-weak);border-radius:8px}
+  .dtl-ev.next .pv{color:var(--risk-strong)}
+  .dbchips{display:flex;flex-wrap:wrap;gap:6px;padding:10px 14px}
+  .dbc{font-size:12px;background:var(--surface-sunken);border:1px solid var(--hairline-strong);
+    border-radius:7px;padding:3px 9px;color:var(--ink-700)}
+  .dbc b{color:var(--ink-900)}
+  .dbc.ok{background:var(--gain-weak);border-color:var(--gain-line);color:var(--gain-strong);font-weight:700}
+  .dbc.risk{background:var(--risk-weak);border-color:var(--risk-line);color:var(--risk-strong);font-weight:700}
+  .dpm{display:grid;grid-template-columns:minmax(0,1fr);gap:14px}
+  .dduo{display:grid;grid-template-columns:minmax(0,1fr)}
+  /* 반화면(스택 레이아웃에서 폭이 있는 구간): 사진|지도 한 행, 기일|대장 한 행, 감정요항 2단 */
+  @media(min-width:700px) and (max-width:1099px){
+    .dpm{grid-template-columns:minmax(0,3fr) minmax(0,2fr);align-items:stretch}
+    .dpm .dmapcard{margin-top:0}
+    .dduo{grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:18px}
+    .dnotes-cols{column-count:2;column-gap:32px}
+  }
+
   /* 차트(네이버 부동산 시세 문법) — 스와치 + 흰 카드 툴팁 (페이지 로컬) */
   .ptc-legend .sw.bandhi{width:16px;height:0;border-top:2.5px solid #e8574f;border-radius:0;background:none;align-self:center}
   .ptc-legend .sw.bandlo{width:16px;height:0;border-top:2.5px solid #3f74e0;border-radius:0;background:none;align-self:center}
@@ -112,9 +143,10 @@
     .dmapcard{margin-top:0;height:300px}
     .dsim{grid-area:sim}
     .dsim-body{grid-template-columns:minmax(0,320px) minmax(0,1fr)}
-    .dlow{grid-area:low;display:grid;grid-template-columns:minmax(0,2fr) minmax(0,3fr);gap:22px;
+    /* (2026-07-25 V6) 감정요항이 문서 3종 연속 배치로 이동 → 하단 존은 매수 적정성 단독 */
+    .dlow{grid-area:low;display:grid;grid-template-columns:minmax(0,1fr);gap:22px;
       align-items:start;margin-top:var(--sp-5)}
-    .dnotes-cols{column-count:2}
+    .dnotes-cols{column-count:1}
     .dfootzone{grid-area:foot;margin-top:var(--sp-5)}
     .dbottom{display:none}                 /* 데스크톱: 헤더 액션으로 대체(본문 가림 해소) */
     .dhead-acts{display:flex;gap:8px;flex:none;margin-top:4px}
@@ -355,7 +387,11 @@
 
   <!-- ══════ 오른쪽: 그래프 · 현장 (사진→차트→지도) ══════ -->
   <div class="dpane" id="col-vis">
-    <span class="dcol-label"><span class="n">②</span>그래프 · 현장<span class="d">실물 → 시세 추이 → 위치</span></span>
+    <span class="dcol-label"><span class="n">②</span>그래프 · 현장<span class="d">실물·위치 → 시세 추이</span></span>
+    {# (2026-07-25 V6 개편) 사진|지도 나란히 — 반화면(700~1099px)에서 한 행. 3컬럼 와이드에선
+       컬럼 폭이 좁아 세로 스택 유지. 차트는 그 아래로. #}
+    <div class="dpm">
+    <div class="dpm-a">
     {% if photos %}
     <div class="dphoto">
       {% if photos|length > 1 %}<span class="cnt">📷 {{ photos|length }}</span>{% endif %}
@@ -371,6 +407,32 @@
     {% else %}
     <div class="dphoto-empty" role="note">📷 등록된 물건 사진이 없습니다 <span>(법원 미제공이거나 아직 수집 전)</span></div>
     {% endif %}
+    </div>
+    <div class="dmapcard">
+      {% if coord %}
+      <div class="dmap" id="dmap"
+           data-lat="{{ coord[0] }}" data-lon="{{ coord[1] }}"
+           data-name="{{ (s.apt_name or s.property_type)|e }}"
+           data-vw-key="{{ vworld_key or '' }}"
+           role="application" aria-label="{{ (s.apt_name or s.property_type)|e }} 위치 지도"></div>
+      {% else %}
+      <div class="dmap-empty" role="note">📍 법원 공고에 좌표가 없어 지도를 바로 표시할 수 없습니다.
+        <span>아래 버튼으로 주소를 검색해 위치를 확인하세요.</span></div>
+      {% endif %}
+      <div class="dmap-bar">
+        <div class="dmap-addr">{{ s.address }}</div>
+        <div class="dmap-acts">
+          {% if coord %}
+          <a class="dmap-btn primary" href="https://map.kakao.com/link/roadview/{{ coord[0] }},{{ coord[1] }}" target="_blank" rel="noopener">🛣 로드뷰</a>
+          <a class="dmap-btn" href="https://map.kakao.com/link/map/{{ (s.apt_name or s.property_type)|urlencode }},{{ coord[0] }},{{ coord[1] }}" target="_blank" rel="noopener">카카오맵 ↗</a>
+          <a class="dmap-btn" href="https://map.kakao.com/link/to/{{ (s.apt_name or s.property_type)|urlencode }},{{ coord[0] }},{{ coord[1] }}" target="_blank" rel="noopener">길찾기</a>
+          {% else %}
+          <a class="dmap-btn primary" href="https://map.kakao.com/link/search/{{ s.address|urlencode }}" target="_blank" rel="noopener">주소로 위치·로드뷰 검색 ↗</a>
+          {% endif %}
+        </div>
+      </div>
+    </div>
+    </div><!-- /dpm -->
     {% if chart.band_now or chart.trades or chart.hist %}
     <!-- 가격-시간 차트 -->
     <div class="dstep-head"><span class="dstep-num">📈</span>
@@ -413,31 +475,6 @@
     {% else %}
     <div class="pxm-na">매칭 실거래 {{ s.matched_trades }}건 — 표본이 부족해 시세·차익을 계산하지 않습니다.</div>
     {% endif %}
-
-    <div class="dmapcard">
-      {% if coord %}
-      <div class="dmap" id="dmap"
-           data-lat="{{ coord[0] }}" data-lon="{{ coord[1] }}"
-           data-name="{{ (s.apt_name or s.property_type)|e }}"
-           data-vw-key="{{ vworld_key or '' }}"
-           role="application" aria-label="{{ (s.apt_name or s.property_type)|e }} 위치 지도"></div>
-      {% else %}
-      <div class="dmap-empty" role="note">📍 법원 공고에 좌표가 없어 지도를 바로 표시할 수 없습니다.
-        <span>아래 버튼으로 주소를 검색해 위치를 확인하세요.</span></div>
-      {% endif %}
-      <div class="dmap-bar">
-        <div class="dmap-addr">{{ s.address }}</div>
-        <div class="dmap-acts">
-          {% if coord %}
-          <a class="dmap-btn primary" href="https://map.kakao.com/link/roadview/{{ coord[0] }},{{ coord[1] }}" target="_blank" rel="noopener">🛣 로드뷰</a>
-          <a class="dmap-btn" href="https://map.kakao.com/link/map/{{ (s.apt_name or s.property_type)|urlencode }},{{ coord[0] }},{{ coord[1] }}" target="_blank" rel="noopener">카카오맵 ↗</a>
-          <a class="dmap-btn" href="https://map.kakao.com/link/to/{{ (s.apt_name or s.property_type)|urlencode }},{{ coord[0] }},{{ coord[1] }}" target="_blank" rel="noopener">길찾기</a>
-          {% else %}
-          <a class="dmap-btn primary" href="https://map.kakao.com/link/search/{{ s.address|urlencode }}" target="_blank" rel="noopener">주소로 위치·로드뷰 검색 ↗</a>
-          {% endif %}
-        </div>
-      </div>
-    </div>
   </div>
 
   <!-- ══════ 왼쪽: 숫자 · 가격 (계산서→KB→명세서→기일) ══════ -->
@@ -517,6 +554,17 @@
 
 
     {% if rights %}
+    {# (2026-07-25 V6) 판정 뱃지 줄 — 결론 먼저, 근거(문서 3종)는 바로 아래. 근거 없는 낙관 금지:
+       각 뱃지는 아래 문서의 실데이터에서만 파생되고, 판정 불가 항목은 뱃지 자체를 안 만든다. #}
+    <div class="dvband">
+      {% if rights.surviving_is_real %}<span class="vtag risk">⛔ 인수되는 등기 권리 있음</span>
+      {% else %}<span class="vtag ok">✓ 인수 등기권리 없음</span>{% endif %}
+      {% if priority and priority.verdict == 'confirmed_opposable' %}<span class="vtag risk">⚠ 대항력 임차인 있음</span>
+      {% elif priority and priority.verdict == 'possible_opposable' %}<span class="vtag warn">⚠ 대항력 여지 — 확인 필요</span>
+      {% elif priority and priority.verdict == 'not_opposable' %}<span class="vtag ok">✓ 대항력 임차인 없음</span>
+      {% elif survey and survey.tenant_count == 0 %}<span class="vtag ok">✓ 신고 임차인 0명</span>{% endif %}
+      {% if survey and survey.possession and '폐문부재' in survey.possession|join(' ') %}<span class="vtag warn">⚠ 폐문부재 — 입찰 전 현장확인 권장</span>{% endif %}
+    </div>
     <!-- 법원 매각물건명세서 요지 -->
     <div class="dstep-head"><span class="dstep-num{% if rights.has_risk_text %} risk{% else %} ok{% endif %}">§</span>
       <h2>법원 매각물건명세서 요지 <span class="sub">· 물건상세 수집 {{ rights.fetched_at[:10] }}</span> <a class="srclink js-copyopen" href="{{ court_src_url }}" target="_blank" rel="noopener" data-copy="{{ s.case_no }}" data-msg="사건번호 복사됨 — {{ s.court }} 선택 후 붙여넣으세요">법원 원문 ↗</a></h2></div>
@@ -567,20 +615,75 @@
     </div>
     {% endif %}
 
+    {% if survey %}
+    <!-- 현황조사서 — 부동산의 점유관계 (2026-07-25 신설 — "최선순위만으론 판단 불가" 사용자 요구) -->
+    <div class="dstep-head"><span class="dstep-num">👣</span>
+      <h2>현황조사서 — 부동산의 점유관계 <span class="sub">· 집행관 조사 요지</span></h2></div>
+    <div class="dpanel">
+      {% if survey.addr %}
+      <div class="drow"><span class="k">소재지</span><span class="v" style="font-size:13px;font-weight:600;color:var(--ink-700)">{{ survey.addr }}</span></div>
+      {% endif %}
+      {% if survey.possession %}
+      <div class="drow" style="align-items:flex-start"><span class="k" style="flex:0 0 auto">점유관계</span>
+        <span class="v" style="font-size:13px;font-weight:500;color:var(--ink-700);text-align:left;line-height:1.7">{% for ln in survey.possession %}{{ ln }}{% if not loop.last %}<br>{% endif %}{% endfor %}</span></div>
+      {% endif %}
+      {% if survey.etc %}
+      <div class="drow"><span class="k">기타</span><span class="v" style="font-size:13px;font-weight:500;color:var(--ink-700);text-align:right">{{ survey.etc }}</span></div>
+      {% endif %}
+      {% if survey.tenant_count is not none %}
+      <div class="drow"><span class="k">신고 임차인</span><span class="v" style="font-size:14px{% if survey.tenant_count == 0 %};color:var(--gain){% endif %}">{{ survey.tenant_count }}명</span></div>
+      {% endif %}
+      {% for t in tenants %}
+      <div class="drow"><span class="k" style="font-weight:500">임차 세대 {{ loop.index }} <span class="hint">{{ t.usage or '' }}{% if t.part %} · {{ t.part }}{% endif %}</span></span>
+        <span class="v" style="font-size:12.5px">전입 <b>{{ t.movein_ymd or '미상' }}</b>{% if t.confirm_ymd %} · 확정 {{ t.confirm_ymd }}{% endif %}{% if t.deposit %} · 보증금 <b>{{ won(t.deposit) }}</b>{% endif %}{% if t.possession %} · {{ t.possession }}{% endif %}</span></div>
+      {% endfor %}
+      {% if survey.exam_dates %}
+      <div class="drow"><span class="k">조사일시</span><span class="v" style="font-size:12.5px;font-weight:500;color:var(--ink-600)">{{ survey.exam_dates }}</span></div>
+      {% endif %}
+      <div class="dnote">출처: 법원 현황조사서 요지(전입세대확인서·조사 당시 기준). 임대차 관계는 변동될 수 있어 전문·최신 등기부로 최종 확인하세요.</div>
+    </div>
+    {% endif %}
 
+    {% if rights and rights.appraisal_notes %}
+    <!-- 감정 요항 — (2026-07-25 V6) 하단 존에서 문서 3종 연속 배치로 이동 -->
+    <div class="dstep-head"><span class="dstep-num">評</span>
+      <h2>감정 요항 <span class="sub">· 감정평가서 발췌 — 참고자료</span></h2></div>
+    <div class="dpanel">
+      <div class="dnotes-cols">
+      {% for n in rights.appraisal_notes %}
+      <div class="drow" style="align-items:flex-start">
+        <span class="k" style="font-weight:600;min-width:84px;flex:0 0 auto">{{ n.label }}</span>
+        <span class="v" style="font-size:13.5px;color:var(--ink-600);white-space:pre-line;text-align:left">{{ n.text | deent }}</span></div>
+      {% endfor %}
+      </div>
+    </div>
+    {% endif %}
+
+    {# (2026-07-25 V6) 기일=세로 타임라인(유찰 취소선·다가오는 기일 하이라이트),
+       건축물대장=칩 한 줄 — 반화면(700~1099px)에선 두 카드가 한 행(dduo). #}
+    <div class="dduo">
     {% if rights and rights.schedule %}
+    <div>
     <!-- 기일 역사 -->
     <div class="dstep-head"><span class="dstep-num">↻</span>
       <h2>기일 내역 <span class="sub">· 유찰 {{ s.fail_count }}회 경과</span></h2></div>
     <div class="dpanel">
-      {% for ev in rights.schedule %}
-      <div class="drow"><span class="k" style="font-weight:500">{{ ev.ymd }} <span class="hint">{{ ev.kind }}</span></span>
-        <span class="v" style="font-size:14px">{% if ev.price %}{{ won(ev.price) }} · {% endif %}<b style="{% if ev.result == '유찰' %}color:var(--risk){% elif ev.result in ('매각','납부','배당종결') %}color:var(--gain){% else %}color:var(--ink-600){% endif %}">{{ ev.result }}</b></span></div>
+      <div class="dtl">
+      {% for ev in rights.schedule|sort(attribute='ymd') %}
+      {% set upcoming = not ev.result and ev.kind == '매각기일' %}
+      <div class="dtl-ev{% if ev.result == '유찰' %} fail{% elif upcoming %} next{% endif %}">
+        <span class="dt">{{ ev.ymd }}</span>
+        <span class="pv">{% if ev.price %}{{ won(ev.price) }}{% else %}{{ ev.kind }}{% endif %}</span>
+        <span class="rs" style="{% if ev.result == '유찰' %}color:var(--ink-400){% elif ev.result in ('매각','납부','배당종결') %}color:var(--gain){% elif upcoming %}color:var(--risk-strong);font-weight:700{% else %}color:var(--ink-500){% endif %}">{% if ev.result %}{{ ev.result }}{% elif upcoming %}진행 예정{% if dd is not none and dd >= 0 %} D-{{ dd }}{% endif %}{% elif ev.price %}{{ ev.kind }}{% endif %}</span>
+      </div>
       {% endfor %}
+      </div>
+    </div>
     </div>
     {% endif %}
 
     {% if bldg %}
+    <div>
     <!-- 건축물대장 — 노후도·위반건축물(건축HUB 표제부) -->
     <div class="dstep-head"><span class="dstep-num">🏗</span>
       <h2>건축물대장 <span class="sub">· 표제부{% if bldg.dong_count > 1 %} {{ bldg.dong_count }}개동{% endif %}</span></h2></div>
@@ -589,21 +692,17 @@
       <div class="dbanner risk"><b>⚠ 위반건축물</b> — 대장에 위반 표기가 있습니다. 이행강제금·대출 제한
         가능성이 있어 원문 확인이 필요합니다.{% if bldg.violation_content %} <span style="font-weight:500">({{ bldg.violation_content }})</span>{% endif %}</div>
       {% endif %}
-      {% if bldg.approved %}
-      <div class="drow"><span class="k">사용승인(준공)</span><span class="v" style="font-size:14px">{{ bldg.approved }}{% if bldg.age_years is not none %} · <b>{{ bldg.age_years }}년차</b>{% endif %}</span></div>
-      {% endif %}
-      {% if bldg.main_purpose %}
-      <div class="drow"><span class="k">주용도</span><span class="v" style="font-size:14px">{{ bldg.main_purpose }}</span></div>
-      {% endif %}
-      {% if bldg.ground_floors %}
-      <div class="drow"><span class="k">규모</span><span class="v" style="font-size:14px">지상 {{ bldg.ground_floors }}층{% if bldg.underground_floors %} / 지하 {{ bldg.underground_floors }}층{% endif %}</span></div>
-      {% endif %}
-      {% if not bldg.is_violation %}
-      <div class="drow"><span class="k">위반건축물</span><span class="v" style="font-size:14px;color:var(--gain)">해당 없음</span></div>
-      {% endif %}
+      <div class="dbchips">
+        {% if bldg.approved %}<span class="dbc">사용승인 <b>{{ bldg.approved }}</b>{% if bldg.age_years is not none %} ({{ bldg.age_years }}년차){% endif %}</span>{% endif %}
+        {% if bldg.main_purpose %}<span class="dbc">{{ bldg.main_purpose }}</span>{% endif %}
+        {% if bldg.ground_floors %}<span class="dbc">지상 {{ bldg.ground_floors }}층{% if bldg.underground_floors %} · 지하 {{ bldg.underground_floors }}층{% endif %}</span>{% endif %}
+        {% if not bldg.is_violation %}<span class="dbc ok">위반건축물 없음</span>{% else %}<span class="dbc risk">⚠ 위반건축물</span>{% endif %}
+      </div>
       <div class="dnote">출처: 건축HUB 건축물대장 표제부(주동 기준). 위반 여부는 필지 내 전체 동 기준.</div>
     </div>
+    </div>
     {% endif %}
+    </div><!-- /dduo -->
 
   </div>
 
@@ -771,21 +870,7 @@
     </div>
 
     </div>
-    <div class="dpane">
-  {% if rights and rights.appraisal_notes %}
-    <div class="dstep-head"><span class="dstep-num">評</span>
-      <h2>감정 요항 <span class="sub">· 감정평가서 발췌 — 참고자료</span></h2></div>
-    <div class="dpanel">
-      <div class="dnotes-cols">
-      {% for n in rights.appraisal_notes %}
-      <div class="drow" style="align-items:flex-start">
-        <span class="k" style="font-weight:600;min-width:84px;flex:0 0 auto">{{ n.label }}</span>
-        <span class="v" style="font-size:13.5px;color:var(--ink-600);white-space:pre-line;text-align:left">{{ n.text | deent }}</span></div>
-      {% endfor %}
-      </div>
-    </div>
-  {% endif %}
-    </div>
+    {# 감정 요항은 2026-07-25 V6 개편으로 위 문서 3종 연속 배치(명세서→점유관계→감정요항)로 이동 #}
   </div>
 
   <!-- ── 존 7: 공시자료·면책 푸터 ── -->

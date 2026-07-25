@@ -8,6 +8,19 @@ def _client():
     return create_app().test_client()
 
 
+def _freeze_now(monkeypatch):
+    """홈 목록 테스트용 시계 고정 (2026-07-25 실측 수정).
+
+    샘플 매각기일이 2026-07-09~25 고정값이라 실제 벽시계가 이를 지나면
+    '당일 입찰 마감 제외' 필터(2026-07-24 도입)에 걸려 목록에서 사라진다 —
+    테스트가 달력 경과로 썩는 문제. 샘플 전 기일 이전(7/1)으로 고정한다."""
+    import datetime as _dt
+
+    from src import query as _q
+    fixed = _dt.datetime(2026, 7, 1, 9, 0, tzinfo=_dt.timezone(_dt.timedelta(hours=9)))
+    monkeypatch.setattr(_q, "now_kst", lambda: fixed)
+
+
 def test_health():
     r = _client().get("/health")
     assert r.status_code == 200
@@ -130,7 +143,8 @@ def test_property_detail_possible_opposable_banner(tmp_path, monkeypatch):
     assert "1996-10-14" in body and "2002-04-23" in body  # 전입 vs 말소기준 날짜 근거 노출
 
 
-def test_index_filter_form_and_selection():
+def test_index_filter_form_and_selection(monkeypatch):
+    _freeze_now(monkeypatch)
     body = _client().get("/?type=오피스텔").get_data(as_text=True)
     assert 'value="오피스텔" selected' in body  # 선택값 유지
     assert "강남역삼푸르지오시티" in body          # 오피스텔만 노출
@@ -144,7 +158,8 @@ def test_index_has_filter_form():
     assert "빠른 진입" in body  # 빠른진입 칩
 
 
-def test_index_area_filter():
+def test_index_area_filter(monkeypatch):
+    _freeze_now(monkeypatch)
     # 면적 브래킷 '~20'(전용 66㎡ 미만) → 소형만.
     body = _client().get("/?area=~20").get_data(as_text=True)
     assert "강남역삼푸르지오시티" in body     # 30㎡

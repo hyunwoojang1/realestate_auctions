@@ -940,6 +940,24 @@ def create_app() -> Flask:
         except Exception as e:  # noqa: BLE001 — 임차인 로드 실패는 상세 페이지를 막지 않음
             logger.warning("임차인 현황 로드 실패(%s %s): %s", s.court, s.case_no, e)
 
+        # (2026-07-25) 현황조사서 '부동산의 점유관계' — 사용자 요구("최선순위만 보여주면
+        # 내가 뭘 보고 판단하냐"). 크롤 시 보존한 curst 원본(listing_detail_raw)에서 집행관
+        # 조사 원문(폐문부재/전입세대확인/기타)을 요지로 파싱해 명세서 아래 섹션으로 노출.
+        # 원본 미보존(구크롤·REST 클라우드 경로)이면 None → 섹션 미표시(모름≠없음).
+        survey = None
+        try:
+            if db_path:
+                svconn = store.connect(db_path)
+                try:
+                    _sv_raw = store.load_detail_raw(svconn, s.court, s.case_no, s.item_no, "curst")
+                finally:
+                    svconn.close()
+                if _sv_raw:
+                    from .courtauction_detail import curst_possession  # noqa: PLC0415
+                    survey = curst_possession(_sv_raw)
+        except Exception as e:  # noqa: BLE001 — 점유관계 실패는 상세 페이지를 막지 않음
+            logger.warning("점유관계 로드 실패(%s %s): %s", s.court, s.case_no, e)
+
         # (2026-07-23) 재매각 이력 — 위 rights_row 를 그대로 쓰므로 추가 조회 0.
         # 권리 요지가 비어 배지가 안 만들어지는 물건도 기일 이력은 살아 있으므로 별도로 계산한다
         # (rights_row 를 None 으로 되돌리는 아래 가드보다 **먼저** 뽑아야 한다).
@@ -1088,6 +1106,7 @@ def create_app() -> Flask:
         )
         return render_template(
             "detail.html", s=s, listing=listing, chart=chart, rights=rights, badge=badge,
+            survey=survey, tenants=tenants,
             deposit_amount=deposit_amount, deposit_rate=deposit_rate,
             deposit_stated=deposit_stated,
             sim=_sim_payload(sim_input), sim_in=sim_input, bidsim_cfg=bidsim, resale=resale,
