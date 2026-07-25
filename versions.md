@@ -10,6 +10,11 @@
   미러 옆) ⑥ **백필 1,357건 업서트 + REST 왕복 검증**(부산 1435: 3줄 원문·[성명] 마스킹·임차0).
 - **증거**: pytest 918 passed(왕복 테스트 신규), fetch_survey 실측 JSON 일치.
 
+## 2026-07-25 12:20 KST — 🚀 V6 상세페이지 개편 프로덕션 배포 (사용자 승인)
+- push 26be7c0·9153da0·fb37aa5 → scripts/deploy.ps1(Vercel CLI) 배포 완료.
+- 검증 실측: /health 200 · /base.css 200 · /property/2025타경1435 에 점유관계 섹션(폐문부재
+  원문·신고 임차인 0명)·감정요항 연속 배치 렌더 확인. dpl_CrMHDH47vSqYZsVAHVC39tdRde8f.
+
 ## 2026-07-25 11:35 KST — 🏗 상세페이지 V6 실이식 (문서 3종 연속 + 점유관계 신설 + 정보밀도)
 - **사용자 확정 범위**: V1 문서 연속 스택 + 기일내역만 V3 타임라인, **시뮬레이터·전략존·차트는 불변**.
 - **데이터**: `courtauction_detail.curst_possession()` 신설 — curst 원본(dlt_ordTsRlet.gdsPossCtt·
