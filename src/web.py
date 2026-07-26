@@ -342,6 +342,9 @@ def create_app() -> Flask:
     app.jinja_env.globals["pyeong"] = report.pyeong
     # 시뮬레이터 영수증은 소액(인지세 15만·법무비 50만)이 섞여 억 단위 표기로는 전부 '0.00억'이 된다.
     app.jinja_env.globals["won_fine"] = report.won_fine
+    # 법원 축약명("고양지원")만으로는 경매사건검색 드롭다운(정식 명칭)에서 못 찾는다 — QA 2026-07-26.
+    from . import court_names  # noqa: PLC0415
+    app.jinja_env.globals["full_court_name"] = court_names.full_court_name
 
     # 법원 자유텍스트 HTML 엔티티 복원 필터. 크롤 시점(_sanitize)에서 이미 해제하지만,
     # 재크롤 전 DB/Supabase 에 남은 옛 데이터(&amp;quot; &lt; …)를 렌더 시점에도 복원해

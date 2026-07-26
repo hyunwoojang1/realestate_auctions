@@ -312,7 +312,7 @@
     <div>
       <div class="hd">
         <h1>{{ s.apt_name or s.property_type }}</h1>
-        <span class="case">{{ s.case_no }}</span>
+        <span class="case">{{ full_court_name(s.court) }} {{ s.case_no }}</span>
       </div>
       <p class="meta">{{ s.address }} · {{ s.property_type }} · {{ '%.1f'|format(s.area_m2) }}㎡{% if s.area_m2 %} ({{ pyeong(s.area_m2) }}){% endif %} · 유찰 {{ s.fail_count }}회 · 매각기일 {{ s.sale_date or '미상' }}</p>
       <div class="chiprow" style="display:flex;gap:8px;margin-top:8px;flex-wrap:wrap">
@@ -329,7 +329,7 @@
       <a class="js-copyopen" href="https://www.iros.go.kr/" target="_blank" rel="noopener"
          data-copy="{{ s.address }}" data-msg="주소가 복사되었습니다 — 등기소 부동산 열람 검색창에 붙여넣으세요">등기 열람 ↗</a>
       <a class="primary js-copyopen" href="{{ court_src_url }}" target="_blank" rel="noopener"
-         data-copy="{{ s.case_no }}" data-msg="사건번호 복사됨 — {{ s.court }} 선택 후 붙여넣으세요">법원 원문 ↗</a>
+         data-copy="{{ s.case_no }}" data-msg="사건번호 복사됨 — {{ full_court_name(s.court) }} 선택 후 붙여넣으세요">법원 원문 ↗</a>
     </div>
   </div>
   </div><!-- /dhead -->
@@ -567,7 +567,7 @@
     </div>
     <!-- 법원 매각물건명세서 요지 -->
     <div class="dstep-head"><span class="dstep-num{% if rights.has_risk_text %} risk{% else %} ok{% endif %}">§</span>
-      <h2>법원 매각물건명세서 요지 <span class="sub">· 물건상세 수집 {{ rights.fetched_at[:10] }}</span> <a class="srclink js-copyopen" href="{{ court_src_url }}" target="_blank" rel="noopener" data-copy="{{ s.case_no }}" data-msg="사건번호 복사됨 — {{ s.court }} 선택 후 붙여넣으세요">법원 원문 ↗</a></h2></div>
+      <h2>법원 매각물건명세서 요지 <span class="sub">· 물건상세 수집 {{ rights.fetched_at[:10] }}</span> <a class="srclink js-copyopen" href="{{ court_src_url }}" target="_blank" rel="noopener" data-copy="{{ s.case_no }}" data-msg="사건번호 복사됨 — {{ full_court_name(s.court) }} 선택 후 붙여넣으세요">법원 원문 ↗</a></h2></div>
     <div class="dpanel{% if rights.has_risk_text %} risk{% endif %}">
       {% if rights.surviving_is_real %}
       <div class="dbanner risk">⛔ <b>매수인에게 인수되는 권리</b> — {{ rights.surviving_rights | deent }}</div>
@@ -886,7 +886,7 @@
       <button type="submit">{% if watching %}★ 관심 해제{% else %}☆ 관심 등록{% endif %}</button>
     </form>
     <a class="primary js-copyopen" href="{{ court_src_url }}" target="_blank" rel="noopener"
-       data-copy="{{ s.case_no }}" data-msg="사건번호 복사됨 — {{ s.court }} 선택 후 붙여넣으세요">법원 원문 ↗</a>
+       data-copy="{{ s.case_no }}" data-msg="사건번호 복사됨 — {{ full_court_name(s.court) }} 선택 후 붙여넣으세요">법원 원문 ↗</a>
   </div>
 
 </div>
