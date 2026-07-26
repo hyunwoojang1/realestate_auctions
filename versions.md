@@ -1,5 +1,11 @@
 # versions.md — auction-arbitrage 루프 작업 로그 (append-only, 최신순)
 
+## 2026-07-27 14:30 KST — 🏁 과거 낙찰 기록 백필 280행 (Phase C3)
+- **무엇**: deploy/backfill_sold_listings.py — raw_listings maeAmt 마이닝(494키), 활성 재매각
+  214키 제외(활성 목록 재매각 배지와 이중표시 방지), 280행 sold_listings 적재+Supabase 미러.
+  과거분 시세·차익 필드는 NULL(채점 스냅샷 미보존 — 모름을 지어내지 않음).
+- **증거**: 로컬 280 = 클라우드 280 일치.
+
 ## 2026-07-27 14:15 KST — 🏁 낙찰(종결) 보존 데이터층 (Phase C1·C2)
 - **왜**: 신규 기능 "낙찰 물건 + 실제 낙찰가 표시" — 종전엔 전량교체가 소멸 물건을 흔적 없이
   지웠다(낙찰 사례 축적 불가). 낙찰가 제약: 정상 낙찰 최종가는 법원 비공개(dspslAmt null
