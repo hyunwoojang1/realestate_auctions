@@ -225,8 +225,12 @@ def main(argv=None) -> int:
         pruned = store.prune_orphan_rights(conn)
         pruned_p = store.prune_orphan_photos(conn)
         pruned_n = store.prune_orphan_naver(conn)
-        if (pruned or pruned_p or pruned_n) and not args.json:
-            print(f"  🧹 로컬 고아 정리(scored 동기화): 권리 {pruned}·사진 {pruned_p}·시세 {pruned_n}건")
+        # (QA 2026-07-26) building·tenants 도 동일 배선 — E2 때 빠져 2,399·55행 고아 실측 누적.
+        pruned_b = store.prune_orphan_building(conn)
+        pruned_t = store.prune_orphan_tenants(conn)
+        if (pruned or pruned_p or pruned_n or pruned_b or pruned_t) and not args.json:
+            print(f"  🧹 로컬 고아 정리(scored 동기화): 권리 {pruned}·사진 {pruned_p}"
+                  f"·시세 {pruned_n}·건축물 {pruned_b}·임차인 {pruned_t}건")
     else:
         n = store.upsert(conn, scored)   # 전체 저장
 

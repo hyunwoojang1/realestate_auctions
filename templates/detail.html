@@ -908,6 +908,10 @@
     var page=function(dir){ track.scrollBy({left:dir*track.clientWidth,behavior:'smooth'}); };
     if(navPrev) navPrev.addEventListener('click',function(){ page(-1); });
     if(navNext) navNext.addEventListener('click',function(){ page(1); });
+    /* (QA 2026-07-26) 도트 클릭 → 해당 장으로 이동(종전엔 표시 전용이라 클릭해도 무반응) */
+    dots.forEach(function(d,j){ d.addEventListener('click',function(){
+      track.scrollTo({left:j*track.clientWidth,behavior:'smooth'});
+    }); });
     syncNav();
   }
   // 사진 클릭 확대 라이트박스 (접근성: Esc/←→/백드롭 닫기, 포커스 복귀)

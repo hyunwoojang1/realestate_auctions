@@ -40,6 +40,23 @@ def test_prune_orphan_photos_and_naver(tmp_path):
     assert store.prune_orphan_photos(conn) == 0           # 멱등(재실행 시 0)
 
 
+def test_prune_orphan_building_and_tenants(tmp_path):
+    """(QA 2026-07-26) E2 때 빠졌던 building·tenants 고아 정리 — 2,399·55행 실측 누적 클래스."""
+    conn = store.connect(str(tmp_path / "o2.db"))
+    store.upsert(conn, [_scored("KEEP")])
+    conn.execute("INSERT INTO listing_building (court,case_no,item_no,status) "
+                 "VALUES ('','KEEP','','ok'), ('','ORPHB','','ok')")
+    conn.execute("INSERT INTO listing_tenants (court,case_no,item_no,seq) "
+                 "VALUES ('','KEEP','',0), ('','ORPHT','',0)")
+    conn.commit()
+    assert store.prune_orphan_building(conn) == 1          # 고아만 삭제
+    assert store.prune_orphan_tenants(conn) == 1
+    assert conn.execute("SELECT COUNT(*) FROM listing_building").fetchone()[0] == 1
+    assert conn.execute("SELECT COUNT(*) FROM listing_tenants").fetchone()[0] == 1
+    assert store.prune_orphan_building(conn) == 0          # 멱등
+    assert store.prune_orphan_tenants(conn) == 0
+
+
 def test_request_budget_persists_across_clients(tmp_path):
     """D1(2026-07-22): 일일 요청 예산이 클라이언트(프로세스) 간 파일로 공유돼 생성자 리셋을 막는다.
     종전엔 _request_count가 생성자마다 0 → daily_cap이 프로세스마다 새로 시작(하루 6119콜 실측)."""

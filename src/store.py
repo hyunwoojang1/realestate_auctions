@@ -704,6 +704,19 @@ def prune_orphan_naver(conn: sqlite3.Connection) -> int:
     return _prune_orphans(conn, "naver_prices")
 
 
+def prune_orphan_building(conn: sqlite3.Connection) -> int:
+    """scored 에 없는 listing_building 고아 삭제(풀스냅샷 후).
+
+    (QA 2026-07-26) E2 때 photos·naver 만 배선돼 building 고아 2,399행 실측 누적 — 만료 물건의
+    건축물대장 행은 물건 키에 묶여 있어 재사용처가 없다(같은 주소 신규 사건은 새 키로 재수집)."""
+    return _prune_orphans(conn, "listing_building")
+
+
+def prune_orphan_tenants(conn: sqlite3.Connection) -> int:
+    """scored 에 없는 listing_tenants 고아 삭제(풀스냅샷 후) — 55행 실측(QA 2026-07-26)."""
+    return _prune_orphans(conn, "listing_tenants")
+
+
 def load_rights(conn: sqlite3.Connection, court: str, case_no: str,
                 item_no: str = "") -> dict | None:
     """단건 권리 요지 조회 — (court, case_no, item_no) **정확 매칭만**.

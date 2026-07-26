@@ -1,5 +1,19 @@
 # versions.md — auction-arbitrage 루프 작업 로그 (append-only, 최신순)
 
+## 2026-07-26 21:45 KST — 🔧 딥 QA 후속 수정 3종 (도트 클릭·고아 정리기·임차인 미러)
+- **① 사진 도트 클릭 이동**: 표시 전용(pointer-events:none·6px)이던 도트를 클릭→해당 장
+  스크롤로. 보이는 점 6px 유지, 패딩으로 히트영역만 14px(배경 content-box 클립). Playwright
+  실측: 3번 도트 클릭→scrollLeft 0→1283·활성 도트 동기화 PASS. 비포/애프터
+  `경매-비포애프터\20260726_사진도트_클릭이동.png`.
+- **② 고아 정리기 building·tenants 배선**: E2(7/22) 때 photos·naver만 배선돼 잔여 누적 —
+  prune_orphan_building/tenants 신설 + run.py 풀스냅샷 후 호출. 실 DB 즉시 정리: 건축물
+  3,428·임차인 3,278행 삭제(아침 실측 2,399·55에서 오늘 리프레시 만료물건으로 증가했던 것).
+  테스트 신설(고아만 삭제·보존·멱등).
+- **③ Supabase 임차인 미러 테이블 배포**: auction_listing_tenants 생성(Management API DDL,
+  복합PK court+case_no+item_no+seq, RLS on·정책 없음=service key 전용) + 백필 7,044행(로컬과
+  정확 일치 검증). **서빙 게이트(SUPABASE_TENANTS_ENABLED)는 그대로 꺼둠** — 프로덕션 동작
+  무변경, 크롤 미러 쓰기 경고만 해소. 게이트 활성화는 별도 결정.
+
 ## 2026-07-26 21:20 KST — 🐕 워치독 서빙 자동 재기동 (폰 접속 실사고 근본수정) + 딥 상호작용 QA
 - **왜**: 사용자 "물건 선택 안 됨" 신고 → 원인 = 12:53 노트북 재부팅으로 로컬 :8000(Tailscale
   폰 프록시 대상) 8시간 다운. 홈은 SW 캐시로 떠 보이고 상세만 실패하는 착시. 워치독은 다운을
