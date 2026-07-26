@@ -68,7 +68,23 @@ foreach ($p in $ports) {
     } catch {}
 }
 if (-not $alive) {
-    Alert "serving-down" "[auction] local web serving DOWN" "No /health 200 on :8055 or :8000 - phone access is broken. Restart: scripts\start.ps1" "high"
+    # (QA 2026-07-26) 알림만 보내던 것을 자동 재기동으로 격상 — 노트북 재부팅(12:53) 후 :8000이
+    # 8시간 죽어 있어 폰에서 "물건 선택 안 됨"(홈은 SW 캐시로 떠 보이고 상세만 실패) 실사고.
+    # start.ps1 을 분리 프로세스로 띄우고 재확인한다. 실패 시에만 사람 호출(high).
+    Start-Process -WindowStyle Hidden -FilePath "powershell.exe" -ArgumentList `
+        "-NoProfile", "-ExecutionPolicy", "Bypass", "-File", (Join-Path $RepoRoot "scripts\start.ps1")
+    Start-Sleep -Seconds 12
+    $revived = $false
+    try {
+        $r2 = Invoke-WebRequest -Uri "http://127.0.0.1:8000/health" -UseBasicParsing -TimeoutSec 8 -ErrorAction Stop
+        if ($r2.StatusCode -eq 200) { $revived = $true }
+    } catch {}
+    if ($revived) {
+        $results += "check3: serving was DOWN -> auto-restarted OK on :8000"
+        Alert "serving-restarted" "[auction] serving auto-restarted" "Local web serving was down - watchdog restarted it on :8000 (phone access restored)." "default"
+    } else {
+        Alert "serving-down" "[auction] local web serving DOWN (auto-restart FAILED)" "No /health 200 on :8055 or :8000 and start.ps1 revive failed - phone access is broken. Investigate manually." "high"
+    }
 }
 
 # --- 4) unpushed local commits piling up ---
