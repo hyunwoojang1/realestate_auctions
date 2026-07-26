@@ -61,6 +61,40 @@ def test_parallel_detail_survives_single_job_failure(tmp_path, monkeypatch):
     assert "2020. 1. 1. 근저당권" in body          # 권리는 살아 있다
 
 
+def test_cloud_detail_fast_path_skips_full_list(tmp_path, monkeypatch):
+    """(A5) REST 서빙 + 전량 캐시 콜드 → 상세가 load_scored(15k행) 없이 단건 조회로 서빙된다."""
+    from src import store_rest
+
+    s = ScoredListing(
+        case_no="2025타경999", apt_name="단건패스단지", address="서울 강남구 1-1",
+        property_type="아파트", area_m2=84.0, appraisal_price=500_000_000,
+        min_bid_price=200_000_000, fail_count=1, sale_date="2026-08-01",
+        est_market_price=400_000_000, matched_trades=5, confidence=1.0,
+        real_acquisition_cost=202_200_000, expected_profit=197_800_000, gap_rate=0.49,
+        gap_score=90.0, rights_score=100.0, liquidity_score=80.0, arb_score=88.0,
+        grade="차익 유력", court="서울중앙지방법원", item_no="1", rights_verified=True,
+        market_band_low=380_000_000, profit_low=177_800_000,
+    )
+    monkeypatch.delenv("AUCTION_DB", raising=False)
+    monkeypatch.setattr(store_rest, "enabled", lambda: True)
+    monkeypatch.setattr(store_rest, "scored_cache_fresh", lambda: False)
+    monkeypatch.setattr(store_rest, "fetch_scored_by_case",
+                        lambda case_no: [s] if case_no == "2025타경999" else [])
+    monkeypatch.setattr(store_rest, "fetch_naver_price", lambda *a, **k: None)
+    for fn in ("fetch_rights", "fetch_survey", "fetch_building"):
+        monkeypatch.setattr(store_rest, fn, lambda *a, **k: None)
+    monkeypatch.setattr(store_rest, "fetch_photos", lambda *a, **k: [])
+    monkeypatch.setattr(store_rest, "fetch_tenants", lambda *a, **k: [])
+
+    def no_full_load(*a, **k):
+        raise AssertionError("상세가 전량 load_scored를 호출했다 — 단건 fast path 회귀")
+    monkeypatch.setattr(store_rest, "load_scored", no_full_load)
+
+    r = create_app().test_client().get("/property/2025타경999")
+    assert r.status_code == 200
+    assert "단건패스단지" in r.get_data(as_text=True)
+
+
 def test_parallel_detail_survives_rights_failure(tmp_path, monkeypatch):
     """권리 조회 예외 → 200 + '권리미확인' 폴백(거짓 안전 표시 없음)."""
     monkeypatch.setenv("AUCTION_DB", str(_seed(tmp_path)))

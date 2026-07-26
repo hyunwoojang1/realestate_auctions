@@ -22,6 +22,10 @@
 - [x] A3. 구현: ①store_rest에 커넥션 풀 Session(콜마다 TLS 핸드셰이크 제거, 목킹 호환 유지)
       ②web.py 상세 5종 조회(권리·사진·임차인·점유·건축물) ThreadPoolExecutor 병렬 + 실패 격리
       유지. 테스트 3종 신설(test_detail_parallel_fetch.py) — 관련 97 passed.
+- [x] A5. (계측 후 추가) 상세 단건 fast path: 워밍캐시 재현 실측에서 리스트 콜드 1차 요청이
+      19초(전량 15k행 로드) — 상세를 load_scored 의존에서 분리. store_rest.fetch_scored_by_case
+      (eq.case_no 단건 REST) + web.py _find_by_case 분기(캐시 신선=기존 경로, 콜드=단건).
+      계약 테스트: fast path에서 load_scored 호출 시 AssertionError(회귀가드) — 47 passed.
 - [ ] A4. 재계측: 배포 후 워밍 3회 — 목표 <800ms. pytest 전체 그린(커밋 게이트)
 
 ## Phase B — 체감 즉시화 (클릭 → 바로 반응)

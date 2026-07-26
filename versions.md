@@ -1,5 +1,14 @@
 # versions.md — auction-arbitrage 루프 작업 로그 (append-only, 최신순)
 
+## 2026-07-27 13:15 KST — ⚡ 상세 단건 fast path (전량 리스트 의존 제거, Phase A5)
+- **왜**: 병렬화 후에도 프로덕션 상세 1.5~2.3초 — REST 모드 재현 실측에서 리스트 캐시 콜드
+  1차 요청이 **19초**(load_scored 15k행 전량), 워밍 2차부터 625ms. 램다 콜드/캐시 만료 요청이
+  전부 전량 로드를 통과하는 구조가 꼬리 지연의 주범.
+- **무엇**: store_rest.fetch_scored_by_case(eq.case_no 단건 REST, 캐시 신선 시 왕복 0) +
+  scored_cache_fresh() + web.py _find_by_case fast path(콜드에서만, 실패 시 전량 폴백,
+  naver는 단건 fetch_naver_price로 enrich). item/court 필터·정규화 폴백 동일.
+- **증거**: 계약 테스트(fast path가 load_scored 호출하면 AssertionError) 포함 47 passed.
+
 ## 2026-07-27 12:55 KST — ⚡ 상세 페이지 REST 병렬화 + 커넥션 풀 (밤샘루프 Phase A)
 - **왜**: "물건 클릭했는데 안 넘어간다" QA — 프로덕션 상세 HTML 워밍 2.0~4.1초 실측. 원인 =
   독립 조회 5종(권리·사진·임차인·점유관계·건축물대장)이 순차 REST + 콜마다 신규 TLS

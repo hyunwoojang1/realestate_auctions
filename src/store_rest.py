@@ -152,6 +152,33 @@ def load_scored(use_cache: bool = True) -> list[ScoredListing]:
     return result
 
 
+def scored_cache_fresh() -> bool:
+    """전량 캐시가 TTL 내인가 — 상세 단건 경로(fetch_scored_by_case) 분기용."""
+    return _cache["rows"] is not None and (time.time() - _cache["at"] < _CACHE_TTL)
+
+
+def fetch_scored_by_case(case_no: str) -> list[ScoredListing]:
+    """(A5 2026-07-27) 사건번호 단건 조회 — 상세 페이지를 전체 15k행 로드에서 독립.
+
+    종전엔 상세도 load_scored() 전량(콜드 수 초~수십 초)을 통과해야 물건을 찾았다 — 램다
+    콜드/캐시 만료 요청이 전부 그 비용을 물어 "클릭했는데 안 넘어간다" 체감의 꼬리.
+    전량 캐시가 신선하면 REST 왕복 0(필터만), 아니면 eq.case_no 단건 REST(수백 ms).
+    """
+    if scored_cache_fresh():
+        return [s for s in _cache["rows"] if s.case_no == case_no]
+    url, key, table = _cfg()
+    select = ",".join([*_COLS, "market_comps", "sale_time"])
+    r = requests.get(_endpoint(url, table), headers=_headers(key),
+                     params={"select": select, "case_no": f"eq.{case_no}",
+                             "order": "court.asc,item_no.asc"},
+                     timeout=15)
+    r.raise_for_status()
+    return [ScoredListing(**{c: row.get(c) for c in _COLS},
+                          market_comps=row.get("market_comps") or [],
+                          sale_time=row.get("sale_time") or "")
+            for row in r.json()]
+
+
 def _payload(s: ScoredListing) -> dict:
     row = s.to_row()
     d = {c: row[c] for c in _COLS}

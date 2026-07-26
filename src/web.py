@@ -723,7 +723,34 @@ def create_app() -> Flask:
 
         (2026-07-20) 입력 정규화 — 친구가 "2025-101763"처럼 보내도 저장 포맷("2025타경101763")과
         맞도록 casesearch로 환원해 매칭한다. 파싱 불가하면 원문 완전일치로 폴백(회귀 없음).
+
+        (A5 2026-07-27) 클라우드 상세 fast path — 전량 캐시가 콜드인 REST 서빙에서 상세가
+        15k행 로드를 통과하지 않도록 사건번호 단건 REST로 조회(콜드 상세 수 초→수백 ms).
+        캐시가 신선하면 기존 경로(왕복 0)가 더 싸므로 그대로 둔다. 실패 시 전체 경로 폴백.
         """
+        if (not os.environ.get(DB_ENV) and store_rest.enabled()
+                and not store_rest.scored_cache_fresh()):
+            try:
+                matches = store_rest.fetch_scored_by_case(case_no)
+                if not matches:
+                    q = casesearch.parse_case_query(case_no)
+                    if q and q.canonical and q.canonical != case_no:
+                        matches = store_rest.fetch_scored_by_case(q.canonical)
+                if matches:
+                    _mark_source("db")
+                    from .score import market_view  # noqa: PLC0415
+                    matches = [market_view(
+                        s, store_rest.fetch_naver_price(s.court, s.case_no, s.item_no))
+                        for s in matches]
+                    item = request.args.get("item")
+                    court = request.args.get("court")
+                    if item is not None:
+                        matches = [s for s in matches if s.item_no == item]
+                    if court:
+                        matches = [s for s in matches if s.court == court]
+                    return matches
+            except Exception as e:  # noqa: BLE001 — 단건 실패는 전량 경로로 폴백(회귀 없음)
+                logger.warning("단건 조회 실패 → 전량 경로 폴백(%s): %s", case_no, e)
         scored = _scored()
         # 완전일치 우선(회귀 방지 — 합성 case_no 'LIVE-1' 등 그대로 동작).
         matches = [s for s in scored if s.case_no == case_no]
