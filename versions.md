@@ -1,5 +1,15 @@
 # versions.md — auction-arbitrage 루프 작업 로그 (append-only, 최신순)
 
+## 2026-07-27 13:50 KST — 👆 목록→상세 프리페치 + 클릭 진행바 (Phase B1/B2)
+- **왜**: 서버 0.6~1.3초로 줄여도 클릭 후 빈 화면 구간이 "안 넘어간다" 착각을 만든다
+  (비포 TTI 실측: 클릭→h1 중앙값 1,050ms).
+- **무엇**: ①listings.html — 터치시작/호버 순간 상세 fetch 프리페치(Save-Data·2G 존중,
+  총 20·동시 3 제한) ②상세 응답 `private, max-age=45`(프리페치 재사용의 전제) ③관심 토글
+  복귀 _safe_back에 캐시버스터 _r(옛 별 상태 방지 — 짝 계약) ④클릭 즉시 상단 진행바
+  (.navprog, bfcache 복귀 정리).
+- **증거**: test_prefetch_wiring.py 3종(스크립트 배선·캐시 헤더·토글 캐시버스터) 포함
+  55 passed. 애프터 TTI는 배포 후 미션 B3에 기록.
+
 ## 2026-07-27 13:30 KST — 🌏 Vercel 함수 리전 서울(icn1) 고정 (Phase A 구조 결정타)
 - **왜**: 병렬화+단건 fast path 후에도 프로덕션 상세 1.1~2.4초. 실측 `x-vercel-id =
   icn1::iad1` — 엣지는 서울인데 **함수가 미국 동부(iad1)** 에서 실행돼 Supabase(서울)와

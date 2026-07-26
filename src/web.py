@@ -1144,7 +1144,7 @@ def create_app() -> Flask:
             sell_price=s.market_band_low or s.est_market_price or 0,
             assumed_amount=(badge.assumed if badge else 0),
         )
-        return render_template(
+        html = render_template(
             "detail.html", s=s, listing=listing, chart=chart, rights=rights, badge=badge,
             survey=survey, tenants=tenants,
             deposit_amount=deposit_amount, deposit_rate=deposit_rate,
@@ -1164,6 +1164,12 @@ def create_app() -> Flask:
             sample_gate_low=sample_gate_low, band_confident=band_confident_basis(),
             ask_points=ask_points, ask_overstated=ask_overstated, photos=photos,
         )
+        # (B1 2026-07-27) 목록의 터치-프리페치가 탭 시점에 재사용되도록 짧은 private 캐시.
+        # 데이터는 일 1회 새로고침이라 45초 스테일은 무해. 관심 토글 복귀는 _safe_back이
+        # 캐시버스터(_r)를 붙여 최신 별 상태를 강제한다(짝 계약 — 함께 수정할 것).
+        resp = app.make_response(html)
+        resp.headers["Cache-Control"] = "private, max-age=45"
+        return resp
 
     @app.get("/api/bidsim")
     def bidsim_api():
@@ -1217,10 +1223,16 @@ def create_app() -> Flask:
         return any(s.case_no == case_no for s in _scored())
 
     def _safe_back() -> str:
-        """토글 후 복귀 경로 — 같은 호스트의 referrer만 허용(open redirect 방지)."""
+        """토글 후 복귀 경로 — 같은 호스트의 referrer만 허용(open redirect 방지).
+
+        (B1 2026-07-27) 상세가 private max-age=45 캐시를 갖게 되어(프리페치 재사용),
+        토글 직후 복귀가 캐시본(옛 별 상태)을 쓰지 않도록 캐시버스터 _r 를 붙인다.
+        """
         ref = request.referrer or ""
         if ref.startswith(request.host_url):
-            return ref
+            import time as _time  # noqa: PLC0415
+            sep = "&" if "?" in ref else "?"
+            return f"{ref}{sep}_r={int(_time.time())}"
         return "/watchlist"
 
     @app.get("/watchlist")

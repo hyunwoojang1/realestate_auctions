@@ -262,6 +262,36 @@
 </div>
 {% endif %}
 
+<script>
+/* (B1/B2 2026-07-27) 목록→상세 체감 즉시화.
+   B1 프리페치: 터치 시작/호버 순간 상세 HTML을 미리 받는다 — 상세 응답의 private max-age=45와
+   짝을 이뤄 실제 탭 때 캐시 재사용(iOS 사파리 포함). Save-Data·2G는 존중, 총 20건·동시 3건 제한.
+   B2 진행바: 클릭 즉시 상단 바를 켜서 "넘어가는 중"을 보이게 — 느린 회선의 무반응 착각 제거. */
+(function(){
+  var done=new Set(), inflight=0, conn=navigator.connection||{};
+  var slow=conn.saveData||/(^|-)2g/.test(conn.effectiveType||'');
+  function prefetch(a){
+    var u=a.getAttribute('href');
+    if(!u||slow||done.has(u)||done.size>=20||inflight>=3||u.indexOf('/property/')!==0)return;
+    done.add(u); inflight++;
+    fetch(u,{credentials:'same-origin'}).catch(function(){done.delete(u);})
+      .finally(function(){inflight--;});
+  }
+  document.addEventListener('touchstart',function(e){
+    var a=e.target.closest&&e.target.closest('a[href^="/property/"]'); if(a)prefetch(a);
+  },{passive:true});
+  document.addEventListener('mouseover',function(e){
+    var a=e.target.closest&&e.target.closest('a[href^="/property/"]'); if(a)prefetch(a);
+  });
+  var bar=document.createElement('div'); bar.className='navprog'; document.body.appendChild(bar);
+  document.addEventListener('click',function(e){
+    var a=e.target.closest&&e.target.closest('a[href^="/property/"]');
+    if(a&&!e.defaultPrevented&&e.button===0&&!e.metaKey&&!e.ctrlKey)bar.classList.add('on');
+  });
+  window.addEventListener('pageshow',function(){bar.classList.remove('on');}); // bfcache 복귀 정리
+})();
+</script>
+
 <p class="foot" style="color:var(--ink-400)">추천 = 아파트·오피스텔 중 같은 단지·평형 실거래로 시세가 검증되고 보수 기준 차익이 양수인 물건.
 <b>권리미확인</b>은 물건상세 권리분석 전 상태이니 대항력 임차인·인수권리를 직접 확인하세요.
 보수 기준 차익 = 검증 하한가 − (최저입찰가 + 취득세, {{ tax_label }}). <b>명도·수리·인수금·양도세·보유세 제외</b>된 취득 시점 표면차익입니다.</p>
