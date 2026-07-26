@@ -56,7 +56,9 @@
   <div class="sc-nums">
     <div class="c"><div class="k">최저입찰가</div><div class="v">{{ won(s.min_bid_price) }}</div></div>
     <div class="c"><div class="k">예상 시세<span class="hh"> 검증 하한</span></div><div class="v">{{ won(s.market_band_low or s.est_market_price) }}</div></div>
-    <div class="c"><div class="k">예상 차익</div>{% if p_adj is not none %}<div class="v gain{% if p_adj < 0 %} neg{% endif %}">{{ won(p_adj) }}</div>{% else %}<div class="v na">—</div>{% endif %}</div>
+    {#- (2026-07-26 사용자 QA) 인수금액이 확인된 물건은 차익 숫자를 아예 숨긴다 — 최악치를 뺀
+        값이라도 단일 숫자로 보이면 '확정 차익'으로 오독된다. 금액 미상(+α)은 현행 유지(사용자 결정). -#}
+    <div class="c"><div class="k">예상 차익</div>{% if b and b.assumed %}<div class="v na">인수 확인</div>{% elif p_adj is not none %}<div class="v gain{% if p_adj < 0 %} neg{% endif %}">{{ won(p_adj) }}</div>{% else %}<div class="v na">—</div>{% endif %}</div>
   </div>
 </a>
 {%- endmacro -%}
@@ -195,7 +197,7 @@
   {%- set b = badges.get(s.court ~ '|' ~ s.case_no ~ '|' ~ s.item_no) if badges is defined else none -%}
   {%- set outlay = s.real_acquisition_cost + (b.assumed if b else 0) -%}
   {%- set p_adj = (p - b.assumed) if (p is not none and b and b.assumed) else p -%}
-  <div class="prow{% if p_adj is none or p_adj <= 0 %} dim{% endif %}">
+  <div class="prow{% if (b and b.assumed) or p_adj is none or p_adj <= 0 %} dim{% endif %}">
     <div class="pk-rank">{{ loop.index }}</div>
     <div style="min-width:0">
       <a class="pk-name rowlink" href="{{ proplink(s) }}">{{ s.apt_name or s.property_type }}</a>
@@ -218,8 +220,10 @@
     </div>
     <div class="r">{{ pricecell(s) }}</div>
     <div class="r">
-      {%- if p_adj is not none -%}<div class="pk-gain{% if p_adj < 0 %} neg{% endif %}">{{ won(p_adj) }}{% if b and b.amount_unknown %}<b class="alpha">−α</b>{% endif %}</div>
-      <div class="pk-vsub">{% if b and b.assumed %}최악(보증금 전액 인수){% elif b and b.amount_unknown %}인수 미반영 ⚠{% elif s.profit_low is not none %}근거 표본 {{ s.market_sample_basis if s.market_sample_basis is not none else s.matched_trades }}건{% else %}시세 대비 {{ pct(s.gap_rate) }}{% endif %}</div>
+      {#- 인수금액 확인 물건은 숫자 숨김(2026-07-26 사용자 QA) — 미상(+α)은 현행 유지. -#}
+      {%- if b and b.assumed -%}<div class="pk-gain na">—</div><div class="pk-vsub warn">인수 확인 필요</div>
+      {%- elif p_adj is not none -%}<div class="pk-gain{% if p_adj < 0 %} neg{% endif %}">{{ won(p_adj) }}{% if b and b.amount_unknown %}<b class="alpha">−α</b>{% endif %}</div>
+      <div class="pk-vsub">{% if b and b.amount_unknown %}인수 미반영 ⚠{% elif s.profit_low is not none %}근거 표본 {{ s.market_sample_basis if s.market_sample_basis is not none else s.matched_trades }}건{% else %}시세 대비 {{ pct(s.gap_rate) }}{% endif %}</div>
       {%- else -%}<div class="pk-gain na">—</div>{%- endif -%}
     </div>
     <div class="r"><div class="pk-val sm">{{ s.sale_date }}</div></div>
@@ -232,7 +236,7 @@
   {%- set b = badges.get(s.court ~ '|' ~ s.case_no ~ '|' ~ s.item_no) if badges is defined else none -%}
   {%- set outlay = s.real_acquisition_cost + (b.assumed if b else 0) -%}
   {%- set p_adj = (p - b.assumed) if (p is not none and b and b.assumed) else p -%}
-  <div class="mcard{% if p_adj is none or p_adj <= 0 %} dim{% endif %}">
+  <div class="mcard{% if (b and b.assumed) or p_adj is none or p_adj <= 0 %} dim{% endif %}">
     <div class="top">
       <div style="min-width:0">
         <a class="nm rowlink" href="{{ proplink(s) }}">{{ loop.index }}. {{ s.apt_name or s.property_type }}</a>
@@ -243,7 +247,7 @@
     <div class="mstats">
       <div class="ms"><span class="k">최저입찰가</span><b>{{ won(s.min_bid_price) }}</b></div>
       <div class="ms"><span class="k">예상 투입{% if b and b.is_clean %} ✓{% endif %}</span><b{% if b and (b.assumed or b.amount_unknown) %} style="color:var(--risk)"{% endif %}>{{ won(outlay) }}{% if b and b.amount_unknown %}+α{% endif %}</b></div>
-      <div class="ms gain"><span class="k">예상 차익{% if b and b.amount_unknown %} ⚠{% endif %}</span>{% if p_adj is not none %}<b class="{% if p_adj < 0 %}neg{% else %}g{% endif %}">{{ won(p_adj) }}</b>{% else %}<b class="na">—</b>{% endif %}</div>
+      <div class="ms gain"><span class="k">예상 차익{% if b and b.amount_unknown %} ⚠{% endif %}</span>{% if b and b.assumed %}<b class="na">인수 확인</b>{% elif p_adj is not none %}<b class="{% if p_adj < 0 %}neg{% else %}g{% endif %}">{{ won(p_adj) }}</b>{% else %}<b class="na">—</b>{% endif %}</div>
     </div>
   </div>
   {% endfor %}
