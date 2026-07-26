@@ -30,6 +30,9 @@ def _make_session() -> _requests_mod.Session:
     adapter = _requests_mod.adapters.HTTPAdapter(pool_connections=4, pool_maxsize=8)
     s.mount("https://", adapter)
     s.mount("http://", adapter)
+    # ⚠ 이 세션은 web.py 상세 병렬 fetch(스레드 5개)가 공유한다. urllib3 커넥션 풀은
+    # thread-safe지만 Session 객체의 **세션 레벨 상태 변경은 아니다** — s.headers.update()/
+    # 쿠키 조작을 여기든 호출부든 절대 추가하지 말 것(요청별 headers= 인자만 사용). 리뷰 2026-07-27.
     return s
 
 

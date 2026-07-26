@@ -1346,4 +1346,23 @@
   });
 })();
 </script>
+
+<script>
+/* (D3 2026-07-27 리뷰 #1 수정) 관심 별 상태 재동기화 — 상세가 private max-age=45 캐시를 갖게
+   되면서 "목록에서 토글 → 45초 내 상세 진입" 경로가 프리페치 캐시본의 옛 별을 보여줄 수 있다.
+   /api/watchlist(no-store)로 실상태를 받아 버튼 라벨만 교정한다. 실패 시 서버 렌더 그대로. */
+(function(){
+  var btns=document.querySelectorAll('form[action^="/watchlist/toggle/"] button');
+  if(!btns.length)return;
+  fetch('/api/watchlist',{cache:'no-store',credentials:'same-origin'})
+    .then(function(r){ return r.ok ? r.json() : null; })
+    .then(function(keys){
+      if(!keys)return;
+      var k={{ (s.court ~ '|' ~ s.case_no ~ '|' ~ s.item_no) | tojson }};
+      var legacy={{ s.case_no | tojson }};
+      var on=keys.indexOf(k)>=0||keys.indexOf(legacy)>=0;
+      btns.forEach(function(b){ b.textContent=on?'★ 관심 해제':'☆ 관심 등록'; });
+    }).catch(function(){});
+})();
+</script>
 {% endblock %}

@@ -1338,7 +1338,10 @@ def create_app() -> Flask:
 
     @app.get("/api/watchlist")
     def watchlist_api_list():
-        return jsonify(sorted(watchlist.load_watchlist(watchlist.watchlist_path())))
+        resp = jsonify(sorted(watchlist.load_watchlist(watchlist.watchlist_path())))
+        # (D3 2026-07-27) 상세 별 재동기화의 진실 원천 — 어떤 캐시에도 걸리면 안 된다.
+        resp.headers["Cache-Control"] = "no-store"
+        return resp
 
     def _wl_key_from_request(case_no: str) -> str:
         """요청의 court/item 파라미터로 복합키 구성 — 없으면(레거시 클라이언트) case_no 단독.

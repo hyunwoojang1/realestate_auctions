@@ -51,6 +51,17 @@ def test_detail_response_has_short_private_cache(tmp_path, monkeypatch):
     assert r.headers.get("Cache-Control") == "private, max-age=45"
 
 
+def test_detail_star_reconcile_wired(tmp_path, monkeypatch):
+    """(D3 리뷰 #1) 목록토글→45초 내 상세 진입의 옛 별 상태 — 상세가 /api/watchlist(no-store)로
+    별 라벨을 재동기화하는 스크립트를 배선하고 있어야 한다."""
+    monkeypatch.setenv("AUCTION_DB", str(_seed(tmp_path)))
+    c = create_app().test_client()
+    body = c.get("/property/2024타경777").get_data(as_text=True)
+    assert "/api/watchlist" in body and "관심 별 상태 재동기화" in body
+    api = c.get("/api/watchlist")
+    assert api.headers.get("Cache-Control") == "no-store"     # 진실 원천은 무캐시
+
+
 def test_watchlist_toggle_redirect_busts_detail_cache(tmp_path, monkeypatch):
     """토글 복귀 URL에 _r 캐시버스터 — 45초 캐시가 옛 별 상태를 보여주지 않게."""
     monkeypatch.setenv("AUCTION_DB", str(_seed(tmp_path)))

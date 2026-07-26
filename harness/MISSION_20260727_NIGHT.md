@@ -67,9 +67,13 @@
       `경매-비포애프터\20260727_낙찰기록_신기능.png`.
 
 ## Phase D — 리뷰·감사 (구현 완료 후)
-- [ ] D1. code-reviewer 리뷰(이번 변경 diff 범위)
-- [ ] D2. 지적사항 실검증 — 재현/근거 있는 것만 수정 대상 확정(기각 사유 기록)
-- [ ] D3. 확정 수정 + pytest 전체 + Playwright 재검증
+- [x] D1. code-reviewer 리뷰 완료(345faef..41f20c7) — 발견 5건(MEDIUM 2·LOW 3) + 안전확인 6항.
+- [x] D2. 실검증 판정: **확정 2**(①목록토글→45초 내 상세 진입 시 프리페치 캐시본 옛 별 상태 —
+      캐시버스터 커버리지 구멍 실재 ②Session 공유 미래 오용 위험 — 경고 주석) / **기각 3**
+      (③시뮬 잠금 DevTools 우회 = 개인 시뮬레이터 설계 수용 ④_sold_one court 생략 오매칭 =
+      링크 항상 court 포함+활성 매칭 선행 차단 ⑤요청당 ThreadPool = 서버리스에서 무의미).
+- [x] D3. 수정: 상세 별 상태를 /api/watchlist(no-store 헤더 신설)로 로드 후 재동기화하는 JS
+      + Session 세션레벨 상태 변경 금지 주석. 테스트 1종 추가 — 62 passed.
 - [ ] D4. versions.md + 커밋(파일 선별) push + 배포 + /health
 
 ## Phase E — 마감
