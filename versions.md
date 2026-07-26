@@ -1,5 +1,12 @@
 # versions.md — auction-arbitrage 루프 작업 로그 (append-only, 최신순)
 
+## 2026-07-27 13:30 KST — 🌏 Vercel 함수 리전 서울(icn1) 고정 (Phase A 구조 결정타)
+- **왜**: 병렬화+단건 fast path 후에도 프로덕션 상세 1.1~2.4초. 실측 `x-vercel-id =
+  icn1::iad1` — 엣지는 서울인데 **함수가 미국 동부(iad1)** 에서 실행돼 Supabase(서울)와
+  REST 콜마다 태평양 왕복(~200ms×콜수) + 사용자↔함수도 왕복 추가.
+- **무엇**: vercel.json `"regions": ["icn1"]` — 함수를 서울로. REST 콜당 지연 수십 ms로.
+- **증거**: 배포 후 재계측은 미션 A4에 기록.
+
 ## 2026-07-27 13:15 KST — ⚡ 상세 단건 fast path (전량 리스트 의존 제거, Phase A5)
 - **왜**: 병렬화 후에도 프로덕션 상세 1.5~2.3초 — REST 모드 재현 실측에서 리스트 캐시 콜드
   1차 요청이 **19초**(load_scored 15k행 전량), 워밍 2차부터 625ms. 램다 콜드/캐시 만료 요청이
