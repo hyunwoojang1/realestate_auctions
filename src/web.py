@@ -905,64 +905,82 @@ def create_app() -> Flask:
         rights = None
         rights_row = None
         db_path = os.environ.get(DB_ENV)
-        try:
+
+        # (A3 2026-07-27) 상세의 독립 조회 5종(권리·사진·임차인·점유관계·건축물대장)을 병렬로.
+        # 종전엔 순차 REST 왕복(콜당 ~400ms × 4~5)이 워밍에도 2~4초 — "클릭했는데 안 넘어간다"
+        # 체감의 주범. 각 조회의 실패 폴백(개별 try + warning 로그)은 그대로 유지하고,
+        # SQLite 경로는 스레드별 자체 커넥션을 열므로 병렬에도 안전하다.
+        def _q_sqlite(loader):
+            conn_ = store.connect(db_path)
+            try:
+                return loader(conn_)
+            finally:
+                conn_.close()
+
+        def _load_rights_job():
             if db_path:
-                rconn = store.connect(db_path)
-                try:
-                    rights_row = store.load_rights(rconn, s.court, s.case_no, s.item_no)
-                finally:
-                    rconn.close()
-            elif store_rest.enabled():
-                rights_row = store_rest.fetch_rights(s.court, s.case_no, s.item_no)
-        except Exception as e:  # noqa: BLE001 — 권리 요지 실패는 상세 페이지를 막지 않음
-            logger.warning("권리 요지 로드 실패(%s %s): %s", s.court, s.case_no, e)
-        # 물건 사진 썸네일(히어로) — 권리와 동일 경로(로컬 SQLite / 클라우드 REST).
-        photos: list[str] = []
-        try:
+                return _q_sqlite(lambda c: store.load_rights(c, s.court, s.case_no, s.item_no))
+            if store_rest.enabled():
+                return store_rest.fetch_rights(s.court, s.case_no, s.item_no)
+            return None
+
+        def _load_photos_job():
             if db_path:
-                pconn = store.connect(db_path)
-                try:
-                    photos = store.load_photos(pconn, s.court, s.case_no, s.item_no)
-                finally:
-                    pconn.close()
-            elif store_rest.enabled():
-                photos = store_rest.fetch_photos(s.court, s.case_no, s.item_no)
-        except Exception as e:  # noqa: BLE001 — 사진 실패는 히어로 생략, 페이지는 정상
-            logger.warning("사진 로드 실패(%s %s): %s", s.court, s.case_no, e)
-        # 임차인 현황(현황조사서 crawl) — 대항력 실판정(전입일 vs 말소기준) 원천. 미크롤이면 빈 리스트.
-        tenants: list[dict] = []
-        try:
+                return _q_sqlite(lambda c: store.load_photos(c, s.court, s.case_no, s.item_no))
+            if store_rest.enabled():
+                return store_rest.fetch_photos(s.court, s.case_no, s.item_no)
+            return []
+
+        def _load_tenants_job():
             if db_path:
-                tconn = store.connect(db_path)
+                return _q_sqlite(lambda c: store.load_tenants(c, s.court, s.case_no, s.item_no))
+            if store_rest.enabled():
+                return store_rest.fetch_tenants(s.court, s.case_no, s.item_no)
+            return []
+
+        def _load_survey_job():
+            if db_path:
+                _sv_raw = _q_sqlite(
+                    lambda c: store.load_detail_raw(c, s.court, s.case_no, s.item_no, "curst"))
+                if _sv_raw:
+                    from .courtauction_detail import curst_possession  # noqa: PLC0415
+                    return curst_possession(_sv_raw)
+                return None
+            if store_rest.enabled():
+                return store_rest.fetch_survey(s.court, s.case_no, s.item_no)
+            return None
+
+        def _load_building_job():
+            if db_path:
+                return _q_sqlite(lambda c: store.load_building(c, s.court, s.case_no, s.item_no))
+            if store_rest.enabled() and hasattr(store_rest, "fetch_building"):
+                return store_rest.fetch_building(s.court, s.case_no, s.item_no)
+            return None
+
+        from concurrent.futures import ThreadPoolExecutor  # noqa: PLC0415
+        _jobs = {"rights": _load_rights_job, "photos": _load_photos_job,
+                 "tenants": _load_tenants_job, "survey": _load_survey_job,
+                 "building": _load_building_job}
+        _got: dict = {}
+        with ThreadPoolExecutor(max_workers=len(_jobs)) as _ex:
+            _futs = {k: _ex.submit(fn) for k, fn in _jobs.items()}
+            for _k, _f in _futs.items():
                 try:
-                    tenants = store.load_tenants(tconn, s.court, s.case_no, s.item_no)
-                finally:
-                    tconn.close()
-            elif store_rest.enabled():
-                tenants = store_rest.fetch_tenants(s.court, s.case_no, s.item_no)
-        except Exception as e:  # noqa: BLE001 — 임차인 로드 실패는 상세 페이지를 막지 않음
-            logger.warning("임차인 현황 로드 실패(%s %s): %s", s.court, s.case_no, e)
+                    _got[_k] = _f.result()
+                except Exception as e:  # noqa: BLE001 — 개별 조회 실패는 상세 페이지를 막지 않음
+                    logger.warning("%s 로드 실패(%s %s): %s", _k, s.court, s.case_no, e)
+                    _got[_k] = None
+
+        rights_row = _got.get("rights")
+        photos: list[str] = _got.get("photos") or []
+        tenants: list[dict] = _got.get("tenants") or []
+        _brow_prefetched = _got.get("building")
 
         # (2026-07-25) 현황조사서 '부동산의 점유관계' — 사용자 요구("최선순위만 보여주면
         # 내가 뭘 보고 판단하냐"). 크롤 시 보존한 curst 원본(listing_detail_raw)에서 집행관
         # 조사 원문(폐문부재/전입세대확인/기타)을 요지로 파싱해 명세서 아래 섹션으로 노출.
         # 원본 미보존(구크롤·REST 클라우드 경로)이면 None → 섹션 미표시(모름≠없음).
-        survey = None
-        try:
-            if db_path:
-                svconn = store.connect(db_path)
-                try:
-                    _sv_raw = store.load_detail_raw(svconn, s.court, s.case_no, s.item_no, "curst")
-                finally:
-                    svconn.close()
-                if _sv_raw:
-                    from .courtauction_detail import curst_possession  # noqa: PLC0415
-                    survey = curst_possession(_sv_raw)
-            elif store_rest.enabled():
-                # 클라우드(Vercel) 서빙 — 크롤 시 미러된 요지 테이블(auction_listing_survey)에서.
-                survey = store_rest.fetch_survey(s.court, s.case_no, s.item_no)
-        except Exception as e:  # noqa: BLE001 — 점유관계 실패는 상세 페이지를 막지 않음
-            logger.warning("점유관계 로드 실패(%s %s): %s", s.court, s.case_no, e)
+        survey = _got.get("survey")   # (A3) 위 병렬 배치에서 로드 — 실패 폴백 동일(None=섹션 미표시)
 
         # (2026-07-23) 재매각 이력 — 위 rights_row 를 그대로 쓰므로 추가 조회 0.
         # 권리 요지가 비어 배지가 안 만들어지는 물건도 기일 이력은 살아 있으므로 별도로 계산한다
@@ -1084,18 +1102,7 @@ def create_app() -> Flask:
             # (2026-07-22) 배치 precompute 캐시(listing_building) 우선 — 페이지뷰마다 VWorld+대장
             # 라이브 3초 왕복을 없애고 쿼터 소진에도 견딘다. 캐시 미스/미ok면 라이브 폴백(그리고
             # deploy/enrich_building 배치가 다음 회차에 채운다).
-            brow = None
-            try:
-                if db_path:
-                    bconn = store.connect(db_path)
-                    try:
-                        brow = store.load_building(bconn, s.court, s.case_no, s.item_no)
-                    finally:
-                        bconn.close()
-                elif store_rest.enabled() and hasattr(store_rest, "fetch_building"):
-                    brow = store_rest.fetch_building(s.court, s.case_no, s.item_no)
-            except Exception as e:  # noqa: BLE001 — 캐시 실패는 라이브 폴백
-                logger.warning("건축물대장 캐시 조회 실패(%s %s): %s", s.court, s.case_no, e)
+            brow = _brow_prefetched   # (A3) 위 병렬 배치에서 로드 — 실패=None(라이브 폴백 동일)
             if brow and brow.get("status") == "ok":
                 bldg = brow
             else:

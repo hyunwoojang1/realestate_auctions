@@ -1,5 +1,16 @@
 # versions.md — auction-arbitrage 루프 작업 로그 (append-only, 최신순)
 
+## 2026-07-27 12:55 KST — ⚡ 상세 페이지 REST 병렬화 + 커넥션 풀 (밤샘루프 Phase A)
+- **왜**: "물건 클릭했는데 안 넘어간다" QA — 프로덕션 상세 HTML 워밍 2.0~4.1초 실측. 원인 =
+  독립 조회 5종(권리·사진·임차인·점유관계·건축물대장)이 순차 REST + 콜마다 신규 TLS
+  (프로파일: 396+404+372+407 = 1,579ms).
+- **무엇**: ①store_rest — 모듈 `requests`를 커넥션 풀 Session으로(콜간 keep-alive, 호출부·
+  테스트 목킹 무변경) ②web.py property_detail — 5종 조회 ThreadPoolExecutor 병렬 배치,
+  개별 실패 격리(try+warning 폴백) 동일 유지, survey/building은 배치 결과 재사용.
+- **증거**: test_detail_parallel_fetch.py 3종(동등성·사진실패 격리·권리실패 거짓안전 금지)
+  포함 관련 97 passed. 배포 후 재계측은 미션 A4에 기록.
+- **미션**: harness/MISSION_20260727_NIGHT.md (2분 크론 루프, 킬스위치 AGENT_STOP_NIGHT)
+
 ## 2026-07-26 21:45 KST — 🔧 딥 QA 후속 수정 3종 (도트 클릭·고아 정리기·임차인 미러)
 - **① 사진 도트 클릭 이동**: 표시 전용(pointer-events:none·6px)이던 도트를 클릭→해당 장
   스크롤로. 보이는 점 6px 유지, 패딩으로 히트영역만 14px(배경 content-box 클립). Playwright

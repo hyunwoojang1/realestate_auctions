@@ -15,10 +15,26 @@ import time
 from collections.abc import Iterable
 from datetime import datetime, timedelta, timezone
 
-import requests
+import requests as _requests_mod
 
 from .models import ScoredListing
 from .store import _COLS, _RIGHTS_LIST_COLS  # DRY: 컬럼 정의는 store.py 단일 출처
+
+
+def _make_session() -> _requests_mod.Session:
+    """커넥션 풀링 세션 — (A3 2026-07-27) 종전엔 REST 콜마다 새 TLS 핸드셰이크(콜당 ~150-300ms
+    추가)로 상세 페이지 4콜이 순차 1.6초까지 걸렸다. keep-alive 재사용 + 병렬 fetch(web.py)용
+    풀 확장. 인터페이스는 requests 모듈과 동일(get/post/delete)이라 호출부·테스트 목킹 무변경.
+    """
+    s = _requests_mod.Session()
+    adapter = _requests_mod.adapters.HTTPAdapter(pool_connections=4, pool_maxsize=8)
+    s.mount("https://", adapter)
+    s.mount("http://", adapter)
+    return s
+
+
+# 호출부 전체가 `requests.get(...)` 형태를 유지하도록 세션을 같은 이름으로 노출.
+requests = _make_session()
 
 logger = logging.getLogger(__name__)
 
