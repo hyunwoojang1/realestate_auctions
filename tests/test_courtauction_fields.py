@@ -181,6 +181,37 @@ def test_c1_corp_names_preserved_in_senior_lien():
     assert "[성명]" in mask_personal_names("근저당권자 농협은행 가압류권자 이순신")   # 사람만 마스킹
 
 
+def test_qa0726_long_corp_names_preserved():
+    """(QA 2026-07-26) 5자+ 법인명 — 종전 정규식이 앞 4자만 잘라 '[성명]공사'로 훼손하던 실측
+    오염 클래스(저장분 22행). 전체 단어 접미사로 법인을 판정해 보존한다."""
+    cases = [
+        "등기사항전부증명서상 구분지상권(지상권자 : 한국전력공사)이 설정되어 있음",
+        "지상권자인 신청채권자 충주산림조합이 2025.12.12.자 말소동의서를 제출함",
+        "신청채권자 제천농업협동조합으로부터 지상권말소동의서가 제출되어 있으니",
+        "신청채권자 서울보증보험주식회사가 우선변제권자로서 배당금으로 전액 변제 받지",
+        "채권자 서울보증보험 주식회사의 매수인에 대한 인도명령",
+        "유치권신고인 성진영농조합법인으로부터 금 180,000,000원의 유치권 신고",
+    ]
+    for t in cases:
+        assert mask_personal_names(t) == t, t
+
+
+def test_qa0726_document_words_not_masked():
+    """(QA 2026-07-26) '채권자 제출 보정서'·'채권자 확약서 제출' — 서류·행위어는 성명이 아니다."""
+    assert mask_personal_names("2025.03.18.자 채권자 제출 보정서에 첨부되어 있음") \
+        == "2025.03.18.자 채권자 제출 보정서에 첨부되어 있음"
+    assert mask_personal_names("대항력 포기한다는 26. 4. 30. 채권자 확약서 제출") \
+        == "대항력 포기한다는 26. 4. 30. 채권자 확약서 제출"
+
+
+def test_qa0726_person_after_role_still_masked():
+    """(QA 2026-07-26 회귀가드) 법인 보존을 넣어도 자연인 마스킹은 그대로다."""
+    assert mask_personal_names("채무자 홍길동에게 통지") == "채무자 [성명]에게 통지"
+    assert mask_personal_names("임차인 전원철, 박화란") == "임차인 [성명], [성명]"
+    out = mask_personal_names("채권자 김철수, 한국전력공사")
+    assert "[성명]" in out and "한국전력공사" in out   # 나열 꼬리의 법인도 보존
+
+
 def test_c1_creditor_role_person_masked():
     """(C1) '채권자 박보라'처럼 채권자가 자연인이면 마스킹(법인은 위 가드로 보존)."""
     assert mask_personal_names("채권자 박보라") == "채권자 [성명]"
