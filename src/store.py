@@ -184,6 +184,42 @@ CREATE TABLE IF NOT EXISTS listing_building (
 );
 """
 
+# (C1 2026-07-27) 낙찰(종결) 물건 보존 — scored 전량교체 diff 에서 소멸한 물건의 스냅샷.
+# 실낙찰가는 법원이 정상 낙찰엔 비공개(dspslAmt 항상 null 실측)라 **재매각 maeAmt가 있을 때만**
+# sold_price 를 채우고, 없으면 NULL(=미공개 — 0원·추정값 지어내기 금지, C5 가드로 고정).
+# evidence: 'maeAmt'(실낙찰가 보유) | 'disappeared'(매각기일 경과 후 소멸 — 낙찰가 미공개).
+DDL_SOLD = """
+CREATE TABLE IF NOT EXISTS sold_listings (
+    court TEXT NOT NULL DEFAULT '',
+    case_no TEXT NOT NULL,
+    item_no TEXT NOT NULL DEFAULT '',
+    apt_name TEXT DEFAULT '',
+    address TEXT DEFAULT '',
+    property_type TEXT DEFAULT '',
+    area_m2 REAL,
+    appraisal_price INTEGER,
+    min_bid_price INTEGER,
+    fail_count INTEGER,
+    sale_date TEXT DEFAULT '',
+    est_market_price INTEGER,
+    market_band_low INTEGER,
+    profit_low INTEGER,
+    expected_profit INTEGER,
+    arb_score REAL,
+    grade TEXT DEFAULT '',
+    sold_price INTEGER,                -- 실낙찰가(maeAmt) | NULL=미공개
+    sold_evidence TEXT NOT NULL DEFAULT 'disappeared',
+    snapshot_at TEXT NOT NULL DEFAULT '',
+    PRIMARY KEY (court, case_no, item_no)
+);
+"""
+
+_SOLD_COLS = ["court", "case_no", "item_no", "apt_name", "address", "property_type",
+              "area_m2", "appraisal_price", "min_bid_price", "fail_count", "sale_date",
+              "est_market_price", "market_band_low", "profit_low", "expected_profit",
+              "arb_score", "grade", "sold_price", "sold_evidence", "snapshot_at"]
+
+
 # (감사체계 2026-07-23) 물건상세(pgj15B)·현황조사서(curst) 원본 보존 — 블라인드 감사·사후 재파싱 재료.
 # 종전엔 normalize 후 원본을 버려 "언제 어떤 필드가 왜 깨졌는지" 사후 재구성이 불가능했다(QA F1).
 # 실명 마스킹 후 zlib 압축 BLOB로 저장(용량 ~1/10). doc_type: 'pgj15B' | 'curst'.
@@ -250,6 +286,7 @@ def connect(db_path: str = "auction.db") -> sqlite3.Connection:
     conn.execute(DDL_BUILDING)
     conn.execute(DDL_TENANTS)
     conn.execute(DDL_DETAIL_RAW)
+    conn.execute(DDL_SOLD)
     conn.execute(f"PRAGMA user_version={SCHEMA_VERSION}")
     return conn
 
@@ -685,11 +722,17 @@ def _prune_orphans(conn: sqlite3.Connection, table: str) -> int:
     if not has:
         return 0
     with conn:
+        # (C2 2026-07-27) 낙찰 보존(sold_listings) 물건의 자식(사진·권리 등)은 지우지 않는다 —
+        # '낙찰 종결' 상세가 활성 물건과 동일한 정보(사진·명세서)를 계속 보여주기 위한 아카이브.
         cur = conn.execute(
             f"DELETE FROM {table} WHERE NOT EXISTS ("  # noqa: S608 — table은 내부 상수만 전달
             "  SELECT 1 FROM scored_listings s"
             f"  WHERE s.court={table}.court AND s.case_no={table}.case_no"
             f"    AND s.item_no={table}.item_no)"
+            " AND NOT EXISTS ("
+            "  SELECT 1 FROM sold_listings d"
+            f"  WHERE d.court={table}.court AND d.case_no={table}.case_no"
+            f"    AND d.item_no={table}.item_no)"
         )
     return cur.rowcount
 
@@ -715,6 +758,42 @@ def prune_orphan_building(conn: sqlite3.Connection) -> int:
 def prune_orphan_tenants(conn: sqlite3.Connection) -> int:
     """scored 에 없는 listing_tenants 고아 삭제(풀스냅샷 후) — 55행 실측(QA 2026-07-26)."""
     return _prune_orphans(conn, "listing_tenants")
+
+
+def upsert_sold(conn: sqlite3.Connection, rows: list[dict]) -> int:
+    """낙찰(종결) 스냅샷 병합 — (C1 2026-07-27). 멱등: 같은 키 재적재 시 갱신.
+
+    ⚠ sold_price 지어내기 금지 계약: 호출부는 실낙찰가(maeAmt) 없으면 None 을 넣는다.
+    회차 최저가(last_sold_floor)를 sold_price 로 넣는 것은 혼용 금지(테스트로 고정).
+    """
+    if not rows:
+        return 0
+    ph = ",".join("?" * len(_SOLD_COLS))
+    with conn:
+        conn.executemany(
+            f"INSERT OR REPLACE INTO sold_listings ({','.join(_SOLD_COLS)}) VALUES ({ph})",
+            [[r.get(c) for c in _SOLD_COLS] for r in rows])
+    return len(rows)
+
+
+def load_sold(conn: sqlite3.Connection, limit: int = 200,
+              with_price_first: bool = True) -> list[dict]:
+    """낙찰 목록 — 실낙찰가 보유 우선, 그 안에서 매각기일 최신순."""
+    order = ("(sold_price IS NULL) ASC, sale_date DESC" if with_price_first
+             else "sale_date DESC")
+    cur = conn.execute(
+        f"SELECT * FROM sold_listings ORDER BY {order} LIMIT ?", (limit,))  # noqa: S608
+    return [dict(r) for r in cur.fetchall()]
+
+
+def load_sold_one(conn: sqlite3.Connection, court: str, case_no: str,
+                  item_no: str = "") -> dict | None:
+    """단건 낙찰 스냅샷 — 상세 '낙찰 종결' 모드용. 정확 키 매칭만."""
+    cur = conn.execute(
+        "SELECT * FROM sold_listings WHERE court=? AND case_no=? AND item_no=?",
+        (court, case_no, item_no))
+    r = cur.fetchone()
+    return dict(r) if r else None
 
 
 def load_rights(conn: sqlite3.Connection, court: str, case_no: str,

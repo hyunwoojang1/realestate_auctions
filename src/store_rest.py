@@ -454,6 +454,47 @@ def fetch_survey(court: str, case_no: str, item_no: str = "") -> dict | None:
         return None
 
 
+# 낙찰(종결) 스냅샷 미러 — (C1 2026-07-27) 상세/목록의 클라우드 서빙 원천.
+SOLD_TABLE = os.environ.get("SUPABASE_SOLD_TABLE", "auction_sold_listings")
+
+
+def upsert_sold(rows: list[dict]) -> int:
+    """sold_listings 행 병합 미러 — 테이블 미배포면 호출측 graceful skip."""
+    url, key, _ = _cfg()
+    return _post_upsert(url, key, SOLD_TABLE, rows)
+
+
+def fetch_sold(limit: int = 200) -> list[dict]:
+    """낙찰 목록(클라우드) — 실낙찰가 보유 우선·매각기일 최신순. 실패는 빈 리스트(페이지 정상)."""
+    try:
+        url, key, _ = _cfg()
+        r = requests.get(_endpoint(url, SOLD_TABLE), headers=_headers(key),
+                         params={"select": "*",
+                                 "order": "sold_price.desc.nullslast,sale_date.desc",
+                                 "limit": limit},
+                         timeout=15)
+        r.raise_for_status()
+        return r.json()
+    except Exception:  # noqa: BLE001 — 미배포/실패 = 섹션 미표시
+        return []
+
+
+def fetch_sold_one(court: str, case_no: str, item_no: str = "") -> dict | None:
+    """단건 낙찰 스냅샷(클라우드) — 상세 '낙찰 종결' 모드."""
+    try:
+        url, key, _ = _cfg()
+        r = requests.get(_endpoint(url, SOLD_TABLE), headers=_headers(key),
+                         params={"select": "*", "court": f"eq.{court}",
+                                 "case_no": f"eq.{case_no}",
+                                 "item_no": f"eq.{item_no or ''}", "limit": 1},
+                         timeout=15)
+        r.raise_for_status()
+        rows = r.json()
+        return rows[0] if rows else None
+    except Exception:  # noqa: BLE001
+        return None
+
+
 def upsert_tenants(rows: list[dict]) -> int:
     """임차인 현황(listing_tenants 행 dict) 병합 미러 — 대항력 여지 판정 원천의 클라우드 서빙.
 

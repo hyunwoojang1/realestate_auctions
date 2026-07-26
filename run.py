@@ -26,6 +26,55 @@ from src import pipeline, query, report, store  # noqa: E402
 
 EVID = ROOT / "evidence"
 
+# 낙찰 스냅샷에 보존할 scored 컬럼(store._SOLD_COLS 중 sold_* / snapshot_at 제외분과 일치).
+_SOLD_SNAP_COLS = ["court", "case_no", "item_no", "apt_name", "address", "property_type",
+                   "area_m2", "appraisal_price", "min_bid_price", "fail_count", "sale_date",
+                   "est_market_price", "market_band_low", "profit_low", "expected_profit",
+                   "arb_score", "grade"]
+
+
+def _collect_sold_snapshot(conn, new_scored) -> list[dict]:
+    """(C2 2026-07-27) 전량교체 직전 diff — 이번 스냅샷에서 사라질 '낙찰(종결) 추정' 물건 수집.
+
+    포함: 이전 scored 에 있고 새 수집에 없으며 **매각기일이 지난** 물건.
+    제외: 기일이 남았는데 사라진 물건(취하/연기/변경 가능 — 낙찰로 단정하지 않는다).
+    sold_price: 기일이력 'sold'(재매각 회차의 실낙찰가 maeAmt)가 있을 때만. 없으면 None(미공개)
+    — 정상 낙찰가는 법원이 비공개(dspslAmt 항상 null 실측 2026-07-24)라 지어내지 않는다.
+    """
+    import json as _json  # noqa: PLC0415
+    from datetime import date, datetime  # noqa: PLC0415
+
+    from src.courtauction_detail import resale_history  # noqa: PLC0415
+
+    today = date.today().isoformat()
+    now = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+    new_keys = {(s.court, s.case_no, s.item_no) for s in new_scored}
+    prev = conn.execute(
+        f"SELECT {','.join(_SOLD_SNAP_COLS)} FROM scored_listings").fetchall()  # noqa: S608
+    out: list[dict] = []
+    for r in prev:
+        if (r["court"], r["case_no"], r["item_no"]) in new_keys:
+            continue
+        sd = r["sale_date"] or ""
+        if not sd or sd > today:
+            continue
+        sold_price = None
+        evidence = "disappeared"
+        rr = conn.execute(
+            "SELECT schedule FROM listing_rights WHERE court=? AND case_no=? AND item_no=?",
+            (r["court"], r["case_no"], r["item_no"])).fetchone()
+        if rr and rr["schedule"]:
+            try:
+                info = resale_history(_json.loads(rr["schedule"]))
+                if info and info.last_sold_price:
+                    sold_price = info.last_sold_price
+                    evidence = "maeAmt"
+            except Exception:  # noqa: BLE001 — 이력 파싱 실패 = 미공개로(가격 지어내기 금지)
+                pass
+        out.append({**{c: r[c] for c in _SOLD_SNAP_COLS},
+                    "sold_price": sold_price, "sold_evidence": evidence, "snapshot_at": now})
+    return out
+
 
 def main(argv=None) -> int:
     ap = argparse.ArgumentParser(description="경매 최저가 vs 실거래 시세 차익 큐레이션 PoC")
@@ -203,6 +252,7 @@ def main(argv=None) -> int:
     # 샤드(빈/짧은 응답)가 전량교체+prune으로 밴예산 들여 모은 백로그를 파괴하는 것 방지. 이번 수집이
     # 기존 scored 대비 FLOOR(기본 0.8) 미만이면 만료가 아니라 수집부실로 보고 병합 강등(prune 스킵).
     # NATIONWIDE_PARTIAL(차단)과 0건(아래)은 별도 처리하므로, 여기선 '차단은 없었는데 수만 급감'을 잡는다.
+    sold_rows: list[dict] = []   # (C2) 낙찰 보존분 — 전량교체 분기에서 채워져 클라우드 미러까지 전달
     if args.source == "courtauction" and use_live and full_snapshot and scored:
         _prior = conn.execute("SELECT COUNT(*) FROM scored_listings").fetchone()[0]
         _floor = float(os.environ.get("AUCTION_COVERAGE_FLOOR", "0.8"))
@@ -219,6 +269,17 @@ def main(argv=None) -> int:
         n = 0
         args.no_cloud = True
     elif args.source == "courtauction" and use_live and full_snapshot:
+        # (C2 2026-07-27) 낙찰(종결) 보존 — 전량교체로 사라질 물건을 diff로 먼저 스냅샷.
+        # 매각기일이 지나고 소멸한 물건만(기일 前 소멸 = 취하/연기 가능성 → 낙찰로 단정 금지).
+        # 실낙찰가는 기일이력의 'sold'(재매각 maeAmt)가 있을 때만 — 없으면 NULL(미공개).
+        try:
+            sold_rows = _collect_sold_snapshot(conn, scored)
+            if sold_rows:
+                store.upsert_sold(conn, sold_rows)
+                _with_price = sum(1 for r in sold_rows if r.get("sold_price"))
+                print(f"  🏁 낙찰(종결) 보존: {len(sold_rows)}건 (실낙찰가 보유 {_with_price}건)")
+        except Exception as _e:  # noqa: BLE001 — 보존 실패가 새로고침을 막으면 안 됨
+            print(f"  ⚠ 낙찰 보존 실패(비차단): {_e}", file=sys.stderr)
         n = store.replace_all(conn, scored)
         # scored 전량교체 후 대응 물건이 사라진 고아 자식행 정리(무한누적 방지·중복 제거).
         # (E2 2026-07-22) rights 뿐 아니라 photos·naver 도 정리(고아 6578·1700 실측).
@@ -265,6 +326,15 @@ def main(argv=None) -> int:
                 if not args.json:
                     print(f"  ☁ Supabase 미러링: {cn}건 "
                           f"({'전량교체' if full_snapshot else '병합'})")
+                # (C2 2026-07-27) 낙찰(종결) 보존분 미러 — 클라우드 /sold·상세 낙찰모드 원천.
+                if sold_rows:
+                    try:
+                        sn = store_rest.upsert_sold(sold_rows)
+                        if not args.json:
+                            print(f"  🏁 낙찰 보존 미러: {sn}건")
+                    except Exception as e:  # noqa: BLE001 — 미러 실패는 비차단
+                        if not args.json:
+                            print(f"  ⚠ 낙찰 미러 skip: {e}")
                 # 클라우드 고아 권리 정리(scored 전량교체 후 rights 동기화). RPC 함수
                 # (supabase_rights.sql prune_auction_orphan_rights) 미배포면 조용히 skip.
                 if full_snapshot:

@@ -1,5 +1,14 @@
 # versions.md — auction-arbitrage 루프 작업 로그 (append-only, 최신순)
 
+## 2026-07-27 14:15 KST — 🏁 낙찰(종결) 보존 데이터층 (Phase C1·C2)
+- **왜**: 신규 기능 "낙찰 물건 + 실제 낙찰가 표시" — 종전엔 전량교체가 소멸 물건을 흔적 없이
+  지웠다(낙찰 사례 축적 불가). 낙찰가 제약: 정상 낙찰 최종가는 법원 비공개(dspslAmt null
+  실측), 실낙찰가는 재매각 이력 'sold'(maeAmt)에만 존재.
+- **무엇**: ①sold_listings 테이블(로컬+Supabase auction_sold_listings, 복합PK·RLS) ②run.py
+  전량교체 직전 diff 보존(기일 지난 소멸만 — 기일 前 소멸은 취하 가능성으로 제외, 실낙찰가
+  없으면 NULL=미공개) + 클라우드 미러 ③prune 5종이 sold 물건 자식(사진·권리) 보존하도록 조정.
+- **증거**: test_sold_listings.py 7종(diff 규칙·prune 보존·미공개 NULL·혼용 금지) 29 passed.
+
 ## 2026-07-27 13:50 KST — 👆 목록→상세 프리페치 + 클릭 진행바 (Phase B1/B2)
 - **왜**: 서버 0.6~1.3초로 줄여도 클릭 후 빈 화면 구간이 "안 넘어간다" 착각을 만든다
   (비포 TTI 실측: 클릭→h1 중앙값 1,050ms).
