@@ -334,6 +334,17 @@
   </div>
   </div><!-- /dhead -->
 
+  {% if sold %}
+  {#- (C4 2026-07-27) 낙찰 종결 배너 — 활성 물건과 동일한 상세를 보여주되 상태를 명확히. -#}
+  <div class="note-box n-warn" style="margin-top:10px">🏁 <b>낙찰 종결 물건</b> — 경매가 끝나 자동
+    보존된 기록입니다(기일 {{ sold.sale_date or '미상' }} · 보존 {{ sold.snapshot_at[:10] }}).
+    {% if sold.sold_price %}실제 낙찰가 <b>{{ won(sold.sold_price) }}</b>{% if sold.sold_evidence == 'maeAmt' %}
+      <span style="color:var(--ink-500)">(해당 회차 낙찰가 — 이후 대금 미납으로 재매각 진행된 이력)</span>{% endif %}
+      — 아래 시뮬레이터가 이 금액으로 고정돼 "그 가격에 샀다면"의 실현 손익을 보여줍니다.
+    {% else %}낙찰가 <b>미공개</b> — 법원은 정상 낙찰의 최종가를 공개하지 않습니다(추정치를 표시하지 않습니다).{% endif %}
+  </div>
+  {% endif %}
+
   <!-- ── 존 2: KPI 스탯 밴드 — 핵심 숫자 6개, 시선의 첫 정거장 ── -->
   {% set is_reauction = s.fail_count == 0 and cut_rate is not none and cut_rate > 0.01 %}
   {% set dd = days_until(s.sale_date) if s.sale_date else None %}
@@ -720,10 +731,13 @@
       <!-- 왼쪽: 가정 입력 -->
       <div class="dsim-in">
         <div class="dsim-f">
-          <label for="sm-bid">입찰가 <span class="out" id="sm-bid-out">{{ won_fine(sim.bid) }}</span></label>
-          <input type="range" id="sm-bid" min="{{ s.min_bid_price }}" max="{{ sim_bid_max }}"
-                 step="500000" value="{{ sim.bid }}">
-          <span class="hint">최저입찰가 {{ won(s.min_bid_price) }} 이상만 유효 · 취득세는 이 금액으로 재계산됩니다</span>
+          <label for="sm-bid">입찰가{% if sold and sold.sold_price %} <span class="hint" style="color:var(--brand);font-weight:700">🏁 실낙찰가 고정</span>{% endif %} <span class="out" id="sm-bid-out">{{ won_fine(sim.bid) }}</span></label>
+          {#- (C4 2026-07-27) 낙찰 종결 + 실낙찰가 보유 → 입찰가를 그 금액에 고정(disabled).
+              "그 가격에 샀다면"의 실현 손익을 보는 모드 — 다른 가정(보유·대출)은 계속 조절 가능. -#}
+          <input type="range" id="sm-bid" min="{{ [s.min_bid_price, sim.bid]|min }}" max="{{ [sim_bid_max, sim.bid]|max }}"
+                 step="500000" value="{{ sim.bid }}"{% if sold and sold.sold_price %} disabled data-sold-price="{{ sold.sold_price }}"{% endif %}>
+          {% if sold and sold.sold_price %}<span class="hint">실제 낙찰가 {{ won(sold.sold_price) }}로 고정 — 이 물건은 종결된 기록입니다</span>
+          {% else %}<span class="hint">최저입찰가 {{ won(s.min_bid_price) }} 이상만 유효 · 취득세는 이 금액으로 재계산됩니다</span>{% endif %}
         </div>
         <div class="dsim-f">
           <label for="sm-sell">예상 매도가 <span class="hint">만원</span></label>

@@ -33,7 +33,7 @@ from . import (
     store_rest,
     watchlist,
 )
-from .models import AuctionListing
+from .models import AuctionListing, ScoredListing
 
 logger = logging.getLogger(__name__)
 
@@ -714,6 +714,55 @@ def create_app() -> Flask:
         resp.charset = "utf-8"
         return resp
 
+    def _sold_rows(limit: int = 300) -> list[dict]:
+        """낙찰(종결) 기록 — 로컬 SQLite 우선, 클라우드는 REST. 실패=빈 리스트(페이지 정상)."""
+        db_path = os.environ.get(DB_ENV)
+        try:
+            if db_path:
+                conn = store.connect(db_path)
+                try:
+                    return store.load_sold(conn, limit)
+                finally:
+                    conn.close()
+            if store_rest.enabled():
+                return store_rest.fetch_sold(limit)
+        except Exception as e:  # noqa: BLE001 — 낙찰 목록 실패는 비차단
+            logger.warning("낙찰 목록 로드 실패: %s", e)
+        return []
+
+    def _sold_one(case_no: str) -> dict | None:
+        """단건 낙찰 스냅샷 — 상세 '낙찰 종결' 모드. item/court 쿼리 파라미터로 좁힌다."""
+        item = request.args.get("item") or ""
+        court = request.args.get("court") or ""
+        db_path = os.environ.get(DB_ENV)
+        try:
+            if db_path:
+                conn = store.connect(db_path)
+                try:
+                    if court:
+                        return store.load_sold_one(conn, court, case_no, item)
+                    cur = conn.execute(
+                        "SELECT * FROM sold_listings WHERE case_no=?"
+                        + (" AND item_no=?" if item else ""),
+                        (case_no, item) if item else (case_no,))
+                    rows = [dict(r) for r in cur.fetchall()]
+                    return rows[0] if len(rows) == 1 else None   # 다물건 모호 = 미표시(오표시 방지)
+                finally:
+                    conn.close()
+            if store_rest.enabled() and court:
+                return store_rest.fetch_sold_one(court, case_no, item)
+        except Exception as e:  # noqa: BLE001
+            logger.warning("낙찰 단건 로드 실패(%s): %s", case_no, e)
+        return None
+
+    @app.get("/sold")
+    def sold_page():
+        """(C4 2026-07-27) 최근 낙찰 기록 — 실낙찰가 보유 우선, 매각기일 최신순."""
+        rows = _sold_rows(300)
+        return render_template("sold.html", rows=rows, count=len(rows),
+                               won=report.won,
+                               data_source=getattr(g, "data_source", "n/a"))
+
     def _find_by_case(case_no: str):
         """(T8 감사 수정 — B14 핵심) 사건번호 매칭 물건 전부.
 
@@ -908,8 +957,33 @@ def create_app() -> Flask:
     def property_detail(case_no: str):
         from . import tax  # noqa: PLC0415
         matches = _find_by_case(case_no)
+        sold = None
         if not matches:
-            abort(404)
+            # (C4 2026-07-27) 낙찰 종결 물건 — 활성 목록에 없으면 보존 스냅샷으로 동일 상세 서빙.
+            # 자식 데이터(사진·권리)는 C2 프룬 보존 덕에 남아 있으면 그대로 렌더된다.
+            sold = _sold_one(case_no)
+            if not sold:
+                abort(404)
+            matches = [ScoredListing(
+                case_no=sold["case_no"], court=sold.get("court") or "",
+                item_no=sold.get("item_no") or "",
+                apt_name=sold.get("apt_name") or "", address=sold.get("address") or "",
+                property_type=sold.get("property_type") or "",
+                area_m2=sold.get("area_m2") or 0.0,
+                appraisal_price=sold.get("appraisal_price") or 0,
+                min_bid_price=sold.get("min_bid_price") or 0,
+                fail_count=sold.get("fail_count") or 0,
+                sale_date=sold.get("sale_date") or "",
+                est_market_price=sold.get("est_market_price"),
+                market_band_low=sold.get("market_band_low"),
+                profit_low=sold.get("profit_low"),
+                expected_profit=sold.get("expected_profit"),
+                arb_score=sold.get("arb_score"),
+                grade=sold.get("grade") or "낙찰 종결",
+                matched_trades=0, confidence=0.0,
+                real_acquisition_cost=sold.get("min_bid_price") or 0,
+                gap_rate=None, gap_score=0.0, rights_score=0.0, liquidity_score=0.0,
+            )]
         if len(matches) > 1:
             # 물건 선택 페이지 — 어떤 물건인지 사용자가 고른다(잘못된 물건 수치 표시 방지).
             return render_template("choose_item.html", case_no=case_no, items=matches,
@@ -1138,7 +1212,10 @@ def create_app() -> Flask:
         # 이후 슬라이더 조작은 /api/bidsim 이 같은 _sim_payload 로 계산 — 두 경로가 갈리지 않는다.
         # 매도가 기본 = 검증 하한가(보수) → 추정시세 → 없으면 0(사용자가 직접 입력).
         sim_input = bidsim.SimInput(
-            bid_price=s.min_bid_price,
+            # (C4) 낙찰 종결 물건은 실낙찰가로 고정 시작 — "그 가격에 샀다면"의 손익.
+            # 미공개(sold_price None)면 최저가 그대로(값 지어내기 금지).
+            bid_price=(sold["sold_price"] if sold and sold.get("sold_price")
+                       else s.min_bid_price),
             property_type=s.property_type,
             area_m2=s.area_m2 or 0.0,
             sell_price=s.market_band_low or s.est_market_price or 0,
@@ -1146,7 +1223,7 @@ def create_app() -> Flask:
         )
         html = render_template(
             "detail.html", s=s, listing=listing, chart=chart, rights=rights, badge=badge,
-            survey=survey, tenants=tenants,
+            survey=survey, tenants=tenants, sold=sold,
             deposit_amount=deposit_amount, deposit_rate=deposit_rate,
             deposit_stated=deposit_stated,
             sim=_sim_payload(sim_input), sim_in=sim_input, bidsim_cfg=bidsim, resale=resale,

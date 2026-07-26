@@ -125,6 +125,7 @@
     {% for c in chips %}
     <a class="qchip{% if c.active %} on{% endif %}" href="{{ c.href }}">{{ c.label }} <span class="n">· {{ c.count }}</span></a>
     {% endfor %}
+    <a class="qchip" href="/sold">🏁 최근 낙찰</a>{# (C4) 낙찰 기록 페이지 진입 — 실낙찰가 아카이브 #}
   </div>
 </div>
 

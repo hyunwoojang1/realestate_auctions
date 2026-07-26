@@ -1,5 +1,13 @@
 # versions.md — auction-arbitrage 루프 작업 로그 (append-only, 최신순)
 
+## 2026-07-27 14:55 KST — 🏁 낙찰 기록 UI — /sold 목록 + 상세 낙찰모드·시뮬 고정 (Phase C4~C6)
+- **무엇**: ①/sold 페이지(낙찰가 보유 우선 정렬, 감정가율, 미납 재매각 이력 칩, 미공개 정직
+  표기) ②홈 빠른진입 칩 '🏁 최근 낙찰' ③상세 낙찰모드 — _find_by_case 미스 시 sold 스냅샷
+  폴백(다물건 모호=미표시), 낙찰 종결 배너, **시뮬레이터 입찰가=실낙찰가 고정(disabled)**,
+  다른 가정(보유·대출)은 계속 조절 가능. 미공개는 고정 없이 최저가 시작.
+- **증거**: test_sold_listings.py 10종(웹 4종 포함), Playwright 실측(280카드→배너→슬라이더
+  disabled·재계산 PASS·JS 0), 캡처 20260727_낙찰기록_신기능.png.
+
 ## 2026-07-27 14:30 KST — 🏁 과거 낙찰 기록 백필 280행 (Phase C3)
 - **무엇**: deploy/backfill_sold_listings.py — raw_listings maeAmt 마이닝(494키), 활성 재매각
   214키 제외(활성 목록 재매각 배지와 이중표시 방지), 280행 sold_listings 적재+Supabase 미러.

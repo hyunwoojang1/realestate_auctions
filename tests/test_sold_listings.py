@@ -110,3 +110,62 @@ def test_unknown_price_stays_null(tmp_path):
     row = store.load_sold_one(conn, "서울중앙지방법원", "2025타경1", "1")
     assert row["sold_price"] is None
     assert row["sold_price"] != row["min_bid_price"]
+
+
+# ══ C4 UI — /sold 목록 + 상세 낙찰모드 ══
+
+def _seed_web(tmp_path):
+    from src.web import create_app
+    db = tmp_path / "web.db"
+    conn = store.connect(str(db))
+    store.upsert_sold(conn, [
+        _sold_row("2025타경100", price=310_000_000, evidence="maeAmt"),
+        _sold_row("2025타경200", price=None, evidence="disappeared"),
+    ])
+    conn.close()
+    return db, create_app().test_client()
+
+
+def test_sold_page_lists_records(tmp_path, monkeypatch):
+    db, c = _seed_web(tmp_path)
+    monkeypatch.setenv("AUCTION_DB", str(db))
+    body = c.get("/sold").get_data(as_text=True)
+    assert "최근 낙찰 기록" in body
+    assert "3.10억" in body                                   # 실낙찰가 표기
+    assert "미공개" in body                                   # 가격 없는 건 정직 표기
+    assert "0.00억" not in body                               # (C5) 미공개를 0으로 지어내지 않음
+
+
+def test_sold_detail_mode_locks_simulator(tmp_path, monkeypatch):
+    """낙찰 종결 + 실낙찰가 → 상세 200 + 배너 + 시뮬레이터 실낙찰가 고정(disabled)."""
+    db, c = _seed_web(tmp_path)
+    monkeypatch.setenv("AUCTION_DB", str(db))
+    body = c.get("/property/2025타경100?item=1&court=서울중앙지방법원").get_data(as_text=True)
+    assert "낙찰 종결 물건" in body
+    assert "310,000,000원" in body                            # 상세는 원 콤마 표기
+    assert 'disabled data-sold-price="310000000"' in body     # 슬라이더 고정
+    assert "실낙찰가 고정" in body
+
+
+def test_sold_detail_unknown_price_no_lock(tmp_path, monkeypatch):
+    """낙찰가 미공개 → 배너에 '미공개', 시뮬레이터는 고정 없이 최저가 시작(값 지어내기 금지)."""
+    db, c = _seed_web(tmp_path)
+    monkeypatch.setenv("AUCTION_DB", str(db))
+    body = c.get("/property/2025타경200?item=1&court=서울중앙지방법원").get_data(as_text=True)
+    assert "낙찰 종결 물건" in body and "미공개" in body
+    assert "data-sold-price" not in body
+    assert "추정 낙찰가" not in body                           # 지어낸 금액 라벨 금지
+    assert "실낙찰가 고정" not in body                         # 가격 없는데 고정 UI 금지
+
+
+def test_active_listing_detail_has_no_sold_banner(tmp_path, monkeypatch):
+    """활성 물건 상세엔 낙찰 배너가 없다(오표시 방지)."""
+    from src.web import create_app
+    db = tmp_path / "act.db"
+    conn = store.connect(str(db))
+    s = _scored_obj("2025타경300", "2026-08-01")
+    store.replace_all(conn, [s])
+    conn.close()
+    monkeypatch.setenv("AUCTION_DB", str(db))
+    body = create_app().test_client().get("/property/2025타경300").get_data(as_text=True)
+    assert "낙찰 종결 물건" not in body

@@ -1,0 +1,38 @@
+{% extends "base.html" %}
+{% block title %}최근 낙찰 기록 — 실낙찰가{% endblock %}
+
+{% block content %}
+<a class="back" href="/">← 1차 필터 목록</a>
+<h1 class="page-h2" style="margin-top:12px">🏁 최근 낙찰 기록 <span style="font-size:15px;color:var(--ink-400);font-weight:600">· {{ count }}건</span></h1>
+<p class="page-lead">재크롤 때마다 종결(소멸)된 물건을 자동 보존합니다. <b>낙찰가는 법원이 공개한 실제 금액만</b> 표시합니다
+— 재매각 이력 물건의 해당 회차 낙찰가(이후 대금 미납으로 재매각된 가격 포함). 법원이 공개하지 않는 정상 낙찰의
+최종가는 "미공개"로 표기하며 추정치로 채우지 않습니다.</p>
+
+{% if not rows %}
+<div class="empty2" style="margin-top:16px">아직 보존된 낙찰 기록이 없습니다. 다음 새로고침부터 자동으로 쌓입니다.</div>
+{% else %}
+<div class="scards" style="margin-top:14px">
+  {% for r in rows %}
+  <a class="scard" href="/property/{{ r.case_no }}?item={{ r.item_no }}&court={{ r.court }}">
+    <div class="sc-nm">{{ r.apt_name or r.property_type or '물건' }}</div>
+    <div class="sc-ad">{{ r.address }} · {{ r.property_type }}{% if r.area_m2 %} · {{ '%.0f'|format(r.area_m2) }}㎡{% endif %} · 기일 {{ r.sale_date or '미상' }}</div>
+    <div class="sc-tags">
+      {% if r.sold_price %}<span class="chip clean">🏁 실낙찰가 보유</span>
+      {% else %}<span class="chip muted">낙찰가 미공개</span>{% endif %}
+      {% if r.sold_evidence == 'maeAmt' %}<span class="chip muted" title="해당 회차 낙찰 후 대금 미납으로 재매각된 이력의 실낙찰가">미납 재매각 이력</span>{% endif %}
+    </div>
+    <div class="sc-nums">
+      <div class="c"><div class="k">감정가</div><div class="v">{{ won(r.appraisal_price) }}</div></div>
+      <div class="c"><div class="k">최저입찰가</div><div class="v">{{ won(r.min_bid_price) }}</div></div>
+      <div class="c"><div class="k">낙찰가</div>
+        {% if r.sold_price %}<div class="v gain">{{ won(r.sold_price) }}{% if r.appraisal_price %} <span style="font-size:11px;color:var(--ink-400)">감정가율 {{ ((r.sold_price / r.appraisal_price) * 100) | round | int }}%</span>{% endif %}</div>
+        {% else %}<div class="v na">미공개</div>{% endif %}</div>
+    </div>
+  </a>
+  {% endfor %}
+</div>
+{% endif %}
+
+<p class="foot" style="color:var(--ink-400)">낙찰 기록은 시뮬레이터 학습용 참고 자료입니다 — 상세에서 입찰가 시뮬레이터가
+실낙찰가로 고정돼 "그 가격에 샀다면"의 세후 손익을 볼 수 있습니다.</p>
+{% endblock %}
