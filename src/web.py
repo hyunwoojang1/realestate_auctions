@@ -1029,7 +1029,12 @@ def create_app() -> Flask:
                 expected_profit=sold.get("expected_profit"),
                 arb_score=sold.get("arb_score"),
                 grade=sold.get("grade") or "낙찰 종결",
-                matched_trades=0, confidence=0.0,
+                # (2026-07-28) 재채점이 저장한 시세 출처·근거를 그대로 쓴다. 종전엔 0/''로
+                # 박아 넣어, 확정 실거래 160건으로 추정한 물건도 '매칭 0건'으로 보였고
+                # 동 폴백 참고치가 확정 시세와 구분되지 않았다.
+                market_scope=sold.get("market_scope") or "",
+                matched_trades=sold.get("matched_trades") or 0,
+                confidence=sold.get("confidence") or 0.0,
                 real_acquisition_cost=sold.get("min_bid_price") or 0,
                 gap_rate=None, gap_score=0.0, rights_score=0.0, liquidity_score=0.0,
             )]

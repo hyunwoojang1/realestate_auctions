@@ -38,8 +38,12 @@ from src import pipeline, store  # noqa: E402
 from src.courtauction_fields import parse_row, to_auction_listing  # noqa: E402
 
 # 채점 결과 중 sold_listings 로 되쓰는 컬럼. sold_price 계열은 의도적으로 제외한다.
+# market_scope 는 **반드시** 함께 쓴다 — 시세만 저장하고 출처를 버리면 '같은 단지 확정
+# 실거래'와 '동 폴백 참고치'가 화면에서 구분되지 않는다(폴백은 다른 단지가 섞였을 수 있어
+# 그대로 믿으면 안 되는 값이다). matched_trades·confidence 도 근거 표시용으로 함께.
 _WRITE_COLS = ("est_market_price", "market_band_low", "profit_low",
-               "expected_profit", "arb_score", "grade")
+               "expected_profit", "arb_score", "grade",
+               "market_scope", "matched_trades", "confidence")
 
 
 def _load_env() -> None:
@@ -122,6 +126,12 @@ def main(argv=None) -> int:
 
     print(f"채점 매칭 {matched}건 · 시세 추정 성공 {est_ok}건 "
           f"(나머지는 미지원유형·표본부족 — 정상)")
+    # 출처 분포를 반드시 보고한다 — 폴백(동 매칭) 비중을 모르고 넘어가면 오염된 시세를
+    # 확정 시세처럼 쓰게 된다.
+    from collections import Counter  # noqa: PLC0415
+    dist = Counter(u["market_scope"] for u in updates if u["est_market_price"] is not None)
+    for scope, n in dist.most_common():
+        print(f"  시세 출처 {scope or '(미상)'}: {n}건")
     if args.dry_run:
         print("(dry-run — 저장하지 않음)")
         return 0

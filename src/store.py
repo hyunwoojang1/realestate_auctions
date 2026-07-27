@@ -207,6 +207,12 @@ CREATE TABLE IF NOT EXISTS sold_listings (
     expected_profit INTEGER,
     arb_score REAL,
     grade TEXT DEFAULT '',
+    -- (2026-07-28) 시세 출처 메타 — 재채점(deploy/rescore_sold)이 채운다.
+    -- market_scope 없이 est_market_price 만 저장하면 '같은 단지 확정 실거래'와 '동 폴백
+    -- 참고치'를 화면에서 구분할 수 없다(사용자 지적: 오염된 시세를 그대로 먹는 상태).
+    market_scope TEXT NOT NULL DEFAULT '',
+    matched_trades INTEGER,
+    confidence REAL,
     sold_price INTEGER,                -- 실낙찰가(maeAmt) | NULL=미공개
     sold_evidence TEXT NOT NULL DEFAULT 'disappeared',
     snapshot_at TEXT NOT NULL DEFAULT '',
@@ -217,7 +223,8 @@ CREATE TABLE IF NOT EXISTS sold_listings (
 _SOLD_COLS = ["court", "case_no", "item_no", "apt_name", "address", "property_type",
               "area_m2", "appraisal_price", "min_bid_price", "fail_count", "sale_date",
               "est_market_price", "market_band_low", "profit_low", "expected_profit",
-              "arb_score", "grade", "sold_price", "sold_evidence", "snapshot_at"]
+              "arb_score", "grade", "market_scope", "matched_trades", "confidence",
+              "sold_price", "sold_evidence", "snapshot_at"]
 
 
 # (감사체계 2026-07-23) 물건상세(pgj15B)·현황조사서(curst) 원본 보존 — 블라인드 감사·사후 재파싱 재료.
@@ -598,6 +605,27 @@ def _migrate(conn: sqlite3.Connection) -> None:
             conn.execute(
                 "ALTER TABLE scored_listings ADD COLUMN floor_mult REAL NOT NULL DEFAULT 1.0"
             )
+
+    # sold_listings: 시세 출처 메타 추가(2026-07-28). 종전엔 est_market_price 만 저장해
+    # '같은 단지 확정 실거래(same_complex_same_area)'와 '동 폴백 참고치(same_dong_fallback)'를
+    # 화면에서 구분할 수 없었다 — 폴백은 다른 단지가 섞였을 수 있어 그대로 믿으면 안 되는
+    # 값인데 확정 시세와 똑같이 보였다(사용자 지적 2026-07-28). 레거시 행은 ''(미상)로 시작해
+    # 다음 재채점(deploy/rescore_sold)이 실값을 채운다.
+    st = conn.execute(
+        "SELECT 1 FROM sqlite_master WHERE type='table' AND name='sold_listings'"
+    ).fetchone()
+    if st is not None:
+        scols = {r["name"] for r in conn.execute("PRAGMA table_info(sold_listings)")}
+        with conn:
+            if "market_scope" not in scols:
+                conn.execute(
+                    "ALTER TABLE sold_listings "
+                    "ADD COLUMN market_scope TEXT NOT NULL DEFAULT ''"
+                )
+            if "matched_trades" not in scols:
+                conn.execute("ALTER TABLE sold_listings ADD COLUMN matched_trades INTEGER")
+            if "confidence" not in scols:
+                conn.execute("ALTER TABLE sold_listings ADD COLUMN confidence REAL")
 
     # listing_rights: 감정평가 요항점 컬럼 추가. 테이블이 이미 있고 컬럼만 없을 때 ALTER.
     rt = conn.execute(

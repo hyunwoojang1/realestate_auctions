@@ -362,3 +362,59 @@ def test_sold_profit_sort_degrades_when_no_profit(tmp_path, monkeypatch):
     body = create_app().test_client().get("/sold?sort=profit").get_data(as_text=True)
     assert "시세 대비 차익 값을 가진 기록이 없어" in body
     assert _names(body) == ["나", "가"]
+
+
+# ── 시세 출처 구분(2026-07-28 사용자 지적) ────────────────────────────────────
+# est_market_price 만 저장하고 market_scope 를 버리면 '같은 단지 확정 실거래'와 '동 폴백
+# 참고치(다른 단지 혼입 가능)'가 화면에서 똑같이 보인다 — 오염된 시세를 확정값으로 믿게 된다.
+
+
+def test_sold_schema_keeps_market_scope(tmp_path):
+    """sold_listings 는 시세 출처·근거를 저장할 수 있어야 한다(컬럼 존재 + 왕복 보존)."""
+    conn = store.connect(str(tmp_path / "scope.db"))
+    cols = {r[1] for r in conn.execute("PRAGMA table_info(sold_listings)")}
+    assert {"market_scope", "matched_trades", "confidence"} <= cols
+    r = _sold_row("2025타경1", price=300_000_000)
+    r.update({"market_scope": "same_complex_same_area", "matched_trades": 160,
+              "confidence": 1.0})
+    store.upsert_sold(conn, [r])
+    got = store.load_sold_one(conn, "서울중앙지방법원", "2025타경1", "1")
+    assert got["market_scope"] == "same_complex_same_area"
+    assert got["matched_trades"] == 160 and got["confidence"] == 1.0
+
+
+def test_sold_card_marks_dong_fallback(tmp_path, monkeypatch):
+    """동 폴백 시세는 '동 폴백' 라벨로 구분 표시 — 확정 시세와 같은 모양으로 두지 않는다."""
+    from src.web import create_app
+    db = tmp_path / "fb.db"
+    conn = store.connect(str(db))
+    confirmed = _sold_row("2025타경1", price=300_000_000)
+    confirmed.update({"apt_name": "확정단지", "market_band_low": 400_000_000,
+                      "market_scope": "same_complex_same_area"})
+    fallback = _sold_row("2025타경2", price=300_000_000)
+    fallback.update({"apt_name": "폴백단지", "market_band_low": 400_000_000,
+                     "market_scope": "same_dong_fallback"})
+    store.upsert_sold(conn, [confirmed, fallback])
+    conn.close()
+    monkeypatch.setenv("AUCTION_DB", str(db))
+    body = create_app().test_client().get("/sold").get_data(as_text=True)
+    assert "동 폴백" in body
+    # 폴백 라벨은 정확히 1건에만 붙는다(확정 물건까지 경고를 달면 경고가 무의미해진다)
+    assert body.count("다른 단지가 섞였을 수 있어") == 1
+
+
+def test_sold_detail_uses_stored_scope_and_evidence(tmp_path, monkeypatch):
+    """낙찰 상세는 저장된 매칭 건수·신뢰를 쓴다 — 0 으로 박아 '근거 없음'처럼 보이면 안 된다."""
+    from src.web import create_app
+    db = tmp_path / "det.db"
+    conn = store.connect(str(db))
+    r = _sold_row("2025타경7", price=300_000_000)
+    r.update({"market_band_low": 400_000_000, "market_scope": "same_complex_same_area",
+              "matched_trades": 160, "confidence": 1.0})
+    store.upsert_sold(conn, [r])
+    conn.close()
+    monkeypatch.setenv("AUCTION_DB", str(db))
+    body = create_app().test_client().get(
+        "/property/2025타경7?item=1&court=서울중앙지방법원").get_data(as_text=True)
+    assert "160" in body            # 매칭 실거래 건수가 화면에 실린다
+    assert "낙찰 종결 물건" in body
