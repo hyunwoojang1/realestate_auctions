@@ -3,7 +3,13 @@
 
 {% block content %}
 <a class="back" href="/">← 1차 필터 목록</a>
-<h1 class="page-h2" style="margin-top:12px">🏁 최근 낙찰 기록 <span style="font-size:15px;color:var(--ink-400);font-weight:600">· {{ count }}건</span></h1>
+
+<div class="viewtabs" style="margin-top:10px">
+  <a class="vt" href="/">진행 중 경매</a>
+  <a class="vt on" href="/sold">🏁 낙찰 결과</a>
+</div>
+
+<h1 class="page-h2" style="margin-top:16px">🏁 낙찰 결과 <span style="font-size:15px;color:var(--ink-400);font-weight:600">· {{ count }}건</span></h1>
 <p class="page-lead">재크롤 때마다 종결(소멸)된 물건을 자동 보존합니다. <b>낙찰가는 법원이 공개한 실제 금액만</b> 표시합니다
 — 재매각 이력 물건의 해당 회차 낙찰가(이후 대금 미납으로 재매각된 가격 포함). 법원이 공개하지 않는 정상 낙찰의
 최종가는 "미공개"로 표기하며 추정치로 채우지 않습니다.</p>

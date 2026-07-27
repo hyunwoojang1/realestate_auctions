@@ -125,7 +125,6 @@
     {% for c in chips %}
     <a class="qchip{% if c.active %} on{% endif %}" href="{{ c.href }}">{{ c.label }} <span class="n">· {{ c.count }}</span></a>
     {% endfor %}
-    <a class="qchip" href="/sold">🏁 최근 낙찰</a>{# (C4) 낙찰 기록 페이지 진입 — 실낙찰가 아카이브 #}
   </div>
 </div>
 
@@ -143,6 +142,14 @@
 {# /digest 등 재사용 라우트 — 검색 패널이 없으면 h1도 없어지므로 최소 제목을 보장(2026-07-24 QA ⑥) #}
 <a class="back" href="/">← 1차 필터 목록</a>
 <h1 class="page-h2" style="margin-top:12px">추천 다이제스트</h1>
+{% endif %}
+
+{% if coverage is defined and chips is defined %}
+{# (2026-07-27 QA) 진행중/낙찰결과 탭 — 낙찰 진입점을 칩에서 탭으로 승격(가시성) #}
+<div class="viewtabs">
+  <a class="vt on" href="/">진행 중 경매</a>
+  <a class="vt" href="/sold">🏁 낙찰 결과</a>
+</div>
 {% endif %}
 
 <!-- 결과 헤더 -->

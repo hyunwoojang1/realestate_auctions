@@ -40,6 +40,8 @@ def test_listing_page_has_prefetch_and_navprog(tmp_path, monkeypatch):
     monkeypatch.setenv("AUCTION_DB", str(_seed(tmp_path)))
     body = create_app().test_client().get("/").get_data(as_text=True)
     assert "prefetch" in body and "navprog" in body
+    # (2026-07-27 QA) 홈에 진행중/낙찰결과 탭 — 낙찰 진입점 가시성
+    assert "viewtabs" in body and 'href="/sold"' in body and "낙찰 결과" in body
     assert "touchstart" in body                      # 모바일 터치 시작 프리페치
     assert "saveData" in body                        # 데이터 절약 존중
 
