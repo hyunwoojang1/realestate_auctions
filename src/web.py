@@ -793,17 +793,23 @@ def create_app() -> Flask:
         rows = query.filter_sold(rows, q=q or None, region=region or None,
                                  property_type=ptype or None, max_bid=max_bid, min_bid=min_bid,
                                  min_area=min_area, max_area=max_area, min_fails=min_fails)
-        # 점수순인데 결과에 채점된 행이 하나도 없으면 실제로는 정렬이 일어나지 않는다 —
-        # 기일 최신순으로 강등하고 화면에 그 사실을 밝힌다(정렬된 척 금지).
-        score_unavailable = sort in ("score", "score_asc") and not query.sold_has_scores(rows)
-        rows = query.sort_sold(rows, "recent" if score_unavailable else sort)
+        # 고른 정렬이 쓰는 값(점수·차익·낙찰가)이 결과에 하나도 없으면 실제로는 정렬이
+        # 일어나지 않는다 — 기일 최신순으로 강등하고 화면에 그 사실을 밝힌다(정렬된 척 금지).
+        sort_unavailable = "" if query.sold_sort_available(rows, sort) else sort
+        rows = query.sort_sold(rows, query.SOLD_DEFAULT_SORT if sort_unavailable else sort)
         filters = {"q": q, "region": region, "type": ptype, "budget": budget,
                    "area": area, "fails": fails, "sort": sort}
         return render_template(
             "sold.html", rows=rows, count=len(rows), total=total, filters=filters,
             has_filter=bool(q or region or ptype or budget or area or fails),
             case_like=bool(q and casesearch.looks_like_case_no(q)),
-            score_unavailable=score_unavailable,
+            sort_unavailable=sort_unavailable,
+            sort_label={"score": "점수", "score_asc": "점수",
+                        "profit": "시세 대비 차익", "profit_asc": "시세 대비 차익",
+                        "price": "낙찰가", "price_asc": "낙찰가"}.get(sort_unavailable, ""),
+            # 카드가 차익을 그리려면 같은 정의(시세 하한 − 낙찰가)를 써야 한다 — 정렬과 표시가
+            # 다른 식을 쓰면 "위에 있는데 숫자가 더 작은" 화면이 된다. 템플릿에 함수째 넘긴다.
+            sold_gap=query.sold_gap,
             won=report.won, data_source=getattr(g, "data_source", "n/a"))
 
     def _find_by_case(case_no: str):

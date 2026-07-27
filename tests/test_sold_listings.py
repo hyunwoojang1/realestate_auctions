@@ -206,12 +206,18 @@ def _names(body: str) -> list[str]:
     return re.findall(r'<div class="sc-nm">([^<]+)</div>', body)
 
 
-def test_sold_default_sort_is_score_desc(tmp_path, monkeypatch):
-    """기본 정렬 = 점수 높은순(홈과 동일). 점수 없는 건은 맨 뒤 — 0점으로 섞지 않는다."""
+def test_sold_default_sort_is_recent(tmp_path, monkeypatch):
+    """기본 정렬 = 매각기일 최신순(사용자 결정 2026-07-27 2차).
+
+    점수 기본은 철회했다 — 과거 낙찰 기록은 법원 원문 백필이라 채점 정보가 없어 점수
+    정렬이 무동작이었다. 기일은 모든 행이 반드시 갖는 값이라 언제나 의미 있는 순서다.
+    """
     db, c = _seed_search(tmp_path)
     monkeypatch.setenv("AUCTION_DB", str(db))
-    names = _names(c.get("/sold").get_data(as_text=True))
-    assert names == ["강남래미안", "서울오피스", "부산롯데캐슬", "무점수단지"]
+    body = c.get("/sold").get_data(as_text=True)
+    assert '<option value="recent" selected>' in body.replace('"recent"  selected', '"recent" selected')
+    # 시드는 기일이 모두 같으므로 순서 대신 '점수순이 아님'만 고정(기일 정렬은 별도 테스트)
+    assert "아직 점수가" not in body
 
 
 def test_sold_search_card_present_and_shared(tmp_path, monkeypatch):
@@ -277,8 +283,8 @@ def test_sold_score_sort_degrades_honestly_when_no_scores(tmp_path, monkeypatch)
     store.upsert_sold(conn, rows)
     conn.close()
     monkeypatch.setenv("AUCTION_DB", str(db))
-    body = create_app().test_client().get("/sold").get_data(as_text=True)
-    assert "아직 점수가 매겨진 기록이 없어" in body
+    body = create_app().test_client().get("/sold?sort=score").get_data(as_text=True)
+    assert "점수 값을 가진 기록이 없어" in body
     assert _names(body) == ["단지2", "단지1"]          # 기일 최신순으로 강등
 
 
@@ -295,6 +301,64 @@ def test_sold_score_sort_used_when_scores_exist(tmp_path, monkeypatch):
     store.upsert_sold(conn, rows)
     conn.close()
     monkeypatch.setenv("AUCTION_DB", str(db))
-    body = create_app().test_client().get("/sold").get_data(as_text=True)
-    assert "아직 점수가 매겨진 기록이 없어" not in body
+    body = create_app().test_client().get("/sold?sort=score").get_data(as_text=True)
+    assert "값을 가진 기록이 없어" not in body
     assert _names(body) == ["높은점수", "낮은점수"]
+
+
+def _seed_sorts(tmp_path):
+    """정렬 검증용 — 기일·낙찰가·차익이 서로 다른 3건."""
+    from src.web import create_app
+    db = tmp_path / "sorts.db"
+    conn = store.connect(str(db))
+    rows = []
+    # 차익 = 시세 하한(4.7억 고정) − 낙찰가 → 싼것 +3.7억 / 중간것 +1.7억 / 비싼것 −4.3억
+    for case, name, date_, price in [
+        ("2025타경1", "싼것", "2026-07-01", 100_000_000),
+        ("2025타경2", "중간것", "2026-07-15", 300_000_000),
+        ("2025타경3", "비싼것", "2026-07-25", 900_000_000),
+    ]:
+        r = _sold_row(case, price=price, sale_date=date_)
+        r.update({"apt_name": name, "market_band_low": 470_000_000, "arb_score": None})
+        rows.append(r)
+    # 낙찰가 미공개 1건 — 어떤 금액·차익 정렬에서도 맨 뒤여야 한다(0원 취급 금지)
+    r = _sold_row("2025타경4", price=None, sale_date="2026-07-20")
+    r.update({"apt_name": "미공개", "market_band_low": 470_000_000, "arb_score": None})
+    rows.append(r)
+    store.upsert_sold(conn, rows)
+    conn.close()
+    return db, create_app().test_client()
+
+
+@pytest.mark.parametrize(("sort", "expected"), [
+    ("recent", ["비싼것", "미공개", "중간것", "싼것"]),        # 기일 최신순(기본)
+    ("old", ["싼것", "중간것", "미공개", "비싼것"]),           # 기일 오래된순
+    ("price", ["비싼것", "중간것", "싼것", "미공개"]),         # 낙찰가 높은순
+    ("price_asc", ["싼것", "중간것", "비싼것", "미공개"]),     # 낙찰가 낮은순
+    ("profit", ["싼것", "중간것", "비싼것", "미공개"]),        # 시세 대비 차익 높은순
+    ("profit_asc", ["비싼것", "중간것", "싼것", "미공개"]),    # 차익 낮은순(손해 먼저)
+])
+def test_sold_sort_orders(tmp_path, monkeypatch, sort, expected):
+    """새 정렬 6종 — 값 없는 행(미공개)은 어느 금액 정렬에서도 맨 뒤."""
+    db, c = _seed_sorts(tmp_path)
+    monkeypatch.setenv("AUCTION_DB", str(db))
+    assert _names(c.get(f"/sold?sort={sort}").get_data(as_text=True)) == expected
+
+
+def test_sold_profit_sort_degrades_when_no_profit(tmp_path, monkeypatch):
+    """차익 값이 전무하면 차익 정렬도 정직하게 기일순으로 강등된다."""
+    from src.web import create_app
+    db = tmp_path / "noprofit.db"
+    conn = store.connect(str(db))
+    rows = []
+    for case, name, date_ in [("2025타경1", "가", "2026-07-01"), ("2025타경2", "나", "2026-07-20")]:
+        r = _sold_row(case, price=200_000_000, sale_date=date_)
+        # 시세 미추정 → 차익 계산 불가(홈의 profit_low 가 아니라 market_band_low 가 기준)
+        r.update({"apt_name": name, "market_band_low": None, "arb_score": None})
+        rows.append(r)
+    store.upsert_sold(conn, rows)
+    conn.close()
+    monkeypatch.setenv("AUCTION_DB", str(db))
+    body = create_app().test_client().get("/sold?sort=profit").get_data(as_text=True)
+    assert "시세 대비 차익 값을 가진 기록이 없어" in body
+    assert _names(body) == ["나", "가"]

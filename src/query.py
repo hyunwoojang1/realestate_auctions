@@ -264,8 +264,12 @@ def sort_items(items: list[ScoredListing], key: str = DEFAULT_SORT,
 # 가짜 객체로 감싸 apply_filters 에 넣으면 rights_verified 등 부재 속성에서 조용히 깨진다.
 # 필터 의미(지역·예산·면적·유찰·종류)는 홈과 동일하게 유지한다.
 
-SOLD_SORT_KEYS = ("score", "score_asc", "recent", "price", "rate")
-SOLD_DEFAULT_SORT = "score"   # 홈 기본과 동일(사용자 결정 2026-07-27)
+SOLD_SORT_KEYS = ("recent", "old", "price", "price_asc", "rate",
+                  "profit", "profit_asc", "score", "score_asc")
+# (사용자 결정 2026-07-27, 2차) 기본 = 매각기일 최신순. 점수 기본은 철회했다 — 과거 낙찰
+# 기록은 법원 원문 백필이라 채점 정보가 없어 점수 정렬이 사실상 무동작이었다. 기일은 모든
+# 행이 반드시 갖는 값이라 언제나 의미 있는 순서가 된다.
+SOLD_DEFAULT_SORT = "recent"
 
 
 def matches_sold_query(row: dict, q: str) -> bool:
@@ -312,16 +316,38 @@ def _appraisal_rate(row: dict) -> float | None:
     return sold / appr
 
 
-def sold_has_scores(rows: list[dict]) -> bool:
-    """이 결과 집합에 채점된 행이 하나라도 있는가.
+def sold_gap(row: dict) -> int | None:
+    """낙찰 물건의 차익 = **시세 검증 하한 − 실낙찰가**. 둘 중 하나라도 없으면 None.
 
-    과거 낙찰 기록은 법원 원문에서 백필한 것이라 채점 정보가 없다(시세 추정·차익 계산은
-    활성 물건에만 돌았다). 점수가 전무한 목록에 '점수 높은순'이라고 써 두면 실제로는 아무
-    정렬도 일어나지 않은 화면을 정렬된 것처럼 보여주게 된다 — 라우트가 이 값을 보고
-    기일 최신순으로 강등하고 그 사실을 화면에 밝힌다. 앞으로 크롤 diff 로 쌓이는 기록은
-    scored_listings 의 arb_score 를 그대로 이어받으므로 점차 해소된다.
+    홈의 '보수 차익'(검증 하한 − 최저입찰가 − 취득세)과 **정의가 다르다**. 여기선 실제로
+    얼마에 팔렸는지가 알려져 있으므로 최저입찰가 기준 차익은 의미가 약하다 — "그 낙찰자가
+    시세 대비 얼마에 샀나"가 이 페이지의 질문이다. 화면 라벨도 그렇게 쓴다.
+
+    ⚠ 시점 주의: 시세는 **지금** 기준이고 낙찰가는 그 기일의 값이라 기간 차이가 섞인다.
+    ⚠ 지분·대지권만 매각된 물건은 낙찰가가 온전한 물건 시세와 비교 불가라 차익이 부풀려진다
+       (실측: 동래에코하임 낙찰 0.04억 vs 시세 2.52억). 목록의 지분 라벨로 구분한다.
     """
-    return any(r.get("arb_score") is not None for r in rows)
+    band, sold = row.get("market_band_low"), row.get("sold_price")
+    if band is None or sold is None:
+        return None
+    return band - sold
+
+
+def sold_sort_available(rows: list[dict], key: str) -> bool:
+    """이 결과 집합에서 그 정렬이 실제로 의미를 갖는가(값을 가진 행이 하나라도 있는가).
+
+    과거 낙찰 기록은 법원 원문에서 백필한 것이라 시세·차익·점수가 비어 있을 수 있다.
+    값이 전무한 목록에 '점수 높은순'이라고 써 두면 실제로는 아무 정렬도 일어나지 않은
+    화면을 정렬된 것처럼 보여주게 된다 — 라우트가 이 값을 보고 기일 최신순으로 강등하고
+    그 사실을 화면에 밝힌다(정렬된 척 금지).
+    """
+    if key in ("profit", "profit_asc"):
+        return any(sold_gap(r) is not None for r in rows)
+    field = {"score": "arb_score", "score_asc": "arb_score",
+             "price": "sold_price", "price_asc": "sold_price"}.get(key)
+    if not field:      # 기일·감정가율은 값이 없어도 정렬 자체는 성립
+        return True
+    return any(r.get(field) is not None for r in rows)
 
 
 def sort_sold(rows: list[dict], key: str = SOLD_DEFAULT_SORT) -> list[dict]:
@@ -329,12 +355,22 @@ def sort_sold(rows: list[dict], key: str = SOLD_DEFAULT_SORT) -> list[dict]:
     치환해 섞으면 '0점·0원'처럼 보여 오독된다."""
     if key == "score_asc":
         return sorted(rows, key=lambda r: (r.get("arb_score") is None, r.get("arb_score") or 0))
-    if key == "recent":   # 매각기일 최신순 — 날짜 없는 행은 빈 문자열이라 자연히 맨 뒤
-        return sorted(rows, key=lambda r: r.get("sale_date") or "", reverse=True)
-    if key == "price":
+    if key == "old":      # 매각기일 오래된순 — 날짜 없는 행은 맨 뒤로 밀어 둔다
+        return sorted(rows, key=lambda r: (not r.get("sale_date"), r.get("sale_date") or ""))
+    if key == "price":       # 낙찰가 높은순
         return sorted(rows, key=lambda r: (r.get("sold_price") is None,
                                            -(r.get("sold_price") or 0)))
+    if key == "price_asc":   # 낙찰가 낮은순 — 미공개(None)는 0원이 아니므로 맨 뒤
+        return sorted(rows, key=lambda r: (r.get("sold_price") is None,
+                                           r.get("sold_price") or 0))
     if key == "rate":   # 감정가율 낮은순 = 싸게 낙찰된 순
         return sorted(rows, key=lambda r: (_appraisal_rate(r) is None, _appraisal_rate(r) or 0))
-    # 기본: 점수 높은순
-    return sorted(rows, key=lambda r: (r.get("arb_score") is None, -(r.get("arb_score") or 0)))
+    if key == "profit":      # 차익 높은순(시세 − 낙찰가)
+        return sorted(rows, key=lambda r: (sold_gap(r) is None, -(sold_gap(r) or 0)))
+    if key == "profit_asc":  # 차익 낮은순 — 손해(음수)까지 오름차순 노출
+        return sorted(rows, key=lambda r: (sold_gap(r) is None, sold_gap(r) or 0))
+    if key == "score":
+        return sorted(rows, key=lambda r: (r.get("arb_score") is None,
+                                           -(r.get("arb_score") or 0)))
+    # 기본: 매각기일 최신순 — 날짜 없는 행은 빈 문자열이라 자연히 맨 뒤
+    return sorted(rows, key=lambda r: r.get("sale_date") or "", reverse=True)

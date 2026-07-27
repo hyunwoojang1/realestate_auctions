@@ -90,7 +90,7 @@ class Cache:
                                      ensure_ascii=False), encoding="utf-8")
 
 
-def _targets(conn, cache_coords, limit, refresh, retry_failed=False):
+def _targets(conn, cache_coords, limit, refresh, retry_failed=False, only_sold=False):
     if refresh:
         done = set()
     else:
@@ -99,13 +99,36 @@ def _targets(conn, cache_coords, limit, refresh, retry_failed=False):
         done = store.naver_done_keys(conn, include_failed=not retry_failed)
     # 우선순위 큐(C6): ①시세추정불가(est NULL — 네이버가 유일한 시세 희망) ②same_dong_fallback
     # (오염 의심 — 실거래 교정 대상) ③나머지. 차단으로 중간에 죽어도 가치 높은 물건부터 처리된다.
+    # (2026-07-27) 낙찰 기록(sold_listings)도 대상에 포함한다 — 종전엔 활성 물건만 봐서
+    # 종결 물건은 시세가 영영 비어 있었다(차익·점수 정렬 불가, 상세 시뮬 매도가 0원).
+    # sold 는 scored 에 없는 컬럼(market_scope)이 없으므로 우선순위 2(나머지)로 넣는다.
+    # 같은 키가 양쪽에 있으면 활성분이 먼저 나오고 done 셋이 중복을 걸러 낸다.
     rows = conn.execute(
-        "SELECT doc_id, court, case_no, item_no, apt_name, area_m2, property_type FROM scored_listings "
+        "SELECT doc_id, court, case_no, item_no, apt_name, area_m2, property_type, "
+        "  CASE WHEN est_market_price IS NULL THEN 0 "
+        "       WHEN market_scope='same_dong_fallback' THEN 1 ELSE 2 END AS pri, 0 AS is_sold "
+        "FROM scored_listings "
         "WHERE property_type IN ('아파트','오피스텔') AND apt_name != '' "
-        "ORDER BY CASE WHEN est_market_price IS NULL THEN 0 "
-        "WHEN market_scope='same_dong_fallback' THEN 1 ELSE 2 END, case_no").fetchall()
+        "UNION ALL "
+        # doc_id 는 좌표 캐시의 1순위 키라 원본(raw_listings)에서 되찾는다 — 없으면 빈 값이라도
+        # coords.lookup 이 court|case_no 폴백으로 좌표를 찾는다(회귀 없음).
+        # ⚠ raw_listings 는 같은 물건에 크롤 회차마다 다른 doc_id 로 여러 행이 쌓인다(최대 12행
+        # 실측). 그냥 조인하면 같은 물건을 여러 번 크롤한다 — **최신 1행만** 집어온다.
+        "SELECT COALESCE(("
+        "    SELECT r.doc_id FROM raw_listings r "
+        "    WHERE r.court=s.court AND r.case_no=s.case_no AND r.item_no=s.item_no "
+        "    ORDER BY r.fetched_at DESC LIMIT 1), '') AS doc_id, "
+        "  s.court, s.case_no, s.item_no, s.apt_name, "
+        "  s.area_m2, s.property_type, 0 AS pri, 1 AS is_sold "
+        "FROM sold_listings s "
+        "WHERE s.property_type IN ('아파트','오피스텔') AND s.apt_name != '' "
+        "ORDER BY pri, case_no").fetchall()
     out = []
     for r in rows:
+        # (2026-07-27) --only-sold: 낙찰 기록만. 활성 물건 수백 건은 일일 크롤의 몫이라
+        # 낙찰 시세 보강을 위해 그 큐 전체를 다시 도는 것은 낭비이고 밴 리스크만 키운다.
+        if only_sold and not r["is_sold"]:
+            continue
         key = (r["court"], r["case_no"], r["item_no"])
         if key in done:
             continue
@@ -135,13 +158,19 @@ def _backfill_pairs(conn, limit=None, refresh=False, stale_days=None):
         have = _ns.checked_pairs(conn, stale_before=cutoff)
     else:
         have = _ns.checked_pairs(conn)   # 처리한 모든 쌍(0건 포함) skip
+    # (2026-07-27) 활성 물건과 **낙찰 기록** 양쪽의 매칭 쌍을 모은다 — Phase A 가 sold 도
+    # 매칭하므로 여기서 빼면 그 쌍의 확정 실거래를 영영 못 받아 재채점이 이름매칭으로 강등된다.
     rows = conn.execute(
         "SELECT np.complex_no, np.area_no, MAX(np.complex_name) name, "
-        "  MIN(CASE WHEN sl.est_market_price IS NULL THEN 0 "
-        "      WHEN sl.market_scope='same_dong_fallback' THEN 1 ELSE 2 END) pri, "
-        "  MAX(sl.property_type) ptype "
-        "FROM naver_prices np JOIN scored_listings sl "
-        "  ON sl.court=np.court AND sl.case_no=np.case_no AND sl.item_no=np.item_no "
+        "  MIN(l.pri) pri, MAX(l.property_type) ptype "
+        "FROM naver_prices np JOIN ("
+        "  SELECT court, case_no, item_no, property_type, "
+        "    CASE WHEN est_market_price IS NULL THEN 0 "
+        "         WHEN market_scope='same_dong_fallback' THEN 1 ELSE 2 END AS pri "
+        "  FROM scored_listings "
+        "  UNION ALL "
+        "  SELECT court, case_no, item_no, property_type, 0 AS pri FROM sold_listings"
+        ") l ON l.court=np.court AND l.case_no=np.case_no AND l.item_no=np.item_no "
         "WHERE np.complex_no IS NOT NULL AND np.complex_no != '' "
         "  AND np.area_no IS NOT NULL AND np.area_no != '' "
         "GROUP BY np.complex_no, np.area_no ORDER BY pri, np.complex_no").fetchall()
@@ -233,6 +262,8 @@ def main(argv=None) -> int:
                     help="증분 갱신: naver_pair_status 기준 오래된(>stale-days) 쌍+신규만 재수집(일일 스케줄용)")
     ap.add_argument("--stale-days", dest="stale_days", type=int, default=14,
                     help="증분 신선도 기준(일). 이보다 오래 확인 안 된 쌍만 재수집")
+    ap.add_argument("--only-sold", dest="only_sold", action="store_true",
+                    help="낙찰 기록(sold_listings)만 대상 — 활성 물건 큐는 건드리지 않는다")
     args = ap.parse_args(argv)
     _load_env()
 
@@ -242,9 +273,12 @@ def main(argv=None) -> int:
     conn = store.connect(args.db)
     ns.ensure_schema(conn)
     coord_cache = coords.load_coord_cache()
-    targets = _targets(conn, coord_cache, args.limit, args.refresh, args.retry_failed)
+    targets = _targets(conn, coord_cache, args.limit, args.refresh, args.retry_failed,
+                       only_sold=args.only_sold)
     total = len(targets)
     mode = "전량재수집" if args.refresh else ("실패분 재시도" if args.retry_failed else "이어받기")
+    if args.only_sold:
+        mode += "·낙찰만"
     print(f"[*] 대상 {total}건 (DB={args.db}, 모드={mode})", flush=True)
     if not total:
         return 0
