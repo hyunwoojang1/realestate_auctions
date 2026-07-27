@@ -81,7 +81,10 @@
           같은 단지 확정 실거래가 아닌 추정(동 폴백 등)은 저장 단계에서 이미 비워져 있어
           여기 오지 않는다(store.apply_sold_market_policy) — 화면에서 거르지 않는다. -#}
       {% set gap = sold_gap(r) %}
-      {% set odd = not sold_comparable(r) %}
+      {#- '비교 불가(특수)' 는 **시세가 있는데 게이트가 막은 경우**에만 쓴다. 시세가 아예 없는
+          물건에까지 붙이면(실측 44건) 우리가 특수성을 판정한 것처럼 과장된다 — 그쪽의 진짜
+          이유는 '시세를 못 구했다'이다. -#}
+      {% set odd = r.market_band_low and not sold_comparable(r) %}
       <div class="c"><div class="k">시세 대비</div>
         {% if gap is not none %}<div class="v gain{% if gap < 0 %} neg{% endif %}">{{ '+' if gap > 0 else '' }}{{ won(gap) }}</div>
         {%- elif odd %}<div class="v na" title="낙찰가가 감정가의 30% 미만입니다 — 지분·대지권만 매각이거나 물건 자체에 특수한 사정이 있어 온전한 물건 시세와 비교하면 차익이 허구가 됩니다">비교 불가 <span style="font-size:11px">특수</span></div>

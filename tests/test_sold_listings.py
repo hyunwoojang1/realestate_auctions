@@ -627,3 +627,23 @@ def test_abnormal_rows_drop_out_of_profit_ranking(tmp_path, monkeypatch):
     body = create_app().test_client().get("/sold?sort=profit").get_data(as_text=True)
     assert _names(body)[0] == "정상물건"          # 허구 차익 2.48억이 1위를 뺏지 못한다
     assert "비교 불가" in body                    # 조용히 숨기지 않고 이유를 밝힌다
+
+
+def test_special_label_only_when_market_exists(tmp_path, monkeypatch):
+    """'비교 불가(특수)' 는 시세가 있는데 게이트가 막은 경우에만 — 시세 자체가 없으면
+    '시세 미추정'이 정직한 표현이다(우리가 특수성을 판정한 게 아니다)."""
+    from src.web import create_app
+    db = tmp_path / "lbl.db"
+    conn = store.connect(str(db))
+    gated = _sold_row("2025타경1", price=3_000_000)          # 감정가율 낮고 시세 있음
+    gated.update({"apt_name": "게이트", "appraisal_price": 256_000_000,
+                  "market_band_low": 252_000_000, "market_scope": "same_complex_same_area"})
+    nomkt = _sold_row("2025타경2", price=3_000_000)          # 감정가율 낮지만 시세 없음
+    nomkt.update({"apt_name": "시세없음", "appraisal_price": 256_000_000,
+                  "market_band_low": None, "est_market_price": None, "market_scope": "no_comps"})
+    store.upsert_sold(conn, [gated, nomkt])
+    conn.close()
+    monkeypatch.setenv("AUCTION_DB", str(db))
+    body = create_app().test_client().get("/sold").get_data(as_text=True)
+    assert body.count('">비교 불가 <span') == 1                      # 게이트 건만
+    assert body.count('<div class="v na">시세 미추정</div>') == 1    # 시세없음 건만
