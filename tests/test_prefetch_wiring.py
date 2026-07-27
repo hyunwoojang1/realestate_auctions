@@ -40,8 +40,10 @@ def test_listing_page_has_prefetch_and_navprog(tmp_path, monkeypatch):
     monkeypatch.setenv("AUCTION_DB", str(_seed(tmp_path)))
     body = create_app().test_client().get("/").get_data(as_text=True)
     assert "prefetch" in body and "navprog" in body
-    # (2026-07-27 QA) 홈에 진행중/낙찰결과 탭 — 낙찰 진입점 가시성
-    assert "viewtabs" in body and 'href="/sold"' in body and "낙찰 결과" in body
+    # (2026-07-27 QA·2차) 낙찰 진입점 = 헤더 메뉴. 본문 탭바는 검색 카드에 밀려 폰 첫 화면
+    # 밖으로 나가 못 찾았다 → 항상 같은 자리인 nav 로 이전. 본문 탭바는 없어야 한다(중복 금지).
+    assert 'href="/sold"' in body and "낙찰 결과" in body
+    assert "viewtabs" not in body
     assert "touchstart" in body                      # 모바일 터치 시작 프리페치
     assert "saveData" in body                        # 데이터 절약 존중
 

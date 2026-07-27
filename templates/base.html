@@ -42,6 +42,9 @@
     {%- set p = request.path if request else '/' -%}
     <nav class="nav" id="navMenu">
       <a href="/"{% if p == '/' %} class="on"{% endif %}>매물</a>
+      {# (2026-07-27) 낙찰 결과 진입점 = 메뉴. 본문 탭바는 검색 카드에 밀려 폰 첫 화면 밖으로
+         나갔다(칩→탭 승격도 같은 위치 문제를 물려받음) — 항상 같은 자리인 메뉴로 최종 이전. #}
+      <a href="/sold"{% if p.startswith('/sold') %} class="on"{% endif %}>낙찰 결과</a>
       <a href="/find"{% if p.startswith('/find') %} class="on"{% endif %}>사건검색</a>
       <a href="/map"{% if p.startswith('/map') %} class="on"{% endif %}>지도</a>
       <a href="/calendar"{% if p.startswith('/calendar') %} class="on"{% endif %}>일정</a>
@@ -98,9 +101,37 @@
   function ageTxt(ms){ var m = Math.round(ms / 60000);
     return m < 60 ? m + '분' : Math.round(m / 6) / 10 + '시간'; }
   if (age > STALE_MS) show('저장된 화면 · ' + ageTxt(age) + ' 전 기준 · 새 데이터 확인 중…', 'stale', false);
+  /* (2026-07-27) 갱신 자동 반영 — 종전엔 알약을 **눌러야만** 새 화면이 떴다. 배포 직후 폰에서
+     옛 화면이 계속 보이던 원인이라 자동화한다. 다만 무조건 reload 는 읽던 화면을 빼앗으므로,
+     '아직 아무것도 안 한 상태'에서만 자동 전환한다:
+       · 스크롤을 내리지 않았고 · 탭/클릭/입력/포커스가 없었고 · 문서가 화면에 떠 있을 때.
+     하나라도 어긋나면 종전대로 알약을 띄워 사용자가 원할 때 누르게 둔다.
+     새 응답은 SW 가 이미 캐시에 넣어둔 뒤라 reload 는 네트워크 대기 없이 즉시 끝난다. */
+  var touched = false;
+  function markTouched(){ touched = true; }
+  ['pointerdown','keydown','submit','focusin'].forEach(function(evName){
+    addEventListener(evName, markTouched, {once:true, passive:true, capture:true});
+  });
+  /* 루프 차단(필수) — 본문에 매 렌더 달라지는 값이 하나라도 있으면 '변경'이 영구히 참이 되어
+     자동 reload 가 무한 반복된다(수동 알약 시절엔 알약이 다시 뜰 뿐 무해했다).
+     자동 전환은 30초에 한 번만 허용하고, 막힌 경우엔 알약으로 강등해 사용자 선택에 맡긴다. */
+  var LOOP_GUARD_MS = 30000;
+  function autoReloadAllowed(){
+    try {
+      var last = +(sessionStorage.getItem('swAutoReloadAt') || 0);
+      if (Date.now() - last < LOOP_GUARD_MS) return false;
+      sessionStorage.setItem('swAutoReloadAt', String(Date.now()));
+      return true;
+    } catch (e) { return false; }   // 프라이빗 모드 등 storage 불가 → 자동 전환 포기(안전측)
+  }
   navigator.serviceWorker.addEventListener('message', function(ev){
     var d = ev.data || {};
     if (d.type !== 'nav-fresh') return;
+    if (d.changed && !touched && (scrollY|0) === 0
+        && document.visibilityState === 'visible' && autoReloadAllowed()) {
+      location.reload();
+      return;
+    }
     if (d.changed) show('새 데이터 도착 — 탭하여 갱신', '', true);
     else if (d.failed) {
       if (age > STALE_MS) show('갱신 확인 실패 — ' + ageTxt(age) + ' 전 데이터입니다', 'stale', false);

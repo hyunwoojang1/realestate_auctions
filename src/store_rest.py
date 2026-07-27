@@ -13,6 +13,7 @@ import logging
 import os
 import time
 from collections.abc import Iterable
+from concurrent.futures import ThreadPoolExecutor
 from datetime import datetime, timedelta, timezone
 
 import requests as _requests_mod
@@ -91,6 +92,73 @@ def _endpoint(url: str, table: str) -> str:
     return f"{url.rstrip('/')}/rest/v1/{table}"
 
 
+# 페이지 병렬 수집 동시성. 세션 풀(pool_maxsize=8)과 Supabase 부하를 고려한 보수적 기본값 —
+# 올리려면 _make_session 의 pool_maxsize 도 같이 올려야 커넥션 대기가 생기지 않는다.
+_PAGE_WORKERS = int(os.environ.get("SUPABASE_PAGE_WORKERS", "6"))
+
+
+def _fetch_pages(url: str, key: str, table: str, params: dict,
+                 *, timeout: int = 30, label: str = "") -> list[dict]:
+    """PostgREST offset 페이지네이션을 **병렬**로 전량 수집.
+
+    (2026-07-27) 종전 순차 루프는 1,000행마다 한 왕복을 직렬로 쌓았다 — 목록 13,910행+권리
+    12,679행+네이버 18,160행 ≈ 46 왕복이 줄줄이 이어져, 캐시가 빈 **콜드 인스턴스의 첫 홈
+    요청이 실측 25초**였다(warm 은 0.31초). 첫 페이지에서 `Prefer: count=exact` 로 총 건수를
+    받아 나머지 offset 을 한 번에 던진다.
+
+    안전장치:
+      · count 헤더가 없거나 숫자가 아니면(미상 '*') 종전 순차 루프로 폴백 — 누락보다 느린 게 낫다.
+      · 마지막 페이지가 가득 찼으면(조회 중 행이 늘어난 경우) 순차로 이어받아 tail 을 마저 읽는다.
+      · 반환 순서는 offset 오름차순 결정적 — 호출부의 `order` 정렬이 그대로 유지된다.
+        (호출부는 반드시 유일키 타이브레이커가 포함된 order 를 넘겨야 페이지 경계 누락이 없다.)
+    """
+    endpoint = _endpoint(url, table)
+
+    def _resp(offset: int, extra_headers: dict | None = None):
+        p = {**params, "limit": _PAGE, "offset": offset}
+        r = requests.get(endpoint, headers=_headers(key, extra_headers), params=p, timeout=timeout)
+        if r.status_code >= 400:
+            # (적대감사 F7) PostgREST 4xx 본문에 원인(누락 컬럼명 등)이 있다 — 삼키면
+            # 스키마 드리프트를 특정할 수 없다.
+            logger.error("%s REST %s: %s", label or table, r.status_code, r.text[:300])
+        r.raise_for_status()
+        return r
+
+    def _page(offset: int) -> list[dict]:
+        return _resp(offset).json()
+
+    first = _resp(0, {"Prefer": "count=exact"})
+    head = first.json()
+    if len(head) < _PAGE:
+        return head
+
+    # 총 건수 = content-range 의 마지막 토큰(예: "0-999/13910"). '*'(미상)이면 순차 폴백.
+    try:
+        total = int((first.headers.get("content-range") or "").split("/")[-1])
+    except ValueError:
+        total = -1
+
+    rows = list(head)
+    next_offset = _PAGE
+    tail_full = True
+    if total > _PAGE:
+        offsets = list(range(_PAGE, total, _PAGE))
+        with ThreadPoolExecutor(max_workers=min(_PAGE_WORKERS, len(offsets))) as ex:
+            batches = list(ex.map(_page, offsets))   # map 은 입력 순서를 보존한다
+        for b in batches:
+            rows.extend(b)
+        tail_full = bool(batches) and len(batches[-1]) == _PAGE
+        next_offset = offsets[-1] + _PAGE
+
+    # count 가 과소했거나(적재 중) 파싱 실패(total=-1) → 남은 페이지를 순차로 마저 읽는다.
+    while tail_full:
+        b = _page(next_offset)
+        rows.extend(b)
+        tail_full = len(b) == _PAGE
+        next_offset += _PAGE
+    return rows
+
+
 def _now_iso() -> str:
     return datetime.now(_KST).isoformat()
 
@@ -123,29 +191,13 @@ def load_scored(use_cache: bool = True) -> list[ScoredListing]:
     # sale_time(2026-07-24): 당일 마감 컷오프 정밀 판정용 미러 — 없으면 query.bidding_closed 가
     # 10:00 폴백 가정으로만 동작한다(±30분 오차를 2h 버퍼가 흡수하던 상태).
     select = ",".join([*_COLS, "market_comps", "sale_time"])
-    rows: list[dict] = []
-    offset = 0
-    while True:
-        r = requests.get(
-            _endpoint(url, table),
-            headers=_headers(key),
-            params={
-                "select": select,
-                # (감사 2026-07-15) 정렬에 유일키(court,case_no,item_no) 타이브레이커 추가 —
-                # arb_score 단독은 동점·NULL 다수라 순서가 불안정해 1000건 초과 시 페이지 경계에서
-                # 행이 누락/중복되던 것 방지(전 순서 결정화).
-                "order": "arb_score.desc.nullslast,court.asc,case_no.asc,item_no.asc",
-                "limit": _PAGE,
-                "offset": offset,
-            },
-            timeout=30,
-        )
-        r.raise_for_status()
-        batch = r.json()
-        rows.extend(batch)
-        if len(batch) < _PAGE:
-            break
-        offset += _PAGE
+    rows = _fetch_pages(url, key, table, {
+        "select": select,
+        # (감사 2026-07-15) 정렬에 유일키(court,case_no,item_no) 타이브레이커 추가 —
+        # arb_score 단독은 동점·NULL 다수라 순서가 불안정해 1000건 초과 시 페이지 경계에서
+        # 행이 누락/중복되던 것 방지(전 순서 결정화).
+        "order": "arb_score.desc.nullslast,court.asc,case_no.asc,item_no.asc",
+    }, label="auction_scored_listings")
     result = [ScoredListing(**{c: row.get(c) for c in _COLS},
                             market_comps=row.get("market_comps") or [],
                             sale_time=row.get("sale_time") or "")
@@ -240,23 +292,14 @@ def load_all_rights(use_cache: bool = True) -> list[dict]:
             time.time() - _rights_cache["at"] < _CACHE_TTL):
         return _rights_cache["rows"]
     url, key, _ = _cfg()
-    rows: list[dict] = []
-    offset = 0
     select = ",".join(_RIGHTS_LIST_COLS)   # 로컬(SQLite)과 같은 컬럼 집합 — 단일 출처
-    while True:
-        r = requests.get(_endpoint(url, RIGHTS_TABLE), headers=_headers(key),
-                         params={"select": select, "limit": _PAGE, "offset": offset},
-                         timeout=30)
-        if r.status_code >= 400:
-            # (적대감사 F7) PostgREST 4xx 본문에 원인(누락 컬럼명 등)이 있다 — str(HTTPError)엔
-            # 상태코드·URL뿐이라 본문을 삼키면 스키마 드리프트를 특정할 수 없다.
-            logger.error("auction_listing_rights REST %s: %s", r.status_code, r.text[:300])
-        r.raise_for_status()
-        batch = r.json()
-        rows.extend(batch)
-        if len(batch) < _PAGE:
-            break
-        offset += _PAGE
+    rows = _fetch_pages(url, key, RIGHTS_TABLE, {
+        "select": select,
+        # (2026-07-27) order 추가 — 종전엔 정렬 없이 offset 페이지네이션을 돌렸다. Postgres 는
+        # ORDER BY 없는 쿼리의 행 순서를 보장하지 않아 12,679행(13페이지) 경계에서 행이
+        # 누락·중복될 수 있었다(네이버 로더는 2026-07-15 감사 때 이미 같은 이유로 고쳐졌다).
+        "order": "court.asc,case_no.asc,item_no.asc",
+    }, label="auction_listing_rights")
     _rights_cache["rows"] = rows
     _rights_cache["at"] = time.time()
     return rows
@@ -312,21 +355,12 @@ def load_all_naver(use_cache: bool = True) -> list[dict]:
             time.time() - _naver_cache["at"] < _CACHE_TTL):
         return _naver_cache["rows"]
     url, key, _ = _cfg()
-    rows: list[dict] = []
-    offset = 0
-    while True:
-        r = requests.get(_endpoint(url, NAVER_TABLE), headers=_headers(key),
-                         # (감사 2026-07-15) order 추가 — 정렬 없는 offset 페이지네이션은 1000건
-                         # 초과(2351건) 시 페이지 경계에서 행 누락/중복. 유일키로 전 순서 결정화.
-                         params={"select": "*", "order": "court.asc,case_no.asc,item_no.asc",
-                                 "limit": _PAGE, "offset": offset},
-                         timeout=30)
-        r.raise_for_status()
-        batch = r.json()
-        rows.extend(batch)
-        if len(batch) < _PAGE:
-            break
-        offset += _PAGE
+    rows = _fetch_pages(url, key, NAVER_TABLE, {
+        "select": "*",
+        # (감사 2026-07-15) order 추가 — 정렬 없는 offset 페이지네이션은 1000건
+        # 초과(2351건) 시 페이지 경계에서 행 누락/중복. 유일키로 전 순서 결정화.
+        "order": "court.asc,case_no.asc,item_no.asc",
+    }, label="auction_naver_prices")
     _naver_cache["rows"] = rows
     _naver_cache["at"] = time.time()
     return rows

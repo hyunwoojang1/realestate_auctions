@@ -131,7 +131,7 @@ def test_sold_page_lists_records(tmp_path, monkeypatch):
     monkeypatch.setenv("AUCTION_DB", str(db))
     body = c.get("/sold").get_data(as_text=True)
     assert "낙찰 결과" in body
-    assert 'class="vt on" href="/sold"' in body               # 탭 활성 상태(2026-07-27 QA)
+    assert 'href="/sold" class="on"' in body                  # 헤더 메뉴 활성 상태(2026-07-27 QA·2차)
     assert "3.10억" in body                                   # 실낙찰가 표기
     assert "미공개" in body                                   # 가격 없는 건 정직 표기
     assert "0.00억" not in body                               # (C5) 미공개를 0으로 지어내지 않음

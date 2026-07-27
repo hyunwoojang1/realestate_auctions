@@ -144,14 +144,6 @@
 <h1 class="page-h2" style="margin-top:12px">추천 다이제스트</h1>
 {% endif %}
 
-{% if coverage is defined and chips is defined %}
-{# (2026-07-27 QA) 진행중/낙찰결과 탭 — 낙찰 진입점을 칩에서 탭으로 승격(가시성) #}
-<div class="viewtabs">
-  <a class="vt on" href="/">진행 중 경매</a>
-  <a class="vt" href="/sold">🏁 낙찰 결과</a>
-</div>
-{% endif %}
-
 <!-- 결과 헤더 -->
 <div class="reshead">
   <h2>{% if filters.q %}‘{{ filters.q }}’ 검색{% elif all_mode %}전체 탐색{% elif mode == 'recommend' %}시세 검증 물건{% else %}결과{% endif %}

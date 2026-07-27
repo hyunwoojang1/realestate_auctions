@@ -227,3 +227,87 @@ def test_fetch_rights_exact_match_only(monkeypatch):
     assert len(calls) == 1                                # 폴백 쿼리 없음
     assert calls[0].get("court") == "eq.대구지방법원"
     assert calls[0].get("item_no") == "eq.1"
+
+
+# ── 병렬 페이지네이션(_fetch_pages, 2026-07-27) ────────────────────────────────
+# 콜드 인스턴스 첫 홈 요청 25초의 원인이 "1000행마다 한 왕복"의 직렬 누적이었다.
+# 병렬화하면서 절대 깨지면 안 되는 것: ①전량 수집(누락 0) ②offset 오름차순 순서 보존.
+
+
+def _paged_get(pages: dict[int, list[dict]], total: str | None, calls: list):
+    """offset→행 목록 매핑을 서빙하는 가짜 GET. total 이 None 이면 count 헤더 없음."""
+    def fake_get(url, headers=None, params=None, timeout=None):
+        off = int(params.get("offset", 0))
+        calls.append(off)
+        hdrs = {}
+        if off == 0 and total is not None:
+            hdrs["content-range"] = f"0-999/{total}"
+        return FakeResp(pages.get(off, []), headers=hdrs)
+    return fake_get
+
+
+def _pages_of(n_total: int) -> dict[int, list[dict]]:
+    """n_total 행을 _PAGE 크기로 자른 offset→행 맵. 행은 case_no 로 순서 식별."""
+    page = store_rest._PAGE
+    rows = [_row(case_no=f"C{i:06d}") for i in range(n_total)]
+    return {off: rows[off:off + page] for off in range(0, max(n_total, 1), page)}
+
+
+def test_fetch_pages_collects_all_rows_in_order(monkeypatch):
+    """3.5페이지 분량을 병렬로 받아도 전량·순서가 순차 수집과 동일해야 한다."""
+    page = store_rest._PAGE
+    n = page * 3 + 17
+    calls: list[int] = []
+    monkeypatch.setattr(store_rest.requests, "get",
+                        _paged_get(_pages_of(n), str(n), calls))
+    rows = store_rest._fetch_pages("https://x.supabase.co", "k", "t", {"select": "*"})
+    assert len(rows) == n
+    assert [r["case_no"] for r in rows] == [f"C{i:06d}" for i in range(n)]
+    assert sorted(calls) == [0, page, page * 2, page * 3]     # 페이지당 정확히 1회
+
+
+def test_fetch_pages_single_page_skips_count_roundtrips(monkeypatch):
+    """1페이지 미만이면 첫 응답으로 끝 — 추가 왕복 금지(상세·소량 테이블 회귀 방지)."""
+    calls: list[int] = []
+    monkeypatch.setattr(store_rest.requests, "get",
+                        _paged_get({0: [_row(case_no="C1")]}, "1", calls))
+    rows = store_rest._fetch_pages("https://x.supabase.co", "k", "t", {"select": "*"})
+    assert len(rows) == 1
+    assert calls == [0]
+
+
+def test_fetch_pages_falls_back_to_sequential_without_count(monkeypatch):
+    """count 헤더가 없으면(총 건수 미상) 순차 루프로 폴백해도 전량을 받아야 한다."""
+    page = store_rest._PAGE
+    n = page * 2 + 5
+    calls: list[int] = []
+    monkeypatch.setattr(store_rest.requests, "get",
+                        _paged_get(_pages_of(n), None, calls))
+    rows = store_rest._fetch_pages("https://x.supabase.co", "k", "t", {"select": "*"})
+    assert len(rows) == n
+    assert [r["case_no"] for r in rows] == [f"C{i:06d}" for i in range(n)]
+
+
+def test_fetch_pages_reads_tail_when_count_understates(monkeypatch):
+    """조회 중 행이 늘어 count 가 과소했던 경우에도 tail 을 마저 읽어 누락 0."""
+    page = store_rest._PAGE
+    n = page * 3                      # 실제는 3페이지인데 count 는 2페이지로 과소 보고
+    calls: list[int] = []
+    monkeypatch.setattr(store_rest.requests, "get",
+                        _paged_get(_pages_of(n), str(page * 2), calls))
+    rows = store_rest._fetch_pages("https://x.supabase.co", "k", "t", {"select": "*"})
+    assert len(rows) == n
+    assert [r["case_no"] for r in rows] == [f"C{i:06d}" for i in range(n)]
+
+
+def test_rights_loader_orders_by_unique_key(monkeypatch):
+    """(2026-07-27) 권리 로더에 order 부재 = 페이지 경계 행 누락 위험. 유일키 정렬 고정."""
+    seen = {}
+
+    def fake_get(url, headers=None, params=None, timeout=None):
+        seen["params"] = params
+        return FakeResp([{"court": "서울중앙", "case_no": "2024타경1", "item_no": "1"}])
+
+    monkeypatch.setattr(store_rest.requests, "get", fake_get)
+    store_rest.load_all_rights(use_cache=False)
+    assert seen["params"]["order"] == "court.asc,case_no.asc,item_no.asc"
