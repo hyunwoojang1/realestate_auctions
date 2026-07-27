@@ -256,3 +256,85 @@ def sort_items(items: list[ScoredListing], key: str = DEFAULT_SORT,
         scope_tier(s),
         1 if ((uncertain_of and uncertain_of(s)) or not s.rights_verified) else 0,
         -(_eff(s) or 0)))
+
+
+# ── 낙찰 결과(sold_listings) 검색·정렬 ────────────────────────────────────────
+# (2026-07-27 사용자 요청) 낙찰 결과 페이지도 홈과 같은 검색 카드를 쓴다. 낙찰 기록은
+# ScoredListing 이 아니라 스냅샷 dict(sold_listings 행)라 전용 함수를 둔다 — 필드가 없는
+# 가짜 객체로 감싸 apply_filters 에 넣으면 rights_verified 등 부재 속성에서 조용히 깨진다.
+# 필터 의미(지역·예산·면적·유찰·종류)는 홈과 동일하게 유지한다.
+
+SOLD_SORT_KEYS = ("score", "score_asc", "recent", "price", "rate")
+SOLD_DEFAULT_SORT = "score"   # 홈 기본과 동일(사용자 결정 2026-07-27)
+
+
+def matches_sold_query(row: dict, q: str) -> bool:
+    """단지명·주소·**사건번호** 부분일치. 홈 검색과 달리 사건번호도 대상 —
+    낙찰 결과에서 특정 사건을 바로 찾을 수 있어야 하기 때문(진행 중 경매는 /find 가 담당)."""
+    needle = "".join(q.split()).lower()
+    if not needle:
+        return True
+    hay = f"{row.get('apt_name') or ''} {row.get('address') or ''} {row.get('case_no') or ''}"
+    return needle in "".join(hay.split()).lower()
+
+
+def filter_sold(rows: list[dict], q: str | None = None, region: str | None = None,
+                property_type: str | None = None, max_bid: int | None = None,
+                min_bid: int | None = None, min_area: float | None = None,
+                max_area: float | None = None,
+                min_fails: int | None = None) -> list[dict]:
+    """낙찰 기록 필터 — 홈 검색 카드와 같은 조건 집합."""
+    out = rows
+    if q:
+        out = [r for r in out if matches_sold_query(r, q)]
+    if property_type:
+        out = [r for r in out if r.get("property_type") == property_type]
+    if region:
+        out = [r for r in out if matches_region(r.get("address") or "", region)]
+    if min_area is not None:
+        out = [r for r in out if r.get("area_m2") is not None and r["area_m2"] >= min_area]
+    if max_area is not None:
+        out = [r for r in out if r.get("area_m2") is not None and r["area_m2"] < max_area]
+    if min_fails is not None:
+        out = [r for r in out if (r.get("fail_count") or 0) >= min_fails]
+    if max_bid is not None:
+        out = [r for r in out if r.get("min_bid_price") and r["min_bid_price"] <= max_bid]
+    if min_bid is not None:
+        out = [r for r in out if r.get("min_bid_price") and r["min_bid_price"] >= min_bid]
+    return out
+
+
+def _appraisal_rate(row: dict) -> float | None:
+    """낙찰가 ÷ 감정가. 둘 중 하나라도 없으면 None(정렬 맨 뒤)."""
+    sold, appr = row.get("sold_price"), row.get("appraisal_price")
+    if not sold or not appr:
+        return None
+    return sold / appr
+
+
+def sold_has_scores(rows: list[dict]) -> bool:
+    """이 결과 집합에 채점된 행이 하나라도 있는가.
+
+    과거 낙찰 기록은 법원 원문에서 백필한 것이라 채점 정보가 없다(시세 추정·차익 계산은
+    활성 물건에만 돌았다). 점수가 전무한 목록에 '점수 높은순'이라고 써 두면 실제로는 아무
+    정렬도 일어나지 않은 화면을 정렬된 것처럼 보여주게 된다 — 라우트가 이 값을 보고
+    기일 최신순으로 강등하고 그 사실을 화면에 밝힌다. 앞으로 크롤 diff 로 쌓이는 기록은
+    scored_listings 의 arb_score 를 그대로 이어받으므로 점차 해소된다.
+    """
+    return any(r.get("arb_score") is not None for r in rows)
+
+
+def sort_sold(rows: list[dict], key: str = SOLD_DEFAULT_SORT) -> list[dict]:
+    """낙찰 기록 정렬. 값이 없는 행(점수 미채점·낙찰가 미공개)은 항상 맨 뒤로 — 0 으로
+    치환해 섞으면 '0점·0원'처럼 보여 오독된다."""
+    if key == "score_asc":
+        return sorted(rows, key=lambda r: (r.get("arb_score") is None, r.get("arb_score") or 0))
+    if key == "recent":   # 매각기일 최신순 — 날짜 없는 행은 빈 문자열이라 자연히 맨 뒤
+        return sorted(rows, key=lambda r: r.get("sale_date") or "", reverse=True)
+    if key == "price":
+        return sorted(rows, key=lambda r: (r.get("sold_price") is None,
+                                           -(r.get("sold_price") or 0)))
+    if key == "rate":   # 감정가율 낮은순 = 싸게 낙찰된 순
+        return sorted(rows, key=lambda r: (_appraisal_rate(r) is None, _appraisal_rate(r) or 0))
+    # 기본: 점수 높은순
+    return sorted(rows, key=lambda r: (r.get("arb_score") is None, -(r.get("arb_score") or 0)))

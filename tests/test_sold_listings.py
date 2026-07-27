@@ -3,6 +3,8 @@
 핵심 정직성 계약: 실낙찰가는 재매각(maeAmt)에만 존재 — 미공개 물건의 sold_price 는 NULL 이며
 0원·회차 최저가(last_sold_floor)·추정가로 채우지 않는다.
 """
+import pytest
+
 from src import store
 
 
@@ -170,3 +172,129 @@ def test_active_listing_detail_has_no_sold_banner(tmp_path, monkeypatch):
     monkeypatch.setenv("AUCTION_DB", str(db))
     body = create_app().test_client().get("/property/2025타경300").get_data(as_text=True)
     assert "낙찰 종결 물건" not in body
+
+
+# ── 낙찰 결과 검색·정렬(2026-07-27 사용자 요청) ──────────────────────────────
+# 홈과 같은 검색 카드를 낙찰 결과에도 붙이고, 기본 정렬을 홈과 같은 '점수 높은순'으로.
+
+
+def _seed_search(tmp_path):
+    """검색·정렬 검증용 — 지역·종류·면적·유찰·점수가 서로 다른 4건."""
+    from src.web import create_app
+    db = tmp_path / "search.db"
+    conn = store.connect(str(db))
+    rows = []
+    for case, name, addr, ptype, area, fails, score, price in [
+        ("2025타경11", "강남래미안", "서울 강남구 1", "아파트", 84.0, 2, 91.0, 500_000_000),
+        ("2025타경22", "부산롯데캐슬", "부산 해운대구 2", "아파트", 59.0, 1, 55.0, 300_000_000),
+        ("2025타경33", "서울오피스", "서울 마포구 3", "오피스텔", 30.0, 3, 77.0, None),
+        ("2025타경44", "무점수단지", "경기 성남시 4", "아파트", 120.0, 0, None, 900_000_000),
+    ]:
+        r = _sold_row(case, price=price)
+        r.update({"apt_name": name, "address": addr, "property_type": ptype,
+                  "area_m2": area, "fail_count": fails, "arb_score": score,
+                  "min_bid_price": 256_000_000, "appraisal_price": 1_000_000_000})
+        rows.append(r)
+    store.upsert_sold(conn, rows)
+    conn.close()
+    return db, create_app().test_client()
+
+
+def _names(body: str) -> list[str]:
+    """결과 카드에 나온 단지명을 화면 순서대로."""
+    import re
+    return re.findall(r'<div class="sc-nm">([^<]+)</div>', body)
+
+
+def test_sold_default_sort_is_score_desc(tmp_path, monkeypatch):
+    """기본 정렬 = 점수 높은순(홈과 동일). 점수 없는 건은 맨 뒤 — 0점으로 섞지 않는다."""
+    db, c = _seed_search(tmp_path)
+    monkeypatch.setenv("AUCTION_DB", str(db))
+    names = _names(c.get("/sold").get_data(as_text=True))
+    assert names == ["강남래미안", "서울오피스", "부산롯데캐슬", "무점수단지"]
+
+
+def test_sold_search_card_present_and_shared(tmp_path, monkeypatch):
+    """홈과 같은 검색 카드가 낙찰 결과에도 있고, 폼은 /sold 로 전송된다."""
+    db, c = _seed_search(tmp_path)
+    monkeypatch.setenv("AUCTION_DB", str(db))
+    body = c.get("/sold").get_data(as_text=True)
+    assert 'class="hsearch"' in body
+    assert 'action="/sold"' in body
+    assert "사건번호" in body                       # 사건검색 흡수 안내
+
+
+@pytest.mark.parametrize(("qs", "expected"), [
+    ("?q=래미안", ["강남래미안"]),
+    ("?q=2025타경22", ["부산롯데캐슬"]),          # 사건번호로도 찾힌다
+    ("?region=서울", ["강남래미안", "서울오피스"]),
+    ("?type=오피스텔", ["서울오피스"]),
+    ("?fails=2", ["강남래미안", "서울오피스"]),
+    ("?area=20", ["강남래미안"]),                  # 20평대 = 84㎡(25.4평)
+    ("?area=30", ["무점수단지"]),                  # 30평대 = 120㎡(36.3평)
+])
+def test_sold_filters(tmp_path, monkeypatch, qs, expected):
+    db, c = _seed_search(tmp_path)
+    monkeypatch.setenv("AUCTION_DB", str(db))
+    assert _names(c.get("/sold" + qs).get_data(as_text=True)) == expected
+
+
+def test_sold_sort_options(tmp_path, monkeypatch):
+    db, c = _seed_search(tmp_path)
+    monkeypatch.setenv("AUCTION_DB", str(db))
+    # 낙찰가 높은순 — 미공개(None)는 맨 뒤
+    assert _names(c.get("/sold?sort=price").get_data(as_text=True))[0] == "무점수단지"
+    assert _names(c.get("/sold?sort=price").get_data(as_text=True))[-1] == "서울오피스"
+    # 감정가율 낮은순 — 감정가 10억 기준 3억(30%)이 최상단
+    assert _names(c.get("/sold?sort=rate").get_data(as_text=True))[0] == "부산롯데캐슬"
+    # 알 수 없는 정렬키는 기본값으로 안전 폴백(500 금지)
+    assert c.get("/sold?sort=쓰레기").status_code == 200
+
+
+def test_sold_case_query_offers_active_auction_link(tmp_path, monkeypatch):
+    """낙찰 기록에 없는 사건번호 → 자동 이동 대신 '진행 중 경매에서 찾기' 링크를 준다."""
+    db, c = _seed_search(tmp_path)
+    monkeypatch.setenv("AUCTION_DB", str(db))
+    body = c.get("/sold?q=2025타경99999").get_data(as_text=True)
+    assert "조건에 맞는 낙찰 기록이 없습니다" in body
+    assert "/find?q=" in body
+
+
+def test_sold_score_sort_degrades_honestly_when_no_scores(tmp_path, monkeypatch):
+    """채점된 기록이 하나도 없으면 '점수순'인 척하지 않고 기일 최신순 + 사유를 밝힌다.
+
+    과거 낙찰 기록은 법원 원문 백필이라 arb_score 가 없다(2026-07-27 실측 281건 전부 NULL).
+    """
+    from src.web import create_app
+    db = tmp_path / "noscore.db"
+    conn = store.connect(str(db))
+    rows = []
+    for case, date_ in [("2025타경1", "2026-07-10"), ("2025타경2", "2026-07-25")]:
+        r = _sold_row(case, price=300_000_000, sale_date=date_)
+        r["arb_score"] = None
+        r["apt_name"] = "단지" + case[-1]
+        rows.append(r)
+    store.upsert_sold(conn, rows)
+    conn.close()
+    monkeypatch.setenv("AUCTION_DB", str(db))
+    body = create_app().test_client().get("/sold").get_data(as_text=True)
+    assert "아직 점수가 매겨진 기록이 없어" in body
+    assert _names(body) == ["단지2", "단지1"]          # 기일 최신순으로 강등
+
+
+def test_sold_score_sort_used_when_scores_exist(tmp_path, monkeypatch):
+    """채점된 행이 하나라도 있으면 점수순 정렬이 실제로 동작하고 안내는 나오지 않는다."""
+    from src.web import create_app
+    db = tmp_path / "score.db"
+    conn = store.connect(str(db))
+    rows = []
+    for case, score, name in [("2025타경1", 40.0, "낮은점수"), ("2025타경2", 95.0, "높은점수")]:
+        r = _sold_row(case, price=300_000_000)
+        r.update({"arb_score": score, "apt_name": name})
+        rows.append(r)
+    store.upsert_sold(conn, rows)
+    conn.close()
+    monkeypatch.setenv("AUCTION_DB", str(db))
+    body = create_app().test_client().get("/sold").get_data(as_text=True)
+    assert "아직 점수가 매겨진 기록이 없어" not in body
+    assert _names(body) == ["높은점수", "낮은점수"]

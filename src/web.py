@@ -757,11 +757,54 @@ def create_app() -> Flask:
 
     @app.get("/sold")
     def sold_page():
-        """(C4 2026-07-27) 최근 낙찰 기록 — 실낙찰가 보유 우선, 매각기일 최신순."""
-        rows = _sold_rows(300)
-        return render_template("sold.html", rows=rows, count=len(rows),
-                               won=report.won,
-                               data_source=getattr(g, "data_source", "n/a"))
+        """낙찰 기록 — 홈과 같은 검색 카드 + 기본 점수 높은순(사용자 결정 2026-07-27).
+
+        홈 검색창처럼 **사건번호도 받는다**. 다만 홈과 달리 즉시 /find 로 넘기지 않고 먼저
+        낙찰 기록 안에서 찾는다(여기서 찾는 사건은 대개 종결된 사건이라). 결과가 0건일 때만
+        "진행 중 경매에서 찾기" 링크를 띄운다 — 자동 이동은 필터링 중 화면을 빼앗아 놀랍다.
+        """
+        a = request.args
+        q = (a.get("q") or "").strip()
+        region, ptype = a.get("region", ""), a.get("type", "")
+        budget, area, fails = a.get("budget", ""), a.get("area", ""), a.get("fails", "")
+        sort = a.get("sort", query.SOLD_DEFAULT_SORT)
+        if sort not in query.SOLD_SORT_KEYS:
+            sort = query.SOLD_DEFAULT_SORT
+
+        min_area, max_area = query.area_bounds(area)
+        if area and (min_area, max_area) == (None, None):
+            area = ""
+        try:
+            min_fails = int(fails) if fails else None
+        except ValueError:
+            fails, min_fails = "", None
+        max_bid = min_bid = None
+        if budget == "8plus":
+            min_bid = 800_000_000
+        elif budget:
+            try:
+                max_bid = int(float(budget) * 1e8)
+            except ValueError:
+                budget = ""
+
+        # 필터가 있으면 전량에서 걸러야 한다 — 300건만 읽고 거르면 뒤쪽 기록이 조용히 빠진다.
+        rows = _sold_rows(5000)
+        total = len(rows)
+        rows = query.filter_sold(rows, q=q or None, region=region or None,
+                                 property_type=ptype or None, max_bid=max_bid, min_bid=min_bid,
+                                 min_area=min_area, max_area=max_area, min_fails=min_fails)
+        # 점수순인데 결과에 채점된 행이 하나도 없으면 실제로는 정렬이 일어나지 않는다 —
+        # 기일 최신순으로 강등하고 화면에 그 사실을 밝힌다(정렬된 척 금지).
+        score_unavailable = sort in ("score", "score_asc") and not query.sold_has_scores(rows)
+        rows = query.sort_sold(rows, "recent" if score_unavailable else sort)
+        filters = {"q": q, "region": region, "type": ptype, "budget": budget,
+                   "area": area, "fails": fails, "sort": sort}
+        return render_template(
+            "sold.html", rows=rows, count=len(rows), total=total, filters=filters,
+            has_filter=bool(q or region or ptype or budget or area or fails),
+            case_like=bool(q and casesearch.looks_like_case_no(q)),
+            score_unavailable=score_unavailable,
+            won=report.won, data_source=getattr(g, "data_source", "n/a"))
 
     def _find_by_case(case_no: str):
         """(T8 감사 수정 — B14 핵심) 사건번호 매칭 물건 전부.

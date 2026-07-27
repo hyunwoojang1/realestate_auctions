@@ -22,13 +22,13 @@
      - F4 재검증 실패 통지(failed) + rendered-at 메타는 비교 전 제거(가변 필드 오탐 방지).
      - 쿼리 페이지엔 알림 미전송(개입 범위와 1:1) · base.css 옛 버전 엔트리 청소.
    버전을 올리면 activate 에서 옛 캐시가 전부 삭제된다(v1 의 동결 캐시 포함). */
-const VERSION = 'v2';
+const VERSION = 'v3';
 const NAV_CACHE = 'nav-' + VERSION;
 const ASSET_CACHE = 'asset-' + VERSION;
 
 /* ⚠️ src/web.py 의 실제 라우트와 1:1 이어야 한다 — tests/test_pwa_shell.py 가
    이 배열을 파싱해 각 경로가 200을 주는지 검사한다(라우트 드리프트 가드). */
-const NAV_PATHS = ['/', '/find', '/map', '/calendar', '/watchlist', '/stats', '/guide', '/methodology'];
+const NAV_PATHS = ['/', '/sold', '/find', '/map', '/calendar', '/watchlist', '/stats', '/guide', '/methodology'];
 const ASSETS = ['/icon-192.png', '/icon-512.png', '/apple-touch-icon.png', '/manifest.webmanifest'];
 
 self.addEventListener('install', function (e) {

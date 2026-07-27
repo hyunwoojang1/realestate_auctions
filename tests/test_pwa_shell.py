@@ -131,10 +131,18 @@ def _sw_src() -> str:
     return SW.read_text(encoding="utf-8")
 
 
-def test_sw_v2_and_old_cache_purge():
-    """VERSION v2 — v1 의 '영구 동결' 캐시(clone 버그 시절)를 activate 가 청소하게."""
+def test_sw_version_past_v1_and_old_cache_purge():
+    """v1 의 '영구 동결' 캐시(clone 버그 시절)를 activate 가 반드시 청소해야 한다.
+
+    버전 문자열을 리터럴로 고정하지 않는다 — 배포마다 올리는 값이라 고정하면 정상적인
+    버전업이 테스트 실패로 나타난다(2026-07-27 v3 에서 실제로 걸렸다). 지켜야 할 불변식은
+    'v1 이 아닐 것 + activate 가 옛 캐시를 지울 것' 두 가지다.
+    """
+    import re
     src = _sw_src()
-    assert "const VERSION = 'v2'" in src
+    m = re.search(r"const VERSION = 'v(\d+)'", src)
+    assert m, "VERSION 선언을 찾을 수 없음"
+    assert int(m.group(1)) >= 2, "v1 캐시 폐기를 위해 버전은 2 이상이어야 한다"
     assert "caches.delete" in src            # activate 의 옛 캐시 삭제
 
 

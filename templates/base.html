@@ -45,7 +45,9 @@
       {# (2026-07-27) 낙찰 결과 진입점 = 메뉴. 본문 탭바는 검색 카드에 밀려 폰 첫 화면 밖으로
          나갔다(칩→탭 승격도 같은 위치 문제를 물려받음) — 항상 같은 자리인 메뉴로 최종 이전. #}
       <a href="/sold"{% if p.startswith('/sold') %} class="on"{% endif %}>낙찰 결과</a>
-      <a href="/find"{% if p.startswith('/find') %} class="on"{% endif %}>사건검색</a>
+      {#- (2026-07-27) 사건검색 메뉴 제거 — 홈·낙찰결과 검색창이 사건번호를 그대로 받아
+          /find 로 넘긴다(흡수, 사용자 결정). /find 라우트는 다물건 선택·법원 되묻기·라이브
+          단건조회 화면으로 계속 살아 있다 — 링크만 없앤 것이지 기능을 없앤 게 아니다. -#}
       <a href="/map"{% if p.startswith('/map') %} class="on"{% endif %}>지도</a>
       <a href="/calendar"{% if p.startswith('/calendar') %} class="on"{% endif %}>일정</a>
       <a href="/watchlist"{% if p.startswith('/watchlist') %} class="on"{% endif %}>관심</a>
