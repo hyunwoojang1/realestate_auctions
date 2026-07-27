@@ -16,6 +16,9 @@ def _sold_row(case_no: str, price=None, evidence="disappeared", sale_date="2026-
         "fail_count": 2, "sale_date": sale_date, "est_market_price": 480_000_000,
         "market_band_low": 470_000_000, "profit_low": 150_000_000,
         "expected_profit": 170_000_000, "arb_score": 88.0, "grade": "차익 유력",
+        # 시세가 있는 행은 출처도 있어야 정합적이다 — 2026-07-28 부터 출처 미상은 불신
+        # (fail-closed)이라, 출처 없이 시세만 있는 픽스처는 실제로 존재할 수 없는 상태다.
+        "market_scope": "same_complex_same_area", "matched_trades": 12, "confidence": 1.0,
         "sold_price": price, "sold_evidence": evidence, "snapshot_at": "2026-07-27 14:00",
     }
 

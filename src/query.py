@@ -361,7 +361,8 @@ def sold_gap(row: dict) -> int | None:
     """
     from .store import SOLD_TRUSTED_SCOPES  # noqa: PLC0415 — 순환 import 회피
     scope = (row.get("market_scope") or "").strip()
-    if scope and scope not in SOLD_TRUSTED_SCOPES:
+    # 저장 단계(store.apply_sold_market_policy)와 **같은 판정** — 빈 출처도 불신(fail-closed).
+    if scope not in SOLD_TRUSTED_SCOPES:
         return None
     # 시세가 신뢰 출처여도 **거래 쪽이 특수**하면 비교가 성립하지 않는다(감정가율 이상치).
     if not sold_comparable(row):

@@ -488,6 +488,9 @@ def create_app() -> Flask:
         if _q0 and casesearch.looks_like_case_no(_q0):
             from urllib.parse import quote  # noqa: PLC0415
             return redirect(f"/find?q={quote(_q0)}")
+        # (감사 HIGH 2026-07-28) 세 데이터셋을 먼저 동시에 받아 캐시를 채운다 — 아래
+        # 두 호출은 그 캐시를 쓰므로 순서·flask.g 의미는 그대로다(콜드에서만 이득).
+        store_rest.warm_caches()
         badges = _rights_badges()
         all_scored = _scored()   # 전체 채점 결과(출처 표시는 _scored 내부에서)
         now_dt = query.now_kst()          # KST 벽시계 — 서버 TZ 무관(리뷰 MEDIUM)

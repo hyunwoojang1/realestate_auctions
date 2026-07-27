@@ -33,18 +33,25 @@ def run_js(fn: str, *args):
 
 
 def _pair(bid, sell, months, evict=1_000_000, repair=0, unpaid=0,
-          mode=bidsim.TAX_MODE_INDIVIDUAL, js_profile="individual"):
+          mode=bidsim.TAX_MODE_INDIVIDUAL, js_profile="individual",
+          houses_owned=0, adjusted=False):
+    """houses_owned/adjusted 로 **다주택 중과(§64 비교과세) 분기**까지 교차검증할 수 있다.
+
+    JS 는 '보유 주택 수'(취득 전), 파이썬 BuyerProfile 은 '취득 후 총 주택 수'라 +1 로 맞춘다.
+    """
+    from src.tax import BuyerProfile  # noqa: PLC0415
+    prof = BuyerProfile(houses_after=houses_owned + 1, regulated_area=adjusted)
     inp = bidsim.SimInput(
         bid_price=bid, property_type="아파트", area_m2=84.0, sell_price=sell,
         holding_months=months, assumed_amount=0, eviction_cost=evict, repair_cost=repair,
         unpaid_fees=unpaid, registry_cost=500_000, loan_ltv=0.70, loan_rate=0.055,
-        tax_mode=mode)
+        tax_mode=mode, profile=prof)
     py = bidsim.simulate(inp)
     facts = {"isHousingAcq": True, "housingForTransfer": True, "feeKind": "housing",
              "areaM2": 84, "assumedAmount": 0, "burdenUnknown": False,
-             "regulated": {"adjusted": False, "landPermit": False}}
+             "regulated": {"adjusted": adjusted, "landPermit": False}}
     inputs = {"bidPrice": bid, "loanRatio": 0.70, "interestRate": 0.055,
-              "salePrice": sell, "housesOwned": 0, "evictCost": evict,
+              "salePrice": sell, "housesOwned": houses_owned, "evictCost": evict,
               "unpaidMgmt": unpaid, "repairCost": repair, "registryCost": 500_000}
     js = run_js("simulateProfile", "__RULES__", facts, inputs, js_profile, months)
     return py, js
@@ -109,3 +116,31 @@ def test_none_mode_charges_no_sale_tax():
     # 순익 = 매도가 − 총투입 − 이자 − 중개보수 (세금 없음)
     assert none.net_profit == (356_000_000 - none.total_acquisition
                                - none.interest_total - none.agent_fee)
+
+
+# ── 다주택 중과(§64 비교과세) 교차검증 — 감사 HIGH 2026-07-28 ─────────────────
+# 종전엔 bidsim.transfer_tax 가 주택수·조정지역을 아예 몰라 중과를 반영하지 않았고,
+# 같은 페이지 dealsim.js 와 세후 순익이 5,200만원 갈렸다. 세법상 가장 복잡하고 세액이
+# 큰 분기라 회귀 그물이 반드시 필요하다.
+
+
+@pytest.mark.parametrize(("houses", "months"), [
+    (2, 6),    # 3주택 상당·단기 — 단기세율 vs 중과 경합
+    (2, 18),
+    (2, 30),   # 2년 초과 — 여기서 중과가 기본세율을 이긴다
+    (1, 30),   # 2주택
+    (1, 6),
+])
+def test_individual_multi_home_surcharge_matches_dealsim(houses, months):
+    py, js = _pair(300_000_000, 500_000_000, months,
+                   houses_owned=houses, adjusted=True)
+    assert abs(js["saleTax"]["total"] - py.transfer_tax) <= TOL
+    assert abs((js["netProfit"] + js["propTax"]) - py.net_profit) <= TOL
+
+
+def test_surcharge_actually_raises_tax():
+    """중과가 실제로 세금을 올린다 — 파라미터만 받고 무시하는 회귀 방지."""
+    plain, _ = _pair(300_000_000, 500_000_000, 30, houses_owned=0, adjusted=False)
+    heavy, _ = _pair(300_000_000, 500_000_000, 30, houses_owned=2, adjusted=True)
+    assert heavy.transfer_tax > plain.transfer_tax
+    assert heavy.net_profit < plain.net_profit

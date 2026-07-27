@@ -211,12 +211,20 @@ def _progressive_tax_with_surcharge(base: int, surcharge: float) -> int:
 
 
 def transfer_tax(sell_price: int, acquire_price: int, expenses: int,
-                 holding_months: int, property_type: str) -> dict:
+                 holding_months: int, property_type: str,
+                 profile: BuyerProfile | None = None) -> dict:
     """양도소득세 + 지방소득세(§5-5).
 
     expenses = 필요경비(취득세·인지세·등기부대비·매도중개보수). **명도비·수리비·미납관리비·
     대출이자는 포함하지 않는다** — 실무상 불인정이거나 자본적/수익적 지출 구분이 입력만으로
     불가하므로 보수적으로 미공제(세금을 크게 잡는다).
+
+    (감사 HIGH 2026-07-28) profile 추가 — 종전엔 이 함수가 주택수·조정지역을 아예 몰라
+    **다주택 중과(2026-05-10 재개)를 반영하지 않았다**. 같은 상세페이지 아래쪽 '신분·기간
+    전략 비교'(static/dealsim.js)는 중과를 적용하므로, 3주택·조정지역 프로필에서 두 계산기가
+    세후 순익 기준 **5,200만원** 갈렸다(교차실행 실측). 이 모듈 독스트링이 "한 페이지에서 두
+    계산기가 다른 답을 내면 신뢰가 무너진다"고 못박은 바로 그 사고라 dealsim.js 의 개인 분기와
+    같은 규칙으로 맞춘다: 중과 대상이면 장특공을 배제하고 (기본세율 vs 중과세율) 중 **큰 세액**.
     """
     gain = sell_price - acquire_price - expenses
     if gain <= 0:
@@ -225,10 +233,13 @@ def transfer_tax(sell_price: int, acquire_price: int, expenses: int,
                 "과세표준": 0, "세율": "해당 없음(양도차익 없음)",
                 "산출세액": 0, "지방소득세": 0, "합계": 0}
 
+    prof = profile if profile is not None else tax.PROFILE
     housing = is_housing_for_transfer(property_type)
     label, flat_rate = _transfer_rate(holding_months, housing)
-    # 장특공은 단기세율 구간에 적용하지 않는다(§5-5).
-    ltd_rate = 0.0 if flat_rate is not None else long_term_deduction_rate(holding_months)
+    # 다주택 중과 대상인가 — 주택 & 조정대상지역 & 세대 2주택 이상(dealsim.js surApplies 와 동일).
+    heavy = housing and prof.regulated_area and prof.houses_after >= 2
+    # 장특공은 단기세율 구간에도, **중과 대상에도** 적용하지 않는다(§5-5 원문 검증).
+    ltd_rate = 0.0 if (flat_rate is not None or heavy) else long_term_deduction_rate(holding_months)
     ltd = round(gain * ltd_rate)
     income = gain - ltd
     base = max(0, income - BASIC_DEDUCTION)
@@ -238,6 +249,15 @@ def transfer_tax(sell_price: int, acquire_price: int, expenses: int,
         label = f"{label} {flat_rate * 100:.0f}%"
     else:
         calculated = _progressive_tax(base)
+    if heavy:
+        # 중과 과세표준은 장특공을 뺀 양도차익 기준(중과는 장특공 배제) — 단기세율과 경합해
+        # **큰 세액**을 쓴다. 낙관 추정 금지 원칙과도 일치.
+        sur = MULTI_HOME_SURCHARGE[3 if prof.houses_after >= 3 else 2]
+        heavy_base = max(0, gain - BASIC_DEDUCTION)
+        heavy_tax = _progressive_tax_with_surcharge(heavy_base, sur)
+        if heavy_tax > calculated:
+            calculated = heavy_tax
+            label = f"다주택 중과(기본+{sur * 100:.0f}%p, 2026-05-10 재개)"
     local = round(calculated * LOCAL_TAX_RATE)
     return {"양도차익": gain, "장기보유특별공제": ltd, "양도소득금액": income,
             "과세표준": base, "세율": label,
@@ -327,7 +347,7 @@ def simulate(inp: SimInput) -> SimResult:
                               holding_months=months, property_type=inp.property_type,
                               profile=inp.profile)
     else:
-        t = transfer_tax(sell, bid, expenses, months, inp.property_type)
+        t = transfer_tax(sell, bid, expenses, months, inp.property_type, inp.profile)
 
     net = sell - total_acq - interest - fee - t["합계"]
     roi = (net / equity) if equity > 0 else None

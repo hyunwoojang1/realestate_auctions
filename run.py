@@ -286,6 +286,13 @@ def main(argv=None) -> int:
             _amt = inject_all(conn)
             if _amt["updated"]:
                 print(f"  💰 실낙찰가 주입: {_amt['updated']}건(원본 maeAmt {_amt['amounts']}물건)")
+            # (감사 HIGH 2026-07-28) 부활 조정 — 낙찰됐다가 **대금 미납으로 재매각**되면
+            # 같은 사건이 활성 목록에 다시 등장한다. 그때 sold 행을 안 지우면 홈은 '진행 중',
+            # /sold 는 '낙찰 종결'로 같은 물건을 동시에 보여준다(sold 의 존재 이유가 재매각
+            # maeAmt 라 이 충돌은 우연이 아니라 구조적으로 발생한다).
+            _revived = store.drop_sold_revived(conn, scored)
+            if _revived:
+                print(f"  ↩ 재매각 부활로 낙찰 기록에서 제외: {_revived}건")
             sold_rows = _collect_sold_snapshot(conn, scored)
             if sold_rows:
                 store.upsert_sold(conn, sold_rows)

@@ -28,7 +28,10 @@ def _make_session() -> _requests_mod.Session:
     풀 확장. 인터페이스는 requests 모듈과 동일(get/post/delete)이라 호출부·테스트 목킹 무변경.
     """
     s = _requests_mod.Session()
-    adapter = _requests_mod.adapters.HTTPAdapter(pool_connections=4, pool_maxsize=8)
+    # (감사 2026-07-28) 동시성 총합에 맞춰 확장 — 캐시 워밍 3스레드 × 페이지 워커 6 +
+    # 상세 병렬 5 가 같은 세션을 공유한다. 풀보다 많으면 urllib3 이 여분 커넥션을 열었다
+    # 버리므로(block=False) 교착은 없지만 keep-alive 재사용이 깨져 TLS 재핸드셰이크가 난다.
+    adapter = _requests_mod.adapters.HTTPAdapter(pool_connections=8, pool_maxsize=24)
     s.mount("https://", adapter)
     s.mount("http://", adapter)
     # ⚠ 이 세션은 web.py 상세 병렬 fetch(스레드 5개)가 공유한다. urllib3 커넥션 풀은
@@ -157,6 +160,32 @@ def _fetch_pages(url: str, key: str, table: str, params: dict,
         tail_full = len(b) == _PAGE
         next_offset += _PAGE
     return rows
+
+
+def warm_caches() -> None:
+    """전량 캐시 3종(목록·권리·네이버)을 **동시에** 채운다 — 콜드 첫 요청 단축용.
+
+    (감사 HIGH 2026-07-28) 페이지 *내부*는 `_fetch_pages` 로 병렬화했지만 데이터셋 *사이*는
+    여전히 직렬이었다(목록 끝나야 권리 시작). 세 로더를 먼저 동시에 돌려 캐시를 채워두면
+    이어지는 순차 호출이 전부 캐시 히트가 된다.
+
+    호출부(web)의 `flask.g` 의존 로직은 건드리지 않는다 — 그 함수들을 통째로 스레드에 넣으면
+    `has_request_context()` 가 False 라 실패 플래그(g._rights_failed 등)가 조용히 유실된다.
+    여기서는 **REST 캐시만** 데우고 판정 로직은 원래 순서대로 메인 스레드에서 돈다.
+
+    실패는 삼킨다 — 진짜 호출 경로가 같은 예외를 다시 만나 정상적인 폴백·로그를 남긴다.
+    여기서 시끄럽게 굴면 같은 실패가 두 번 보고된다.
+    """
+    if not enabled():
+        return
+    jobs = (load_scored, load_all_rights, load_all_naver)
+    with ThreadPoolExecutor(max_workers=len(jobs)) as ex:
+        futs = [ex.submit(fn) for fn in jobs]
+        for f in futs:
+            try:
+                f.result()
+            except Exception as e:  # noqa: BLE001 — 실제 경로가 다시 처리한다
+                logger.debug("캐시 워밍 실패(무시, 실경로가 재시도): %s", e)
 
 
 def _now_iso() -> str:

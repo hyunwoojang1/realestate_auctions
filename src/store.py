@@ -242,7 +242,11 @@ def apply_sold_market_policy(row: dict) -> dict:
     둔다 — 한쪽에만 넣으면 다음 새로고침이 폴백 시세를 조용히 되살린다.
     """
     scope = (row.get("market_scope") or "").strip()
-    if not scope or scope in SOLD_TRUSTED_SCOPES:
+    # (감사 2026-07-28, 2관점 지적) **모르면 불신**. 종전엔 빈 출처를 통과시켰다(fail-open) —
+    # "같은 단지 확정 실거래만 인정"이라는 계약에서 미상은 신뢰 대상이 아니다. 재채점 누락분·
+    # 마이그레이션 레거시·클라우드 컬럼 부재가 전부 빈 문자열로 도착하므로, 통과시키면 그
+    # 경로들이 조용히 정책을 우회한다(현재 해당 0건 — 구멍이 열려 있을 뿐 아직 안 샜다).
+    if scope in SOLD_TRUSTED_SCOPES:
         return dict(row)
     out = dict(row)
     if out.get("est_market_price") is None and out.get("market_band_low") is None:
@@ -835,6 +839,23 @@ def upsert_sold(conn: sqlite3.Connection, rows: list[dict]) -> int:
             f"INSERT OR REPLACE INTO sold_listings ({','.join(_SOLD_COLS)}) VALUES ({ph})",
             [[r.get(c) for c in _SOLD_COLS] for r in rows])
     return len(rows)
+
+
+def drop_sold_revived(conn: sqlite3.Connection, active) -> int:
+    """활성 목록에 다시 등장한 물건을 낙찰 기록에서 제거하고 삭제 건수를 돌려준다.
+
+    (감사 HIGH 2026-07-28) 낙찰 후 대금 미납이면 같은 사건이 **재매각**으로 활성 목록에
+    돌아온다. sold 를 그대로 두면 홈은 '진행 중', /sold 는 '낙찰 종결'로 같은 물건을 동시에
+    보여준다 — sold 의 존재 이유가 바로 그 재매각 maeAmt 라 구조적으로 반복되는 충돌이다.
+    (백필 경로 deploy/backfill_sold_listings.py 는 이미 활성 키를 제외해 같은 위험을 피한다.)
+    """
+    keys = [(s.court, s.case_no, str(s.item_no or "")) for s in active]
+    if not keys:
+        return 0
+    with conn:
+        cur = conn.executemany(
+            "DELETE FROM sold_listings WHERE court=? AND case_no=? AND item_no=?", keys)
+    return cur.rowcount if cur.rowcount and cur.rowcount > 0 else 0
 
 
 def load_sold(conn: sqlite3.Connection, limit: int = 200,
