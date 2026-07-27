@@ -52,6 +52,23 @@ BASIC_RATES: tuple[tuple[int | None, float, int], ...] = (
 SHORT_TERM_UNDER_1Y = (0.70, 0.50)
 SHORT_TERM_UNDER_2Y = (0.60, 0.40)
 
+# 다주택 중과 가산세율(2026-05-10 재개) — 비교과세 후보 산정용. dealsim_rules.json 과 같은 값.
+MULTI_HOME_SURCHARGE = {2: 0.20, 3: 0.30}
+
+# ── 매도 세금 기준(2026-07-27, 사용자 결정) ──
+# 종전엔 개인 양도세만 계산해 단기(6개월) 시나리오의 순익이 사실상 전부 세금(70%)으로 사라졌다.
+# 사용자의 실제 전략은 매매사업자라 **기본값을 dealer 로 전환**한다. 세 기준의 차이:
+#   individual — 양도소득세. 필요경비 좁음(취득부대비+중개보수), 단기 70/60% 중과.
+#   dealer     — 사업소득 종합과세. 필요경비 **넓음**(이자·명도·수리·미납관리비까지 인정) +
+#                중과대상(조정지역 & 세대 2주택 이상) 아닌 주택 단기는 기본세율(§64 비교과세
+#                미해당 — 원문 검증 확정). 이게 매매사업자의 핵심 이점이다.
+#   none       — 매도 세금 미계산. 이자·중개보수 같은 확정 현금비용만 보고 싶을 때(세전 관점).
+TAX_MODE_INDIVIDUAL = "individual"
+TAX_MODE_DEALER = "dealer"
+TAX_MODE_NONE = "none"
+TAX_MODES = (TAX_MODE_INDIVIDUAL, TAX_MODE_DEALER, TAX_MODE_NONE)
+DEFAULT_TAX_MODE = TAX_MODE_DEALER
+
 # 인지세 구간표(§5-2) — (상한 기재금액, 세액). 상한 None = 초과분.
 STAMP_BRACKETS: tuple[tuple[int | None, int], ...] = (
     (10_000_000, 0),
@@ -92,6 +109,7 @@ class SimInput:
     loan_ltv: float = DEFAULT_LTV
     loan_rate: float = DEFAULT_LOAN_RATE
     profile: BuyerProfile | None = None         # None = tax.PROFILE(전역 기본)
+    tax_mode: str = DEFAULT_TAX_MODE            # 매도 세금 기준(individual|dealer|none)
 
 
 @dataclass(frozen=True)
@@ -182,6 +200,16 @@ def _progressive_tax(base: int) -> int:
     return 0
 
 
+def _progressive_tax_with_surcharge(base: int, surcharge: float) -> int:
+    """다주택 중과 — 구간 세율에 가산율을 더하고 누진공제는 그대로(§5-5 중과 산식)."""
+    if base <= 0:
+        return 0
+    for cap, rate, deduction in BASIC_RATES:
+        if cap is None or base <= cap:
+            return max(0, round(base * (rate + surcharge)) - deduction)
+    return 0
+
+
 def transfer_tax(sell_price: int, acquire_price: int, expenses: int,
                  holding_months: int, property_type: str) -> dict:
     """양도소득세 + 지방소득세(§5-5).
@@ -216,6 +244,57 @@ def transfer_tax(sell_price: int, acquire_price: int, expenses: int,
             "산출세액": calculated, "지방소득세": local, "합계": calculated + local}
 
 
+def dealer_income_tax(sell_price: int, acquire_price: int, broad_expenses: int,
+                      narrow_expenses: int, holding_months: int, property_type: str,
+                      profile: BuyerProfile | None = None) -> dict:
+    """주택신축판매·부동산매매업(매매사업자)의 매도 세금 — 사업소득 종합과세.
+
+    개인 양도세와 갈리는 두 지점(static/dealsim.js 의 dealer 분기와 같은 규칙):
+      ① **필요경비가 넓다** — 대출이자·명도비·수리비·미납관리비까지 사업 경비로 인정된다
+         (양도세는 이 항목들을 인정하지 않아 세금이 커진다).
+      ② **단기 중과가 없다** — 소득세법 §64 비교과세는 '중과대상 주택'에만 걸리고, 그 조항이
+         단기세율을 인용하지 않는다(원문 검증 확정). 중과대상(조정대상지역 & 세대 2주택 이상)이
+         아니면 보유 6개월이어도 70%가 아니라 기본세율 누진표를 탄다 — 매매사업자의 핵심 이점.
+
+    중과대상이면 §64 비교과세로 들어가 (종소세 / 중과세율 / 단기세율) 중 **가장 큰** 세액을
+    쓴다. 이때 비교 후보의 과세표준은 사업소득이 아니라 **양도소득 방식**(시행령 §122:
+    매매가액 − §97 필요경비 − 기본공제)이라 좁은 경비(narrow_expenses)를 쓴다 — 넓은 경비로
+    계산하면 세액이 과소해진다(낙관 금지).
+    """
+    prof = profile if profile is not None else tax.PROFILE
+    income = sell_price - acquire_price - broad_expenses
+    candidates = [(_progressive_tax(max(0, income)), "기본세율 누진(6~45%)")]
+
+    housing = is_housing_for_transfer(property_type)
+    heavy = housing and prof.regulated_area and prof.houses_after >= 2
+    if heavy:
+        # 비교과세 후보 — 과세표준은 양도소득 방식(좁은 경비 + 기본공제).
+        tbase = max(0, sell_price - acquire_price - narrow_expenses - BASIC_DEDUCTION)
+        sur = MULTI_HOME_SURCHARGE[3 if prof.houses_after >= 3 else 2]
+        candidates.append((_progressive_tax_with_surcharge(tbase, sur),
+                           f"다주택 중과(기본+{sur * 100:.0f}%p)"))
+        if holding_months < 24:
+            idx = 0 if housing else 1
+            rate = SHORT_TERM_UNDER_1Y[idx] if holding_months < 12 else SHORT_TERM_UNDER_2Y[idx]
+            candidates.append((round(tbase * rate), f"단기 {rate * 100:.0f}%"))
+
+    calculated, label = max(candidates, key=lambda c: c[0])
+    if heavy:
+        label = f"비교과세(§64) — {label}"
+    local = round(calculated * LOCAL_TAX_RATE)
+    return {"양도차익": sell_price - acquire_price - broad_expenses,
+            "장기보유특별공제": 0, "양도소득금액": max(0, income),
+            "과세표준": max(0, income), "세율": label,
+            "산출세액": calculated, "지방소득세": local, "합계": calculated + local}
+
+
+def _no_sale_tax(gain: int) -> dict:
+    """매도 세금 미계산 모드 — 세전 관점. 차익은 그대로 보여주되 세액만 0."""
+    return {"양도차익": gain, "장기보유특별공제": 0, "양도소득금액": max(0, gain),
+            "과세표준": 0, "세율": "미계산(세전 기준)",
+            "산출세액": 0, "지방소득세": 0, "합계": 0}
+
+
 def simulate(inp: SimInput) -> SimResult:
     """가정 한 벌 → 낙찰~매도 전체 손익(§5-6)."""
     bid = max(0, int(inp.bid_price))
@@ -235,7 +314,20 @@ def simulate(inp: SimInput) -> SimResult:
     fee = agent_fee(sell, inp.property_type, inp.area_m2)
     # 필요경비 = 취득 부대비(취득세·인지세·등기) + 매도 중개보수. 명도·수리·미납·이자는 제외(보수적).
     expenses = acq_tax + stamp + max(0, inp.registry_cost) + fee
-    t = transfer_tax(sell, bid, expenses, months, inp.property_type)
+    mode = inp.tax_mode if inp.tax_mode in TAX_MODES else DEFAULT_TAX_MODE
+    if mode == TAX_MODE_NONE:
+        t = _no_sale_tax(sell - bid - expenses)
+    elif mode == TAX_MODE_DEALER:
+        # 사업 경비는 넓다 — 좁은 경비에 인수금·명도·수리·미납·이자까지 더한다.
+        # 비교과세 후보용 좁은 경비는 §97 필요경비(취득부대비+양도비+인수 취득가액)까지만 —
+        # 명도·수리·미납·이자는 여기 넣으면 안 된다(넣으면 세액이 과소해져 낙관 추정이 된다).
+        t = dealer_income_tax(sell, bid,
+                              broad_expenses=expenses + other + interest,
+                              narrow_expenses=expenses + max(0, inp.assumed_amount),
+                              holding_months=months, property_type=inp.property_type,
+                              profile=inp.profile)
+    else:
+        t = transfer_tax(sell, bid, expenses, months, inp.property_type)
 
     net = sell - total_acq - interest - fee - t["합계"]
     roi = (net / equity) if equity > 0 else None

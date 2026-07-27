@@ -725,7 +725,7 @@
   <div class="dsim" id="bidsim" data-type="{{ s.property_type }}"
        data-area="{{ s.area_m2 or 0 }}" data-minbid="{{ s.min_bid_price }}">
     <div class="dstep-head"><span class="dstep-num">₩</span>
-      <h2>입찰가 시뮬레이터 <span class="sub">· 명도·대출·양도세까지 넣은 <b>실현</b> 손익 — 위 계산서(표면차익)와 다릅니다</span></h2></div>
+      <h2>입찰가 시뮬레이터 <span class="sub">· 명도·대출·세금까지 넣은 <b>실현</b> 손익 — 위 계산서(표면차익)와 다릅니다</span></h2></div>
     <div class="dsim-body">
 
       <!-- 왼쪽: 가정 입력 -->
@@ -747,7 +747,18 @@
         <div class="dsim-f">
           <label for="sm-months">보유기간 <span class="out" id="sm-months-out">{{ sim_in.holding_months }}개월</span></label>
           <input type="range" id="sm-months" min="0" max="120" step="6" value="{{ sim_in.holding_months }}">
-          <span class="hint">1년↓ 70% · 2년↓ 60% 단기 양도세 · 3년↑ 장기보유공제 시작</span>
+          <span class="hint" id="sm-months-hint">{% if sim_in.tax_mode == 'individual' %}1년↓ 70% · 2년↓ 60% 단기 양도세 · 3년↑ 장기보유공제 시작{% elif sim_in.tax_mode == 'dealer' %}매매사업자는 단기 중과 없음 — 보유기간은 이자·연환산에만 영향{% else %}세금 미계산 — 보유기간은 이자·연환산에만 영향{% endif %}</span>
+        </div>
+        {#- (2026-07-27 사용자 결정) 매도 세금 기준 선택. 종전엔 개인 양도세 고정이라 6개월
+            보유 시 단기 70%가 순익을 거의 다 먹었다. 기본값=매매사업자(실제 전략). -#}
+        <div class="dsim-f">
+          <label for="sm-taxmode">매도 세금 기준</label>
+          <select id="sm-taxmode">
+            <option value="dealer"{% if sim_in.tax_mode == 'dealer' %} selected{% endif %}>매매사업자 — 종합소득세(기본세율)</option>
+            <option value="individual"{% if sim_in.tax_mode == 'individual' %} selected{% endif %}>개인 — 양도소득세(단기 70/60%)</option>
+            <option value="none"{% if sim_in.tax_mode == 'none' %} selected{% endif %}>세금 미계산 — 이자·중개보수만</option>
+          </select>
+          <span class="hint" id="sm-taxmode-hint">{% if sim_in.tax_mode == 'dealer' %}이자·명도·수리·미납관리비까지 경비 인정 · 사업성(계속·반복성) 인정 전제{% elif sim_in.tax_mode == 'individual' %}필요경비 좁음(취득부대비+중개보수) · 단기 보유 시 세금이 순익을 지배{% else %}세전 관점 — 실제 매도 시 세금은 별도로 발생합니다{% endif %}</span>
         </div>
         <div class="dsim-grid2">
           <div class="dsim-f">
@@ -792,7 +803,7 @@
             <span class="s" id="sm-headroom">{% if sim.breakeven_headroom is not none %}현재 입찰가 대비 {{ '+' if sim.breakeven_headroom >= 0 else '' }}{{ won_fine(sim.breakeven_headroom) }}{% else %}이 조건에선 어떤 금액도 손익분기 미달{% endif %}</span></div>
           <div class="c"><span class="k">세후 순익</span>
             <span class="v {{ 'gain' if sim.net_profit > 0 else 'neg' }}" id="sm-net">{{ won_fine(sim.net_profit) }}</span>
-            <span class="s">양도세·이자·명도까지 차감</span></div>
+            <span class="s" id="sm-net-cap">{% if sim_in.tax_mode == 'none' %}이자·명도·중개보수 차감 · <b>세금 미차감</b>{% else %}매도세금·이자·명도까지 차감{% endif %}</span></div>
           <div class="c"><span class="k">자기자본수익률</span>
             <span class="v {{ 'gain' if (sim.roi or 0) > 0 else 'neg' }}" id="sm-roi">{% if sim.roi is not none %}{{ '%.1f'|format(sim.roi * 100) }}%{% else %}—{% endif %}</span>
             <span class="s" id="sm-roi-ann">{% if sim.roi_annual is not none %}연환산 {{ '%.1f'|format(sim.roi_annual * 100) }}%{% else %}실투자금 없음{% endif %}</span></div>
@@ -816,13 +827,13 @@
         <div class="dsec-h">보유·매도 단계</div>
         <div class="drow"><span class="k">− 대출이자 <span class="hint">(거치식 단순이자)</span></span><span class="v neg" id="sm-interest">{{ won_fine(sim.interest_total) }}</span></div>
         <div class="drow"><span class="k">− 매도 중개보수 <span class="hint">(상한요율)</span></span><span class="v neg" id="sm-fee">{{ won_fine(sim.agent_fee) }}</span></div>
-        <div class="drow"><span class="k">− 양도세+지방소득세 <span class="hint" id="sm-trate">{{ sim.transfer_detail['세율'] }}</span></span><span class="v neg" id="sm-ttax">{{ won_fine(sim.transfer_tax) }}</span></div>
+        <div class="drow"><span class="k">− <span id="sm-tname">{% if sim_in.tax_mode == 'dealer' %}종합소득세+지방소득세{% elif sim_in.tax_mode == 'none' %}매도 세금{% else %}양도세+지방소득세{% endif %}</span> <span class="hint" id="sm-trate">{{ sim.transfer_detail['세율'] }}</span></span><span class="v neg" id="sm-ttax">{{ won_fine(sim.transfer_tax) }}</span></div>
         <div class="drow grand"><span class="k">= 세후 순익</span><span class="v" id="sm-net2">{{ won_fine(sim.net_profit) }}</span></div>
         </div>
         </div>
       </div>
     </div>
-    <div class="dnote">↳ <b>전부 가정 기반 추정</b>이며 세무 자문이 아닙니다. 보수적으로 잡은 부분: 명도비·수리비·미납관리비·이자는 양도세 <b>필요경비 미공제</b>(실제로는 자본적지출 일부가 인정될 수 있어 세금이 더 적을 수 있음), 1세대1주택 비과세·장기보유 표2(최대 80%) <b>미적용</b>, 중개보수는 <b>상한요율</b>. 오피스텔은 취득세만 비주택(4.6%)이고 양도세 단기세율은 주택(70/60%)으로 봅니다. 실제 낙찰가는 경쟁에 따라 달라집니다. <a href="/guide#tax">↳ 세금 가이드</a></div>
+    <div class="dnote">↳ <b>전부 가정 기반 추정</b>이며 세무 자문이 아닙니다. <b>개인(양도세) 기준</b>일 때: 명도비·수리비·미납관리비·이자는 <b>필요경비 미공제</b>(자본적지출 일부는 실제로 인정될 수 있어 세금이 더 적을 수 있음), 1세대1주택 비과세·장기보유 표2(최대 80%) <b>미적용</b>, 오피스텔은 취득세만 비주택(4.6%)이고 단기세율은 주택(70/60%)으로 봅니다. <b>매매사업자 기준</b>일 때: 이자·명도·수리·미납관리비까지 경비로 인정하며 <b>사업성(계속·반복성) 인정을 전제</b>합니다 — 등록만으로는 부인될 수 있고, 다른 종합소득은 반영하지 않습니다(합산되면 세율 구간이 올라갑니다). <b>세금 미계산 기준</b>은 세전 관점이라 실제 매도 시 세금이 별도로 발생합니다. 중개보수는 <b>상한요율</b>, 실제 낙찰가는 경쟁에 따라 달라집니다. <a href="/guide#tax">↳ 세금 가이드</a></div>
   </div>
 
   {# 신분·기간 전략 비교(딜 시뮬) — 위 시뮬레이터의 입력을 구독하는 자매 존 #}
@@ -1284,6 +1295,8 @@
     p.set('assumed', manwon('sm-assumed'));
     p.set('type', root.dataset.type || '');
     p.set('area', root.dataset.area || '0');
+    var tm = $('sm-taxmode');
+    if (tm) p.set('taxmode', tm.value);
     return p;
   }
 
@@ -1319,6 +1332,21 @@
     setTxt('sm-fee', won(d.agent_fee));
     setTxt('sm-ttax', won(d.transfer_tax));
     setTxt('sm-trate', d.transfer_detail['세율']);
+    /* 세금 기준을 바꾸면 '양도세' 같은 고정 명칭이 거짓이 된다 — 행 이름·캡션·힌트를 함께 교체. */
+    var M = {
+      dealer: {name:'종합소득세+지방소득세', cap:'매도세금·이자·명도까지 차감',
+               hint:'이자·명도·수리·미납관리비까지 경비 인정 · 사업성(계속·반복성) 인정 전제',
+               months:'매매사업자는 단기 중과 없음 — 보유기간은 이자·연환산에만 영향'},
+      individual: {name:'양도세+지방소득세', cap:'매도세금·이자·명도까지 차감',
+               hint:'필요경비 좁음(취득부대비+중개보수) · 단기 보유 시 세금이 순익을 지배',
+               months:'1년↓ 70% · 2년↓ 60% 단기 양도세 · 3년↑ 장기보유공제 시작'},
+      none: {name:'매도 세금', cap:'이자·명도·중개보수 차감 · 세금 미차감',
+               hint:'세전 관점 — 실제 매도 시 세금은 별도로 발생합니다',
+               months:'세금 미계산 — 보유기간은 이자·연환산에만 영향'}
+    };
+    var m = M[d.tax_mode] || M.dealer;
+    setTxt('sm-tname', m.name); setTxt('sm-net-cap', m.cap);
+    setTxt('sm-taxmode-hint', m.hint); setTxt('sm-months-hint', m.months);
   }
 
   var timer = null, seq = 0;
@@ -1340,7 +1368,7 @@
     }, 180);
   }
 
-  root.querySelectorAll('input').forEach(function(el){
+  root.querySelectorAll('input, select').forEach(function(el){
     el.addEventListener('input', recalc);
     el.addEventListener('change', recalc);
   });

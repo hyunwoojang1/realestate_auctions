@@ -22,6 +22,9 @@ def _inp(**kw):
         bid_price=300_000_000, property_type="아파트", area_m2=84.0,
         sell_price=400_000_000, holding_months=24, loan_rate=0.05, profile=P1,
         # 황금값은 명시 파라미터로 고정 — 기본값(D2/D8 사용자 결정으로 변경 가능)에 의존하지 않는다.
+        # tax_mode 도 마찬가지: 이 파일의 황금값은 전부 **개인 양도세** 기준으로 손검산됐다.
+        # (기본값은 2026-07-27 사용자 결정으로 dealer 로 바뀌었다 — 아래 dealer 전용 테스트 참조.)
+        tax_mode=bidsim.TAX_MODE_INDIVIDUAL,
     )
     base.update(kw)
     return bidsim.SimInput(**base)
@@ -312,7 +315,7 @@ def _client():
 def test_bidsim_api_matches_engine():
     """API는 엔진과 같은 값을 준다 — 서버·JS 두 경로가 갈리지 않게 payload 단일화."""
     r = _client().get("/api/bidsim?bid=300000000&sell=400000000&months=24"
-                      "&type=아파트&area=84&ltv=0.7&rate=0.05")
+                      "&type=아파트&area=84&ltv=0.7&rate=0.05&taxmode=individual")
     assert r.status_code == 200
     d = r.get_json()
     engine = bidsim.simulate(_inp())
@@ -321,6 +324,27 @@ def test_bidsim_api_matches_engine():
     assert d["equity"] == engine.equity
     assert d["breakeven_bid"] == bidsim.breakeven_bid(_inp())
     assert d["breakeven_headroom"] == d["breakeven_bid"] - 300_000_000
+
+
+def test_bidsim_api_tax_mode_switches_result():
+    """세금 기준 파라미터가 실제로 세액을 바꾼다 — 기본값은 매매사업자(2026-07-27 사용자 결정).
+
+    6개월 보유는 개인이면 단기 70% 구간이라 세 기준의 차이가 가장 크게 벌어진다.
+    """
+    base = "/api/bidsim?bid=300000000&sell=356000000&months=6&type=아파트&area=84"
+    c = _client()
+    default = c.get(base).get_json()
+    dealer = c.get(base + "&taxmode=dealer").get_json()
+    individual = c.get(base + "&taxmode=individual").get_json()
+    none = c.get(base + "&taxmode=none").get_json()
+
+    assert default["tax_mode"] == bidsim.TAX_MODE_DEALER
+    assert default["net_profit"] == dealer["net_profit"]     # 기본값 = 매매사업자
+    assert none["transfer_tax"] == 0
+    assert dealer["transfer_tax"] < individual["transfer_tax"]
+    assert none["net_profit"] > dealer["net_profit"] > individual["net_profit"]
+    # 알 수 없는 값은 조용히 기본값으로(500 금지)
+    assert c.get(base + "&taxmode=쓰레기").get_json()["net_profit"] == dealer["net_profit"]
 
 
 def test_bidsim_api_defaults_and_garbage_input():

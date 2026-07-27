@@ -1272,6 +1272,9 @@ def create_app() -> Flask:
                                      bidsim.DEFAULT_REGISTRY),
             loan_ltv=_clamp_float(a.get("ltv"), 0.0, 1.0, bidsim.DEFAULT_LTV),
             loan_rate=_clamp_float(a.get("rate"), 0.0, 0.30, bidsim.DEFAULT_LOAN_RATE),
+            # 매도 세금 기준(개인/매매사업자/미계산). 모르는 값은 기본값으로 — 조작된 쿼리로
+            # 세금 0 을 만들 수 있지만 개인 도구라 무해하고, 화면이 어떤 기준인지 항상 표시한다.
+            tax_mode=(a.get("taxmode") or bidsim.DEFAULT_TAX_MODE),
         )
         return jsonify(_sim_payload(inp))
 
@@ -1565,6 +1568,7 @@ def _sim_payload(inp: bidsim.SimInput) -> dict:
         "roi_annual": r.roi_annual,
         "breakeven_bid": be,
         "breakeven_headroom": (be - inp.bid_price) if be is not None else None,
+        "tax_mode": inp.tax_mode,
     }
 
 
