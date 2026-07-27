@@ -319,7 +319,10 @@ def _seed_sorts(tmp_path):
         ("2025타경3", "비싼것", "2026-07-25", 900_000_000),
     ]:
         r = _sold_row(case, price=price, sale_date=date_)
-        r.update({"apt_name": name, "market_band_low": 470_000_000, "arb_score": None})
+        # 감정가는 낙찰가의 1.25배로 둔다(감정가율 80%) — 이 픽스처는 **정렬**을 검증하는
+        # 것이라, 감정가율 이상치 게이트(30% 미만 비교 불가)에 걸리지 않게 정상 범위로 맞춘다.
+        r.update({"apt_name": name, "market_band_low": 470_000_000, "arb_score": None,
+                  "appraisal_price": int(price * 1.25)})
         rows.append(r)
     # 낙찰가 미공개 1건 — 어떤 금액·차익 정렬에서도 맨 뒤여야 한다(0원 취급 금지)
     r = _sold_row("2025타경4", price=None, sale_date="2026-07-20")
@@ -508,3 +511,119 @@ def test_sold_card_has_naver_link_even_without_price(tmp_path, monkeypatch):
     body = create_app().test_client().get("/sold").get_data(as_text=True)
     assert "시세 미추정" in body
     assert "new.land.naver.com/complexes/12345" in body
+
+
+# ── 감사 후속 수정(2026-07-28) ────────────────────────────────────────────────
+
+
+def test_policy_also_clears_arb_score():
+    """(감사 HIGH·2관점 교차) 점수는 무효화하는 그 시세로 계산된 값이라 함께 지워야 한다.
+
+    시세만 지우고 arb_score 를 남기면 '근거 없는 점수'가 정렬·상세에 그대로 살아난다.
+    """
+    row = {"market_scope": "same_dong_fallback", "est_market_price": 500_000_000,
+           "market_band_low": 480_000_000, "profit_low": 100_000_000,
+           "expected_profit": 120_000_000, "matched_trades": 21, "confidence": 1.0,
+           "arb_score": 88.0, "grade": "관심"}
+    out = store.apply_sold_market_policy(row)
+    assert out["arb_score"] is None
+    assert out["grade"] == "시세추정불가"
+
+
+@pytest.mark.parametrize("bad", ["inf", "Infinity", "1e400", "-inf", "nan"])
+def test_budget_overflow_does_not_500(tmp_path, monkeypatch, bad):
+    """(감사 HIGH) budget=inf 는 int(inf) OverflowError 로 500 이 됐다(프로덕션 재현).
+
+    float 로 파싱되지만 유한하지 않은 값은 필터 미적용으로 흘려보낸다.
+    """
+    from src.web import create_app
+    db, _ = _seed_search(tmp_path)
+    monkeypatch.setenv("AUCTION_DB", str(db))
+    c = create_app().test_client()
+    assert c.get(f"/sold?budget={bad}").status_code == 200
+    assert c.get(f"/?budget={bad}").status_code == 200
+
+
+def test_detail_shows_undecidable_when_no_market(tmp_path, monkeypatch):
+    """(감사 CRITICAL) 시세가 없으면 매도가 0원 → '거액 손해 확정'처럼 보이던 것.
+
+    숫자를 내지 않고 '판단 불가'로 비우고, 이유를 화면에 밝혀야 한다.
+    """
+    from src.web import create_app
+    db = tmp_path / "nomkt.db"
+    conn = store.connect(str(db))
+    r = _sold_row("2025타경5", price=300_000_000)
+    r.update({"market_band_low": None, "est_market_price": None,
+              "market_scope": "no_comps", "arb_score": None})
+    store.upsert_sold(conn, [r])
+    conn.close()
+    monkeypatch.setenv("AUCTION_DB", str(db))
+    body = create_app().test_client().get(
+        "/property/2025타경5?item=1&court=서울중앙지방법원").get_data(as_text=True)
+    assert "시세 추정이 없어 손익을 계산할 수 없습니다" in body
+    assert 'id="sm-net">판단 불가<' in body        # 초기 렌더가 숫자가 아니어야
+    assert 'id="sm-be">판단 불가<' in body
+    # 손해 숫자를 내지 않는다 — 음수 순익이 헤드라인에 뜨면 안 된다
+    assert 'id="sm-net">-' not in body
+
+
+def test_detail_still_computes_when_market_exists(tmp_path, monkeypatch):
+    """반대 방향 고정 — 시세가 있으면 종전대로 숫자가 나온다(과잉 차단 방지)."""
+    from src.web import create_app
+    db = tmp_path / "mkt.db"
+    conn = store.connect(str(db))
+    r = _sold_row("2025타경6", price=300_000_000)
+    r.update({"market_band_low": 500_000_000, "market_scope": "same_complex_same_area"})
+    store.upsert_sold(conn, [r])
+    conn.close()
+    monkeypatch.setenv("AUCTION_DB", str(db))
+    body = create_app().test_client().get(
+        "/property/2025타경6?item=1&court=서울중앙지방법원").get_data(as_text=True)
+    assert 'id="sm-net">판단 불가<' not in body   # JS 주석에도 같은 문구가 있어 마크업으로 단언
+    assert 'id="sm-nomkt"' not in body
+
+
+def test_abnormal_price_ratio_blocks_comparison():
+    """(감사 CRITICAL) 낙찰가가 감정가의 30% 미만이면 시세 비교를 무효화한다.
+
+    실측 배경: 차익 높은순 상위 8건 중 4건이 감정가율 1~14%(19회·13회·6회 유찰)였다.
+    지분·대지권만 매각이거나 물건 자체가 특수한 경우라 온전한 물건 시세와 비교하면
+    "시세보다 2.5억 싸게 샀다"는 허구가 만들어진다(동래에코하임: 낙찰 351만 vs 시세 2.52억).
+    """
+    from src import query
+    base = {"market_scope": "same_complex_same_area", "market_band_low": 252_000_000,
+            "appraisal_price": 256_000_000}
+    odd = {**base, "sold_price": 3_510_000}          # 감정가율 1.4% — 특수물건
+    normal = {**base, "sold_price": 200_000_000}     # 감정가율 78% — 정상 거래
+    assert query.sold_gap(odd) is None
+    assert query.sold_comparable(odd) is False
+    assert query.sold_gap(normal) == 52_000_000
+    assert query.sold_comparable(normal) is True
+
+
+def test_abnormal_gate_does_not_block_when_appraisal_unknown():
+    """감정가를 모르면 판정 불가 — 모름을 이유로 정보를 지우지는 않는다(과잉 차단 방지)."""
+    from src import query
+    row = {"market_scope": "same_complex_same_area", "market_band_low": 400_000_000,
+           "appraisal_price": None, "sold_price": 100_000_000}
+    assert query.sold_comparable(row) is True
+    assert query.sold_gap(row) == 300_000_000
+
+
+def test_abnormal_rows_drop_out_of_profit_ranking(tmp_path, monkeypatch):
+    """특수물건은 '차익 높은순' 상위를 차지하지 못하고, 카드가 이유를 밝힌다."""
+    from src.web import create_app
+    db = tmp_path / "odd.db"
+    conn = store.connect(str(db))
+    odd = _sold_row("2025타경1", price=3_510_000)
+    odd.update({"apt_name": "특수물건", "appraisal_price": 256_000_000,
+                "market_band_low": 252_000_000, "market_scope": "same_complex_same_area"})
+    normal = _sold_row("2025타경2", price=200_000_000)
+    normal.update({"apt_name": "정상물건", "appraisal_price": 256_000_000,
+                   "market_band_low": 252_000_000, "market_scope": "same_complex_same_area"})
+    store.upsert_sold(conn, [odd, normal])
+    conn.close()
+    monkeypatch.setenv("AUCTION_DB", str(db))
+    body = create_app().test_client().get("/sold?sort=profit").get_data(as_text=True)
+    assert _names(body)[0] == "정상물건"          # 허구 차익 2.48억이 1위를 뺏지 못한다
+    assert "비교 불가" in body                    # 조용히 숨기지 않고 이유를 밝힌다

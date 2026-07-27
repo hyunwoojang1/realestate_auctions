@@ -316,6 +316,34 @@ def _appraisal_rate(row: dict) -> float | None:
     return sold / appr
 
 
+# (감사 CRITICAL 2026-07-28) 낙찰가가 감정가의 이 비율 미만이면 **온전한 물건의 거래로 보지
+# 않는다** — 지분·대지권만 매각, 심각한 물리적·권리적 하자 등으로 물건 자체가 특수한 경우다.
+# 그런 낙찰가를 온전한 물건의 시세와 나란히 놓으면 "시세보다 2.5억 싸게 샀다"는 허구가 만들어진다.
+# 실측(2026-07-28): 차익 높은순 상위 8건 중 4건이 감정가율 1~14%(19회·13회·6회 유찰)였고
+# 2위가 동래에코하임(낙찰 351만 vs 시세 2.52억 = 감정가율 1.4%)이었다.
+# 임계 0.30 근거: 실데이터 분포에 20~30% 구간이 **비어 있어**(0건) 자연스러운 절단면이 있고,
+# 통상 유찰 저감(회당 20~30%)으로 3회까지 내려와도 34% 수준이라 정상 범위를 자르지 않는다.
+SOLD_ABNORMAL_PRICE_RATIO = 0.30
+
+
+def sold_price_ratio(row: dict) -> float | None:
+    """낙찰가 ÷ 감정가. 둘 중 하나라도 없으면 None(판정 불가 — 차단하지 않는다)."""
+    ap, sold = row.get("appraisal_price"), row.get("sold_price")
+    if not ap or not sold:
+        return None
+    return sold / ap
+
+
+def sold_comparable(row: dict) -> bool:
+    """이 낙찰 거래를 온전한 물건 시세와 비교해도 되는가(감정가율 이상치 게이트).
+
+    감정가를 모르면 판정할 수 없으므로 True(차단하지 않음) — 모름을 이유로 정보를 지우지는
+    않되, 확실히 이상한 것만 막는다.
+    """
+    ratio = sold_price_ratio(row)
+    return ratio is None or ratio >= SOLD_ABNORMAL_PRICE_RATIO
+
+
 def sold_gap(row: dict) -> int | None:
     """낙찰 물건의 차익 = **시세 검증 하한 − 실낙찰가**. 둘 중 하나라도 없으면 None.
 
@@ -334,6 +362,9 @@ def sold_gap(row: dict) -> int | None:
     from .store import SOLD_TRUSTED_SCOPES  # noqa: PLC0415 — 순환 import 회피
     scope = (row.get("market_scope") or "").strip()
     if scope and scope not in SOLD_TRUSTED_SCOPES:
+        return None
+    # 시세가 신뢰 출처여도 **거래 쪽이 특수**하면 비교가 성립하지 않는다(감정가율 이상치).
+    if not sold_comparable(row):
         return None
     band, sold = row.get("market_band_low"), row.get("sold_price")
     if band is None or sold is None:

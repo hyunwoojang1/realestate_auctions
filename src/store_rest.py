@@ -502,16 +502,26 @@ def upsert_sold(rows: list[dict]) -> int:
 
 
 def fetch_sold(limit: int = 200) -> list[dict]:
-    """낙찰 목록(클라우드) — 실낙찰가 보유 우선·매각기일 최신순. 실패는 빈 리스트(페이지 정상)."""
+    """낙찰 목록(클라우드) — 매각기일 최신순. 실패는 빈 리스트(페이지 정상).
+
+    (감사 HIGH 2026-07-28) 종전엔 단발 GET 에 limit 만 걸었다. PostgREST 는 서버 설정
+    max-rows(이 프로젝트 실측 **1,000**)를 넘겨 달라고 해도 **예외 없이 1,000행만** 준다 —
+    낙찰이 1,000건을 넘는 순간 오래된 기록이 조용히 사라지고 /sold 의 검색·정렬도 잘린
+    1,000건 안에서만 돌게 된다(로컬 SQLite 는 LIMIT 5000 이 그대로 먹혀 로컬 테스트로는
+    절대 안 잡히는 클래스). 다른 전량 로더들과 같은 `_fetch_pages` 로 통일한다.
+
+    정렬은 **유일키 타이브레이커 포함**이 필수다 — 없으면 페이지 경계에서 행이 누락·중복된다
+    (2026-07-15 감사에서 다른 로더들이 이미 같은 이유로 고쳐졌다). 종전의
+    `sold_price.desc.nullslast` 선행 정렬은 로컬(load_sold)과도 의미가 달랐고 타이브레이커도
+    없어 함께 정리한다 — 표시 순서는 어차피 web 계층(query.sort_sold)이 정한다.
+    """
     try:
         url, key, _ = _cfg()
-        r = requests.get(_endpoint(url, SOLD_TABLE), headers=_headers(key),
-                         params={"select": "*",
-                                 "order": "sold_price.desc.nullslast,sale_date.desc",
-                                 "limit": limit},
-                         timeout=15)
-        r.raise_for_status()
-        return r.json()
+        rows = _fetch_pages(url, key, SOLD_TABLE, {
+            "select": "*",
+            "order": "sale_date.desc,court.asc,case_no.asc,item_no.asc",
+        }, timeout=15, label=SOLD_TABLE)
+        return rows[:limit] if limit and len(rows) > limit else rows
     except Exception:  # noqa: BLE001 — 미배포/실패 = 섹션 미표시
         return []
 

@@ -12,6 +12,7 @@ from __future__ import annotations
 
 import html
 import logging
+import math
 import os
 from pathlib import Path
 
@@ -557,8 +558,14 @@ def create_app() -> Flask:
             min_bid = 800_000_000
         elif budget:
             try:
-                max_bid = int(float(budget) * 1e8)
-            except ValueError:
+                # (감사 HIGH 2026-07-28) float('inf')·'1e400' 은 ValueError 를 내지 않고 inf 를
+                # 만들고, int(inf) 가 OverflowError 로 터져 500 이 됐다(프로덕션 재현 확인).
+                # NaN 도 ValueError 를 내므로 함께 잡는다.
+                _b = float(budget)
+                if not math.isfinite(_b):
+                    raise ValueError(budget)
+                max_bid = int(_b * 1e8)
+            except (ValueError, OverflowError):
                 budget = ""
 
         # 이름 검색 시엔 전체 모수에서 찾는다 — 사용자가 본 단지가 시세추정 안 된 유형이어도
@@ -823,8 +830,14 @@ def create_app() -> Flask:
             min_bid = 800_000_000
         elif budget:
             try:
-                max_bid = int(float(budget) * 1e8)
-            except ValueError:
+                # (감사 HIGH 2026-07-28) float('inf')·'1e400' 은 ValueError 를 내지 않고 inf 를
+                # 만들고, int(inf) 가 OverflowError 로 터져 500 이 됐다(프로덕션 재현 확인).
+                # NaN 도 ValueError 를 내므로 함께 잡는다.
+                _b = float(budget)
+                if not math.isfinite(_b):
+                    raise ValueError(budget)
+                max_bid = int(_b * 1e8)
+            except (ValueError, OverflowError):
                 budget = ""
 
         # 필터가 있으면 전량에서 걸러야 한다 — 300건만 읽고 거르면 뒤쪽 기록이 조용히 빠진다.
@@ -851,6 +864,9 @@ def create_app() -> Flask:
             # 카드가 차익을 그리려면 같은 정의(시세 하한 − 낙찰가)를 써야 한다 — 정렬과 표시가
             # 다른 식을 쓰면 "위에 있는데 숫자가 더 작은" 화면이 된다. 템플릿에 함수째 넘긴다.
             sold_gap=query.sold_gap,
+            # 게이트에 걸린 이유를 카드가 밝히려면 판정 함수도 함께 넘겨야 한다
+            # (조용히 '시세 미추정'으로 뭉뚱그리면 왜 비었는지 알 수 없다).
+            sold_comparable=query.sold_comparable,
             won=report.won, data_source=getattr(g, "data_source", "n/a"))
 
     def _find_by_case(case_no: str):

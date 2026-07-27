@@ -227,8 +227,11 @@ CREATE TABLE IF NOT EXISTS sold_listings (
 # 계속 쓰므로 이 규칙은 낙찰 경로에만 적용한다.
 SOLD_TRUSTED_SCOPES = ("same_complex_same_area", "same_complex_near_area")
 # 시세를 비울 때 함께 지우는 파생값 — 시세가 없는데 차익만 남으면 근거 없는 숫자가 된다.
+# (감사 HIGH 2026-07-28, 2개 관점 교차확인) arb_score 를 포함한다 — 점수는 지금 무효화하는
+# 바로 그 시세로 계산된 값이라(score.score_listing), 시세만 지우고 점수를 남기면 '근거 없는
+# 점수'가 정렬(query.sort_sold 의 score 분기)과 상세에 그대로 살아난다.
 _SOLD_MARKET_COLS = ("est_market_price", "market_band_low", "profit_low",
-                     "expected_profit", "matched_trades", "confidence")
+                     "expected_profit", "matched_trades", "confidence", "arb_score")
 
 
 def apply_sold_market_policy(row: dict) -> dict:
