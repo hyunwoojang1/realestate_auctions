@@ -714,6 +714,46 @@ def create_app() -> Flask:
         resp.charset = "utf-8"
         return resp
 
+    def _sold_naver_map() -> dict:
+        """(court|case_no|item_no) → 네이버 단지번호. 시세가 없는 물건도 사용자가 네이버에서
+        직접 확인할 수 있게 목록·상세에 링크를 걸기 위한 것(사용자 요청 2026-07-28)."""
+        db_path = os.environ.get(DB_ENV)
+        try:
+            if db_path:
+                conn = store.connect(db_path)
+                try:
+                    return {f"{r['court']}|{r['case_no']}|{r['item_no']}": r["complex_no"]
+                            for r in conn.execute(
+                                "SELECT court, case_no, item_no, complex_no FROM naver_prices "
+                                "WHERE complex_no IS NOT NULL AND complex_no != ''")}
+                finally:
+                    conn.close()
+            if store_rest.enabled():
+                return {f"{r['court']}|{r['case_no']}|{r['item_no']}": r.get("complex_no")
+                        for r in store_rest.load_all_naver()
+                        if (r.get("complex_no") or "").strip()}
+        except Exception as e:  # noqa: BLE001 — 링크 없음은 무해(페이지는 정상)
+            logger.warning("네이버 단지번호 맵 로드 실패: %s", e)
+        return {}
+
+    def _sold_naver_row(sold: dict) -> dict | None:
+        """낙찰 물건 1건의 네이버 매핑(단지번호·KB시세 등). 없으면 None(링크 미표시)."""
+        court, case_no = sold.get("court") or "", sold.get("case_no") or ""
+        item_no = sold.get("item_no") or ""
+        db_path = os.environ.get(DB_ENV)
+        try:
+            if db_path:
+                conn = store.connect(db_path)
+                try:
+                    return store.load_naver_price(conn, court, case_no, item_no)
+                finally:
+                    conn.close()
+            if store_rest.enabled():
+                return store_rest.fetch_naver_price(court, case_no, item_no)
+        except Exception as e:  # noqa: BLE001 — 링크 없음은 무해
+            logger.warning("낙찰 네이버 매핑 로드 실패(%s): %s", case_no, e)
+        return None
+
     def _sold_rows(limit: int = 300) -> list[dict]:
         """낙찰(종결) 기록 — 로컬 SQLite 우선, 클라우드는 REST. 실패=빈 리스트(페이지 정상)."""
         db_path = os.environ.get(DB_ENV)
@@ -803,6 +843,7 @@ def create_app() -> Flask:
             "sold.html", rows=rows, count=len(rows), total=total, filters=filters,
             has_filter=bool(q or region or ptype or budget or area or fails),
             case_like=bool(q and casesearch.looks_like_case_no(q)),
+            naver_map=_sold_naver_map(),
             sort_unavailable=sort_unavailable,
             sort_label={"score": "점수", "score_asc": "점수",
                         "profit": "시세 대비 차익", "profit_asc": "시세 대비 차익",
@@ -1037,6 +1078,11 @@ def create_app() -> Flask:
                 confidence=sold.get("confidence") or 0.0,
                 real_acquisition_cost=sold.get("min_bid_price") or 0,
                 gap_rate=None, gap_score=0.0, rights_score=0.0, liquidity_score=0.0,
+                # 네이버 단지 매핑을 붙여 상세의 '네이버 시세 ↗' 링크·KB 카드를 살린다.
+                # ⚠ market_view(KB 폴백 재계산)는 태우지 않는다 — 낙찰 경로는 확정 실거래만
+                # 시세로 인정하기로 했는데(store.SOLD_TRUSTED_SCOPES) KB 폴백이 그 결정을
+                # 우회해 차익을 되살리면 안 된다. 표시용 페이로드만 첨부한다.
+                naver=_sold_naver_row(sold),
             )]
         if len(matches) > 1:
             # 물건 선택 페이지 — 어떤 물건인지 사용자가 고른다(잘못된 물건 수치 표시 방지).

@@ -113,7 +113,7 @@ def main(argv=None) -> int:
     # 키로 다시 맞춘다(위치 대응으로 짝지으면 다른 물건의 시세를 덮어쓴다).
     by_key = {(s.court, s.case_no, str(s.item_no or "")): s for s in scored}
 
-    updates, matched, est_ok = [], 0, 0
+    updates, matched, est_ok, dropped = [], 0, 0, []
     for court, case_no, item_no in keys:
         s = by_key.get((court, case_no, str(item_no or "")))
         if s is None:
@@ -121,8 +121,15 @@ def main(argv=None) -> int:
         matched += 1
         if s.est_market_price is not None:
             est_ok += 1
-        updates.append({"court": court, "case_no": case_no, "item_no": item_no,
-                        **{c: getattr(s, c) for c in _WRITE_COLS}})
+        row = {"court": court, "case_no": case_no, "item_no": item_no,
+               **{c: getattr(s, c) for c in _WRITE_COLS}}
+        # 신뢰 출처(같은 단지 확정 실거래)가 아니면 시세를 비운다 — 일일 크롤 diff 와
+        # 같은 함수를 써야 다음 새로고침이 폴백 시세를 되살리지 않는다.
+        cleaned = store.apply_sold_market_policy(row)
+        # '정책으로 버려진 것'만 센다 — 애초에 추정이 안 된 행(no_comps 등)은 버린 게 아니다.
+        if row["est_market_price"] is not None and cleaned["est_market_price"] is None:
+            dropped.append((row["market_scope"], s.apt_name))
+        updates.append(cleaned)
 
     print(f"채점 매칭 {matched}건 · 시세 추정 성공 {est_ok}건 "
           f"(나머지는 미지원유형·표본부족 — 정상)")
@@ -132,6 +139,10 @@ def main(argv=None) -> int:
     dist = Counter(u["market_scope"] for u in updates if u["est_market_price"] is not None)
     for scope, n in dist.most_common():
         print(f"  시세 출처 {scope or '(미상)'}: {n}건")
+    if dropped:
+        print(f"  ⚠ 신뢰 출처 아님 → 시세 비움 {len(dropped)}건:")
+        for scope, name in dropped:
+            print(f"      {scope} · {name}")
     if args.dry_run:
         print("(dry-run — 저장하지 않음)")
         return 0

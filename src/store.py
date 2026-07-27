@@ -220,6 +220,36 @@ CREATE TABLE IF NOT EXISTS sold_listings (
 );
 """
 
+# 낙찰 결과에 **시세로 서빙해도 되는 출처**. 같은 단지(네이버 단지번호로 확정)에서 나온
+# 실거래만 인정한다. same_dong_fallback(같은 동 다른 단지 추정)은 다른 단지가 섞였을 수 있어
+# 낙찰가와 나란히 놓으면 '싸게 샀다/비싸게 샀다'를 잘못 읽게 된다 — 사용자 결정 2026-07-28로
+# **시세 미추정으로 비운다**(라벨만 붙여 남기던 종전 방식 철회). 활성 목록(홈)은 참고치로
+# 계속 쓰므로 이 규칙은 낙찰 경로에만 적용한다.
+SOLD_TRUSTED_SCOPES = ("same_complex_same_area", "same_complex_near_area")
+# 시세를 비울 때 함께 지우는 파생값 — 시세가 없는데 차익만 남으면 근거 없는 숫자가 된다.
+_SOLD_MARKET_COLS = ("est_market_price", "market_band_low", "profit_low",
+                     "expected_profit", "matched_trades", "confidence")
+
+
+def apply_sold_market_policy(row: dict) -> dict:
+    """낙찰 행의 시세를 정책에 맞게 정리한 **새 dict** 반환(원본 불변).
+
+    신뢰 출처가 아니면 시세·차익·근거를 전부 비우고 grade 를 '시세추정불가'로 낮춘다.
+    재채점(deploy/rescore_sold)과 일일 크롤 diff(run.py) **양쪽이 같은 함수를 쓰도록** 여기에
+    둔다 — 한쪽에만 넣으면 다음 새로고침이 폴백 시세를 조용히 되살린다.
+    """
+    scope = (row.get("market_scope") or "").strip()
+    if not scope or scope in SOLD_TRUSTED_SCOPES:
+        return dict(row)
+    out = dict(row)
+    if out.get("est_market_price") is None and out.get("market_band_low") is None:
+        return out            # 원래 시세가 없던 행은 등급까지 건드리지 않는다
+    for c in _SOLD_MARKET_COLS:
+        out[c] = None
+    out["grade"] = "시세추정불가"
+    return out
+
+
 _SOLD_COLS = ["court", "case_no", "item_no", "apt_name", "address", "property_type",
               "area_m2", "appraisal_price", "min_bid_price", "fail_count", "sale_date",
               "est_market_price", "market_band_low", "profit_low", "expected_profit",

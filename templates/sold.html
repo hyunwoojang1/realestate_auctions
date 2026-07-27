@@ -44,7 +44,8 @@
 {% endif %}
 
 <p class="page-lead"><b>‘시세 대비’ = 지금 실거래 검증 하한 − 실낙찰가</b>입니다(홈의 ‘보수 차익’은 최저입찰가 기준이라 정의가 다릅니다).
-시세는 <b>같은 단지·같은 평형 확정 실거래</b>(네이버 단지번호로 확정)를 우선 쓰고, 그게 없어 같은 동(洞) 다른 단지로 추정한 건은 <b class="warn">동 폴백</b> 표시가 붙습니다 — 참고치이니 그대로 믿지 마세요.
+시세는 <b>같은 단지·같은 평형 확정 실거래</b>(네이버 단지번호로 확정)만 인정합니다 — 같은 동(洞) 다른 단지로 추정한 값은 다른 단지가 섞였을 수 있어 <b>시세 미추정</b>으로 비워 뒀습니다.
+시세가 없는 물건도 카드의 <b>네이버 시세 ↗</b> 링크로 직접 확인하실 수 있습니다.
 시세는 <b>지금</b> 기준이고 낙찰가는 그 기일의 값이라 기간 차이가 섞여 있으며, 지분·대지권만 매각된 물건은 온전한 물건 시세와 비교가 되지 않아 차익이 부풀려집니다.
 재크롤 때마다 종결(소멸)된 물건을 자동 보존합니다. <b>낙찰가는 법원이 공개한 실제 금액만</b> 표시합니다
 — 재매각 이력 물건의 해당 회차 낙찰가(이후 대금 미납으로 재매각된 가격 포함). 법원이 공개하지 않는 정상 낙찰의
@@ -59,6 +60,8 @@
 {% else %}
 <div class="scards" style="margin-top:14px">
   {% for r in rows %}
+  {% set nvno = naver_map.get(r.court ~ '|' ~ r.case_no ~ '|' ~ r.item_no) %}
+  <div class="scard-w">
   <a class="scard" href="/property/{{ r.case_no }}?item={{ r.item_no }}&court={{ r.court }}">
     <div class="sc-nm">{{ r.apt_name or r.property_type or '물건' }}</div>
     <div class="sc-ad">{{ r.address }} · {{ r.property_type }}{% if r.area_m2 %} · {{ '%.0f'|format(r.area_m2) }}㎡{% endif %} · 기일 {{ r.sale_date or '미상' }}</div>
@@ -73,17 +76,20 @@
       <div class="c"><div class="k">낙찰가</div>
         {% if r.sold_price %}<div class="v gain">{{ won(r.sold_price) }}{% if r.appraisal_price %} <span style="font-size:11px;color:var(--ink-400)">감정가율 {{ ((r.sold_price / r.appraisal_price) * 100) | round | int }}%</span>{% endif %}</div>
         {% else %}<div class="v na">미공개</div>{% endif %}</div>
-      {#- 차익 = 지금 시세 하한 − 실낙찰가. 시세 추정이 된 물건만(억지로 0 채우지 않음).
-          ⚠ 출처가 '동 폴백'이면 다른 단지가 섞였을 수 있는 참고치다 — 확정 시세와 같은
-          모양으로 보여주면 오염된 값을 확정값처럼 믿게 된다(홈 pricecell 과 같은 규칙). -#}
+      {#- 차익 = 지금 시세 하한 − 실낙찰가. 시세가 붙은 물건만 표시한다.
+          같은 단지 확정 실거래가 아닌 추정(동 폴백 등)은 저장 단계에서 이미 비워져 있어
+          여기 오지 않는다(store.apply_sold_market_policy) — 화면에서 거르지 않는다. -#}
       {% set gap = sold_gap(r) %}
-      {% set fb = r.market_scope == 'same_dong_fallback' %}
-      <div class="c"><div class="k">시세 대비{% if fb %} <span class="hh">참고</span>{% endif %}</div>
-        {% if gap is not none %}<div class="v gain{% if gap < 0 %} neg{% endif %}{% if fb %} warn{% endif %}"
-          {% if fb %}title="같은 단지 실거래를 못 찾아 같은 동(洞) 다른 단지로 추정한 참고치입니다 — 다른 단지가 섞였을 수 있어 그대로 믿으면 안 됩니다"{% endif %}>{{ '+' if gap > 0 else '' }}{{ won(gap) }}{% if fb %} <span style="font-size:11px;color:var(--caution)">동 폴백</span>{% endif %}</div>
+      <div class="c"><div class="k">시세 대비</div>
+        {% if gap is not none %}<div class="v gain{% if gap < 0 %} neg{% endif %}">{{ '+' if gap > 0 else '' }}{{ won(gap) }}</div>
         {% else %}<div class="v na">시세 미추정</div>{% endif %}</div>
     </div>
   </a>
+  {#- 시세를 못 붙였어도 네이버에서 직접 볼 수 있게 링크는 남긴다(사용자 요청 2026-07-28).
+      카드가 <a> 라 안에 넣을 수 없어(중첩 <a> 무효) 형제로 두고 CSS 로 카드에 붙인다. -#}
+  {% if nvno %}<a class="sc-nv" href="https://new.land.naver.com/complexes/{{ nvno }}"
+      target="_blank" rel="noopener">네이버 시세 ↗</a>{% endif %}
+  </div>
   {% endfor %}
 </div>
 {% endif %}

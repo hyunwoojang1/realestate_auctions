@@ -90,6 +90,45 @@ def inject(schedule: list, amount: int) -> tuple[list, bool]:
     return sorted(ordered, key=lambda x: str(x.get("ymd") or ""), reverse=True), True
 
 
+def inject_all(conn, dry_run: bool = False) -> dict[str, int]:
+    """raw_listings 의 maeAmt 를 listing_rights.schedule 에 주입. 반환: 통계 dict.
+
+    (2026-07-28) main() 에서 분리 — **일일 새로고침(run.py)이 낙찰 diff 직전에 호출**한다.
+    종전엔 수동 스크립트라, 새로 낙찰된 물건의 실낙찰가가 스케줄에 없어 낙찰 결과로 넘어갈 때
+    sold_price 가 NULL(미공개)로 굳었다. 라이브 호출 0(로컬 DB만)이라 매 사이클 돌려도 무해.
+    """
+    amounts = collect_sold_amounts(conn)
+    rights = conn.execute(
+        "SELECT court, case_no, item_no, schedule FROM listing_rights "
+        "WHERE schedule IS NOT NULL").fetchall()
+    st = {"amounts": len(amounts), "updated": 0, "unchanged": 0,
+          "no_sale_row": 0, "no_amount": 0}
+    for court, case_no, item_no, sched in rights:
+        amt = amounts.get(_norm(court, case_no, item_no))
+        if not amt:
+            st["no_amount"] += 1
+            continue
+        try:
+            cur = json.loads(sched)
+        except (TypeError, ValueError):
+            continue
+        new_sched, changed = inject(cur, amt)
+        if not changed:
+            key = ("unchanged" if any(r.get("result") == "매각"
+                                      for r in cur if isinstance(r, dict))
+                   else "no_sale_row")
+            st[key] += 1
+            continue
+        if not dry_run:
+            conn.execute(
+                "UPDATE listing_rights SET schedule=? WHERE court=? AND case_no=? AND item_no=?",
+                (json.dumps(new_sched, ensure_ascii=False), court, case_no, item_no))
+        st["updated"] += 1
+    if not dry_run:
+        conn.commit()
+    return st
+
+
 def main(argv=None) -> int:
     ap = argparse.ArgumentParser(description="maeAmt(실제 낙찰가) → listing_rights.schedule 백필")
     ap.add_argument("--db", default="auction.db")

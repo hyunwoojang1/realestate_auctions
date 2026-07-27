@@ -383,8 +383,12 @@ def test_sold_schema_keeps_market_scope(tmp_path):
     assert got["matched_trades"] == 160 and got["confidence"] == 1.0
 
 
-def test_sold_card_marks_dong_fallback(tmp_path, monkeypatch):
-    """동 폴백 시세는 '동 폴백' 라벨로 구분 표시 — 확정 시세와 같은 모양으로 두지 않는다."""
+def test_sold_card_hides_dong_fallback_estimate(tmp_path, monkeypatch):
+    """동 폴백 시세는 값이 저장돼 있어도 화면에 차익으로 내지 않는다(이중 방어).
+
+    저장 단계 정책(apply_sold_market_policy)이 이미 비우지만, 정책 도입 **전에 적재된 행**이
+    남아 있을 수 있다 — 표시 단계(query.sold_gap)도 같은 게이트를 건다.
+    """
     from src.web import create_app
     db = tmp_path / "fb.db"
     conn = store.connect(str(db))
@@ -398,9 +402,10 @@ def test_sold_card_marks_dong_fallback(tmp_path, monkeypatch):
     conn.close()
     monkeypatch.setenv("AUCTION_DB", str(db))
     body = create_app().test_client().get("/sold").get_data(as_text=True)
-    assert "동 폴백" in body
-    # 폴백 라벨은 정확히 1건에만 붙는다(확정 물건까지 경고를 달면 경고가 무의미해진다)
-    assert body.count("다른 단지가 섞였을 수 있어") == 1
+    # 확정 1건만 차익이 뜨고, 폴백 1건은 '시세 미추정'으로 강등된다
+    # (안내문에도 같은 단어가 있어 카드 마크업으로 정확히 센다)
+    assert body.count('<div class="v na">시세 미추정</div>') == 1
+    assert "+1.00억" in body      # 확정 물건(4.0억 − 3.0억)은 그대로 표시
 
 
 def test_sold_detail_uses_stored_scope_and_evidence(tmp_path, monkeypatch):
@@ -418,3 +423,88 @@ def test_sold_detail_uses_stored_scope_and_evidence(tmp_path, monkeypatch):
         "/property/2025타경7?item=1&court=서울중앙지방법원").get_data(as_text=True)
     assert "160" in body            # 매칭 실거래 건수가 화면에 실린다
     assert "낙찰 종결 물건" in body
+
+
+# ── 낙찰 시세 정책·자동 후처리(2026-07-28 사용자 결정) ────────────────────────
+# ① 신뢰 출처(같은 단지 확정 실거래) 아닌 시세는 낙찰 결과에서 '시세 미추정'으로 비운다.
+# ② 그 규칙은 재채점과 일일 크롤 diff **양쪽**에 걸려야 새로고침이 폴백을 되살리지 않는다.
+
+
+def test_market_policy_drops_dong_fallback():
+    """동 폴백 시세는 비우고 등급을 낮춘다 — 차익·근거도 함께 지운다(근거 없는 숫자 금지)."""
+    row = {"market_scope": "same_dong_fallback", "est_market_price": 500_000_000,
+           "market_band_low": 480_000_000, "profit_low": 100_000_000,
+           "expected_profit": 120_000_000, "matched_trades": 21, "confidence": 1.0,
+           "grade": "관심"}
+    out = store.apply_sold_market_policy(row)
+    assert out["est_market_price"] is None and out["market_band_low"] is None
+    assert out["profit_low"] is None and out["matched_trades"] is None
+    assert out["grade"] == "시세추정불가"
+    assert row["est_market_price"] == 500_000_000        # 원본 불변
+
+
+def test_market_policy_keeps_same_complex():
+    """같은 단지·같은 평형 확정 실거래는 그대로 둔다."""
+    row = {"market_scope": "same_complex_same_area", "est_market_price": 500_000_000,
+           "market_band_low": 480_000_000, "profit_low": 100_000_000,
+           "expected_profit": 120_000_000, "matched_trades": 160, "confidence": 1.0,
+           "grade": "차익 유력"}
+    out = store.apply_sold_market_policy(row)
+    assert out["est_market_price"] == 500_000_000 and out["grade"] == "차익 유력"
+
+
+def test_market_policy_leaves_unestimated_rows_alone():
+    """애초에 시세가 없던 행은 등급까지 건드리지 않는다(미지원유형이 시세추정불가로 바뀌면 오분류)."""
+    row = {"market_scope": "unsupported", "est_market_price": None,
+           "market_band_low": None, "profit_low": None, "expected_profit": None,
+           "matched_trades": None, "confidence": None, "grade": "미지원유형"}
+    assert store.apply_sold_market_policy(row)["grade"] == "미지원유형"
+
+
+def test_daily_snapshot_carries_scope_and_applies_policy(tmp_path):
+    """일일 크롤 diff 도 시세 출처를 이어받고 폴백을 비운다 — 재채점과 같은 규칙."""
+    import json
+
+    from run import _SOLD_SNAP_COLS, _collect_sold_snapshot
+    assert {"market_scope", "matched_trades", "confidence"} <= set(_SOLD_SNAP_COLS)
+
+    conn = store.connect(str(tmp_path / "daily.db"))
+    gone = _scored_obj("2025타경1", "2026-07-20")       # 기일 지남·소멸 → 낙찰로 보존
+    import dataclasses
+    gone = dataclasses.replace(gone, market_scope="same_dong_fallback",
+                               est_market_price=500_000_000, market_band_low=480_000_000)
+    store.replace_all(conn, [gone])
+    store.save_rights(conn, [{
+        "court": gone.court, "case_no": gone.case_no, "item_no": gone.item_no,
+        "surviving_rights": "", "senior_lien": "", "lien_note": "", "remark": "",
+        "claim_amt": None, "demand_end": "", "spec_write_ymd": "", "court_dept": "",
+        "schedule": json.dumps([], ensure_ascii=False),
+        "appraisal_notes": "[]", "fetched_at": "x",
+    }])
+    rows = _collect_sold_snapshot(conn, [])            # 새 스냅샷에 없음 = 소멸
+    assert len(rows) == 1
+    assert rows[0]["market_scope"] == "same_dong_fallback"
+    assert rows[0]["est_market_price"] is None          # 폴백이라 비워짐
+    assert rows[0]["grade"] == "시세추정불가"
+
+
+def test_sold_card_has_naver_link_even_without_price(tmp_path, monkeypatch):
+    """시세를 못 붙인 물건도 네이버 시세 링크는 있어야 한다(사용자 요청)."""
+    from src import naver_store as ns
+    from src.web import create_app
+    db = tmp_path / "nv.db"
+    conn = store.connect(str(db))
+    ns.ensure_schema(conn)
+    r = _sold_row("2025타경1", price=300_000_000)
+    r.update({"apt_name": "링크단지", "market_band_low": None, "est_market_price": None,
+              "market_scope": "no_comps"})
+    store.upsert_sold(conn, [r])
+    conn.execute(
+        "INSERT INTO naver_prices (court, case_no, item_no, status, complex_no) "
+        "VALUES (?,?,?,?,?)", ("서울중앙지방법원", "2025타경1", "1", "ok", "12345"))
+    conn.commit()
+    conn.close()
+    monkeypatch.setenv("AUCTION_DB", str(db))
+    body = create_app().test_client().get("/sold").get_data(as_text=True)
+    assert "시세 미추정" in body
+    assert "new.land.naver.com/complexes/12345" in body

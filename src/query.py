@@ -319,6 +319,10 @@ def _appraisal_rate(row: dict) -> float | None:
 def sold_gap(row: dict) -> int | None:
     """낙찰 물건의 차익 = **시세 검증 하한 − 실낙찰가**. 둘 중 하나라도 없으면 None.
 
+    출처가 신뢰 대상(같은 단지 확정 실거래)이 아니면 값이 있어도 None 을 준다 — 이중 방어다.
+    저장 단계(store.apply_sold_market_policy)가 이미 비우지만, 정책 도입 **전에 적재된 행**이나
+    미러 지연으로 폴백 시세가 남아 있으면 화면이 그걸 확정값처럼 보여주게 된다.
+
     홈의 '보수 차익'(검증 하한 − 최저입찰가 − 취득세)과 **정의가 다르다**. 여기선 실제로
     얼마에 팔렸는지가 알려져 있으므로 최저입찰가 기준 차익은 의미가 약하다 — "그 낙찰자가
     시세 대비 얼마에 샀나"가 이 페이지의 질문이다. 화면 라벨도 그렇게 쓴다.
@@ -327,6 +331,10 @@ def sold_gap(row: dict) -> int | None:
     ⚠ 지분·대지권만 매각된 물건은 낙찰가가 온전한 물건 시세와 비교 불가라 차익이 부풀려진다
        (실측: 동래에코하임 낙찰 0.04억 vs 시세 2.52억). 목록의 지분 라벨로 구분한다.
     """
+    from .store import SOLD_TRUSTED_SCOPES  # noqa: PLC0415 — 순환 import 회피
+    scope = (row.get("market_scope") or "").strip()
+    if scope and scope not in SOLD_TRUSTED_SCOPES:
+        return None
     band, sold = row.get("market_band_low"), row.get("sold_price")
     if band is None or sold is None:
         return None

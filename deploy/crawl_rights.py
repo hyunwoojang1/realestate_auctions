@@ -108,7 +108,7 @@ def _stale_rights_keys(conn) -> set:
 
 def _targets(conn, limit: int | None, refresh: bool,
              estimable_only: set | None = None, skip: set | None = None,
-             stale: set | None = None) -> list[dict]:
+             stale: set | None = None, only_sold: bool = False) -> list[dict]:
     """크롤 대상 (boCd, case_no, item_no, 우선순위 정렬). raw_listings에서 법원코드 조인.
 
     estimable_only 지정 시 사진 저장 대상(시세추정 가능)만 남긴다 — 사진 백필용.
@@ -119,15 +119,20 @@ def _targets(conn, limit: int | None, refresh: bool,
     """
     # ⚠ court 를 조인에 반드시 포함(감사 2026-07-10 CRITICAL): 사건번호는 법원별 독립 채번이라
     # court 없이 조인하면 타법원 동명 사건의 boCd 로 크롤해 '엉뚱한 사건의 권리'가 적재된다.
+    # (2026-07-28) 낙찰 기록(sold_listings)도 대상에 넣는다 — 종결 물건은 권리 요지가 없어
+    # 점수(arb_score)가 영영 안 매겨지고 '권리미확인'으로 남는다. --only-sold 면 낙찰분만.
+    src_table = "sold_listings" if only_sold else "scored_listings"
+    p_expr = ("COALESCE(s.profit_low, s.expected_profit)" if not only_sold
+              else "COALESCE(s.profit_low, s.expected_profit)")
     rows = conn.execute(
-        """
+        f"""
         SELECT s.court, s.case_no, s.item_no, s.fail_count,
-               COALESCE(s.profit_low, s.expected_profit) AS p,
+               {p_expr} AS p,
                r.raw_json
-        FROM scored_listings s
+        FROM {src_table} s
         JOIN raw_listings r
           ON r.court = s.court AND r.case_no = s.case_no AND r.item_no = s.item_no
-        """
+        """  # noqa: S608 — 테이블·식은 코드 상수(사용자 입력 아님)
     ).fetchall()
     out = []
     done = set()
@@ -242,6 +247,8 @@ def main(argv=None) -> int:
     ap.add_argument("--force", action="store_true",
                     help="--estimable 이어받기 무시하고 사진 있는 물건도 전량 재크롤")
     ap.add_argument("--refresh", action="store_true", help="이미 있는 물건도 재크롤")
+    ap.add_argument("--only-sold", dest="only_sold", action="store_true",
+                    help="낙찰 기록(sold_listings)만 대상 — 활성 물건 큐는 건드리지 않는다")
     ap.add_argument("--tenants-backfill", action="store_true",
                     help="현황조사서(B-2) 백필 모드: 미시도(tenant_checks 無)·말소기준有·미래기일 물건. "
                          "우선순위 = 추천등급+인수권리란 빈칸(P-08) → 권리미확인 → 기타 verified=0. "
@@ -276,7 +283,8 @@ def main(argv=None) -> int:
     else:
         # (2026-07-23 변경축) 유찰 새 회차·기일변경으로 요지가 낡은 물건은 재크롤 대상에 환원.
         stale = _stale_rights_keys(conn) if not refresh else set()
-        targets = _targets(conn, limit, refresh, estimable_only=est_only, skip=skip, stale=stale)
+        targets = _targets(conn, limit, refresh, estimable_only=est_only, skip=skip,
+                           stale=stale, only_sold=args.only_sold)
         n_stale = sum(1 for t in targets
                       if (t["court"], t["case_no"], t["item_no"]) in stale)
         print(f"[*] 대상 {len(targets)}건 (DB={args.db}, 기존 크롤분 제외={not args.refresh}, "

@@ -27,10 +27,13 @@ from src import pipeline, query, report, store  # noqa: E402
 EVID = ROOT / "evidence"
 
 # 낙찰 스냅샷에 보존할 scored 컬럼(store._SOLD_COLS 중 sold_* / snapshot_at 제외분과 일치).
+# (2026-07-28) market_scope·matched_trades·confidence 추가 — 이게 빠지면 낙찰로 넘어간
+# 물건의 시세가 '같은 단지 확정 실거래'인지 '동 폴백 참고치'인지 구분이 사라지고,
+# store.apply_sold_market_policy 의 폴백 배제도 동작하지 않는다(정책 우회).
 _SOLD_SNAP_COLS = ["court", "case_no", "item_no", "apt_name", "address", "property_type",
                    "area_m2", "appraisal_price", "min_bid_price", "fail_count", "sale_date",
                    "est_market_price", "market_band_low", "profit_low", "expected_profit",
-                   "arb_score", "grade"]
+                   "arb_score", "grade", "market_scope", "matched_trades", "confidence"]
 
 
 def _collect_sold_snapshot(conn, new_scored) -> list[dict]:
@@ -71,8 +74,11 @@ def _collect_sold_snapshot(conn, new_scored) -> list[dict]:
                     evidence = "maeAmt"
             except Exception:  # noqa: BLE001 — 이력 파싱 실패 = 미공개로(가격 지어내기 금지)
                 pass
-        out.append({**{c: r[c] for c in _SOLD_SNAP_COLS},
-                    "sold_price": sold_price, "sold_evidence": evidence, "snapshot_at": now})
+        # 낙찰 결과에 서빙할 수 있는 시세 출처만 남긴다(동 폴백 등은 비움) —
+        # deploy/rescore_sold 와 **같은 함수**를 써야 새로고침이 폴백을 되살리지 않는다.
+        out.append(store.apply_sold_market_policy(
+            {**{c: r[c] for c in _SOLD_SNAP_COLS},
+             "sold_price": sold_price, "sold_evidence": evidence, "snapshot_at": now}))
     return out
 
 
@@ -273,6 +279,13 @@ def main(argv=None) -> int:
         # 매각기일이 지나고 소멸한 물건만(기일 前 소멸 = 취하/연기 가능성 → 낙찰로 단정 금지).
         # 실낙찰가는 기일이력의 'sold'(재매각 maeAmt)가 있을 때만 — 없으면 NULL(미공개).
         try:
+            # (2026-07-28) 낙찰가 후처리 — 검색결과 원본의 maeAmt(실낙찰가)를 기일이력에 먼저
+            # 주입한다. 이걸 안 하면 오늘 낙찰된 물건이 sold_price NULL(미공개)로 굳어 버린다
+            # (diff 는 기일이력의 'sold' 키만 본다). 로컬 DB 연산이라 라이브 호출 0.
+            from deploy.backfill_sold_amount import inject_all  # noqa: PLC0415
+            _amt = inject_all(conn)
+            if _amt["updated"]:
+                print(f"  💰 실낙찰가 주입: {_amt['updated']}건(원본 maeAmt {_amt['amounts']}물건)")
             sold_rows = _collect_sold_snapshot(conn, scored)
             if sold_rows:
                 store.upsert_sold(conn, sold_rows)
