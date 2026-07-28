@@ -1,4 +1,4 @@
-# 안전 배포 (2026-07-16) — Vercel 프로덕션 CLI 배포.
+﻿# 안전 배포 (2026-07-16) — Vercel 프로덕션 CLI 배포.
 #
 # 왜 이 스크립트가 필요한가:
 #   vercel.json 의 `includeFiles:"{templates,data,static}/**"` 는 서빙에 필요한 소형 data 파일
@@ -26,6 +26,25 @@ $bigFiles = @(
   "data\courtauction_cache.json",
   "data\courtauction_cache.json.dryrun.json"
 )
+
+# (2026-07-28 사고 복구) 지난 배포가 비정상 종료되면 finally 복원이 안 돌아 대형 파일이
+# stash 에 갇힌다. 그 상태로 다시 배포하면 아래 Move-Item -Force 가 **stash 의 원본을
+# 현재 파일로 덮어써** 영구 소실된다 — 실제로 molit_trades.db(214MB)가 이렇게 날아갔고
+# naver_cache.json(215MB)도 다음 배포에서 같은 운명이었다.
+# 그래서 이동 전에 **잔여물을 먼저 되돌린다**(자가복구). 되돌릴 자리에 파일이 이미 있으면
+# 덮지 않고 멈춘다 — 어느 쪽이 최신인지는 사람이 판단해야 한다.
+$leftover = @(Get-ChildItem $stash -ErrorAction SilentlyContinue)
+if ($leftover.Count -gt 0) {
+  Write-Host "[deploy] ⚠ 지난 배포의 stash 잔여물 $($leftover.Count)건 발견 — 먼저 복원한다" -ForegroundColor Yellow
+  foreach ($item in $leftover) {
+    $dest = Join-Path "data" $item.Name
+    if (Test-Path $dest) {
+      throw "[deploy] 중단: '$dest' 와 stash 잔여물이 둘 다 존재한다. 어느 쪽이 최신인지 확인 후 수동 정리할 것(자동 덮어쓰기는 데이터 소실 위험)."
+    }
+    Move-Item $item.FullName $dest
+    Write-Host "  restored(잔여): $dest"
+  }
+}
 
 Write-Host "[deploy] 대형 로컬 파일 임시 이동..." -ForegroundColor Cyan
 foreach ($f in $bigFiles) {

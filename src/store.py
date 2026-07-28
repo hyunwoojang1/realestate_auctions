@@ -841,8 +841,8 @@ def upsert_sold(conn: sqlite3.Connection, rows: list[dict]) -> int:
     return len(rows)
 
 
-def drop_sold_revived(conn: sqlite3.Connection, active) -> int:
-    """활성 목록에 다시 등장한 물건을 낙찰 기록에서 제거하고 삭제 건수를 돌려준다.
+def drop_sold_revived(conn: sqlite3.Connection, active) -> list[tuple[str, str, str]]:
+    """활성 목록에 다시 등장한 물건을 낙찰 기록에서 제거하고 **삭제한 키 목록**을 돌려준다.
 
     (감사 HIGH 2026-07-28) 낙찰 후 대금 미납이면 같은 사건이 **재매각**으로 활성 목록에
     돌아온다. sold 를 그대로 두면 홈은 '진행 중', /sold 는 '낙찰 종결'로 같은 물건을 동시에
@@ -851,11 +851,20 @@ def drop_sold_revived(conn: sqlite3.Connection, active) -> int:
     """
     keys = [(s.court, s.case_no, str(s.item_no or "")) for s in active]
     if not keys:
-        return 0
+        return []
+    # 실제로 sold 에 있던 키만 추린다 — 클라우드에서도 같은 키를 지워야 하기 때문이다
+    # (2026-07-28 실사고: 로컬만 지우고 미러를 안 지워 프로덕션에서 양쪽 동시 노출).
+    ph = ",".join(["(?,?,?)"] * len(keys))
+    flat = [v for k in keys for v in k]
+    hit = [tuple(r) for r in conn.execute(
+        f"SELECT court, case_no, item_no FROM sold_listings "  # noqa: S608 — 플레이스홀더만
+        f"WHERE (court, case_no, item_no) IN ({ph})", flat)]
+    if not hit:
+        return []
     with conn:
-        cur = conn.executemany(
-            "DELETE FROM sold_listings WHERE court=? AND case_no=? AND item_no=?", keys)
-    return cur.rowcount if cur.rowcount and cur.rowcount > 0 else 0
+        conn.executemany(
+            "DELETE FROM sold_listings WHERE court=? AND case_no=? AND item_no=?", hit)
+    return hit
 
 
 def load_sold(conn: sqlite3.Connection, limit: int = 200,

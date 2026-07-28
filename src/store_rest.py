@@ -530,6 +530,32 @@ def upsert_sold(rows: list[dict]) -> int:
     return _post_upsert(url, key, SOLD_TABLE, rows)
 
 
+def delete_sold(keys: list[tuple[str, str, str]]) -> int:
+    """낙찰 기록에서 제거된 물건을 **클라우드에서도** 지운다.
+
+    (2026-07-28 실사고) `store.drop_sold_revived` 가 재매각 부활 물건을 로컬에서 지웠는데
+    미러는 upsert 만 하고 삭제 경로가 없어 **클라우드에만 남았다** — 실측: 서울남부
+    2024타경6219(물건2)가 프로덕션에서 홈(진행 중)과 /sold(낙찰 종결) 양쪽에 동시 노출.
+    로컬↔클라우드 대조(scripts/verify_claims.py)가 2,475 vs 2,476 으로 잡아냈다.
+    삭제는 건별로 확실하게 — 실패는 세어서 호출부가 보고하게 한다(조용한 실패 금지).
+    """
+    if not keys:
+        return 0
+    url, key, _ = _cfg()
+    n = 0
+    for court, case_no, item_no in keys:
+        try:
+            r = requests.delete(
+                _endpoint(url, SOLD_TABLE), headers=_headers(key),
+                params={"court": f"eq.{court}", "case_no": f"eq.{case_no}",
+                        "item_no": f"eq.{item_no}"}, timeout=15)
+            r.raise_for_status()
+            n += 1
+        except Exception as e:  # noqa: BLE001 — 한 건 실패가 나머지를 막지 않게
+            logger.warning("낙찰 클라우드 삭제 실패(%s %s %s): %s", court, case_no, item_no, e)
+    return n
+
+
 def fetch_sold(limit: int = 200) -> list[dict]:
     """낙찰 목록(클라우드) — 매각기일 최신순. 실패는 빈 리스트(페이지 정상).
 

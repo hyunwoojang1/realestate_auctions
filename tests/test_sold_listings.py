@@ -650,3 +650,26 @@ def test_special_label_only_when_market_exists(tmp_path, monkeypatch):
     body = create_app().test_client().get("/sold").get_data(as_text=True)
     assert body.count('">비교 불가 <span') == 1                      # 게이트 건만
     assert body.count('<div class="v na">시세 미추정</div>') == 1    # 시세없음 건만
+
+
+def test_drop_sold_revived_returns_deleted_keys(tmp_path):
+    """(2026-07-28 실사고) 삭제한 **키를 돌려줘야** 클라우드에서도 같은 행을 지울 수 있다.
+
+    종전엔 건수만 반환해 로컬만 지워졌고, 재매각 부활 물건이 클라우드에 남아 프로덕션에서
+    홈(진행 중)과 /sold(낙찰 종결)에 **동시 노출**됐다(실측: 서울남부 2024타경6219 물건2).
+    로컬↔클라우드 대조가 2,475 vs 2,476 으로 잡아낸 결함.
+    """
+    conn = store.connect(str(tmp_path / "rev.db"))
+    store.upsert_sold(conn, [_sold_row("2025타경1"), _sold_row("2025타경2")])
+    revived = _scored_obj("2025타경1", "2026-08-01")      # 재매각으로 활성에 재등장
+    keys = store.drop_sold_revived(conn, [revived])
+    assert keys == [("서울중앙지방법원", "2025타경1", "1")]   # 건수가 아니라 키
+    assert {r["case_no"] for r in store.load_sold(conn)} == {"2025타경2"}
+
+
+def test_drop_sold_revived_ignores_unknown_keys(tmp_path):
+    """낙찰 기록에 없던 활성 물건은 조용히 무시 — 없는 키를 지웠다고 보고하면 안 된다."""
+    conn = store.connect(str(tmp_path / "rev2.db"))
+    store.upsert_sold(conn, [_sold_row("2025타경1")])
+    assert store.drop_sold_revived(conn, [_scored_obj("2025타경999", "2026-08-01")]) == []
+    assert len(store.load_sold(conn)) == 1

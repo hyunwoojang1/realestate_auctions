@@ -292,7 +292,7 @@ def main(argv=None) -> int:
             # maeAmt 라 이 충돌은 우연이 아니라 구조적으로 발생한다).
             _revived = store.drop_sold_revived(conn, scored)
             if _revived:
-                print(f"  ↩ 재매각 부활로 낙찰 기록에서 제외: {_revived}건")
+                print(f"  ↩ 재매각 부활로 낙찰 기록에서 제외: {len(_revived)}건")
             sold_rows = _collect_sold_snapshot(conn, scored)
             if sold_rows:
                 store.upsert_sold(conn, sold_rows)
@@ -346,6 +346,19 @@ def main(argv=None) -> int:
                 if not args.json:
                     print(f"  ☁ Supabase 미러링: {cn}건 "
                           f"({'전량교체' if full_snapshot else '병합'})")
+                # (2026-07-28) 재매각 부활분은 클라우드에서도 **삭제**해야 한다 — upsert 만
+                # 미러하면 로컬에서 지운 물건이 클라우드에 남아 프로덕션에서 홈(진행 중)과
+                # /sold(낙찰 종결)에 동시 노출된다(실측: 서울남부 2024타경6219 물건2).
+                if _revived:
+                    try:
+                        dn = store_rest.delete_sold(_revived)
+                        if not args.json:
+                            print(f"  ↩ 낙찰 부활 클라우드 삭제: {dn}/{len(_revived)}건")
+                        if dn < len(_revived) and not args.json:
+                            print(f"  ⚠ 클라우드 삭제 누락 {len(_revived) - dn}건 — "
+                                  f"다음 새로고침까지 양쪽 동시 노출됨", file=sys.stderr)
+                    except Exception as e:  # noqa: BLE001 — 삭제 실패는 비차단(로그로 남긴다)
+                        print(f"  ⚠ 낙찰 부활 클라우드 삭제 실패: {e}", file=sys.stderr)
                 # (C2 2026-07-27) 낙찰(종결) 보존분 미러 — 클라우드 /sold·상세 낙찰모드 원천.
                 if sold_rows:
                     try:
