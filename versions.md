@@ -40,6 +40,14 @@ CPU 음수. 교훈을 전부 코드 주석에 박았다.
 backup 689MB). 전량 복구 + `deploy.ps1` 에 **자가복구 가드** 추가 — 잔여물이 있으면 먼저
 되돌리고, 되돌릴 자리에 파일이 있으면 덮어쓰지 않고 중단한다(molit 214MB 가 이 경로로 소실).
 
+### 🔴 배포 캐시 소실의 **진짜 원인**을 찾았다
+`deploy.ps1 | Select-String ... | Select-Object -First N` 으로 실행해 왔는데,
+`Select-Object -First N` 은 N개를 받으면 **파이프라인 상류를 종료**시킨다 → deploy.ps1 의
+`finally`(캐시 원위치 복원)가 중간에 끊긴다. 그래서 배포는 "성공"으로 보이는데 대형 캐시가
+stash 에 갇히고, 다음 배포의 `Move-Item -Force` 가 원본을 덮어써 영구 소실된다.
+**molit_trades.db 214MB 소실의 원인이 이것이었다.** 오늘 배포에서도 재현(molit 만 복원되고
+naver 215MB·courtauction 93MB 가 stash 에 잔류) → 즉시 복원 + `CLAUDE.md §0.6` 규칙 신설.
+
 ### 검증 (verify_claims --prod)
 정책 우회 0건(신뢰 출처 아닌 시세 보유 0) · 차익 상위 10 오염 0건 · 활성 충돌 0건 ·
 로컬↔클라우드 일치 · 프로덕션 /health 200. 낙찰 2,475건 중 시세 281건(11.4%)·점수 113건(4.6%)

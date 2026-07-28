@@ -17,6 +17,24 @@
 `auction-arbitrage-hyunwoo-jang-s-projects.vercel.app`
 (⚠️ 무접미사 `auction-arbitrage.vercel.app`은 **남의 앱** — 절대 혼동 금지).
 
+## 0.6 절대 규칙 — 배포 출력을 파이프로 자르지 말 것 (2026-07-28 사고)
+
+**`scripts/deploy.ps1` 을 `| Select-Object -First N` 으로 잘라 실행하지 말 것.**
+
+`Select-Object -First N` 은 N개를 받는 순간 **파이프라인 상류를 종료**시킨다. 그러면
+deploy.ps1 의 `finally` 블록(대형 캐시 원위치 복원)이 중간에 끊겨, `%TEMP%uction_deploy_stash`
+에 파일이 갇힌 채 배포가 "성공"으로 보인다. 그 상태로 다시 배포하면 `Move-Item -Force` 가
+stash 의 **원본을 현재 파일로 덮어써 영구 소실**된다 — `molit_trades.db`(214MB)가 이렇게 날아갔고,
+`naver_cache.json`(215MB)도 두 번 같은 위기를 겪었다.
+
+- ❌ `deploy.ps1 | Select-String ... | Select-Object -First 4`
+- ✅ `deploy.ps1` 그대로 실행하고, 필요하면 **끝난 뒤** 출력을 살펴본다
+  (`$out = & deploy.ps1 2>&1; $out | Select-String 'ready'`)
+- 배포 후에는 **stash 가 비었는지 반드시 확인**한다:
+  `ls "$env:TEMPuction_deploy_stash"` → 비어 있어야 정상.
+- deploy.ps1 자체에도 자가복구 가드가 있다(잔여물 먼저 복원, 충돌 시 중단) — 하지만 그건
+  **다음 배포 때** 도는 것이라, 그 사이 크롤이 캐시 없이 돌면 국토부를 전량 재조회한다.
+
 ## 0.7 절대 규칙 — 표본으로 전체를 단언하지 않는다 (사용자 지시 2026-07-28)
 
 사용자 지적: "왜 항상 거짓 보고를 하나." 되짚어 보면 원인이 하나다 —
