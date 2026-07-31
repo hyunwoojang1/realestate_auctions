@@ -95,32 +95,27 @@ $prevEAP = $ErrorActionPreference
 $ErrorActionPreference = "Continue"
 Push-Location $RepoRoot
 try {
-    # --- 네이버 증분 (main 채점 전) — 어제 매물 기준 신규 매칭 + 오래된 쌍 실거래 갱신 ---
-    #     실패해도 채점을 막지 않는다(네이버는 보조 시세). 신규 물건은 이번 채점 후 다음날 매칭됨(1일 지연 허용).
-    #     -SkipNaver 로 건너뛸 수 있다(안티밴 사고 시).
-    if (-not $SkipNaver) {
-        "--- 네이버 Phase A(신규 매칭) ---" | Tee-Object -FilePath $LogPath -Append
-        & $Python -m deploy.crawl_naver --db $DbPath 2>&1 | Tee-Object -FilePath $LogPath -Append
-        "--- 네이버 Phase B(증분 실거래 >$NaverStaleDays일) ---" | Tee-Object -FilePath $LogPath -Append
-        & $Python -m deploy.crawl_naver --backfill-real --incremental --stale-days $NaverStaleDays 2>&1 | Tee-Object -FilePath $LogPath -Append
-    } else {
-        "--- 네이버 증분 건너뜀(-SkipNaver) ---" | Tee-Object -FilePath $LogPath -Append
-    }
-
     # ══ 증분 파이프라인(2026-07-23 재배선): 발견 → 보강 → 재채점 ══
     # 법원엔 '변경 피드' API가 없어 증분은 diff 로 만든다: [1] 리스트 전량 스윕(싸다)이 신규·소멸을
     # 발견하고, [2][3] 상세 보강(비싸다)은 diff 가 고른 신규+변경만, [4] 재채점이 같은 날 반영한다.
     # 종전엔 권리 크롤이 run.py **앞**이라 오늘 발견된 신규 물건은 내일에야 권리가 붙었다(1일 지연).
 
-    # --- [1/4] 발견+1차 채점: courtauction 리스트 전량 + 국토부 시세 + Supabase ---
+    # ⚠️ (2026-07-31 실사고) 네이버 증분이 **여기 맨 앞**에 있었다. 그런데 네이버는 안티밴 대기가
+    #    많아 느리고(실측 2시간 초과), 스케줄러 ExecutionTimeLimit 에 걸리면 **본 크롤이 한 줄도
+    #    못 돌고 통째로 죽는다**. 7/29·7/31 이 정확히 그렇게 날아갔다(네이버 86%·64% 지점에서 강제
+    #    종료, 경매 크롤 0회). 우선순위가 거꾸로였다 — 경매 리스트는 매일 안 받으면 낙찰 diff 가
+    #    끊겨 **복구 불가 소실**이고, 네이버는 보조 시세라 하루 밀려도 다음날 따라잡는다.
+    #    그래서 네이버를 [4/5]로 내렸다. 재채점([5/5])보다는 앞이라 **같은 날 시세가 반영**된다.
+
+    # --- [1/5] 발견+1차 채점: courtauction 리스트 전량 + 국토부 시세 + Supabase ---
     & $Python @runArgs 2>&1 | Tee-Object -FilePath $LogPath -Append
     $code = $LASTEXITCODE
 
-    # --- [2/4] 권리 보강(물건상세 명세서 요지): 오늘 발견된 신규 + 기일갱신(유찰 새 회차) 재보강 ---
+    # --- [2/5] 권리 보강(물건상세 명세서 요지): 오늘 발견된 신규 + 기일갱신(유찰 새 회차) 재보강 ---
     #     상위 N건(보수차익 우선), 일일캡·킬스위치(COURTAUCTION_STOP)는 CourtAuctionClient가 관리.
     #     실패해도 재채점을 막지 않는다. -SkipRights 로 건너뜀(안티밴 사고 시).
     if (-not $SkipRights) {
-        "--- [2/4] 권리 크롤(신규+재보강, 상위 $RightsLimit건) ---" | Tee-Object -FilePath $LogPath -Append
+        "--- [2/5] 권리 크롤(신규+재보강, 상위 $RightsLimit건) ---" | Tee-Object -FilePath $LogPath -Append
         & $Python -m deploy.crawl_rights --db $DbPath --limit $RightsLimit --cap $DetailCap 2>&1 | Tee-Object -FilePath $LogPath -Append
         # (D3 2026-07-22) 권리크롤 종료코드를 **같은 블록에서 즉시** 캡처 — 종전엔 뒤이은 run.py가
         # $LASTEXITCODE를 덮어써 차단(2)·드리프트/실패(3) 승격이 무시됐다(안티밴·침묵실패 방어 무력).
@@ -131,15 +126,15 @@ try {
             "[!] 권리크롤 실패율/스키마 드리프트 과다(exit 3) — 파서-응답 불일치. 파서 점검 필요." | Tee-Object -FilePath $LogPath -Append
         }
     } else {
-        "--- [2/4] 권리 크롤 건너뜀(-SkipRights) ---" | Tee-Object -FilePath $LogPath -Append
+        "--- [2/5] 권리 크롤 건너뜀(-SkipRights) ---" | Tee-Object -FilePath $LogPath -Append
     }
 
-    # --- [3/4] 현황조사서(B-2) 일일 백필 — 대항력 여지 판정 원천 (P-08/P-10 배선) ---
+    # --- [3/5] 현황조사서(B-2) 일일 백필 — 대항력 여지 판정 원천 (P-08/P-10 배선) ---
     #     우선순위: 추천등급+인수권리란 빈칸(초록으로 팔리는데 검증 원천이 막혀있던 클래스) →
     #     권리미확인. tenant_checks 마커로 미시도 물건만(빈 결과도 기록 → 매일 재크롤 안 함).
     #     요청예산은 BUDGET_FILE 로 [2]와 합산 관리(-cap $DetailCap).
     if (-not $SkipRights -and -not $SkipTenants) {
-        "--- [3/4] 현황조사서 백필(상위 $TenantsLimit건, 물건당 2요청) ---" | Tee-Object -FilePath $LogPath -Append
+        "--- [3/5] 현황조사서 백필(상위 $TenantsLimit건, 물건당 2요청) ---" | Tee-Object -FilePath $LogPath -Append
         & $Python -m deploy.crawl_rights --db $DbPath --tenants-backfill --limit $TenantsLimit --cap $DetailCap 2>&1 | Tee-Object -FilePath $LogPath -Append
         $tenantsCode = $LASTEXITCODE
         if ($tenantsCode -eq 2) {
@@ -148,14 +143,28 @@ try {
             "[!] 현황조사서 실패율/드리프트 과다(exit 3) — 파서 점검 필요." | Tee-Object -FilePath $LogPath -Append
         }
     } else {
-        "--- [3/4] 현황조사서 백필 건너뜀 ---" | Tee-Object -FilePath $LogPath -Append
+        "--- [3/5] 현황조사서 백필 건너뜀 ---" | Tee-Object -FilePath $LogPath -Append
     }
 
-    # --- [4/4] 재채점 — 오늘 보강분(권리·임차인)을 같은 날 등급·미러에 반영 ---
+    # --- [4/5] 네이버 증분 — 신규 매칭(Phase A) + 오래된 쌍 실거래 갱신(Phase B) ---
+    #     실패해도 재채점을 막지 않는다(네이버는 보조 시세). -SkipNaver 로 건너뜀(안티밴 사고 시).
+    #     여기(재채점 직전)에 두는 이유는 위 [1/5] 앞 주석 참조 — 앞에 두면 느린 네이버가
+    #     시간 예산을 다 먹고 경매 크롤을 굶긴다(7/29·7/31 실사고). 재채점보다는 앞이라
+    #     오늘 수집한 시세가 **같은 날 등급·미러에 반영**된다.
+    if (-not $SkipNaver) {
+        "--- [4/5] 네이버 Phase A(신규 매칭) ---" | Tee-Object -FilePath $LogPath -Append
+        & $Python -m deploy.crawl_naver --db $DbPath 2>&1 | Tee-Object -FilePath $LogPath -Append
+        "--- [4/5] 네이버 Phase B(증분 실거래 >$NaverStaleDays일) ---" | Tee-Object -FilePath $LogPath -Append
+        & $Python -m deploy.crawl_naver --backfill-real --incremental --stale-days $NaverStaleDays 2>&1 | Tee-Object -FilePath $LogPath -Append
+    } else {
+        "--- [4/5] 네이버 증분 건너뜀(-SkipNaver) ---" | Tee-Object -FilePath $LogPath -Append
+    }
+
+    # --- [5/5] 재채점 — 오늘 보강분(권리·임차인·네이버 시세)을 같은 날 등급·미러에 반영 ---
     #     --from-cache: [1]이 방금 저장한 캐시 재사용(courtauction 재크롤 0). 국토부는 캐시DB로
     #     닫힌 달 0호출. FromCache 모드(오프라인 검증)에선 [1]과 동일 실행이라 생략.
     if (-not $FromCache) {
-        "--- [4/4] 재채점(--from-cache, 보강분 반영) ---" | Tee-Object -FilePath $LogPath -Append
+        "--- [5/5] 재채점(--from-cache, 보강분 반영) ---" | Tee-Object -FilePath $LogPath -Append
         $rescoreArgs = @("run.py", "--source", "courtauction", "--db", $DbPath, "--cash", "$Cash",
                          "--max-pages", "$MaxPages", "--from-cache")
         if ($Live) { $rescoreArgs += @("--live", "--live-months", "$LiveMonths") }

@@ -48,8 +48,12 @@ $argLine = "-NoProfile -ExecutionPolicy Bypass -File `"$RefreshPs`" -Live -Cash 
 
 $action    = New-ScheduledTaskAction -Execute $PwshExe -Argument $argLine -WorkingDirectory $RepoRoot
 $trigger   = New-ScheduledTaskTrigger -Daily -At $Time
+# ExecutionTimeLimit: 2h → 5h (2026-07-31). 2h 로는 5단계 파이프라인이 못 끝난다 —
+# 7/28 완주 실측이 3시간 20분(네이버 포함)이었는데 한계가 2h 라 7/29·7/31 이 통째로
+# 강제종료됐다(LastTaskResult=267014 = SCHED_S_TASK_TERMINATED). 한계에 걸리면 Windows 가
+# 프로세스를 죽일 뿐 아무것도 보고하지 않아 **조용한 실패**가 된다. 5h 는 완주 실측의 1.5배.
 $settings  = New-ScheduledTaskSettingsSet -StartWhenAvailable -RunOnlyIfNetworkAvailable `
-                -MultipleInstances IgnoreNew -ExecutionTimeLimit (New-TimeSpan -Hours 2)
+                -MultipleInstances IgnoreNew -ExecutionTimeLimit (New-TimeSpan -Hours 5)
 # 등록 전에 비활성으로 만든다 → Register 시점부터 Disabled. 등록↔Disable 사이 발화 레이스 원천 제거.
 $settings.Enabled = $false
 $principal = New-ScheduledTaskPrincipal -UserId $env:USERNAME -LogonType Interactive -RunLevel Limited
