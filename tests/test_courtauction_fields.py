@@ -196,6 +196,19 @@ def test_qa0726_long_corp_names_preserved():
         assert mask_personal_names(t) == t, t
 
 
+def test_kepco_short_form_preserved():
+    """(2026-07-31) 약칭 '한국전력' — 커밋 게이트가 실명 의심으로 잡아 커밋을 막던 오탐.
+
+    '한국전력공사'는 접미사 '공사'로 이미 보존됐지만 약칭에는 접미사가 없어 구멍이었다.
+    한전은 법인이고 송전선로 구분지상권은 매수인이 알아야 할 **공시정보**라, [성명]으로
+    지우면 위험 신호 자체가 사라진다(실측: 부산 2024타경11154 '지상권자 한국전력').
+    """
+    assert mask_personal_names("지상권자 한국전력") == "지상권자 한국전력"
+    assert mask_personal_names("지상권자 한국전력공사") == "지상권자 한국전력공사"
+    # 회귀가드 — 법인 보존을 넓혀도 자연인은 그대로 마스킹된다.
+    assert mask_personal_names("지상권자 홍길동") == "지상권자 [성명]"
+
+
 def test_qa0726_document_words_not_masked():
     """(QA 2026-07-26) '채권자 제출 보정서'·'채권자 확약서 제출' — 서류·행위어는 성명이 아니다."""
     assert mask_personal_names("2025.03.18.자 채권자 제출 보정서에 첨부되어 있음") \

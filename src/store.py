@@ -16,6 +16,13 @@ from .models import ScoredListing
 
 SCHEMA_VERSION = 7
 
+# IN (...) 을 물건 수만큼 펼치는 쿼리의 청크 크기(**키 개수** 단위, 바인드 개수 아님).
+# SQLite 의 SQLITE_LIMIT_VARIABLE_NUMBER 는 3.32+ 에서 32,766 이고, 복합키 (court,case_no,item_no)
+# 는 키 1개당 바인드 3개를 쓴다 → 이론상 10,922키가 상한. 여유를 두고 4,000키(=12,000바인드)로
+# 자른다. 상한은 앞으로도 안 커지는데 전국 활성 물건 수는 계속 커지므로 청크가 유일한 안전판이다.
+# (2026-07-31 실사고: 활성 14,409건에서 `too many SQL variables` → 낙찰 보존 전면 중단)
+_SQL_VAR_CHUNK = 4000
+
 DDL = """
 CREATE TABLE IF NOT EXISTS scored_listings (
     case_no TEXT NOT NULL,
@@ -854,11 +861,21 @@ def drop_sold_revived(conn: sqlite3.Connection, active) -> list[tuple[str, str, 
         return []
     # 실제로 sold 에 있던 키만 추린다 — 클라우드에서도 같은 키를 지워야 하기 때문이다
     # (2026-07-28 실사고: 로컬만 지우고 미러를 안 지워 프로덕션에서 양쪽 동시 노출).
-    ph = ",".join(["(?,?,?)"] * len(keys))
-    flat = [v for k in keys for v in k]
-    hit = [tuple(r) for r in conn.execute(
-        f"SELECT court, case_no, item_no FROM sold_listings "  # noqa: S608 — 플레이스홀더만
-        f"WHERE (court, case_no, item_no) IN ({ph})", flat)]
+    #
+    # ⚠️ (2026-07-31 실사고) 이 SELECT 를 한 방에 날리면 **활성 물건이 많을수록 반드시 깨진다**.
+    # 키 1개당 바인드 3개인데 SQLite 한계는 SQLITE_LIMIT_VARIABLE_NUMBER=32,766 → **10,922키가
+    # 상한**이다. 전국 활성이 14,409건이던 7/30 크롤에서 `too many SQL variables` 로 터졌고,
+    # run.py 의 except 가 이를 '비차단'으로 삼켜 **낙찰 보존 블록 전체가 통째로 스킵**됐다
+    # (7/29~7/31 낙찰분 소실 · sold_listings 2,475 에서 정지). 테스트는 소형 픽스처라 못 잡았다.
+    # 따라서 청크로 나눠 조회한다 — 한계는 커지지 않고 활성 건수는 계속 커지기 때문이다.
+    hit: list[tuple[str, str, str]] = []
+    for i in range(0, len(keys), _SQL_VAR_CHUNK):
+        chunk = keys[i:i + _SQL_VAR_CHUNK]
+        ph = ",".join(["(?,?,?)"] * len(chunk))
+        flat = [v for k in chunk for v in k]
+        hit.extend(tuple(r) for r in conn.execute(
+            f"SELECT court, case_no, item_no FROM sold_listings "  # noqa: S608 — 플레이스홀더만
+            f"WHERE (court, case_no, item_no) IN ({ph})", flat))
     if not hit:
         return []
     with conn:

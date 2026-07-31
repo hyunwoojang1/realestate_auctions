@@ -673,3 +673,25 @@ def test_drop_sold_revived_ignores_unknown_keys(tmp_path):
     store.upsert_sold(conn, [_sold_row("2025타경1")])
     assert store.drop_sold_revived(conn, [_scored_obj("2025타경999", "2026-08-01")]) == []
     assert len(store.load_sold(conn)) == 1
+
+
+def test_drop_sold_revived_survives_sqlite_variable_limit(tmp_path):
+    """(2026-07-31 실사고 회귀) 활성 물건이 SQLite 바인드 한계를 넘어도 동작해야 한다.
+
+    복합키 (court, case_no, item_no) 는 키당 바인드 3개를 쓰는데 SQLITE_LIMIT_VARIABLE_NUMBER
+    는 32,766 이라 **10,922키가 상한**이다. 종전 구현은 활성 전량을 한 IN(...) 에 펼쳐,
+    전국 활성이 14,409건이 된 7/30 크롤에서 `too many SQL variables` 로 터졌다. run.py 의
+    except 가 이를 '비차단'으로 삼켜 **낙찰 보존 블록이 통째로 스킵**됐고, 7/29~7/31 낙찰분이
+    조용히 사라졌다(sold_listings 2,475 에서 정지). 기존 테스트는 물건 1~2건짜리 픽스처라
+    한계를 건드리지 못해 1,060개가 전부 통과한 채 프로덕션에서 터졌다 — 그래서 **규모**를
+    재현하는 이 테스트가 필요하다.
+    """
+    conn = store.connect(str(tmp_path / "rev3.db"))
+    store.upsert_sold(conn, [_sold_row("2025타경1"), _sold_row("2025타경2")])
+    # 한계(10,922키) 를 확실히 넘기는 활성 목록 — 그중 1건만 실제로 sold 에 있다.
+    active = [_scored_obj(f"2025타경{i}", "2026-08-01") for i in range(1, 12_000)]
+    assert len(active) > 10_922, "한계를 넘지 못하면 회귀를 재현하지 못한다"
+    keys = store.drop_sold_revived(conn, active)
+    assert set(keys) == {("서울중앙지방법원", "2025타경1", "1"),
+                         ("서울중앙지방법원", "2025타경2", "1")}
+    assert store.load_sold(conn) == []

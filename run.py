@@ -259,6 +259,12 @@ def main(argv=None) -> int:
     # 기존 scored 대비 FLOOR(기본 0.8) 미만이면 만료가 아니라 수집부실로 보고 병합 강등(prune 스킵).
     # NATIONWIDE_PARTIAL(차단)과 0건(아래)은 별도 처리하므로, 여기선 '차단은 없었는데 수만 급감'을 잡는다.
     sold_rows: list[dict] = []   # (C2) 낙찰 보존분 — 전량교체 분기에서 채워져 클라우드 미러까지 전달
+    # (2026-07-31 실사고) `_revived` 도 **여기서** 초기화한다. 종전엔 아래 try 안에서만 대입돼,
+    # 보존 블록이 예외로 빠지면(실제: too many SQL variables) 미러 단계의 `if _revived:` 가
+    # UnboundLocalError 를 던지고 → 그걸 감싼 except 가 **Supabase 미러 전체를 실패로 삼켰다**.
+    # 즉 결함 하나가 두 단계를 연쇄로 죽였다. 초기화를 분기 밖으로 올려 연쇄를 끊는다.
+    _revived: list[tuple[str, str, str]] = []
+    sold_preserve_failed = False   # 낙찰 보존 실패 → 종료코드 4(스케줄러 urgent 알림)
     if args.source == "courtauction" and use_live and full_snapshot and scored:
         _prior = conn.execute("SELECT COUNT(*) FROM scored_listings").fetchone()[0]
         _floor = float(os.environ.get("AUCTION_COVERAGE_FLOOR", "0.8"))
@@ -299,7 +305,12 @@ def main(argv=None) -> int:
                 _with_price = sum(1 for r in sold_rows if r.get("sold_price"))
                 print(f"  🏁 낙찰(종결) 보존: {len(sold_rows)}건 (실낙찰가 보유 {_with_price}건)")
         except Exception as _e:  # noqa: BLE001 — 보존 실패가 새로고침을 막으면 안 됨
-            print(f"  ⚠ 낙찰 보존 실패(비차단): {_e}", file=sys.stderr)
+            # (2026-07-31) '비차단'이 '조용함'이 되면 안 된다. 이 블록이 실패하면 **오늘 낙찰된
+            # 물건이 영구 소실**된다 — 활성 목록에서 사라지고 sold 에도 안 남으므로 다시 주울
+            # 경로가 없다. 실제로 7/29~7/31 낙찰분이 이렇게 날아갔는데, exit 0 이라 스케줄러
+            # 알림이 '성공(min 우선순위)'으로 떴다. 이제 종료코드로 승격해 urgent 알림을 띄운다.
+            print(f"  ⚠ 낙찰 보존 실패(데이터 소실 위험): {_e}", file=sys.stderr)
+            sold_preserve_failed = True
         n = store.replace_all(conn, scored)
         # scored 전량교체 후 대응 물건이 사라진 고아 자식행 정리(무한누적 방지·중복 제거).
         # (E2 2026-07-22) rights 뿐 아니라 photos·naver 도 정리(고아 6578·1700 실측).
@@ -403,7 +414,7 @@ def main(argv=None) -> int:
 
     if args.json:
         print(report.to_json(view))
-        return 0
+        return 4 if sold_preserve_failed else 0
 
     print(report.to_console(view))
     print(f"\n저장(전체): {n}건 · 표시(필터 후): {len(view)}건 → {db_path}")
@@ -413,6 +424,10 @@ def main(argv=None) -> int:
     html_path = report.to_html(view, EVID / "result.html")
     print(f"증거: {csv_path}")
     print(f"증거: {html_path}")
+    if sold_preserve_failed:
+        print("  ⛔ 낙찰 보존이 실패한 채 끝났다 — 오늘 종결된 물건이 소실됐을 수 있다. "
+              "exit 4 로 알린다.", file=sys.stderr)
+        return 4
     return 0
 
 
