@@ -1,5 +1,43 @@
 # versions.md — auction-arbitrage 루프 작업 로그 (append-only, 최신순)
 
+## 2026-07-31 13:05 KST — 🔴 배포 직후 프로덕션 전면 404 → 롤백·원인규명·수정
+
+오늘치 크롤을 배포하자마자 **프로덕션 전 경로가 404** 가 됐다. 즉시 롤백했고(`vercel promote`
+직전 배포 → /health·/·/sold 200 회복), 그 뒤 원인을 규명했다.
+
+### 원인 — 내 코드가 아니라 Vercel 플랫폼 동작 변경
+빌드 로그에 경고가 있었다:
+> Internal rewrites in backend framework projects now route requests using the rewritten
+> destination path.
+
+`vercel.json` 이 `{"source":"/(.*)","destination":"/api/index"}` 로 **목적지가 고정 문자열**이라,
+새 동작에선 Flask 가 원래 경로 대신 늘 `/api/index` 를 받는다 → 라우트 미매칭 → 전 경로 404.
+런타임 로그가 `λ GET /api/index 404` 로 그대로 보여줬다(실제 요청은 `/health`).
+
+**통제 실험으로 코드 무관을 증명**: 현재 프로덕션 커밋(3164621) **그대로** + rewrite 만 제거해
+프리뷰 배포 → `/health`·`/` 200 회복. 즉 오늘 커밋(0825815·b4a0a36)과 무관하다.
+
+### 수정
+`vercel.json` 목적지를 `/api/index/$1` 로 바꿔 **원래 경로를 실어 보내고**, `api/index.py` 의
+새 `_StripRewritePrefix` 미들웨어가 접두를 떼어 복원한다. 원래 경로를 담은 헤더는 **없다** —
+프리뷰에서 WSGI environ 을 통째로 덤프해 확인했다(`x-vercel-original-path` 류 부재).
+미들웨어 순서: 접두 제거 → 퍼센트 디코딩 → Flask.
+
+### 🟡 조사 중 스스로 만든 함정 (기록해 둔다)
+프리뷰에서 상세 페이지가 404 나길래 **경로 인코딩 문제로 오해**하고 latin-1/utf-8 디코딩을
+바꿔가며 배포를 여러 번 돌렸다. 실제로는 **프리뷰 배포에 Production 환경변수가 안 붙어서**
+Supabase 를 못 읽은 것이었다(`store_rest.enabled(): False`,
+`AttributeError: 'NoneType' object has no attribute 'rstrip'`). 임시 `/__echo` 라우트로
+Flask 가 받은 값을 직접 찍고서야 드러났다 — 경로는 **처음부터 정상**이었다(`'2025타경463'`).
+교훈: 프리뷰로 라우팅을 판정할 땐 `/health`·`/stats` 처럼 **데이터 없이도 200 인 경로**로
+보고, 상세 404 는 환경변수 부재를 먼저 의심할 것. 주석에 박아 뒀다.
+
+### 증거
+- 임시 진단 코드(`_WsgiDiag`·`/__echo`)는 **전량 제거**(OIDC 토큰·프록시 서명이 노출된다).
+- 신규 회귀 테스트 `tests/test_vercel_entrypoint.py` 9종 — vercel.json 목적지와 미들웨어가
+  **짝**이라는 사실을 고정한다(둘 중 하나만 되돌리면 프로덕션 전면 404인데 배포 전엔 안 보인다).
+- 전체 `1,075 passed · 1 skipped` · `ruff clean`.
+
 ## 2026-07-31 11:35 KST — 재매각 보증금 경고가 확정 근거를 안 보고 있었다(91건 누락)
 
 오늘 크롤이 낙찰·재매각을 제대로 잡는지 검증하다가 발견. 상세페이지 보증금 경고가
