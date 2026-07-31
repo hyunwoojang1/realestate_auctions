@@ -54,10 +54,22 @@ def build_rows(conn) -> list[dict]:
         return []
     active = {(r[0], r[1], r[2]) for r in conn.execute(
         "SELECT court, case_no, item_no FROM scored_listings")}
+    # (2026-07-31 실사고) 이미 sold 에 있는 키는 **기존 행을 먼저 읽어** 시세·차익 컬럼을
+    # 물려받는다. store.upsert_sold 가 INSERT OR REPLACE 라, 여기서 시세를 None 으로 넣으면
+    # C2 diff 가 완전한 채점 스냅샷으로 저장해 둔 값이 **통째로 지워진다**(실측: 재실행 한 번에
+    # 낙찰 중 시세 보유 398 → 356, 42건 소실). '모름을 지어내지 않는다'의 짝은
+    # **아는 것을 지우지 않는다** 이다.
+    existing: dict[tuple[str, str, str], dict] = {}
+    conn.row_factory = __import__("sqlite3").Row
+    for r in conn.execute("SELECT * FROM sold_listings"):
+        d = dict(r)
+        existing[(d["court"], d["case_no"], d["item_no"])] = d
+    _CARRY = ("est_market_price", "market_band_low", "profit_low", "expected_profit",
+              "arb_score", "grade", "market_scope", "matched_trades", "confidence")
     latest = _latest_raw_by_key(conn)
     now = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
     rows: list[dict] = []
-    skipped_active = skipped_noraw = 0
+    skipped_active = skipped_noraw = carried = 0
     for key, amt in amounts.items():
         if key in active:
             skipped_active += 1
@@ -71,19 +83,26 @@ def build_rows(conn) -> list[dict]:
         except Exception:  # noqa: BLE001 — 옛 원본 파싱 실패는 건너뜀(지어내지 않음)
             skipped_noraw += 1
             continue
-        rows.append({
+        row = {
             "court": key[0], "case_no": key[1], "item_no": key[2],
             "apt_name": lst.apt_name, "address": lst.address,
             "property_type": lst.property_type, "area_m2": lst.area_m2,
             "appraisal_price": lst.appraisal_price, "min_bid_price": lst.min_bid_price,
             "fail_count": lst.fail_count, "sale_date": lst.sale_date,
-            # 과거 채점 스냅샷은 미보존 — 시세·차익 필드는 NULL(모름을 지어내지 않음)
+            # 과거 채점 스냅샷은 미보존 — **신규 키**의 시세·차익 필드는 NULL(모름을 지어내지 않음)
             "est_market_price": None, "market_band_low": None,
             "profit_low": None, "expected_profit": None, "arb_score": None, "grade": "",
             "sold_price": amt, "sold_evidence": "maeAmt", "snapshot_at": now,
-        })
+        }
+        prev = existing.get(key)
+        if prev:                      # 이미 있던 키 → 아는 값(시세·차익)은 그대로 물려받는다
+            for c in _CARRY:
+                if prev.get(c) not in (None, ""):
+                    row[c] = prev[c]
+            carried += 1
+        rows.append(row)
     print(f"[백필] maeAmt 보유 {len(amounts):,}키 → 적재 대상 {len(rows):,} "
-          f"(활성 제외 {skipped_active}·원본 결손 {skipped_noraw})")
+          f"(활성 제외 {skipped_active}·원본 결손 {skipped_noraw}·기존 시세 승계 {carried})")
     return rows
 
 

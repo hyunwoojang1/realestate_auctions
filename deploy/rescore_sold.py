@@ -113,7 +113,19 @@ def main(argv=None) -> int:
     # 키로 다시 맞춘다(위치 대응으로 짝지으면 다른 물건의 시세를 덮어쓴다).
     by_key = {(s.court, s.case_no, str(s.item_no or "")): s for s in scored}
 
-    updates, matched, est_ok, dropped = [], 0, 0, []
+    # (2026-07-31 실사고) **빈 칸만 채운다.** 이 스크립트는 원래 '백필로 되살린 행이 전부
+    # 비어 있어서' 만든 채우기 도구인데, 실제로는 값이 있는 행까지 재계산으로 덮어쓰고 있었다.
+    # 낙찰 물건은 활성에서 빠지는 순간 prune_orphan_rights 로 **권리 행이 사라지므로**,
+    # 재계산 점수는 원리상 스냅샷보다 열등하다(권리 없이 채점 → '권리미확인').
+    # 실측 피해: 한 번 돌리자 낙찰 점수 보유가 201 → 4 로 떨어졌다. C2 diff 가 물건이
+    # 사라지던 그 순간(권리·시세가 온전할 때) 떠 둔 스냅샷이 197건 날아갔고 복구 경로가 없다.
+    # 따라서 기존 값이 있으면 보존하고, 비어 있는 칸에만 재계산 결과를 넣는다.
+    prior: dict[tuple[str, str, str], dict] = {}
+    for r in conn.execute("SELECT * FROM sold_listings"):
+        d = dict(r)
+        prior[(d["court"], d["case_no"], d["item_no"])] = d
+
+    updates, matched, est_ok, dropped, kept = [], 0, 0, [], 0
     for court, case_no, item_no in keys:
         s = by_key.get((court, case_no, str(item_no or "")))
         if s is None:
@@ -129,10 +141,20 @@ def main(argv=None) -> int:
         # '정책으로 버려진 것'만 센다 — 애초에 추정이 안 된 행(no_comps 등)은 버린 게 아니다.
         if row["est_market_price"] is not None and cleaned["est_market_price"] is None:
             dropped.append((row["market_scope"], s.apt_name))
+        # 빈 칸만 채운다(위 주석) — 기존 값이 있으면 그걸 남긴다.
+        prev = prior.get((court, case_no, str(item_no or "")))
+        if prev:
+            overwrote = False
+            for c in _WRITE_COLS:
+                if prev.get(c) not in (None, ""):
+                    cleaned[c] = prev[c]
+                    overwrote = True
+            if overwrote:
+                kept += 1
         updates.append(cleaned)
 
     print(f"채점 매칭 {matched}건 · 시세 추정 성공 {est_ok}건 "
-          f"(나머지는 미지원유형·표본부족 — 정상)")
+          f"(나머지는 미지원유형·표본부족 — 정상) · 기존값 보존 {kept}건")
     # 출처 분포를 반드시 보고한다 — 폴백(동 매칭) 비중을 모르고 넘어가면 오염된 시세를
     # 확정 시세처럼 쓰게 된다.
     from collections import Counter  # noqa: PLC0415
