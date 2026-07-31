@@ -1208,11 +1208,19 @@ def create_app() -> Flask:
         from .courtauction_detail import CaseRights as _CR  # noqa: PLC0415
         from .courtauction_detail import resale_history  # noqa: PLC0415
         resale = None
+        # (2026-07-31) 기일 이력을 **실제로 읽었는지** 를 따로 넘긴다. resale=None 은 두 가지
+        # 뜻이 섞여 있다 — "이력을 봤는데 재매각이 아니다"(확정)와 "이력 자체가 없다"(모름).
+        # 보증금 경고는 이 둘을 다르게 다뤄야 한다: 확정이면 그대로 믿고, 모름이면 유찰0회+저감
+        # 추정식으로 보수적 경고를 남긴다(권리 크롤은 전체의 약 절반이라 모름이 흔하다).
+        resale_known = False
         if rights_row:
             try:
-                resale = resale_history(_CR.from_row(rights_row).schedule)
+                _sched = _CR.from_row(rights_row).schedule
+                resale_known = bool(_sched)
+                resale = resale_history(_sched)
             except Exception as e:  # noqa: BLE001 — 재매각 표시는 부가 정보, 페이지를 막지 않음
                 logger.warning("재매각 이력 판정 실패(%s %s): %s", s.court, s.case_no, e)
+                resale_known = False
 
         # (UX 감사 U-01, 2026-07-23) 입찰보증금 — 통상 최저가의 10%지만 **재매각·특별매각조건은
         # 20~30%** 이고 법원이 그 비율을 명세서 비고에 문장으로 준다(실측 609건). 종전엔 화면이 늘
@@ -1346,6 +1354,7 @@ def create_app() -> Flask:
             deposit_amount=deposit_amount, deposit_rate=deposit_rate,
             deposit_stated=deposit_stated,
             sim=_sim_payload(sim_input), sim_in=sim_input, bidsim_cfg=bidsim, resale=resale,
+            resale_known=resale_known,
             coord=coord, days_until=query.days_until,
             bldg=bldg, vworld_key=os.environ.get("VWORLD_API_KEY", "").strip(),
             priority=priority,

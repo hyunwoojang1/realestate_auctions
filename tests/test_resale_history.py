@@ -214,7 +214,7 @@ def _app_client(tmp_db):
     return create_app().test_client()
 
 
-def _seed(tmp_path, schedule):
+def _seed(tmp_path, schedule, fail_count: int = 3):
     """샘플 물건 1건 + 주어진 기일 이력을 가진 rights 행 하나를 담은 임시 DB."""
     import json
 
@@ -224,7 +224,7 @@ def _seed(tmp_path, schedule):
     conn = store.connect(str(db))     # connect 가 스키마 생성·마이그레이션까지 담당
     s = ScoredListing(
         case_no="2024타경777", apt_name="테스트단지", address="서울 강남구", property_type="아파트",
-        area_m2=84.0, appraisal_price=500_000_000, min_bid_price=200_000_000, fail_count=3,
+        area_m2=84.0, appraisal_price=500_000_000, min_bid_price=200_000_000, fail_count=fail_count,
         sale_date="2026-08-01", est_market_price=400_000_000, matched_trades=5, confidence=1.0,
         real_acquisition_cost=202_200_000, expected_profit=197_800_000, gap_rate=0.49,
         gap_score=90.0, rights_score=100.0, liquidity_score=80.0, arb_score=88.0,
@@ -277,6 +277,62 @@ def test_detail_shows_actual_sold_price(tmp_path):
     assert "실제 낙찰가" in body
     assert "350,000,000원" in body   # 상세 본문은 원 단위 콤마(2026-07-24)
     assert "낙찰가는 미수집" not in body      # 값이 있으면 미수집 문구가 뜨면 안 된다
+
+
+DISALLOWED_SCHED = [
+    {"ymd": "2026-08-01", "kind": "매각기일", "result": "", "price": 200000000},
+    {"ymd": "2026-05-10", "kind": "매각결정기일", "result": "매각불허가결정", "price": 0},
+    {"ymd": "2026-05-03", "kind": "매각기일", "result": "매각", "price": 320000000},
+]
+
+
+def test_deposit_warning_uses_confirmed_resale_not_heuristic(tmp_path):
+    """(2026-07-31 회귀) 보증금 경고는 **확정 재매각**을 근거로 떠야 한다.
+
+    종전엔 템플릿이 `is_reauction = 유찰 0회 and 저감 있음` 이라는 추정식을 썼다. 이 픽스처는
+    fail_count=3 이라 추정식으로는 False 가 되어 **경고가 사라졌다** — 그런데 기일 이력상
+    대금 미납 재매각이 확정인 물건이다. 실측으로 확정 재매각 319건 중 166건(52%)이 이렇게
+    경고를 못 받았고, 최악은 최저 4.00억 물건이 보증금 0.40억으로 표시된 건이었다(20%면
+    0.80억 — 4천만원 부족한 채로 법정에 가면 입찰 무효).
+    """
+    body = _app_client(_seed(tmp_path, RESALE_SCHED)).get(
+        "/property/2024타경777").get_data(as_text=True)
+    assert "재매각 — 20~30% 가능" in body
+    assert "×2~3?" in body
+    assert "민사집행법" in body          # 증액의 근거를 밝힌다(단정이 아니라 법정 원칙)
+
+
+def test_deposit_warning_absent_for_plain_listing(tmp_path):
+    """유찰만 있는 물건엔 보증금 경고가 없어야 한다 — 허위 경고도 실측 10건 있었다."""
+    body = _app_client(_seed(tmp_path, PLAIN_SCHED)).get(
+        "/property/2024타경777").get_data(as_text=True)
+    assert "재매각 — 20~30% 가능" not in body
+    assert "×2~3?" not in body
+
+
+def test_confirmed_history_beats_heuristic_false_positive(tmp_path):
+    """기일 이력을 **읽었는데** 재매각이 아니면, 추정식이 참이어도 경고를 띄우지 않는다.
+
+    유찰 0회 + 감정가 대비 저감은 재매각의 약한 대리지표일 뿐이다(실측 허위 경고 10건).
+    확정 근거가 있을 때는 확정이 이긴다 — 추정으로 확정을 덮지 않는다.
+    """
+    body = _app_client(_seed(tmp_path, PLAIN_SCHED, fail_count=0)).get(
+        "/property/2024타경777").get_data(as_text=True)
+    assert "재매각 — 20~30% 가능" not in body
+    assert "×2~3?" not in body
+
+
+def test_deposit_warning_wording_differs_for_disallowed_sale(tmp_path):
+    """불허가·취소 재진행은 **증액이 당연하지 않다** — 미납 재매각과 같은 문구로 과장하지 않는다.
+
+    보증금 증액은 대금 미납 재매각의 법정 효과다(민사집행법 §138③·민사집행규칙 §71).
+    불허가로 다시 열린 건은 특별매각조건이 붙을 수 있다는 정도로만 알린다.
+    """
+    body = _app_client(_seed(tmp_path, DISALLOWED_SCHED)).get(
+        "/property/2024타경777").get_data(as_text=True)
+    assert "불허가·취소 재진행" in body
+    assert "재매각 — 20~30% 가능" not in body
+    assert "×2~3?" not in body          # 배수 주장은 하지 않는다
 
 
 def test_detail_hides_banner_without_history(tmp_path):
