@@ -236,8 +236,10 @@ CLI: `--limit`(기본 200) `--all` `--refresh` `--estimable`(사진 대상만, �
 ### 현장 사진 — 추가 요청 0
 
 같은 상세 응답의 `csPicLst[].picFile`(base64 JPEG 인라인)에서 추출(`PHOTO_CAP` 기본 12장/물건).
-Pillow로 640px·q75 썸네일 → Supabase Storage 업로드(오브젝트 키 = `sha1(court|case_no|item_no|seq)`,
-`x-upsert`) → DB엔 URL만. Storage 미설정이면 base64 폴백. **시세추정 가능 물건만** 저장(전물건 저장
+Pillow로 640px·q75 썸네일 → **Cloudflare R2** 업로드(오브젝트 키 = `sha1(court|case_no|item_no|seq)`,
+S3 호환 PUT) → DB엔 URL만. (2026-08-05 Supabase Storage 무료 1GB 초과로 이전)
+Storage 미설정이면 사진을 **저장하지 않고 건너뛴다** — base64 폴백은 `AUCTION_ALLOW_BASE64_PHOTOS=1`
+일 때만(그게 DB 500MB를 터뜨린 원인이라 기본 봉쇄). **시세추정 가능 물건만** 저장(전물건 저장
 시 수 GB). 사진 실패는 크롤을 못 죽임(부수 기능 — 업로드 ConnectionReset이 전체를 죽이던 버그 수정).
 
 ### 사건번호 검색 (`src/casesearch.py`)
@@ -1005,7 +1007,7 @@ auction-arbitrage/
 │   ├── building_register_client.py# 건축HUB 표제부(노후도·위반)
 │   ├── building_info.py           # 주소→VWorld 법정동코드→표제부 요약(역지오코딩 폴백)
 │   ├── coords.py                  # KATEC→WGS84 로컬 변환 + 시도 bbox 검증
-│   ├── photo.py / photo_store.py  # base64→640px 썸네일 / Supabase Storage 업로드
+│   ├── photo.py / photo_store.py  # base64→640px 썸네일 / Cloudflare R2 업로드(SigV4)
 │   ├── matcher.py                 # 계층 매칭·시세추정·감정가 교차검증·표본게이트
 │   ├── score.py                   # 차익 스코어·하드게이트·등급
 │   ├── pipeline.py                # 수집→매칭→채점 오케스트레이션(전국 샤딩·동적 예산·권리 배선)

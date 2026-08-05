@@ -306,6 +306,8 @@ def main(argv=None) -> int:
     # AUCTION_CRAWL_TENANTS=1 일 때만 켠다(대항력 실판정 원천. 크롤 완전 휴지기·소량부터 검증).
     crawl_tenants = os.environ.get("AUCTION_CRAWL_TENANTS") == "1" or args.tenants_backfill
     ok, fail, skipped_empty, photo_n, tenant_n = 0, 0, 0, 0, 0
+    photo_fail = 0        # 업로드 실패 장수(부분 실패 포함) — 요약·경고용
+    photo_skipped = 0     # 스토리지 불가로 저장 자체를 건너뛴 장수(base64 적재 봉쇄분)
     mismatch = 0          # (C6) 응답 사건번호 불일치로 스킵한 건(오사건 저장 차단)
     drift = 0             # (H4) 응답 스키마 드리프트(필드명 변경) 감지 건 — 침묵실패 조기경보
     blocked = False       # (C5) 차단/상한 신호로 중단됐는지 — exit code 승격용
@@ -313,9 +315,23 @@ def main(argv=None) -> int:
     now = datetime.now(_KST).strftime("%Y-%m-%d %H:%M:%S")
     # 사진은 용량 때문에 '시세추정 가능' 물건에만 저장(사용자가 여는 물건 ≈ 평가 가능한 것).
     estimable = store.estimable_keys(conn)
+    _backend = photo_store.backend()
     _use_storage = photo_store.enabled() and photo_store.ensure_bucket()
+    # base64 폴백은 **명시 허용이 있을 때만**. 종전엔 오브젝트 스토리지가 잠깐 안 되면 조용히
+    # base64 로 DB에 쌓았는데, 그게 무료티어 DB 500MB를 터뜨린 원래 원인이다(사진만 ~500MB).
+    # 스토리지를 쓰기로 해놓고 못 쓰는 상태면 '사진 없이 권리만' 진행하고 끝에서 크게 경고한다.
+    _allow_b64 = os.environ.get("AUCTION_ALLOW_BASE64_PHOTOS") == "1"
     if _use_storage:
-        print("[+] 사진=Supabase Storage 업로드 모드")
+        print(f"[+] 사진 업로드 모드: {_backend}")
+        if _backend != "r2":
+            print(f"[!] 사진 백엔드가 r2 가 아니라 '{_backend}' 다 — R2_* 5종 환경변수를 확인하라"
+                  " (2026-08-05 R2 이전 완료, Supabase 사진 버킷은 더 쓰지 않는다).",
+                  file=sys.stderr)
+    else:
+        print(f"[!] 사진 오브젝트 스토리지 사용 불가(backend={_backend or '미설정'}) — "
+              + ("base64 폴백 허용(AUCTION_ALLOW_BASE64_PHOTOS=1)"
+                 if _allow_b64 else "사진 저장 생략(권리 크롤은 계속). DB base64 적재 봉쇄."),
+              file=sys.stderr)
     try:
         for i, t in enumerate(targets, 1):
             try:
@@ -419,12 +435,18 @@ def main(argv=None) -> int:
                         if urls:
                             store.save_photo_urls(conn, *key, urls, fetched_at=now)
                             photo_n += len(urls)
-                    elif jpegs:
+                        # 부분 실패도 센다 — 종전엔 성공 장수만 세서 "업로드가 절반씩 실패 중"인
+                        # 상황이 요약·exit code 어디에도 안 나타났다(침묵실패).
+                        photo_fail += len(jpegs) - len(urls)
+                    elif jpegs and _allow_b64:
                         import base64 as _b64  # noqa: PLC0415
                         thumbs = [_b64.b64encode(j).decode("ascii") for j in jpegs]
                         store.save_photos(conn, *key, thumbs, fetched_at=now)
                         photo_n += len(thumbs)
+                    elif jpegs:
+                        photo_skipped += len(jpegs)   # 스토리지 불가 → base64 로 흘리지 않는다
                 except Exception as e:  # noqa: BLE001 — 사진 실패는 권리 크롤을 막지 않음
+                    photo_fail += 1
                     print(f"  [{i}/{len(targets)}] {t['case_no']} 사진 처리 실패(무시): {type(e).__name__}")
             if i % 10 == 0:
                 store.save_rights(conn, batch)
@@ -451,6 +473,13 @@ def main(argv=None) -> int:
     if drift:
         print(f"[!] (H4) 응답 스키마 드리프트 {drift}건 감지 — 법원 API 필드명 변경 가능성.",
               file=sys.stderr)
+    if photo_fail:
+        print(f"[!] 사진 업로드 실패 {photo_fail}장(backend={_backend or '미설정'}) — "
+              "오브젝트 스토리지 상태를 확인하라.", file=sys.stderr)
+    if photo_skipped:
+        print(f"[!] 사진 {photo_skipped}장을 저장하지 않고 건너뛰었다 — 오브젝트 스토리지 사용 불가. "
+              "DB base64 적재는 의도적으로 봉쇄했다(무료티어 DB 한도 재발 방지). "
+              "R2_* 설정을 고치고 재크롤하면 그 물건들이 다시 대상이 된다.", file=sys.stderr)
 
     # (C5) exit code 종합 — 스케줄러가 '부분 중단'을 '완전 성공'과 구분하게 한다.
     #  0=정상, 2=차단/상한으로 중단, 3=처리대상 중 실패율 과다 또는 (H4)스키마 드리프트율 과다.
@@ -467,6 +496,12 @@ def main(argv=None) -> int:
         # '발견 안 됨'으로 적재하지 않도록 비정상 종료로 사람을 부른다(침묵실패 방어).
         print(f"[!] (H4) 스키마 드리프트율 과다({drift}/{processed}) — 파서-응답 불일치. "
               f"비정상 종료로 알림(파서 점검 필요).", file=sys.stderr)
+        exit_code = 3
+    elif (photo_fail + photo_skipped) and photo_n == 0 and (photo_fail + photo_skipped) >= 5:
+        # 사진 대상이 있었는데 **한 장도** 저장되지 않았다 = 스토리지 경로가 통째로 죽은 것.
+        # 권리 지표만 보면 정상이라 exit 0 으로 끝나던 침묵실패를 여기서 잡는다.
+        print(f"[!] 사진이 한 장도 저장되지 않았다(실패 {photo_fail}·생략 {photo_skipped}) — "
+              "오브젝트 스토리지 경로 점검 필요. 비정상 종료로 알림.", file=sys.stderr)
         exit_code = 3
 
     if args.no_cloud or not store_rest.enabled():
@@ -495,11 +530,22 @@ def main(argv=None) -> int:
         except Exception as e:  # noqa: BLE001 — 클라우드 실패는 로컬 결과를 깨지 않음
             print(f"[!] Supabase 권리 미러링 실패(로컬은 저장됨): {e}", file=sys.stderr)
         try:
-            prows = [dict(r) for r in conn.execute("SELECT * FROM listing_photos")]
+            # 이 미러는 로컬 listing_photos **전량**을 PK 기준 덮어쓰기로 올린다. 로컬에 옛
+            # Supabase Storage URL 이 한 행이라도 남아 있으면, 이미 R2 로 옮겨둔 클라우드 행을
+            # 죽은 URL 로 되돌린다(원본 버킷을 지운 뒤엔 복구 불가 = 사진 깨짐). 로컬이 클라우드보다
+            # 항상 최신이라는 보장이 없으므로(실측: 로컬 18,535행 < 클라우드 37,850행)
+            # **스테일 URL 은 아예 올리지 않는다.** 2026-08-05 R2 이전 리뷰에서 발견.
+            prows, stale = photo_store.split_stale_rows(
+                [dict(r) for r in conn.execute("SELECT * FROM listing_photos")])
+            if stale:
+                print(f"[!] 사진 미러링에서 스테일 Supabase URL {len(stale)}행 제외 — "
+                      "로컬이 R2 이전을 되돌리는 것을 봉쇄. "
+                      "`python -m deploy.migrate_photos_to_r2 --sync-local` 로 정리하라.",
+                      file=sys.stderr)
             pn = store_rest.upsert_photos(prows)
-            print(f"[+] Supabase 사진 미러링 {pn}장")
+            print(f"[+] 사진 미러링 {pn}장")
         except Exception as e:  # noqa: BLE001 — 사진 테이블 미배포/실패는 조용히 skip
-            print(f"[!] Supabase 사진 미러링 skip(테이블 미배포?): {e}", file=sys.stderr)
+            print(f"[!] 사진 미러링 skip(테이블 미배포?): {e}", file=sys.stderr)
         if crawl_tenants:
             # 현황조사서 크롤 시에만 임차인 미러(대항력 여지 원천). 테이블 미배포면 graceful skip.
             try:

@@ -36,6 +36,17 @@ def main(argv=None) -> int:
     ap.add_argument("--limit", type=int, default=None)
     args = ap.parse_args(argv)
     _load_env()
+    # (2026-08-05) 사진은 R2 로 전량 이전됐고 로컬 thumb_b64 는 0행이다. 이 스크립트는 base64 →
+    # 오브젝트 스토리지 이전용 레거시라 더 이상 할 일이 없다. 그런데 백엔드가 잘못 잡힌 상태에서
+    # 누가 이걸 돌리면 사진을 다시 Supabase 로 올려 문제를 키운다 — 명시 허용 없이는 막는다.
+    if os.environ.get("AUCTION_LEGACY_PHOTO_MIGRATE") != "1":
+        print("[!] 레거시 스크립트다(base64 → 스토리지). 2026-08-05 R2 이전으로 역할이 끝났다.\n"
+              "    현행 도구는 `python -m deploy.migrate_photos_to_r2` 다.\n"
+              "    그래도 돌리려면 AUCTION_LEGACY_PHOTO_MIGRATE=1 을 설정하라. 중단")
+        return 1
+    if photo_store.backend() != "r2":
+        print(f"[!] 백엔드가 '{photo_store.backend() or '미설정'}' 다 — Supabase 로 되올릴 위험. 중단")
+        return 1
     if not photo_store.enabled() or not photo_store.ensure_bucket():
         print("[!] Storage 미설정/버킷실패 — 중단")
         return 1

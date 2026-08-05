@@ -786,7 +786,7 @@ def _prune_orphans(conn: sqlite3.Connection, table: str) -> int:
     """scored_listings 에 대응 물건이 없는 자식테이블 행(고아) 삭제. 반환=삭제 건수.
 
     (E2 2026-07-22 QA HIGH) rights 만 정리기가 있어 listing_photos(6578)·naver_prices(1700)
-    고아가 무한 누적됐다(고아 사진행은 Supabase Storage 죽은 JPEG를 가리킴). 풀스냅샷 후 공통 배선.
+    고아가 무한 누적됐다(고아 사진행은 오브젝트 스토리지의 죽은 JPEG를 가리킴). 풀스냅샷 후 공통 배선.
     테이블 없으면 0(신규 DB 안전).
     """
     has = conn.execute(
@@ -810,7 +810,7 @@ def _prune_orphans(conn: sqlite3.Connection, table: str) -> int:
 
 
 def prune_orphan_photos(conn: sqlite3.Connection) -> int:
-    """scored 에 없는 listing_photos 고아 삭제(풀스냅샷 후). ⚠ Supabase Storage JPEG GC는 별도."""
+    """scored 에 없는 listing_photos 고아 삭제(풀스냅샷 후). ⚠ R2 오브젝트 GC는 미배선(후속)."""
     return _prune_orphans(conn, "listing_photos")
 
 

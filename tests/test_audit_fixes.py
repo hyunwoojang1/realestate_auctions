@@ -163,7 +163,11 @@ def test_watchlist_page_conservative_label(monkeypatch, tmp_path):
 
 
 def test_calendar_conservative_label(monkeypatch):
-    s = _scored("C1")
+    # /calendar 는 기본이 '다가오는 매각'만 보여준다(split_upcoming). 고정 날짜를 쓰면 그 날이
+    # 지나는 순간 물건이 목록에서 빠져 라벨 단언이 무너진다 — 실제로 _listing 기본값
+    # 2026-08-01 이 지나면서 2026-08-02 부터 실패했다(2026-08-05 발견). 상대 날짜로 고정.
+    from datetime import date, timedelta  # noqa: PLC0415
+    s = _scored("C1", sale_date=(date.today() + timedelta(days=14)).isoformat())
     c = _client(monkeypatch, [s])
     html = c.get("/calendar").get_data(as_text=True)
     assert "예상차익" not in html

@@ -367,7 +367,11 @@ def fetch_photos(court: str, case_no: str, item_no: str = "") -> list[str]:
             elif row.get("thumb_b64"):
                 out.append(f"data:image/jpeg;base64,{row['thumb_b64']}")
         return out
-    except Exception:  # noqa: BLE001 — 사진 없음/테이블 미배포는 히어로 생략으로 강등
+    except Exception as e:  # noqa: BLE001 — 사진 없음/테이블 미배포는 히어로 생략으로 강등
+        # 무음이면 '원래 사진 없는 물건'과 '인증 만료로 전 물건 사진이 사라짐'을 구분할 수 없다.
+        # 강등은 유지하되 흔적은 남긴다(2026-08-05 리뷰).
+        logger.warning("fetch_photos 실패 %s/%s/%s: %s", court, case_no, item_no,
+                       type(e).__name__)
         return []
 
 

@@ -1,5 +1,187 @@
 # versions.md — auction-arbitrage 루프 작업 로그 (append-only, 최신순)
 
+## 2026-08-05 13:45 KST — ✅ 5관점 리뷰 3라운드 전원 PASS (커밋 대기)
+
+**무엇**: 보안 리뷰 권고 2건 반영 후 5명 전원 합의.
+- `src/photo_store.py` 모듈 독스트링 — **공개 버킷 설계의 전제**를 코드에 못 박았다.
+  "여기 올라가는 사진 = courtauction.go.kr 이 로그인 없이 공개하는 것과 동일 원천"이라는 근거와,
+  ⛔ 비공개 원천 사진(현황조사서 내부자료 등)을 넣으면 전제가 깨지니 공개버킷 설계부터 재검토하라는
+  조건까지. (versions.md 는 시점 기록이라 미래 세션이 결정 직전에 읽지 않는다는 지적 수용)
+- `deploy/migrate_photos_to_r2.py::_reachable_sample` — DB 값을 그대로 HEAD 하던 것을
+  `R2_PUBLIC_BASE` 접두사 검증 후에만 요청하도록. `_move_one` 과 신뢰 경계를 일관되게 맞춤.
+
+**증거**: `pytest` **1,107 passed / 1 skipped**, `ruff` clean.
+`--check` 라이브: 클라우드 0 · 로컬 0 · 도달성 30/30 · **exit=0 (판정 OK)**.
+
+**평가자 — 3라운드 전원 PASS**:
+| 관점 | 1R | 2R | 3R |
+|---|---|---|---|
+| 침묵실패 | FAIL/FAIL | FAIL/FAIL | **PASS/PASS** (잔여 CRITICAL·HIGH 없음) |
+| 완전성 | FAIL | FAIL(must 6) | **PASS** (must 전건 반영, 잔여 전부 defer) |
+| 보안 | PASS/PASS | PASS/PASS | **PASS/PASS** (블로커 없음) |
+| Python 동시성 | FAIL/FAIL | PASS/PASS | **PASS/PASS** (신규 회귀 없음) |
+| 데이터 무결성 | FAIL/FAIL | PASS/PASS | **PASS/PASS** (블로커 없음) |
+
+**커밋**: (미커밋 — 사용자 승인 대기)
+
+**다음 / 후속 등재(이번 범위 밖, 전부 [defer] 합의)**:
+1. `photo_store.public_url()`·`ensure_bucket()` 이 `backend()==""` 에서 Supabase 분기로 낙하한다.
+   **오늘은 전 호출부가 단락평가·조기return 으로 막아 도달 불가**(완전성 리뷰어 전수 확인). 다만
+   아래 2번(R2 GC) 착수 시 `ensure_bucket()` 단독 호출로 밟기 쉬우니 그때 2줄 가드 먼저 넣을 것.
+2. `prune_orphan_photos` 의 R2 오브젝트 GC 미배선(기존 갭, R2 10GB로 압력 완화).
+3. `_reachable_sample` 표본이 `order` 없는 앞 1,200행 안에서 추출돼 전체 균일표본이 아니다.
+   주 게이트는 정확 카운트(`pending==0`)라 판정은 안 뒤집히지만 표현이 실제보다 세게 읽힌다.
+4. `save_photo_urls` 부분실패 시 기존 사진 축소 가드 · `_sync_local_from_cloud` 배치화.
+
+## 2026-08-05 13:32 KST — 🔒 R2 이전 5관점 리뷰 후 안전장치 보강 (커밋 직전)
+
+**무엇**: 사용자 지시로 커밋 전 5개 리뷰어를 병렬 투입(침묵실패·완전성·보안·Python동시성·데이터
+무결성), 전원 합의까지 라운드 반복. **1라운드 5명 중 4명 FAIL** — 커밋했으면 사고가 났다.
+
+**증거 — 실제로 확인된 위험 (전부 내가 재현·실측)**:
+1. **크롤 1회로 R2 이전이 되돌아간다.** `crawl_rights.py` 사진 미러가 로컬 `listing_photos`
+   **전량**을 PK 기준 덮어쓰기로 올린다. 로컬에 옛 Supabase URL이 남아 있으면 R2로 옮긴 클라우드
+   행이 죽은 URL로 회귀 → 원본 버킷 삭제 후였다면 **복구 불가 사진 깨짐**. 실측 스테일 6행.
+   (⚠️ 한 리뷰어의 "2,669행"은 산술 추정 오류였다 — 로컬 직접 조회로 6행 확정)
+2. **스토리지 불가 시 base64 폴백이 살아 있었다** — 그게 DB 500MB를 터뜨린 원래 원인.
+3. **`backend()` 가 Supabase 를 자동 선택**했다. R2 키 하나만 빠져도 업로드는 계속 성공하므로
+   크롤이 **exit 0(정상)** 으로 끝나 아무도 못 알아챈다.
+4. `_load_env` 가 상대경로 `.env` — cwd 가 레포 루트가 아니면 조용히 무설정
+   (실측: 루트 `'r2'` / 타 디렉터리 `''`).
+5. 32스레드 공유 세션에 락 없음 + 풀 크기 설정이 **호출 순서 때문에 죽은 코드**였다.
+6. `--check` 의 `return 0 if ... else 0` — **양쪽 다 0**. 삭제 관문으로 자동화하면 항상 초록불.
+
+**수정**(9파일):
+- `photo_store.backend()` — Supabase **자동 선택 폐지**. R2 미비 시 `""` → 상위 안전망 작동.
+  명시 `AUCTION_PHOTO_BACKEND=supabase` 로만 사용(탈출구 유지).
+- `photo_store.split_stale_rows()` 신설 — 미러에서 스테일 URL 차단. 되돌릴 수 없는 사고를 막는
+  가드라 호출부 인라인이 아니라 **테스트 가능한 순수 함수**로 추출.
+- `photo_store.session()` 락(double-checked) + `configure_pool()` 로 순서 의존 제거.
+- `crawl_rights.py` — base64 폴백을 `AUCTION_ALLOW_BASE64_PHOTOS=1` 일 때만. 기본은 저장 생략.
+  `photo_fail`/`photo_skipped` 카운터 + 대상 있는데 0장이면 **exit 3**. 로그가 실제 backend 출력.
+- `migrate_photos_to_r2.py` — `--sync-local`(PK 기준 로컬 교정) 신설·실행 완료(6행→0),
+  `--check` 를 **진짜 게이트로**(클라우드·로컬 잔여 0 + 표본 도달성 HTTP 200 → exit 0/1),
+  `_reachable_sample()` 신설, SSRF 하드닝(접두사 정확일치 + `allow_redirects=False`),
+  `try/finally` 로 SQLite 잠금·스레드 누수 봉쇄.
+- `migrate_to_supabase._load_env` 레포 루트 고정 · `store_rest.fetch_photos` 무음 제거
+  · `migrate_photos_to_storage.py` 레거시 실행 봉쇄 · `.env.example` R2 5종 + 신설 env 3종
+  · README·store.py·photo.py 문서 5곳 R2 로 갱신(⛔ `docs/crawler_qa_*.md` 는 날짜 박힌 감사
+  기록물이라 리뷰어 권고대로 손대지 않음).
+
+**평가자**: `pytest` **1,107 passed, 1 skipped**(신규 `test_migrate_photos_to_r2.py` 포함 +12).
+`ruff` src/deploy/tests/scripts clean. 라이브 실측:
+- `--check` → 클라우드 0 · 로컬 0 · **도달성 30/30** · `exit=0`
+- R2 버킷 리스팅 노출 확인(보안 리뷰 숙제): `?list-type=2` → **HTTP 404**, ListBucketResult 0건
+- 3라운드 판정: 침묵실패 PASS/PASS(잔여 CRITICAL·HIGH 없음), 보안 PASS/PASS(블로커 없음),
+  Python PASS/PASS, 데이터무결성 PASS/PASS. 완전성 리뷰어 must 6건 전부 반영.
+
+**보안 전제(문서화 요구사항)**: R2 버킷은 **공개**이고 오브젝트 키가
+`sha1(법원|사건번호|물건번호|seq)` 라 사건번호를 아는 사람은 URL 추측이 가능하다. 이는 물건사진이
+courtauction.go.kr 이 로그인 없이 공개하는 것과 **동일 원천**이라는 전제 위에 성립한다.
+업로드 전 Pillow 재인코딩으로 EXIF 는 사실상 제거된다. ⛔ 향후 비공개 원천 사진을 추가하면
+이 전제가 깨지므로 접근제어를 재검토할 것.
+
+**커밋**: (미커밋 — 5관점 전원 PASS 확인 후 커밋·배포 예정)
+
+**다음**: ①전원 PASS 확인 → 커밋 → `bash scripts/deploy_prod.sh` 배포 → 프로덕션 화면 재검증
+②Supabase 원본 버킷 정리(1.81GB 회수) — 사용자 확인 후. ⛔ `--check` exit 0 아니면 삭제 금지.
+후속(이번 범위 밖): `prune_orphan_photos` 의 R2 오브젝트 GC 미배선, `save_photo_urls` 부분실패
+축소 가드, `_sync_local_from_cloud` 배치화.
+
+## 2026-08-05 11:25 KST — ⚡ 사진 이전 8.7배 가속: 장당 TLS 핸드셰이크 제거
+
+**무엇**: R2 이전이 초반 600장/분 → **133장/분으로 붕괴**해 ETA가 2시간→4시간으로 늘었다.
+원인은 동시성 부족이 아니라 **커넥션 재사용 부재**였다 — `requests.get/post` 는 호출마다 Session을
+새로 만들어 사진 한 장당 TCP+TLS 핸드셰이크가 붙는다. 3.8만 장에서는 이게 지배적 비용.
+- `src/photo_store.py` — `session()` 공용 세션 추가(HTTPAdapter pool, `PHOTO_POOL_SIZE`,
+  기본 48). `_r2_request` 와 Supabase 업로드 경로가 이를 쓴다.
+- `deploy/migrate_photos_to_r2.py` — 다운로드도 같은 세션 사용. 스레드풀을 루프 밖으로
+  꺼냄(배치마다 재생성하던 것). `--batch` 옵션 신설, 기본 workers 8→24.
+- `tests/test_photo_store.py` — 세션 재사용·풀 크기 테스트 1건 추가(총 14건).
+
+**증거**(동일 작업·동일 네트워크, 클라우드 실측 카운트 기준):
+| 구간 | 설정 | 속도 |
+|---|---|---|
+| 11:13~11:16 | 워커 8 · 세션 없음 | **133장/분** |
+| 11:22~11:25 | 워커 32 · 공용 세션 | **1,158장/분** (3분간 3,500장) |
+
+**8.7배.** 실패 0건 유지(누적 실패 0/9,126). ETA 15:32 → **11:49 KST**.
+
+**평가자**: `pytest tests/test_photo_store.py` 14 passed · `ruff` 3파일 clean.
+- 감시 스크립트의 생사판정 오탐도 함께 수정 — 로그를 append 하다 보니 **직전 실행의 "[완료]"
+  줄**을 현재 프로세스 종료로 오독했다. 마지막 `[*] 이전 대상` 이후 구간만 보도록 교정.
+
+**커밋**: (미커밋 — 전량 이전 완료 후 10:08 항목과 함께 묶어서 커밋 예정)
+
+**다음**: 전량 이전 완료(≈11:49) → `--check` 0장 확인 → 프로덕션 화면 재검증 → 커밋·배포 →
+Supabase 원본 버킷 정리(1.81GB 회수). ⛔ 검증 전 원본 삭제 금지.
+
+## 2026-08-05 10:08 KST — 🗄️ 사진 저장소 R2 이전 준비 + DB 143MB 회수 (키 대기)
+
+**무엇**: Supabase 무료 파일스토리지 1GB 초과로 공정사용 제한 통보(9/4 발효). 사용자 결정 =
+**과거 사진을 지우지 않고 R2(10GB 무료·이그레스 무제한)로 이전**. 코드·이전도구 완비, R2 키만 대기.
+- `src/photo_store.py` — R2/Supabase 듀얼 백엔드로 재작성. AWS SigV4를 표준 라이브러리로 직접
+  구현(boto3 미사용 — botocore 포함 100MB↑라 `requirements.txt` 를 공유하는 **Vercel 함수
+  225MB 한도**를 위협. playwright 를 뺀 것과 같은 이유). `upload_photo()` 시그니처 불변 →
+  호출부 `deploy/crawl_rights.py` **수정 0줄**.
+- `deploy/migrate_photos_to_r2.py` 신규 — 클라우드 기준 이전(멱등·이어받기·`--check`).
+- `tests/test_photo_store.py` 신규 13건.
+- `tests/test_audit_fixes.py` — 썩은 테스트 1건 수정(아래 증거).
+
+**증거**(전부 실측, Management API/실행):
+- 용량 진단: 버킷 `auction-photos` **38,101장 1,858MB**(메일의 "1.13GB"는 7/21 시점 —
+  376+47+724MB 누적이 정확히 1,147MB로 일치). 지금도 **하루 27~53MB** 증가 중.
+- **DB 회수 완료**: `auction_listing_photos` 가 실데이터 9.9MB인데 총 153MB — 옛 base64를 지운
+  뒤 **TOAST 공간이 OS로 반환되지 않은 것**(2026-07-16 이전 스크립트의 "thumb_b64 정리는
+  VACUUM 별도" 가 미실행). `VACUUM FULL` 실행 → **DB 308MB → 165MB**, 행 37,850 전량 보존
+  (photo_url 결손 0).
+- SigV4 정합성: **AWS 공식 테스트 스위트 get-vanilla 정답 Authorization 과 바이트 일치**
+  (자기 출력으로 자기 검증하는 순환을 피하려 외부 정답과 대조).
+- 압축 실측(샘플 24장 재인코딩): 현재 JPEG q75 51.2KB → WebP q75 70.4% / WebP q70 66.3% /
+  AVIF q50 49.7%. **압축만으로는 근본 해결 아님**(하루 40MB 증가 → 2~3개월 내 재초과). 미적용.
+- **범위 함정 발견**: 로컬 `auction.db` 는 사진 18,535행뿐인데 클라우드는 37,850행 —
+  로컬 기준으로 이전하면 **절반(19,315행)이 누락된 채 "완료"** 로 보인다. 그래서 이전
+  스크립트는 클라우드(PostgREST)를 모수로 돈다. `--check` 실측: 전체 37,850 / 남은 37,850.
+
+**평가자**: `pytest` **1091 passed, 1 skipped**(신규 13 포함). `ruff` 신규·수정 3파일 clean.
+- 전체 실행 중 `test_calendar_conservative_label` 1건이 실패했는데 **내 변경과 무관한 기존
+  실패**였다(단독 실행에서도 실패, 해당 파일은 photo 코드를 0회 참조). 원인은 **시간 썩음** —
+  `_listing` 기본 `sale_date="2026-08-01"` 이 지나면서 `/calendar` 의 `split_upcoming`(기본
+  '다가오는 매각'만 표시)에서 물건이 빠져 라벨 단언이 무너졌다. 8/2부터 실패했을 것.
+  테스트를 약화시키지 않고 **상대 날짜(today+14d)로 고정**해 재발을 막았다.
+
+**커밋**: (미커밋 — R2 키 입력 후 실동작 확인까지 묶어서 커밋 예정)
+
+**다음**: ①사용자가 Cloudflare R2 버킷 생성·공개 도메인 활성화·API 토큰 발급 → `.env` 에
+`R2_ACCOUNT_ID/R2_ACCESS_KEY_ID/R2_SECRET_ACCESS_KEY/R2_BUCKET/R2_PUBLIC_BASE` 5종
+②소량(`--limit 20`) 시범 이전 후 **실제 상세페이지에서 사진 렌더 확인**(로컬·프로덕션 구분해
+보고) ③전량 이전 ④`--check` 0장 확인 후 Supabase 버킷 정리. ⛔ 검증 전 원본 삭제 금지.
+⚠️ 이전 시 Supabase 에서 1.86GB 다운로드가 발생 — 무료 이그레스 5GB/월 안이지만 한 번에 소진됨.
+
+## 2026-08-03 14:54 KST — 📋 상가 편입 시 로직 충돌 감사 (진단만, 코드 변경 0)
+
+**무엇**: 사용자 질문("상가를 넣으면 어디가 꼬이고 뭘 핸들링해야 하나")에 대한 코드 실독 감사.
+산출물 `docs/상가확장_충돌감사_20260803.md` 1건. **소스·데이터 수정 없음.**
+
+**증거**: src/ 46파일 실독 + 로컬 auction.db 실측.
+- 상가는 이미 2,181건 수집·분류·저장돼 있고 est는 0건(`SUPPORTED_ESTIMATION_KINDS` 한 줄이 잠금).
+- CRITICAL 5: ①상가 실거래엔 건물명이 없어(`_extra_to_trade` apt_name="" 하드코딩) 100%
+  `same_dong_fallback`으로만 떨어짐 = 설계상 '추천 금지 참고치' ②평단가×전용면적 모델에
+  층·전면·동선 축 부재 ③`floor_adjust` 부호 반대(상가 1층=프리미엄인데 −8%, `min(1.0,·)`가
+  상향 봉쇄) ④면적 정의 3갈래 — 실측 2025타경700에서 `areaList` 첫 ㎡가 층별 연면적
+  "1층 1555.115㎡"로 잡히고 `merge_mokmul_rows`의 건물행 우선이 무동작 ⑤`data_gates.all_pass`가
+  all-or-nothing이라 상가 위반이 **아파트 미러링까지 차단**(run.py:336).
+- HIGH 7 / MEDIUM 7. 이미 상가가 맞게 처리되는 곳 5종(취득세 4.6%·중개보수 0.9%·양도세 50/40%·
+  토허 아파트한정·type_base 45)도 함께 기록 — 건드리지 말 것.
+
+**평가자**: 없음(진단 문서). 코드 변경이 없어 pytest·게이트 회귀 없음.
+
+**커밋**: (미커밋 — 문서 1건)
+
+**다음**: 사용자 결정 6종 대기(시세 기준축 / fallback 인정 여부 / 가드 임계 유형분리 /
+게이트 유형분리 / nrg 수집 활성화 / 홈 기본 모수). 감사자 권고는 "시세추정 포기 + 저감률·권리
+스크리닝 별도 트랙" — 상가에 est를 억지로 만들면 아파트용 가드까지 함께 헐거워지기 때문.
+
 ## 2026-07-31 13:40 KST — 🔴 내가 낸 손실: 낙찰 스냅샷 점수 197건 소실(복구 불가)
 
 배포 뒤 낙찰가 복구를 하려고 `backfill_sold_listings --cloud` → `rescore_sold --mirror` 를

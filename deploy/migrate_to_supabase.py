@@ -13,12 +13,20 @@ from __future__ import annotations
 
 import os
 import sys
+from pathlib import Path
 
 from src import store, store_rest
 
 
-def _load_env(path: str = ".env") -> None:
-    """의존성 없이 .env 를 os.environ 에 로드(이미 설정된 값은 덮지 않음)."""
+def _load_env(path: str | None = None) -> None:
+    """의존성 없이 .env 를 os.environ 에 로드(이미 설정된 값은 덮지 않음).
+
+    경로는 **레포 루트 기준**으로 고정한다. 종전엔 상대경로 ".env" 라서 작업 디렉터리가 루트가
+    아니면 조용히 아무것도 안 읽었고, 그 결과 크롤러가 자격증명 없는 상태로 돌아
+    사진을 base64 로 DB에 쌓는 옛 경로로 되돌아갈 수 있었다(2026-08-05 리뷰에서 실측 재현).
+    """
+    if path is None:
+        path = str(Path(__file__).resolve().parent.parent / ".env")
     if not os.path.exists(path):
         return
     with open(path, encoding="utf-8") as f:

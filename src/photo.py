@@ -14,7 +14,7 @@ import logging
 logger = logging.getLogger(__name__)
 
 THUMB_MAX_W = 640       # 썸네일 가로 상한(px) — 히어로 표시 충분, 용량 억제
-THUMB_QUALITY = 75      # JPEG 재인코딩 품질(공유 Supabase 티어 용량 고려)
+THUMB_QUALITY = 75      # JPEG 재인코딩 품질(오브젝트 스토리지 용량 고려. R2 무료 10GB)
 
 
 def thumbnail_jpeg(src_b64: str, max_w: int = THUMB_MAX_W,
