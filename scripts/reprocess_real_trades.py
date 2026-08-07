@@ -32,7 +32,13 @@ def main() -> int:
     real = blob.get("real") or {}
     overview = blob.get("overview") or {}
     detail = blob.get("complex_detail") or {}
-    fetched = f"reprocess:{datetime.now().strftime('%Y-%m-%d %H:%M')}"
+    # ⚠ last_checked/fetched_at 은 **날짜 형태만** 넣는다(YYYY-MM-DD HH:MM:SS).
+    # (2026-08-07 실사고) 종전엔 'reprocess:2026-07-19 21:30' 처럼 접두어를 붙였는데,
+    # naver_store.checked_pairs 의 증분 판정이 문자열 비교라서 'r'(0x72) > '2'(0x32) 로
+    # 어떤 날짜보다 크게 판정됐다 → 그 행 1,096개가 영구히 '신선함'으로 분류돼 증분 갱신에서
+    # 빠졌고, 그중 갱신 대상에 남아 있던 407쌍이 2~3주치 실거래를 놓쳤다.
+    # 재처리 여부는 아래 출력 로그로 남기고, 이 칸은 날짜 계약을 지킨다.
+    fetched = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
 
     conn = ns.connect(args.db)
     try:

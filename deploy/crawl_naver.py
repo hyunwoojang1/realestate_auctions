@@ -22,6 +22,7 @@ import json
 import os
 import re
 import sys
+import time
 from datetime import datetime
 from pathlib import Path
 
@@ -144,18 +145,19 @@ def _backfill_pairs(conn, limit=None, refresh=False, stale_days=None):
 
     이어받기: **naver_pair_status에 이미 확인된 쌍은 skip**(실거래 0건 쌍도 확인 완료로 기록돼
     매 실행 재크롤 안 함 — M3 수정). --refresh면 전량 재수집.
-    stale_days 지정(증분): 그 일수보다 오래 전 확인된 쌍만 재수집 대상(신선한 쌍은 skip).
+    stale_days 지정(증분): 그 일수(+쌍별 지터)보다 오래 전 확인된 쌍만 재수집 대상
+    — 만기 시각 계산은 naver_store.fresh_pairs 가 담당한다(날짜 파싱·지터를 한 곳에 모음).
     """
-    from datetime import datetime, timedelta  # noqa: PLC0415
-
     from src import naver_store as _ns  # noqa: PLC0415
 
     if refresh:
         have = set()
     elif stale_days is not None:
-        # 증분: stale_days 이내 확인된 쌍만 '완료'로 봐 제외 → 오래된 쌍은 재대상.
-        cutoff = (datetime.now() - timedelta(days=stale_days)).strftime("%Y-%m-%d %H:%M:%S")
-        have = _ns.checked_pairs(conn, stale_before=cutoff)
+        # 증분: stale_days(+쌍별 지터) 이내 확인된 쌍만 '완료'로 봐 제외 → 오래된 쌍은 재대상.
+        # (2026-08-07) 단일 임계 → 쌍별 지터로 교체. 같은 날 대량 확인분이 14일 뒤 한꺼번에
+        # 만기돼 하루 대상이 105→716건으로 튄 실사고(8/4) 재발 방지 — naver_store.fresh_pairs 주석.
+        jitter = int(os.environ.get("AUCTION_NAVER_STALE_JITTER", "7"))
+        have = _ns.fresh_pairs(conn, stale_days, jitter_days=jitter)
     else:
         have = _ns.checked_pairs(conn)   # 처리한 모든 쌍(0건 포함) skip
     # (2026-07-27) 활성 물건과 **낙찰 기록** 양쪽의 매칭 쌍을 모은다 — Phase A 가 sold 도
@@ -181,16 +183,25 @@ def _backfill_pairs(conn, limit=None, refresh=False, stale_days=None):
 def backfill_real(args) -> int:
     """Phase B: 매칭된 쌍의 prices/real 실거래 + overview + 호가를 단지 단위로 백필.
 
-    --incremental: naver_pair_status 기준 stale_days(기본 14)보다 오래된 쌍 + 미확인 신규 쌍만.
+    --incremental: naver_pair_status 기준 stale_days(기본 14, 쌍별 지터)보다 오래된 쌍 +
+    미확인 신규 쌍만. 이 모드에서는 쌍마다 **보유한 최신 거래일 이후만** 받는다(조기 종료).
     매일 스케줄에서 이 모드로 돌면 안티밴 예산을 아끼며 신선도를 유지한다.
     """
     conn = store.connect(args.db)
     ns.ensure_schema(conn)
-    stale = args.stale_days if getattr(args, "incremental", False) else None
+    incremental = bool(getattr(args, "incremental", False))
+    stale = args.stale_days if incremental else None
     pairs = _backfill_pairs(conn, args.limit, args.refresh, stale_days=stale)
     total = len(pairs)
-    mode = f"증분(>{args.stale_days}일)" if stale is not None else ("전량재수집" if args.refresh else "이어받기")
-    print(f"[*] backfill-real 대상 {total}쌍 (DB={args.db}, 모드={mode})", flush=True)
+    # 시간 예산(분). 증분 모드 기본 90분 — 앞 단계(경매·권리) 2시간 + 뒤 단계(재채점)까지
+    # 작업 스케줄러 5시간 제한 안에 반드시 들어오게. 0/음수면 무제한(수동 전량 작업용).
+    max_minutes = getattr(args, "max_minutes", None)
+    if max_minutes is None:
+        max_minutes = int(os.environ.get("AUCTION_NAVER_MAX_MINUTES", "90")) if incremental else 0
+    max_minutes = max(0, int(max_minutes))
+    mode = f"증분(>{args.stale_days}일±지터)" if stale is not None else ("전량재수집" if args.refresh else "이어받기")
+    budget = f"·예산 {max_minutes}분" if max_minutes else ""
+    print(f"[*] backfill-real 대상 {total}쌍 (DB={args.db}, 모드={mode}{budget})", flush=True)
     if not total:
         return 0
     cache = Cache()
@@ -202,13 +213,32 @@ def backfill_real(args) -> int:
     nc = NaverClient(min_delay=mn, max_delay=mx)
     now = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
     n_rows = n_pairs = n_trunc = 0
-    n_fail = 0
+    n_fail = n_early = 0
+    # (2026-08-07 조기 종료) 쌍별 '보유한 최신 거래일' — 그보다 새로운 거래만 받고 멈춘다.
+    # 증분 모드에서만 적용(전량재수집/신규 쌍은 stop 없음 → 종전대로 전량).
+    prev_status = ns.pair_status_map(conn) if incremental else {}
+    # (2026-08-07 시간 예산) 예산을 넘기면 남은 쌍을 **명시하고** 정상 종료한다. 종전엔 예산 개념이
+    # 없어 작업 스케줄러 5시간 제한에 강제 종료됐고, 그러면 뒤따르는 [5/5] 재채점이 통째로
+    # 실행되지 않았다(8/4~8/7 4일 연속). 완주 보장이 부분 수집보다 중요하다.
+    deadline = (time.monotonic() + max_minutes * 60) if max_minutes else None
+    n_skipped_budget = 0
     try:
         for i, p in enumerate(pairs, 1):
             cno, ano = str(p["complex_no"]), str(p["area_no"])
+            if deadline is not None and time.monotonic() > deadline:
+                n_skipped_budget = total - i + 1
+                print(f"  [예산] {max_minutes}분 경과 — 남은 {n_skipped_budget}쌍은 다음 회차로 "
+                      f"미룹니다(정상 종료: 뒤 단계 재채점이 돌아야 함)", flush=True)
+                break
             try:
                 # 1) 실거래(핵심) — 캐시 저장(C1) 후 upsert
-                rows, meta = nc.real_prices(cno, ano, max_pages=real_cap)
+                st = prev_status.get((cno, ano)) or {}
+                stop_ymd = st.get("latest_ymd") or None
+                rows, meta = nc.real_prices(cno, ano, max_pages=real_cap,
+                                            stop_before_ymd=stop_ymd)
+                early = bool(meta.get("early_stop"))
+                if early:
+                    n_early += 1
                 cache.real[f"{cno}:{ano}"] = {"rows": rows, "meta": meta}
                 if not meta["exhausted"]:
                     n_trunc += 1
@@ -218,8 +248,12 @@ def backfill_real(args) -> int:
                 # (M3) 쌍 처리상태 기록 — 0건이어도 '확인함'으로 남겨 재크롤 방지·증분 기준.
                 live = ns.load_real_trades(conn, cno, ano)
                 latest = live[0]["trade_ymd"] if live else ""
-                ns.record_pair_status(conn, cno, ano, len(live), latest,
-                                      meta.get("exhausted", True), now)
+                # 조기 종료는 '끝까지 봤다'는 뜻이 아니므로 잘림(exhausted) 판정을 갱신하지 않는다 —
+                # 종전 값을 보존한다(True 로 덮으면 진짜 잘린 쌍의 신호가 사라진다).
+                exhausted = meta.get("exhausted", True)
+                if early and "exhausted" in st:
+                    exhausted = st["exhausted"]
+                ns.record_pair_status(conn, cno, ano, len(live), latest, exhausted, now)
                 # 2) overview(단지당 1회) — 전세가율·매물수·세대수
                 if cno not in cache.overview:
                     cache.overview[cno] = nc.overview(cno) or {}
@@ -244,7 +278,12 @@ def backfill_real(args) -> int:
     finally:
         cache.save()
         nc.close()
-    print(f"[완료] {n_pairs}쌍 · 실거래 {n_rows}행 적재 (잘림 {n_trunc}·실패skip {n_fail})", flush=True)
+    # 절단은 반드시 명시한다 — 조용히 줄이면 '전량 처리됨'으로 읽힌다(하네스 원칙).
+    extra = f"·조기종료 {n_early}" if n_early else ""
+    if n_skipped_budget:
+        extra += f"·예산초과 미처리 {n_skipped_budget}쌍(다음 회차)"
+    print(f"[완료] {n_pairs}쌍 · 실거래 {n_rows}행 적재 "
+          f"(잘림 {n_trunc}·실패skip {n_fail}{extra})", flush=True)
     return 0
 
 
@@ -260,6 +299,10 @@ def main(argv=None) -> int:
                     help="Phase B: 매칭된 (단지,평형) 쌍의 prices/real 실거래를 단지 단위로 백필")
     ap.add_argument("--incremental", action="store_true",
                     help="증분 갱신: naver_pair_status 기준 오래된(>stale-days) 쌍+신규만 재수집(일일 스케줄용)")
+    ap.add_argument("--max-minutes", dest="max_minutes", type=int, default=None,
+                    help="Phase B 시간 예산(분). 초과 시 남은 쌍을 명시하고 정상 종료 — 뒤따르는 "
+                         "재채점 단계가 반드시 돌게 한다. 미지정 시 증분 모드는 90분"
+                         "(env AUCTION_NAVER_MAX_MINUTES), 그 외 무제한. 0=무제한")
     ap.add_argument("--stale-days", dest="stale_days", type=int, default=14,
                     help="증분 신선도 기준(일). 이보다 오래 확인 안 된 쌍만 재수집")
     ap.add_argument("--only-sold", dest="only_sold", action="store_true",

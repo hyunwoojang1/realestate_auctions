@@ -254,18 +254,98 @@ def record_pair_status(conn: sqlite3.Connection, complex_no: str, area_no: str,
     conn.commit()
 
 
+# last_checked 가 '날짜'인지 확인하는 GLOB — YYYY-MM-DD… 형태만 인정.
+# (2026-08-07 실사고) scripts/reprocess_real_trades.py 가 이 칸에 'reprocess:2026-07-19 21:30'
+# 처럼 접두어를 붙여 넣었고, 아래 비교는 **문자열 비교**라서 'r'(0x72) > '2'(0x32) 로
+# 어떤 날짜보다도 크게 판정됐다 → 그 행들이 영구히 '신선함'으로 분류돼 증분 갱신에서 빠졌다
+# (실측: 1,096행, 그중 갱신 대상 모집단에 남아 있던 407쌍이 2~3주치 거래를 놓치고 있었다).
+_DATE_GLOB = "[0-9][0-9][0-9][0-9]-[0-9][0-9]-[0-9][0-9]*"
+
+
 def checked_pairs(conn: sqlite3.Connection, stale_before: str | None = None) -> set:
     """이미 확인한 (complex_no, area_no) 집합. stale_before(YYYY-MM-DD HH:MM:SS) 지정 시
-    그보다 이전에 확인된 쌍은 '재확인 대상'으로 보고 제외(=증분에서 다시 크롤)."""
+    그보다 이전에 확인된 쌍은 '재확인 대상'으로 보고 제외(=증분에서 다시 크롤).
+
+    stale_before 비교는 날짜 형태(_DATE_GLOB) 행만 대상 — 날짜가 아닌 값은 '확인 시점 불명'
+    이므로 신선하다고 보지 않는다(모름을 신선으로 바꾸지 않는다).
+    """
     q = "SELECT complex_no, area_no FROM naver_pair_status"
     args: tuple = ()
     if stale_before:
-        q += " WHERE last_checked >= ?"
+        q += f" WHERE last_checked >= ? AND last_checked GLOB '{_DATE_GLOB}'"
         args = (stale_before,)
     try:
         return {(r[0], r[1]) for r in conn.execute(q, args)}
     except sqlite3.DatabaseError:
         return set()
+
+
+def pair_status_map(conn: sqlite3.Connection) -> dict:
+    """(complex_no, area_no) → {latest_ymd, exhausted, trade_count, last_checked}.
+
+    증분 크롤이 쌍별 '보유한 최신 거래일'을 알아야 조기 종료(naver_client.real_prices의
+    stop_before_ymd)를 걸 수 있다. 없는 쌍은 호출부가 None 으로 취급 → 전량 수집.
+    """
+    try:
+        rows = conn.execute(
+            "SELECT complex_no, area_no, latest_ymd, exhausted, trade_count, last_checked "
+            "FROM naver_pair_status").fetchall()
+    except sqlite3.DatabaseError:
+        return {}
+    return {(str(r[0]), str(r[1])): {"latest_ymd": str(r[2] or ""),
+                                     "exhausted": bool(r[3]),
+                                     "trade_count": int(r[4] or 0),
+                                     "last_checked": str(r[5] or "")}
+            for r in rows}
+
+
+def _pair_jitter_days(complex_no: str, area_no: str, jitter_days: int) -> int:
+    """쌍마다 안정적으로 재현되는 0..jitter_days-1 편차.
+
+    ⚠ 내장 hash()는 프로세스마다 값이 달라(PYTHONHASHSEED) 실행할 때마다 만기일이 흔들린다 —
+    crc32 로 고정한다.
+    """
+    if jitter_days <= 1:
+        return 0
+    import zlib  # noqa: PLC0415
+    return zlib.crc32(f"{complex_no}:{area_no}".encode()) % jitter_days
+
+
+def fresh_pairs(conn: sqlite3.Connection, stale_days: int, jitter_days: int = 7,
+                now=None) -> set:
+    """증분 갱신에서 **제외**할(=아직 신선한) 쌍 집합 — 쌍마다 만기일을 흩뿌린다.
+
+    임계 = stale_days + (쌍 해시 % jitter_days) 일.
+
+    왜(실사고 2026-08-04): 7/20 에 853쌍을 한 번에 확인해 두면 그 853쌍의 last_checked 가
+    전부 7/20 이 되고, stale_days=14 단일 임계에서는 **14일 뒤 같은 날 한꺼번에** 만기된다.
+    실측으로 하루 대상이 105건 → 716건으로 튀어 하루 예산을 넘겼고, 못 끝낸 쌍은 갱신 기록이
+    안 남아 다음날 또 대상이 되면서 백로그가 스스로 유지됐다. 편차를 주면 같은 날 확인분이
+    jitter_days 일에 걸쳐 나뉘어 만기된다.
+
+    날짜 형태가 아닌 last_checked('reprocess:…' 등)는 신선으로 보지 않는다(checked_pairs 주석 참조).
+    """
+    from datetime import datetime, timedelta  # noqa: PLC0415
+    ref = now or datetime.now()
+    try:
+        rows = conn.execute(
+            "SELECT complex_no, area_no, last_checked FROM naver_pair_status "
+            f"WHERE last_checked GLOB '{_DATE_GLOB}'").fetchall()
+    except sqlite3.DatabaseError:
+        return set()
+    out = set()
+    for cno, ano, checked in rows:
+        try:
+            when = datetime.strptime(str(checked)[:19], "%Y-%m-%d %H:%M:%S")
+        except ValueError:
+            try:
+                when = datetime.strptime(str(checked)[:16], "%Y-%m-%d %H:%M")
+            except ValueError:
+                continue          # 날짜로 못 읽으면 신선하다고 보지 않는다(재크롤 대상)
+        threshold = stale_days + _pair_jitter_days(str(cno), str(ano), jitter_days)
+        if ref - when < timedelta(days=threshold):
+            out.add((cno, ano))
+    return out
 
 
 def load_real_trades(conn: sqlite3.Connection, complex_no: str,
