@@ -31,6 +31,30 @@ function Alert($key, $title, $msg, $prio) {
     & powershell.exe -NoProfile -ExecutionPolicy Bypass -File $Notify -Title $title -Message $msg -Priority $prio -Tags "warning" | Out-Null
 }
 
+# 작업 스케줄러의 SCHED_S_* 상태코드 — **스크립트 exit 코드가 아니다.**
+# (2026-08-13) 이 둘을 섞어 읽어서 매일 05:42 에 헛알림이 하나씩 나갔다: 05:30 에 시작한
+# 작업이 그 시각엔 당연히 돌고 있으므로 LastTaskResult 가 267009(RUNNING)인데, 종전 코드는
+# 그걸 "exit != 0" 으로 보고 "4=낙찰 보존 실패 · 5=미러 실패 · 6=사진 실패" 라는 **무관한 원인**을
+# 매일 지목했다(실측: 8/9~8/13 매일 1건). 실제로는 3시간 뒤 exit=0 으로 정상 종료됐다.
+# 오탐이 쌓이면 진짜 알림을 무시하게 되므로 코드 계열을 갈라 읽는다.
+# ⚠ 키·비교를 **문자열**로 한다. 실측 코드 3221225786(0xC000013A, 8/5·8/6 강제종료)은
+#   Int32 범위를 넘어 [int] 캐스팅이 예외를 던지고, $ErrorActionPreference='Continue' 라
+#   그 예외가 조용히 무시되면서 **직전 루프의 값이 그대로 남아 엉뚱한 원인을 표시**한다
+#   (이 수정을 검증하다 실제로 재현됐다). 숫자 키 해시테이블은 Int32/Int64 박싱이 서로
+#   같지 않아 조회도 빗나간다 — 문자열이면 두 함정을 다 피한다.
+$SchedMeaning = @{
+    "267008" = "SCHED_S_TASK_READY (대기)"
+    "267009" = "SCHED_S_TASK_RUNNING (아직 실행 중)"
+    "267010" = "SCHED_S_TASK_DISABLED (사용 안 함)"
+    "267011" = "SCHED_S_TASK_HAS_NOT_RUN (한 번도 안 돌았음)"
+    "267012" = "SCHED_S_TASK_NO_MORE_RUNS (다음 실행 없음)"
+    "267014" = "SCHED_S_TASK_TERMINATED (시간 제한 PT5H 또는 강제 종료)"
+    "3221225786" = "STATUS_CONTROL_C_EXIT (프로세스 트리 강제 종료)"
+}
+# 실패가 아닌 상태코드 — 알림하지 않는다. 실행 중 매달림은 check1b 정체 감지가 잡고,
+# 중간에 죽은 것은 check1b 미완주 감지가 진행률까지 붙여 알려준다(그쪽이 정보량이 많다).
+$SchedBenign = @("267008", "267009", "267011", "267012")
+
 # --- 1) DailyRefresh scheduler: disabled or stale? ---
 $task = Get-ScheduledTask -TaskName "AuctionArbitrage-DailyRefresh" -ErrorAction SilentlyContinue
 if ($null -eq $task) {
@@ -41,6 +65,9 @@ if ($null -eq $task) {
     $info = Get-ScheduledTaskInfo -TaskName "AuctionArbitrage-DailyRefresh" -ErrorAction SilentlyContinue
     if ($info -and $info.LastRunTime -and ((Get-Date) - $info.LastRunTime).TotalHours -gt 36) {
         Alert "dailyrefresh-stale" "[auction] DailyRefresh stale >36h" ("Last run: " + $info.LastRunTime + " / result: " + $info.LastTaskResult) "high"
+    } elseif ($info -and $info.LastTaskResult -ne 0 -and ($SchedBenign -contains [string]$info.LastTaskResult)) {
+        # 실행 중·대기 상태코드 — 실패가 아니다. 알림 없이 기록만 남긴다.
+        $results += ("check1: DailyRefresh " + $SchedMeaning[[string]$info.LastTaskResult] + " - 알림 없음")
     } elseif ($info -and $info.LastTaskResult -ne 0) {
         # 제때 돌지만 **계속 실패로 끝나는** 경우 — 종전엔 신선도만 봐서 "OK" 로 보고했다.
         # refresh-daily.ps1 이 exit 4(낙찰보존/권리미러)·5(run.py 미러)·6(사진 도달성)을
@@ -48,11 +75,16 @@ if ($null -eq $task) {
         # 못 한다. notify.ps1 은 푸시 실패를
         # 삼키고 exit 0 으로 끝나므로(설계), 푸시를 놓치면 이게 유일한 기록이 된다.
         # (2026-08-05 세트2 재감사)
+        # (2026-08-13) 스케줄러 상태코드와 스크립트 exit 코드를 갈라 설명한다 — 섞으면 엉뚱한 원인을 지목한다.
+        $rc = [string]$info.LastTaskResult
+        $why = $SchedMeaning[$rc]
+        if (-not $why) {
+            $why = "스크립트 exit — 4=낙찰 보존 실패(run.py) 또는 권리/임차인 미러 실패(crawl_rights)" +
+                   " · 5=run.py 클라우드 미러 실패 · 6=사진 도달성 실패" +
+                   " (원인은 evidence\refresh-*.log 의 stderr 줄로 구분)"
+        }
         Alert "dailyrefresh-exit" "[auction] DailyRefresh exit != 0" (
-            "Last run: " + $info.LastRunTime + " / exit: " + $info.LastTaskResult +
-            "  (4=낙찰 보존 실패(run.py) 또는 권리/임차인 미러 실패(crawl_rights)" +
-            " · 5=run.py 클라우드 미러 실패 · 6=사진 도달성 실패" +
-            " — 원인은 evidence\refresh-*.log 의 stderr 줄로 구분)") "high"
+            "Last run: " + $info.LastRunTime + " / result: " + $rc + "  -> " + $why) "high"
     } else {
         $results += "check1: DailyRefresh OK"
     }
