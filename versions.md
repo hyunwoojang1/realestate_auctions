@@ -1,5 +1,29 @@
 # versions.md — auction-arbitrage 루프 작업 로그 (append-only, 최신순)
 
+## 2026-08-24 20:35 KST — 🧩 web.py 1,872줄 → blueprint 10모듈 분리 (감사 코드품질 CRITICAL)
+
+**무엇**: create_app 내부 클로저로 중첩돼 있던 라우트 36개 전부를 `src/views/` blueprint
+9종으로 분리 — auth(46)·assets(96)·home(211)·core_api(193)·sold(172)·find(140)·
+detail(336)·watchlist_pages(118)·pages(148) + __init__(39). web.py 는 588줄로 축소
+(모듈 공유 헬퍼 + create_app: Jinja 전역·config 스냅샷·요청 훅·blueprint 등록·웜업만).
+
+**설계 계약**(views/__init__.py 에 명문화):
+- 공유 헬퍼는 web 모듈에 남고 뷰는 `web.<이름>` **늦은 바인딩** 호출 —
+  테스트의 monkeypatch.setattr(web, "_scored", ...) 계약 보존.
+- 관리자 키는 클로저 스냅샷 → `app.config["AUCTION_ADMIN_KEY"]` 스냅샷(동일 시맨틱,
+  가드는 views/auth._is_admin 으로 이동해 find·watchlist·rate limit 이 공유).
+- CSS 해시도 config 로(BASE_CSS_V). rate limit 상태는 종전대로 create_app 클로저
+  (앱 인스턴스별 격리 유지). **로직 변경 0 — 이동만.**
+
+**증거**(반증 우선):
+- 라우트 맵 전수 대조: 분리 전 36 == 분리 후 36, 누락 0·초과 0 (메서드 포함 문자열 비교).
+- 전체 pytest **1,196 passed** (admin 가드·PWA·상세 병렬 페치·sold·rate limit 포함).
+- 실DB(auction.db 17,246건) 스모크: 주요 12경로 전부 200 + X-Data-Source=db,
+  활성 상세(2024타경1256) 200/113KB·낙찰 상세(2023타경7177) 200/95KB.
+- ruff 클린.
+
+**다음**: store/store_rest Protocol 통합 검토.
+
 ## 2026-08-24 19:55 KST — 📚 문서 부채 청산: DOC_SYNC_QUEUE 12건 소화 + ARCHITECTURE.md 전면 재작성
 
 **무엇**:
