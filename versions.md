@@ -1,5 +1,28 @@
 # versions.md — auction-arbitrage 루프 작업 로그 (append-only, 최신순)
 
+## 2026-08-24 18:35 KST — 🐤 침묵실패 카나리 4종 + 파서 정직성 감사 주간 자동화 (감사 H-8 등)
+
+**배경**: 3관점 교차검증 구멍 — 목록 파서는 `clean.get(...,"")` 폴백이라 법원이 필드명만
+바꾸면 감정가 0 이 조용히 흐르고, 기존 게이트는 `appraisal_price>0` 행만 검사해 무너진
+행을 회피. PII 마스킹·유형분류는 미등재 패턴에 무경고. audit_parser_fidelity 는 수동 전용.
+
+**무엇**:
+- `data_gates.gate_field_canary` — 감정가·최저가 **정상 비율**(≥90%, 표본≥50) 게이트.
+  FAIL 시 기존 배선대로 클라우드 미러 차단+알림. GATES 등록.
+- `courtauction_fields` 카나리 2종(동작 불변·경고 전용): ①마스킹 후 잔존 '미등재
+  역할어+성명' 경고(role당 1회, 법인 접미사 제외) ②미등재 sclsUtilCd 경고(코드당 1회).
+- `pipeline.load_live_trades` — 실패 집계를 `last_live_stats` 로 외부 노출, 실패율 10%
+  초과 시 warning→error 격상("시세추정불가가 API 장애 영향일 수 있음").
+- `audit_parser_fidelity.py` 에 종료코드 계약(A 변형 발견=exit 3) + `refresh-daily.ps1`
+  일요일 자동 실행 배선(PARSER_FIDELITY_FAIL 알림 high).
+
+**증거**: `tests/test_silent_failure_canaries.py` 8케이스 + 기존 test_data_gates 포함
+18 passed. 카나리 실동작 확인(가등기권자→경고, 신한은행→침묵, ZZ999 1회 경고).
+파서 감사 실DB 실전 실행 exit 0·리포트 생성(harness/audit/parser_fidelity_20260824_1805.md).
+ruff 클린.
+
+**다음**: 성능(API 워밍 배선·인덱스) → DB 고아 정리 → 배포.
+
 ## 2026-08-24 18:20 KST — 🕐 데이터 신선도 정직화 — '어제 데이터가 오늘처럼' 차단 (침묵실패 감사 CRITICAL)
 
 **배경**: 크롤이 며칠 조용히 실패해도(파서 드리프트·커버리지 플로어 반복·국토부 장애)

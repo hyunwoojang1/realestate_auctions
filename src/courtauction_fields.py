@@ -70,6 +70,32 @@ _PII_NAME_LIST_RE = re.compile(r"(\s*[,·]\s*)([가-힣]{2,4})([가-힣]*)")
 # (진짜 소유자 성명은 패턴1의 역할라벨 '소유자 홍길동' 어순으로 잡는다).
 _PII_NAME_FIRST_RE = re.compile(r"(?<![가-힣])([가-힣]{2,4})\s*(지분|소유(?![자권]))")
 
+# ── 미등재 역할어 카나리 (2026-08-24 감사) ─────────────────────────────────────
+# 이 마스킹은 등재된 역할어 목록에만 반응한다 — 법원이 새 역할어("가등기권자" 등)를 쓰면
+# 감지 로직이 경고 없이 통과시켜 실명이 누출된다(7월에만 실측 사고 4건, 매번 사후 패치).
+# 마스킹 **후** 텍스트에서 역할어 꼴(…권자/…신고인/…설정자)+성명 패턴이 남아 있으면
+# = 목록 밖 역할어일 가능성 → 즉시 경고 로그(역할어당 1회). 동작은 바꾸지 않는다(경고 전용) —
+# '모름'을 '안전'으로 오인하지 않기 위한 계측이며, detail_schema_drift 와 같은 사상이다.
+_KNOWN_ROLES = frozenset({
+    "주택임차권자", "유치권신고인", "유치권자", "임차권자", "근저당권설정자", "근저당권자",
+    "가압류권자", "전세권자", "지상권자", "전세권설정자", "채권자", "채무자", "소유자",
+    "공유자", "임차인", "임대인", "점유자", "신청인", "배우자", "상속인", "연고자",
+})
+_GENERIC_ROLE_RE = re.compile(
+    r"(?<![가-힣])([가-힣]{1,6}(?:권자|신고인|설정자|의무자))[\s:：]+"
+    r"(?![가-힣]*(?:회사|은행|공사|캐피탈|금고|조합|공단))([가-힣]{2,4})")
+_warned_roles: set = set()
+
+
+def _pii_role_canary(masked: str) -> None:
+    for m in _GENERIC_ROLE_RE.finditer(masked):
+        role = m.group(1)
+        if role in _KNOWN_ROLES or role in _warned_roles:
+            continue
+        _warned_roles.add(role)
+        logger.warning("[성명카나리] 미등재 역할어 후보 '%s' 뒤에 성명 꼴 잔존 — "
+                       "_PII_CONTEXT_RE 역할 목록 갱신 검토: %r", role, m.group(0)[:40])
+
 # 이름 자리에 오지만 자연인이 아닌 어휘. **정확일치(+조사)로만** 제외한다 —
 # ⚠ 접두일치로 하면 "전원"이 실명 **전원철**을, "소유"가 **소유진**을 삼켜 마스킹을 빠져나간다
 #   (실측 2026-07-15: 천안 2025타경11313 "임차인 전원철, 박화란" 무마스킹 누출).
@@ -205,7 +231,9 @@ def mask_personal_names(text: str) -> str:
         return f"[성명] {m.group(2)}" if _looks_like_name(m.group(1)) else m.group(0)
 
     text = _PII_CONTEXT_RE.sub(_role_first, text)
-    return _PII_NAME_FIRST_RE.sub(_name_first, text)
+    text = _PII_NAME_FIRST_RE.sub(_name_first, text)
+    _pii_role_canary(text)   # 마스킹 후 잔존 역할어+성명 = 목록 밖 역할어 의심(경고 전용)
+    return text
 
 
 def sanitize_row(raw: dict) -> dict:
@@ -326,6 +354,8 @@ def classify_by_scls(scls: str) -> str:
 
 # dspslUsgNm(그룹명) 키워드 폴백 — scls 미상일 때만. 그룹명 특성상 콤마 복수 용도가 흔해
 # 여기서 확정 주거유형을 말하면 위험하므로, 콤마 포함 그룹은 '혼합'(시세추정 미지원)으로 둔다.
+_warned_scls: set = set()
+
 _TYPE_KEYWORDS = [
     ("아파트형공장", "상가"),   # '아파트' 선매칭 방지 — 구체 키워드를 먼저
     ("아파트", "아파트"), ("오피스텔", "오피스텔"), ("다세대", "다세대"), ("연립", "연립"),
@@ -345,6 +375,14 @@ def classify_property_type(usg_nm: str, scls: str = "") -> str:
     by_code = classify_by_scls(scls)
     if by_code:
         return by_code
+    # (2026-08-24 감사 H-8) 미등재 세부용도코드는 조용히 키워드 폴백으로 흘렀다 — 법원이
+    # 신규 코드를 도입하면 오분류→엉뚱한 시세 매칭이 재발할 수 있다(과거 실측 3건). 코드당
+    # 1회 경고로 _SCLS_TYPE 갱신 시점을 알린다(동작 불변).
+    sc = (scls or "").strip()
+    if sc and sc not in _warned_scls:
+        _warned_scls.add(sc)
+        logger.warning("[유형카나리] 미등재 세부용도코드 %r (그룹명 %r) — 키워드 폴백. "
+                       "_SCLS_TYPE 갱신 검토 필요", sc, (usg_nm or "")[:20])
     s = (usg_nm or "").strip()
     if "," in s:
         return "혼합"

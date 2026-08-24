@@ -188,6 +188,10 @@ def _extra_to_trade(et, lawd_cd: str = "") -> Trade:
                  lawd_cd=lawd_cd)
 
 
+MOLIT_FAIL_ALERT_RATIO = 0.10   # 이 비율 초과 실패 시 warning→error 격상(로그 그렙 가능)
+last_live_stats: dict = {"calls": 0, "fails": 0}   # 직전 수집의 실패 집계(외부 소비용)
+
+
 def load_live_trades(listings: list[AuctionListing], api_key: str,
                      deal_ymd: str) -> list[Trade]:
     """법정동코드(LAWD_CD)별 실거래 라이브 수집.
@@ -278,10 +282,20 @@ def load_live_trades(listings: list[AuctionListing], api_key: str,
         cache.close()
     logger.info("라이브 시세 수집: %d콜(캐시적중 %d·실패 %d), %d개월창, 실거래 %d건",
                 calls, hits, fails, len(ymds), len(trades))
+    # (2026-08-24 침묵실패 감사) 실패 집계를 모듈 밖으로 노출 — run.py/검증 스크립트가
+    # '시세추정불가'가 comps 부재인지 그날 API 장애인지 구분할 근거. 로그 한 줄로만 남기면
+    # 아무도 안 본다(감사 지적 그대로).
+    last_live_stats["calls"] = calls
+    last_live_stats["fails"] = fails
     if fails:
-        # 집계 경고 — '시세추정불가'가 진짜 comps 부재인지 API 실패 때문인지 구분하게 한다.
-        logger.warning("라이브 시세 수집: %d/%d 호출 실패. 일부 물건은 comps 부족이 아니라 "
-                       "API 실패로 시세추정불가일 수 있음(결과 신뢰도 저하).", fails, calls)
+        ratio = fails / calls if calls else 0.0
+        if ratio > MOLIT_FAIL_ALERT_RATIO:
+            logger.error("라이브 시세 수집 성능 저하: %d/%d 호출 실패(%.0f%%) — 오늘 배치의 "
+                         "'시세추정불가'·신뢰계수는 API 장애 영향일 수 있음. 해석 주의.",
+                         fails, calls, ratio * 100)
+        else:
+            logger.warning("라이브 시세 수집: %d/%d 호출 실패. 일부 물건은 comps 부족이 아니라 "
+                           "API 실패로 시세추정불가일 수 있음(결과 신뢰도 저하).", fails, calls)
     return trades
 
 

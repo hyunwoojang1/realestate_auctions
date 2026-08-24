@@ -198,6 +198,21 @@ try {
             Tee-Object -FilePath $LogPath -Append
         $photoCode = $LASTEXITCODE
     }
+
+    # --- [파서 정직성] 주간(일요일) 원문↔저장 대조 감사 (2026-08-24 침묵실패 감사) ---
+    #     audit_parser_fidelity 는 이 클래스(필드 단위 침묵 드리프트)를 잡으라고 만든
+    #     도구인데 수동 실행뿐이었다 — 사람이 기억해야 도는 감시는 감시가 아니다.
+    #     DB-only(크롤 0)라 비용이 싸다. A(변형) 발견 시 exit 3 → 알림 high.
+    if (-not $FromCache -and (Get-Date).DayOfWeek -eq [DayOfWeek]::Sunday) {
+        "--- [파서] 주간 충실성 감사(DB-only) ---" | Tee-Object -FilePath $LogPath -Append
+        & $Python (Join-Path $RepoRoot "scripts\audit_parser_fidelity.py") 2>&1 |
+            Tee-Object -FilePath $LogPath -Append
+        $fidelityCode = $LASTEXITCODE
+        if ($fidelityCode -ne 0) {
+            "[!] 파서 충실성 감사 변형(A) 발견(exit $fidelityCode) — 파서 점검 필요." |
+                Tee-Object -FilePath $LogPath -Append
+        }
+    }
 } finally {
     Pop-Location
     $ErrorActionPreference = $prevEAP
@@ -215,6 +230,8 @@ $photoNote = ""
 if ((Test-Path variable:photoCode) -and $photoCode -ne 0) { $photoNote = " PHOTO_CHECK_FAIL($photoCode)" }
 $backupNote = ""
 if ((Test-Path variable:backupCode) -and $backupCode -ne 0) { $backupNote = " BACKUP_FAIL($backupCode)" }
+$fidelityNote = ""
+if ((Test-Path variable:fidelityCode) -and $fidelityCode -ne 0) { $fidelityNote = " PARSER_FIDELITY_FAIL($fidelityCode)" }
 
 # crawl_rights 의 exit 4 = 클라우드 미러링 실패 = **로컬은 갱신됐는데 서빙(Vercel)에는 반영 안 됨**.
 # 종전엔 이 코드를 $rightsCode 에 받아놓고 $code 에 접지 않아, 프로세스는 0으로 끝나고
@@ -236,11 +253,11 @@ if ((Test-Path variable:photoCode) -and $photoCode -ne 0 -and $code -eq 0) { $co
 
 $prio = "min"
 if ($code -ne 0) { $prio = "urgent" }
-elseif ($photoNote -or $backupNote) { $prio = "high" }
+elseif ($photoNote -or $backupNote -or $fidelityNote) { $prio = "high" }
 elseif ($rightsNote -match "exit=[234]") { $prio = "high" }
 & powershell.exe -NoProfile -ExecutionPolicy Bypass -File (Join-Path $RepoRoot "scripts\notify.ps1") `
     -Title "[auction] daily refresh exit=$code" `
-    -Message "mode=$mode$rightsNote$photoNote$backupNote db=$(Split-Path $DbPath -Leaf) log=$(Split-Path $LogPath -Leaf)" `
+    -Message "mode=$mode$rightsNote$photoNote$backupNote$fidelityNote db=$(Split-Path $DbPath -Leaf) log=$(Split-Path $LogPath -Leaf)" `
     -Priority $prio | Out-Null
 
 exit $code

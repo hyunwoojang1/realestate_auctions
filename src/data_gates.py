@@ -151,6 +151,38 @@ def gate_extreme_est(conn) -> GateResult:
                                f"→시세{b['est_market_price']/1e8:.1f}억" for b in bad[:5]])
 
 
+FIELD_CANARY_MIN_RATIO = 0.90   # 핵심 수치 필드 정상(>0) 비율 하한
+FIELD_CANARY_MIN_ROWS = 50      # 표본 하한 — 소표본 데모/테스트에서 오발동 방지
+
+
+def gate_field_canary(conn) -> GateResult:
+    """감정가·최저가가 0/NULL 로 무너진 비율 — 법원 필드명 변경의 침묵 드리프트 감지.
+
+    (2026-08-24 감사 H-8) 리스트 파서는 `clean.get(..., "")` 폴백이라 법원이 필드명만 바꾸면
+    예외 없이 0 이 흘러간다. 기존 게이트들은 `appraisal_price > 0` 행만 검사하므로 무너진
+    행은 게이트를 '통과'가 아니라 '회피'했다 — 크롤은 exit 0, 화면엔 감정가 0원 물건.
+    이 게이트는 반대로 **정상 비율 자체**를 재서, 붕괴가 일정 비율을 넘으면 FAIL
+    (= 클라우드 미러 차단 + 알림)로 만든다.
+    """
+    row = _rows(conn, """
+        select count(*) n,
+               sum(case when appraisal_price > 0 then 1 else 0 end) ap,
+               sum(case when min_bid_price  > 0 then 1 else 0 end) mb
+        from scored_listings
+    """)[0]
+    n = row["n"] or 0
+    if n < FIELD_CANARY_MIN_ROWS:
+        return GateResult("필드 카나리(감정가·최저가)", ok=True, count=0,
+                          detail=f"표본 {n}건 < {FIELD_CANARY_MIN_ROWS} — 판정 보류")
+    ap_ratio = (row["ap"] or 0) / n
+    mb_ratio = (row["mb"] or 0) / n
+    bad = min(ap_ratio, mb_ratio) < FIELD_CANARY_MIN_RATIO
+    return GateResult(
+        f"필드 카나리(정상비율≥{FIELD_CANARY_MIN_RATIO:.0%})", ok=not bad,
+        count=(n - min(row["ap"] or 0, row["mb"] or 0)) if bad else 0,
+        detail=f"감정가 {ap_ratio:.1%} · 최저가 {mb_ratio:.1%} (전체 {n}건)")
+
+
 def gate_join_integrity(conn) -> GateResult:
     """scored ↔ raw 조인 고아 — 수집·적재 사이 유실/키 불일치 감지(법원 포함 복합키)."""
     orphan_scored = _rows(conn, """
@@ -255,6 +287,7 @@ GATES = [
     gate_pk_sanity,
     gate_rights_json,
     gate_band_order,
+    gate_field_canary,
 ]
 
 

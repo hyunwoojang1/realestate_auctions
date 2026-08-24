@@ -200,7 +200,10 @@ def main():
     print("\n".join(L))
     print(f"\n리포트: {out}")
     conn.close()
+    # (2026-08-24 감사) 무인 실행 배선용 종료코드 계약 — A(변형)는 파서 버그 직결이므로
+    # 발견 시 exit 3(권리크롤의 '파서 점검 필요' 코드와 동일 의미). B/C 는 리포트로만.
+    return 3 if mismatch else 0
 
 
 if __name__ == "__main__":
-    main()
+    sys.exit(main())
