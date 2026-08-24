@@ -12,7 +12,10 @@ from __future__ import annotations
 
 import pytest
 
-_BACKEND_ENVS = ("AUCTION_DB", "SUPABASE_URL", "SUPABASE_SECRET_KEY", "SUPABASE_TABLE")
+# AUCTION_ADMIN_KEY: run.py 경유 .env 로드가 운영자 키를 프로세스에 남기면 이후 워치리스트
+# 테스트가 전부 403 으로 오염된다(2026-08-24 보안 가드 도입 때 실측). 명시 setenv 한 테스트만 사용.
+_BACKEND_ENVS = ("AUCTION_DB", "SUPABASE_URL", "SUPABASE_SECRET_KEY", "SUPABASE_TABLE",
+                 "AUCTION_ADMIN_KEY")
 
 
 @pytest.fixture(autouse=True)

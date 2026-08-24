@@ -10,10 +10,13 @@
 """
 from __future__ import annotations
 
+import hmac
 import html
 import logging
 import math
 import os
+import threading
+import time
 from pathlib import Path
 
 from flask import Flask, abort, g, jsonify, redirect, render_template, request
@@ -368,6 +371,68 @@ def create_app() -> Flask:
         # 모든 응답에 데이터 출처를 노출 — 샘플을 라이브로 오인하는 것을 방지.
         resp.headers["X-Data-Source"] = getattr(g, "data_source", "n/a")
         return resp
+
+    # ── 접근 제어 + 요청 제한 (2026-08-24 보안감사) ──────────────────────────────
+    # 발견: ①워치리스트(운영자의 입찰 관심 = 금전 직결 정보)가 공개 URL에서 무인증
+    # 읽기/쓰기 ②/find 라이브 조회가 익명 사용자발로 대법원 사이트 요청을 무제한 유발
+    # (밴 → 크롤 전체 마비) ③전 API rate limit 부재.
+    #
+    # 정책: AUCTION_ADMIN_KEY(env) 기반. 키 미설정 시 — 클라우드 서빙(store_rest =
+    # 공개 Vercel)은 fail-closed(잠금), 로컬(SQLite/샘플)은 종전대로 열림(개인 PC 워크플로
+    # ·기존 테스트 계약 유지). 운영자는 /admin/login?key=... 1회 방문으로 1년 쿠키를 받는다.
+    # 쿠키는 SameSite=Lax → 타 사이트발 POST(CSRF)에 실리지 않는다.
+    _ADMIN_KEY = os.environ.get("AUCTION_ADMIN_KEY", "").strip()
+
+    def _key_ok(supplied: str) -> bool:
+        # compare_digest 는 비ASCII str 에 TypeError — 항상 utf-8 bytes 로 비교한다.
+        return hmac.compare_digest(supplied.encode("utf-8"), _ADMIN_KEY.encode("utf-8"))
+
+    def _is_admin() -> bool:
+        if not _ADMIN_KEY:
+            return not store_rest.enabled()
+        supplied = (request.cookies.get("aak", "")
+                    or request.headers.get("X-Admin-Key", ""))
+        return _key_ok(supplied)
+
+    @app.get("/admin/login")
+    def admin_login():
+        key = request.args.get("key", "")
+        if not _ADMIN_KEY or not _key_ok(key):
+            abort(403)
+        resp = redirect("/")
+        resp.set_cookie("aak", key, max_age=365 * 24 * 3600, httponly=True,
+                        samesite="Lax", secure=request.is_secure)
+        return resp
+
+    # 인메모리 슬라이딩 윈도(프로세스/서버리스 인스턴스 단위). 완전한 방어가 아니라
+    # 단일 IP 폭주를 끊는 1차 저지선 — 인스턴스가 늘면 한도도 같이 늘어나는 한계는 안다.
+    _RL_MAX = int(os.environ.get("AUCTION_RL_MAX", "120"))     # 윈도당 요청 수
+    _RL_WIN = float(os.environ.get("AUCTION_RL_WIN", "60"))    # 윈도(초)
+    _rl_lock = threading.Lock()
+    _rl_hits: dict[str, list[float]] = {}
+
+    @app.before_request
+    def _rate_limit():
+        p = request.path
+        if not (p.startswith("/api/") or p.startswith("/export") or p == "/find"):
+            return None
+        if _is_admin():
+            return None
+        # Vercel 프록시 뒤에서는 X-Forwarded-For 첫 항목이 클라이언트 IP.
+        ip = (request.headers.get("X-Forwarded-For", "").split(",")[0].strip()
+              or request.remote_addr or "?")
+        now = time.time()
+        with _rl_lock:
+            hits = [t for t in _rl_hits.get(ip, ()) if now - t < _RL_WIN]
+            if len(hits) >= _RL_MAX:
+                _rl_hits[ip] = hits
+                return jsonify({"error": "rate_limited",
+                                "detail": f"분당 {_RL_MAX}회를 초과했습니다."}), 429
+            hits.append(now)
+            _rl_hits[ip] = hits
+            if len(_rl_hits) > 10_000:   # 악의적 IP 스푸핑으로 딕셔너리가 무한 성장하는 것 방지
+                _rl_hits.clear()
+        return None
 
     # ── PWA(홈 화면 앱) — iOS Safari '홈 화면에 추가' 시 standalone 앱으로 열리게. ──
     # Vercel rewrite 가 모든 경로를 Flask 로 보내므로 정적 폴더 대신 명시 라우트로 서빙한다.
@@ -964,6 +1029,13 @@ def create_app() -> Flask:
             return render_template("find.html", stage="local_multi", matches=local, query=q, **ctx)
 
         # 2) 라이브 — 연도+법원이 있어야 관할을 특정할 수 있다.
+        # (2026-08-24 보안감사) 라이브 조회는 익명 요청 1건당 대법원 사이트 실요청을
+        # 유발한다 — 공개 배포에서 악용되면 공유 IP 밴 → 크롤 파이프라인 전체 마비.
+        # 로컬 큐레이션 검색(위 1)은 누구나, 라이브 단건 조회는 운영자만.
+        if not _is_admin():
+            return render_template(
+                "find.html", stage="error", query=q,
+                message="큐레이션에 없는 사건의 실시간 조회는 운영자 전용입니다.", **ctx)
         if not q.canonical:
             return render_template("find.html", stage="need_year", query=q, **ctx)
         if not court:
@@ -1445,6 +1517,8 @@ def create_app() -> Flask:
 
     @app.get("/watchlist")
     def watchlist_page():
+        if not _is_admin():   # 입찰 관심 목록 = 운영자 개인 재무 의도(2026-08-24 보안감사)
+            abort(403)
         from . import tax  # noqa: PLC0415
         items = _scored()
         wl, wl_corrupt = watchlist.load_watchlist_status(watchlist.watchlist_path())
@@ -1469,6 +1543,8 @@ def create_app() -> Flask:
 
     @app.get("/api/watchlist")
     def watchlist_api_list():
+        if not _is_admin():
+            abort(403)
         resp = jsonify(sorted(watchlist.load_watchlist(watchlist.watchlist_path())))
         # (D3 2026-07-27) 상세 별 재동기화의 진실 원천 — 어떤 캐시에도 걸리면 안 된다.
         resp.headers["Cache-Control"] = "no-store"
@@ -1487,6 +1563,8 @@ def create_app() -> Flask:
 
     @app.post("/api/watchlist/<case_no>")
     def watchlist_api_add(case_no: str):
+        if not _is_admin():
+            abort(403)
         if not _case_exists(case_no):
             abort(404)
         watchlist.add_watch(_wl_key_from_request(case_no), watchlist.watchlist_path())
@@ -1494,6 +1572,8 @@ def create_app() -> Flask:
 
     @app.delete("/api/watchlist/<case_no>")
     def watchlist_api_remove(case_no: str):
+        if not _is_admin():
+            abort(403)
         p = watchlist.watchlist_path()
         # 복합키·레거시 둘 다 제거(어느 쪽으로 등록됐든 해제되게)
         watchlist.remove_watch(_wl_key_from_request(case_no), p)
@@ -1502,6 +1582,8 @@ def create_app() -> Flask:
 
     @app.post("/watchlist/toggle/<case_no>")
     def watchlist_toggle(case_no: str):
+        if not _is_admin():
+            abort(403)
         p = watchlist.watchlist_path()
         wl = watchlist.load_watchlist(p)
         key = _wl_key_from_request(case_no)
@@ -1637,7 +1719,8 @@ def create_app() -> Flask:
     # pytest(앱을 다회 생성)와 명시적 opt-out(AUCTION_WARM=0)에선 웜업 생략.
     if (os.environ.get("AUCTION_WARM", "1") != "0"
             and "PYTEST_CURRENT_TEST" not in os.environ):
-        import threading  # noqa: PLC0415
+        # threading 은 모듈 상단 임포트(2026-08-24 rate limit 도입으로 승격) — 여기서 지역
+        # 임포트하면 create_app 스코프 전체에서 상단 임포트를 가리는 UnboundLocalError.
         threading.Thread(target=_warm_caches, name="warm-caches", daemon=True).start()
 
     return app

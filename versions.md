@@ -1,5 +1,29 @@
 # versions.md — auction-arbitrage 루프 작업 로그 (append-only, 최신순)
 
+## 2026-08-24 18:05 KST — 🔐 워치리스트 인증 + /find 라이브 제한 + rate limit (보안감사 CRITICAL)
+
+**배경**: 2026-08-24 보안감사 — ①워치리스트(운영자 입찰 관심 = 금전 직결 정보)가 공개
+Vercel 에서 무인증 읽기/쓰기 ②/find 가 익명발 대법원 실요청 무제한 유발(밴 → 크롤 마비)
+③전 API rate limit 부재.
+
+**무엇** (`src/web.py`):
+- `AUCTION_ADMIN_KEY` 기반 운영자 가드 — `/admin/login?key=` 1회 방문으로 1년 httponly·
+  SameSite=Lax 쿠키(CSRF 동시 차단). 헤더 `X-Admin-Key` 도 허용. 키 미설정 시 클라우드
+  서빙(store_rest)은 fail-closed, 로컬(SQLite/샘플)은 종전대로(기존 테스트 계약 유지).
+- 워치리스트 5개 라우트(페이지·목록·추가·삭제·토글) 전부 가드. /find 는 로컬 큐레이션
+  검색은 공개 유지, **라이브 단건 조회만** 운영자 전용.
+- 비운영자 `/api·/export·/find` 에 IP당 슬라이딩 윈도 rate limit(기본 120회/60초, env
+  조절) — 인스턴스 단위 1차 저지선임을 주석에 명시.
+- 부수 수정: create_app 말미의 지역 `import threading` 제거(상단 임포트 승격과 충돌 —
+  UnboundLocalError), 관리키 비교를 utf-8 bytes `compare_digest`로(비ASCII TypeError).
+- `.env` 에 AUCTION_ADMIN_KEY 생성·추가. ⚠️ Vercel env 설정은 배포 단계에서.
+
+**증거**: `tests/test_admin_guard.py` 신설 10케이스 — 무인증 403 5라우트·공개면 유지·
+로그인 쿠키 발급→통과·헤더 키·틀린 키 403·라이브 차단 문구·로컬 개방·429 발동/운영자
+면제. test_watchlist_web/test_web 포함 57 passed. ruff 클린.
+
+**다음**: 신선도 정직화(어제 데이터가 오늘처럼 보이는 문제).
+
 ## 2026-08-24 17:50 KST — 💾 자동 백업 3계층 도입 + R2 SigV4 슬래시 경로 버그 수정 (감사 C-1)
 
 **배경**: 2026-08-24 6관점 감사에서 CRITICAL C-1 — 자동 백업 전무, 최신 사본 27일 전·같은
