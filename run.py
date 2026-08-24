@@ -336,9 +336,13 @@ def main(argv=None) -> int:
         # (QA 2026-07-26) building·tenants 도 동일 배선 — E2 때 빠져 2,399·55행 고아 실측 누적.
         pruned_b = store.prune_orphan_building(conn)
         pruned_t = store.prune_orphan_tenants(conn)
-        if (pruned or pruned_p or pruned_n or pruned_b or pruned_t) and not args.json:
+        # (2026-08-24 DB감사) detail_raw·tenant_checks 가 목록에서 빠져 12.8%·14.6% 고아 실측.
+        pruned_d = store.prune_orphan_detail_raw(conn)
+        pruned_c = store.prune_orphan_tenant_checks(conn)
+        if (pruned or pruned_p or pruned_n or pruned_b or pruned_t or pruned_d or pruned_c)                 and not args.json:
             print(f"  🧹 로컬 고아 정리(scored 동기화): 권리 {pruned}·사진 {pruned_p}"
-                  f"·시세 {pruned_n}·건축물 {pruned_b}·임차인 {pruned_t}건")
+                  f"·시세 {pruned_n}·건축물 {pruned_b}·임차인 {pruned_t}"
+                  f"·원문 {pruned_d}·조사마커 {pruned_c}건")
     else:
         n = store.upsert(conn, scored)   # 전체 저장
 

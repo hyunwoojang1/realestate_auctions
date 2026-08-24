@@ -1,5 +1,23 @@
 # versions.md — auction-arbitrage 루프 작업 로그 (append-only, 최신순)
 
+## 2026-08-24 18:50 KST — ⚡ API 워밍 배선 + 인덱스 3종 + 고아 정리 2종 (성능·DB 감사 HIGH)
+
+**무엇**:
+- `/api/listings`·`.geojson`·`/api/listings/<case_no>` 에 `store_rest.warm_caches()` 배선 —
+  홈에만 있던 7/28 병렬 워밍이 API 계열엔 빠져 콜드 22.7초(실측, 3 데이터셋 순차 전량
+  로드). 이제 홈과 동일 경로.
+- SQLite 보조 인덱스 3종(connect 시 IF NOT EXISTS): `idx_sold_case`(17,865행 SCAN 제거)·
+  `idx_np_complex`(/sold 방문마다 8,835행 SCAN 제거)·`idx_raw_fetched`(load_scored 의
+  63,428행 임시 B-트리 정렬 제거 — 데이터 증가와 함께 선형 악화하던 항목).
+- 고아 정리 2종 추가·배선: `prune_orphan_detail_raw`(12.8% 실측)·`prune_orphan_tenant_checks`
+  (14.6%) — run.py 풀스냅샷 후 목록에 합류.
+
+**증거**: EXPLAIN QUERY PLAN 실DB 전후 대조 — 3쿼리 모두 SCAN→인덱스 사용 전환 확인.
+실DB 1회 정리: detail_raw 고아 **1,548건**·tenant_checks **555건** 삭제(감사 실측치와
+일치), 잔여 고아 0 재검증. `tests/test_prune_detail_raw.py` 2케이스 + test_store 18 passed.
+
+**다음**: 배포 위생(deploy.ps1 축소·의존성 핀) → 최종 검증·배포.
+
 ## 2026-08-24 18:35 KST — 🐤 침묵실패 카나리 4종 + 파서 정직성 감사 주간 자동화 (감사 H-8 등)
 
 **배경**: 3관점 교차검증 구멍 — 목록 파서는 `clean.get(...,"")` 폴백이라 법원이 필드명만

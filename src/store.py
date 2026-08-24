@@ -338,6 +338,15 @@ def connect(db_path: str = "auction.db") -> sqlite3.Connection:
     conn.execute(DDL_TENANTS)
     conn.execute(DDL_DETAIL_RAW)
     conn.execute(DDL_SOLD)
+    # 핫 경로 보조 인덱스 (2026-08-24 성능감사 HIGH — EXPLAIN QUERY PLAN 실측 풀스캔 3곳):
+    #  - sold_listings.case_no: 낙찰 이력 단건 조회가 PK(court,case_no,item_no)를 못 타고
+    #    17,865행 SCAN.
+    #  - naver_prices.complex_no: /sold 의 _sold_naver_map 이 방문마다 8,835행 SCAN.
+    #  - raw_listings.fetched_at: load_scored → _sale_time_map 의 ORDER BY 가 63,428행
+    #    임시 B-트리 정렬(매 요청, 데이터 증가와 함께 선형 악화).
+    conn.execute("CREATE INDEX IF NOT EXISTS idx_sold_case ON sold_listings (case_no)")
+    conn.execute("CREATE INDEX IF NOT EXISTS idx_np_complex ON naver_prices (complex_no)")
+    conn.execute("CREATE INDEX IF NOT EXISTS idx_raw_fetched ON raw_listings (fetched_at)")
     conn.execute(f"PRAGMA user_version={SCHEMA_VERSION}")
     return conn
 
@@ -830,6 +839,21 @@ def prune_orphan_building(conn: sqlite3.Connection) -> int:
 def prune_orphan_tenants(conn: sqlite3.Connection) -> int:
     """scored 에 없는 listing_tenants 고아 삭제(풀스냅샷 후) — 55행 실측(QA 2026-07-26)."""
     return _prune_orphans(conn, "listing_tenants")
+
+
+def prune_orphan_detail_raw(conn: sqlite3.Connection) -> int:
+    """scored 에 없는 listing_detail_raw 고아 삭제(풀스냅샷 후).
+
+    (2026-08-24 DB감사 HIGH) 정리 목록에서 빠져 12.8%(1,548/12,062행) 고아 실측 — 압축
+    원문 BLOB 라 죽은 물건분이 용량을 가장 많이 먹는다. '자식 테이블 추가 시 정리 목록에
+    수동으로 끼워야 하는' 구조가 놓친 두 곳 중 하나.
+    """
+    return _prune_orphans(conn, "listing_detail_raw")
+
+
+def prune_orphan_tenant_checks(conn: sqlite3.Connection) -> int:
+    """scored 에 없는 tenant_checks 고아 삭제(풀스냅샷 후) — 14.6%(555/3,793행) 실측(위와 동일 감사)."""
+    return _prune_orphans(conn, "tenant_checks")
 
 
 def upsert_sold(conn: sqlite3.Connection, rows: list[dict]) -> int:

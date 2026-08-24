@@ -829,6 +829,10 @@ def create_app() -> Flask:
     def listings():
         # (재검증 감사 idx4) API 에도 인수 부담 필드 병기 — 소비자가 인수 미반영 profit 만
         # 보고 실질 음수 물건을 양수로 오인하지 않게.
+        # (2026-08-24 성능감사 CRITICAL) 홈(index)에만 있던 병렬 워밍을 API 에도 배선 —
+        # 종전엔 목록→권리→네이버 3개 데이터셋을 콜드에서 **순차** 전량 로드해 22.7초
+        # (실측, /health 2.7초 대비). 홈과 같은 캐시를 쓰므로 의미는 그대로다.
+        store_rest.warm_caches()
         badges = _rights_badges()
         out = []
         for s in _filtered(request.args, badges=badges):
@@ -1131,6 +1135,7 @@ def create_app() -> Flask:
     @app.get("/api/listings.geojson")
     def listings_geojson():
         """지도용 GeoJSON — 목록과 동일 필터. 좌표는 KATEC→WGS84 캐시(coords.py) 조인."""
+        store_rest.warm_caches()   # (2026-08-24 성능감사) 콜드 순차 로드 → 병렬 워밍
         from . import coords  # noqa: PLC0415
         from . import query as q
         from . import region as reg  # noqa: PLC0415
@@ -1190,6 +1195,7 @@ def create_app() -> Flask:
 
     @app.get("/api/listings/<case_no>")
     def listing_detail(case_no: str):
+        store_rest.warm_caches()   # (2026-08-24 성능감사) 콜드 순차 로드 → 병렬 워밍
         matches = _find_by_case(case_no)
         if not matches:
             abort(404)
