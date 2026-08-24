@@ -138,8 +138,10 @@ def test_sold_page_lists_records(tmp_path, monkeypatch):
     assert "낙찰 결과" in body
     assert 'href="/sold" class="on"' in body                  # 헤더 메뉴 활성 상태(2026-07-27 QA·2차)
     assert "3.10억" in body                                   # 실낙찰가 표기
-    assert "미공개" in body                                   # 가격 없는 건 정직 표기
-    assert "0.00억" not in body                               # (C5) 미공개를 0으로 지어내지 않음
+    assert "미수집" in body                                   # 가격 없는 건 정직 표기
+    # (2026-08-24) '미공개'→'미수집' 문구 정정 — 매각결과검색 API 발견으로 "법원이 공개 안
+    # 한다"는 전제가 틀렸음이 확인됨. 계약(값 없음을 명시·지어내지 않음)은 동일.
+    assert "0.00억" not in body                               # (C5) 미수집을 0으로 지어내지 않음
 
 
 def test_sold_detail_mode_locks_simulator(tmp_path, monkeypatch):
@@ -154,11 +156,11 @@ def test_sold_detail_mode_locks_simulator(tmp_path, monkeypatch):
 
 
 def test_sold_detail_unknown_price_no_lock(tmp_path, monkeypatch):
-    """낙찰가 미공개 → 배너에 '미공개', 시뮬레이터는 고정 없이 최저가 시작(값 지어내기 금지)."""
+    """낙찰가 미수집 → 배너에 '미수집', 시뮬레이터는 고정 없이 최저가 시작(값 지어내기 금지)."""
     db, c = _seed_web(tmp_path)
     monkeypatch.setenv("AUCTION_DB", str(db))
     body = c.get("/property/2025타경200?item=1&court=서울중앙지방법원").get_data(as_text=True)
-    assert "낙찰 종결 물건" in body and "미공개" in body
+    assert "낙찰 종결 물건" in body and "미수집" in body
     assert "data-sold-price" not in body
     assert "추정 낙찰가" not in body                           # 지어낸 금액 라벨 금지
     assert "실낙찰가 고정" not in body                         # 가격 없는데 고정 UI 금지

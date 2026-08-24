@@ -51,6 +51,21 @@ DETAIL_URL = f"{BASE}/pgj/pgj15B/selectAuctnCsSrchRslt.on"
 # ★제약: 같은 세션에서 DETAIL_URL(case_detail)을 선행해야 응답이 온다 — 선행 없이 호출하면
 # 200이지만 {ipcheck:false} 빈 응답(서버가 사건 컨텍스트를 세션에서 확인). 타 세션 라이브검증 완료.
 CURST_URL = f"{BASE}/pgj/pgj15B/selectCurstExmndc.on"
+# 매각결과검색(PGJ158M01/M02 화면) — 최근 매각기일의 **정상 낙찰가(maeAmt)** 를 주는 유일한 API.
+# (2026-08-24 정찰) 활성 목록(searchControllerMain)의 maeAmt 는 재매각 물건에만 채워져
+# "정상 낙찰가는 법원 비공개"로 오인해 왔는데, 이 별도 화면은 매각 결과를 공개한다 —
+# statNum='3'(고정, 화면 JS 실측)·auctnGdsStatCd='04'(매각만) 서버 필터로 낙찰 행만 받는다.
+SOLD_RESULT_URL = f"{BASE}/pgj/pgjsearch/selectDspslSchdRsltSrch.on"
+
+# 매각결과검색 요청 골격(PGJ158M02 dma_srchGdsDtlSrchInfo 실측 키 — 페이징 키는 dma_pageInfo 로 분리).
+_SOLD_RESULT_KEYS = (
+    "statNum", "pgmId", "cortStDvs", "cortOfcCd", "jdbnCd", "csNo",
+    "rprsAdongSdCd", "rprsAdongSggCd", "rprsAdongEmdCd", "rdnmSdCd", "rdnmSggCd", "rdnmNo",
+    "auctnGdsStatCd", "lclDspslGdsLstUsgCd", "mclDspslGdsLstUsgCd", "sclDspslGdsLstUsgCd",
+    "dspslAmtMin", "dspslAmtMax", "aeeEvlAmtMin", "aeeEvlAmtMax",
+    "flbdNcntMin", "flbdNcntMax", "lafjOrderBy",
+)
+AUCTN_STAT_SOLD = "04"   # 매각(낙찰) — 실측: 이 코드로 조회 시 전 행 maeAmt > 0
 # (D1) 당일 요청 예산 공유 파일 — 프로덕션 크롤이 이 경로로 budget_file 을 켜서 목록·권리 크롤이
 # 같은 일일 상한을 공유한다(프로세스 재시작·병렬 실행이 밴 상한을 우회하지 못하게).
 BUDGET_FILE = ".courtauction_budget.json"
@@ -483,6 +498,27 @@ class CourtAuctionClient:
                            yielded, total, (1 - yielded / total) * 100)
         else:
             logger.info("검색 완료 %d행 수집 (총 %d, %d페이지)", yielded, total, last_page)
+
+    def sold_results(self, cort_ofc_cd: str, page_no: int = 1,
+                     warm: bool = True) -> tuple[int, list[dict]]:
+        """매각결과검색 — 법원 1곳의 최근 매각기일 **낙찰(매각) 결과** 1페이지.
+
+        반환 (totalCnt, rows). rows 의 `maeAmt` 가 실낙찰가(원, 매각만 조회하므로 전 행 > 0),
+        `saNo`(14자리)·`maemulSer` 가 물건 식별자. 최근 결과 창(실측: 서울중앙 기준 직전
+        기일 ~2주 내)만 반환되므로 매일 1회 돌면 낙찰가가 끊기지 않는다.
+        소비자: deploy/crawl_sold_results.py (sold_listings.sold_price 백필).
+        """
+        if warm and not self._client_ip:
+            self._warm_session()
+        srch = {k: "" for k in _SOLD_RESULT_KEYS}
+        srch.update({"statNum": "3", "pgmId": "PGJ158M01", "cortStDvs": "1",
+                     "cortOfcCd": cort_ofc_cd, "auctnGdsStatCd": AUCTN_STAT_SOLD})
+        data = self._post(
+            {"dma_pageInfo": _page_info(page_no, total_yn="Y" if page_no == 1 else "N"),
+             "dma_srchGdsDtlSrchInfo": srch},
+            url=SOLD_RESULT_URL)["data"]
+        total = int(data.get("dma_pageInfo", {}).get("totalCnt") or 0)
+        return total, list(data.get("dlt_srchResult") or [])
 
     def affordable_search(self, cash_won: int, appraisal_buffer: float = 3.0,
                           extra: SearchFilter | None = None,

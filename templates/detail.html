@@ -339,9 +339,12 @@
   <div class="note-box n-warn" style="margin-top:10px">🏁 <b>낙찰 종결 물건</b> — 경매가 끝나 자동
     보존된 기록입니다(기일 {{ sold.sale_date or '미상' }} · 보존 {{ sold.snapshot_at[:10] }}).
     {% if sold.sold_price %}실제 낙찰가 <b>{{ won(sold.sold_price) }}</b>{% if sold.sold_evidence == 'maeAmt' %}
-      <span style="color:var(--ink-500)">(해당 회차 낙찰가 — 이후 대금 미납으로 재매각 진행된 이력)</span>{% endif %}
+      <span style="color:var(--ink-500)">(해당 회차 낙찰가 — 이후 대금 미납으로 재매각 진행된 이력)</span>
+    {%- elif sold.sold_evidence == 'dspslRslt' %}
+      <span style="color:var(--ink-500)">(법원 매각결과 공고 확정가)</span>{% endif %}
       — 아래 시뮬레이터가 이 금액으로 고정돼 "그 가격에 샀다면"의 실현 손익을 보여줍니다.
-    {% else %}낙찰가 <b>미공개</b> — 법원은 정상 낙찰의 최종가를 공개하지 않습니다(추정치를 표시하지 않습니다).{% endif %}
+    {% else %}낙찰가 <b>미수집</b> — 법원 매각결과 공고에서 아직 수집되지 않았습니다.
+      매일 새벽 수집이 최근 매각기일분을 채우며, 공개 창을 지난 과거 기일은 미수집으로 남습니다(추정치를 표시하지 않습니다).{% endif %}
   </div>
   {% endif %}
 

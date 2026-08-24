@@ -125,6 +125,15 @@ try {
     & $Python @runArgs 2>&1 | Tee-Object -FilePath $LogPath -Append
     $code = $LASTEXITCODE
 
+    # --- [1.5/5] 실낙찰가 백필(매각결과검색, 2026-08-24 신설) — 법원 57곳 × 1콜 수준. ---
+    #     낙찰 보존(위 run.py diff) 뒤에 돌아야 당일 종결 물건에 다음날 낙찰가가 붙는다.
+    #     실패는 비차단(값이 NULL 로 남을 뿐, 다음날 창 안에서 재수집) — 로그로만 드러낸다.
+    "--- [1.5/5] 실낙찰가 백필(매각결과검색) ---" | Tee-Object -FilePath $LogPath -Append
+    & $Python -m deploy.crawl_sold_results --db $DbPath --mirror 2>&1 | Tee-Object -FilePath $LogPath -Append
+    if ($LASTEXITCODE -ne 0) {
+        "⚠ 실낙찰가 백필 exit=$LASTEXITCODE (차단=2) — 비차단, 다음 실행에서 재시도" | Tee-Object -FilePath $LogPath -Append
+    }
+
     # --- [2/5] 권리 보강(물건상세 명세서 요지): 오늘 발견된 신규 + 기일갱신(유찰 새 회차) 재보강 ---
     #     상위 N건(보수차익 우선), 일일캡·킬스위치(COURTAUCTION_STOP)는 CourtAuctionClient가 관리.
     #     실패해도 재채점을 막지 않는다. -SkipRights 로 건너뜀(안티밴 사고 시).
