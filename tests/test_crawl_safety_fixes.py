@@ -190,3 +190,94 @@ def test_pagination_not_early_exit_on_filtered_rows(monkeypatch):
                                        num_rows=2, max_pages=5)
     assert calls == ["1", "2"]                                   # 두 페이지 모두 요청
     assert {t.apt_name for t in trades} == {"상계주공", "둘째장단지"}
+
+
+def test_final_exit_code_promotes_mirror_failure():
+    """미러 실패 = 로컬은 성공했는데 서빙엔 반영 안 됨 → exit 4 로 사람을 부른다."""
+    from deploy.crawl_rights import final_exit_code
+    assert final_exit_code(0, 0) == 0
+    assert final_exit_code(0, 1) == 4
+    assert final_exit_code(0, 9) == 4
+    # 이미 비0이면 원인을 덮지 않는다(차단 2·실패율 3이 더 중요한 신호).
+    assert final_exit_code(2, 1) == 2
+    assert final_exit_code(3, 5) == 3
+
+
+def test_run_exit_code_is_output_mode_independent():
+    """run.py 종료코드는 --json 여부와 무관해야 한다.
+
+    종전엔 --json 분기가 낙찰 보존 실패(4)만 보고 먼저 반환해, `--json --live` 로 돌리면
+    클라우드 미러가 통째로 실패해도 exit 0 이 나갔다(2026-08-05 세트2 재감사).
+    """
+    from run import _exit_code
+    assert _exit_code(False, 0) == 0
+    assert _exit_code(False, 3) == 5          # 미러 실패
+    assert _exit_code(True, 0) == 4           # 낙찰 보존 실패
+    assert _exit_code(True, 3) == 4           # 둘 다면 더 무거운 쪽(복구 불가)이 이긴다
+
+
+def test_mirror_reporter_counts_only_failures():
+    """`_MirrorReporter` 자체를 검증한다 — 이 클래스가 막으려던 사고의 회귀 방지.
+
+    rights/photos/tenants/survey 4개 미러 블록이 try/except 를 복붙하다 tenants 가 카운터
+    증가를 빠뜨린 실사고가 있었다(2026-08-05). 증가 로직을 클래스로 모았으니, 그 클래스가
+    실제로 세는지도 못 박아야 한다 — 안 그러면 리팩터가 조용히 무력화된다.
+    """
+    from deploy.crawl_rights import _MirrorReporter
+    m = _MirrorReporter()
+    m.upsert("성공", "건", lambda: 3)
+    assert m.fail_count == 0
+    m.upsert("실패", "건", lambda: (_ for _ in ()).throw(RuntimeError("boom")))
+    assert m.fail_count == 1, "예외를 흡수만 하고 세지 않는다"
+    m.upsert("또실패", "건", lambda: (_ for _ in ()).throw(ValueError("x")))
+    assert m.fail_count == 2
+
+
+def test_all_cloud_mirror_calls_go_through_reporter():
+    """미러 블록이 `mirror.upsert(` 를 우회해 인라인 try/except 로 되돌아가지 않았는지 구조 확인.
+
+    복붙 누락이 실제로 일어났던 지점이라, 형태 자체를 계약으로 고정한다.
+    """
+    from pathlib import Path
+    src = (Path(__file__).resolve().parent.parent / "deploy" / "crawl_rights.py").read_text(
+        encoding="utf-8")
+    body = src[src.index("if store_rest.enabled():"):]
+    assert body.count("mirror.upsert(") >= 5, "미러 호출이 리포터를 우회하고 있다"
+    assert "mirror_fail += 1" not in body, "카운터를 호출부에서 직접 올리는 코드가 되살아났다"
+
+
+def test_photo_mirror_uses_stale_guard():
+    """미러가 `split_stale_rows` 를 **실제로 거치는지** 구조로 고정한다.
+
+    순수함수만 테스트하면 "가드는 있는데 아무도 안 부른다"를 못 잡는다 — 이 레포가
+    exit 4 에서 이미 겪은 「신호를 만들었다 ≠ 신호가 소비된다」의 사진판이다(2026-08-05 세트2).
+    """
+    from pathlib import Path
+    src = (Path(__file__).resolve().parent.parent / "deploy" / "crawl_rights.py").read_text(
+        encoding="utf-8")
+    body = src[src.index("if store_rest.enabled():"):]
+    assert "photo_store.split_stale_rows(" in body, "미러가 스테일 가드를 거치지 않는다"
+    assert "store_rest.upsert_photos(" in body
+    assert body.index("split_stale_rows(") < body.index("upsert_photos("), (
+        "가드보다 업서트가 먼저다 — 가드를 우회한다")
+    assert "delete_photos_beyond_seq(" in body, (
+        "클라우드 축소 경로가 없다 — upsert-only 라 법원이 뺀 사진이 영원히 남는다")
+
+
+def test_cloud_shrink_skipped_when_local_untouched():
+    """전량 업로드 실패(skip)면 **클라우드 축소 대상으로 기록하지 않아야** 한다.
+
+    skip 은 "로컬을 일부러 안 건드린다(기존 사진 보존)"는 뜻이다. 그런데 클라우드만 줄이면
+    로컬 8행 / 클라우드 3행으로 갈라져 **프로덕션에서 멀쩡한 사진이 사라진다**.
+    2026-08-05 세트3 재감사에서 발각된 실제 결함(세트2 의 클라우드 축소가 만든 것).
+
+    소스 구조로 고정한다 — 이 캐스케이드는 main() 전체를 돌려야 재현되는데 통합 테스트가 없다.
+    """
+    from pathlib import Path
+    src = (Path(__file__).resolve().parent.parent / "deploy" / "crawl_rights.py").read_text(
+        encoding="utf-8")
+    i = src.index("photo_kept[key]")
+    window = src[max(0, i - 400):i]
+    assert 'mode != "skip"' in window, (
+        "persist 결과가 skip 인데도 클라우드 축소 대상으로 기록한다 — 로컬은 보존, 클라우드만 삭제")
+    assert "mode = store.persist_photo_urls(" in src, "persist 반환값(mode)을 받지 않는다"

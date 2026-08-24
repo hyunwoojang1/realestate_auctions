@@ -71,6 +71,72 @@ def test_photos_roundtrip_and_replace():
     assert store.load_photos(conn, "", "MISSING") == []
 
 
+def test_partial_upload_preserves_failed_seqs():
+    """부분 업로드 실패에서 **기존 사진이 사라지지 않아야** 한다.
+
+    전량 교체(save_photo_urls)를 쓰면 5장 중 2장 실패 시 3장만 남기고 seq 가 0,1,2 로 재부여된다.
+    그 상태가 클라우드(upsert-only)로 미러되면 한 장이 사라지고 다른 한 장이 중복된다
+    (2026-08-05 리뷰). 부분 실패 경로는 성공한 seq 만 제자리 갱신해야 한다.
+    """
+    conn = store.connect(":memory:")
+    store.save_photo_urls(conn, "", "A", "", [f"http://x/{i}.jpg" for i in range(5)])
+    assert store.load_photos(conn, "", "A") == [f"http://x/{i}.jpg" for i in range(5)]
+
+    # seq 1·3 업로드 실패 → 성공한 0·2·4 만 새 URL 로 제자리 갱신
+    store.persist_photo_urls(conn, "", "A", "", [(0, "http://y/0.jpg"), (2, "http://y/2.jpg"),
+                                                 (4, "http://y/4.jpg")], 5, fetched_at="t")
+    assert store.load_photos(conn, "", "A") == [
+        "http://y/0.jpg", "http://x/1.jpg", "http://y/2.jpg", "http://x/3.jpg", "http://y/4.jpg"
+    ], "실패한 seq 의 기존 사진이 지워졌거나 순서가 어긋났다"
+
+
+def test_persist_photo_urls_three_modes():
+    """전량성공=교체 / 부분성공=제자리갱신 / 전량실패=무변경. 되돌릴 수 없는 사고 방지 분기."""
+    conn = store.connect(":memory:")
+    base = [f"http://x/{i}.jpg" for i in range(3)]
+    store.save_photo_urls(conn, "", "A", "", base)
+
+    # 전량 실패 → 아무것도 건드리지 않는다(기존 사진 보존)
+    assert store.persist_photo_urls(conn, "", "A", "", [], 3) == "skip"
+    assert store.load_photos(conn, "", "A") == base
+
+    # 부분 성공 → 성공한 seq 만 갱신, 실패한 seq 는 기존 값 유지
+    assert store.persist_photo_urls(conn, "", "A", "", [(0, "http://y/0.jpg")], 3) == "merge"
+    assert store.load_photos(conn, "", "A") == ["http://y/0.jpg", base[1], base[2]]
+
+    # 전량 성공 → 전량 교체(법원이 사진을 뺀 경우의 축소도 반영)
+    assert store.persist_photo_urls(conn, "", "A", "", [(0, "http://z/0.jpg")], 1) == "replace"
+    assert store.load_photos(conn, "", "A") == ["http://z/0.jpg"]
+
+
+def test_persist_photo_urls_merge_drops_photos_court_removed():
+    """법원이 사진을 줄였는데 일부 업로드가 실패한 경우 — 옛 사진이 남으면 안 된다.
+
+    5장이던 물건이 3장으로 줄고 그중 1장 업로드 실패 → total=3 이 '확실히 관측된 수'이므로
+    seq3~4 는 지운다. 안 지우면 법원이 뺀 사진이 화면에 계속 노출된다(2026-08-05 재감사).
+    """
+    conn = store.connect(":memory:")
+    store.save_photo_urls(conn, "", "A", "", [f"http://x/{i}.jpg" for i in range(5)])
+    assert store.persist_photo_urls(
+        conn, "", "A", "", [(0, "http://y/0.jpg"), (1, "http://y/1.jpg")], 3) == "merge"
+    assert store.load_photos(conn, "", "A") == [
+        "http://y/0.jpg", "http://y/1.jpg", "http://x/2.jpg"], "옛 seq3~4 가 남아 있다"
+
+
+def test_persist_photo_urls_zero_total_is_skip():
+    conn = store.connect(":memory:")
+    store.save_photo_urls(conn, "", "A", "", ["http://x/0.jpg"])
+    assert store.persist_photo_urls(conn, "", "A", "", [], 0) == "skip"
+    assert store.load_photos(conn, "", "A") == ["http://x/0.jpg"]
+
+
+def test_partial_upload_noop_on_empty():
+    conn = store.connect(":memory:")
+    store.save_photo_urls(conn, "", "A", "", ["http://x/0.jpg"])
+    assert store.persist_photo_urls(conn, "", "A", "", [], 1) == "skip"
+    assert store.load_photos(conn, "", "A") == ["http://x/0.jpg"]
+
+
 def test_estimable_keys_only_priced():
     conn = store.connect(":memory:")
     store.upsert(conn, [_scored("PRICED", 90.0), _scored("NOPRICE", None)])

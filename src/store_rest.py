@@ -534,6 +534,41 @@ def upsert_sold(rows: list[dict]) -> int:
     return _post_upsert(url, key, SOLD_TABLE, rows)
 
 
+def delete_photos_beyond_seq(keys: list[tuple[str, str, str, int]]) -> tuple[int, int]:
+    """물건별로 `seq >= kept` 인 **클라우드** 사진 행을 지운다. 반환 `(성공 수, 시도 수)`.
+
+    시도 수를 함께 돌려주는 이유: 개별 실패를 안에서 삼키므로(한 건이 나머지를 막지 않게)
+    성공 수만 보면 **부분 실패가 완전 성공과 구별되지 않는다.** `delete_sold` 는 호출부가
+    `dn < len(...)` 로 비교해 "누락 N건" 경고를 내는데 사진 쪽만 그 비교가 없었다
+    (2026-08-05 세트3 재감사).
+
+    (2026-08-05 세트2 재감사) 사진 미러는 upsert-only 라 **클라우드가 줄어들 수 없었다.**
+    법원이 5장→3장으로 줄이면 로컬은 `persist_photo_urls` 가 seq 3~4 를 지우는데, 미러 페이로드엔
+    그 행이 애초에 없으니 클라우드엔 옛 seq 3~4 가 영원히 남는다 → 프로덕션(클라우드를 읽는다)에
+    법원이 뺀 사진이 계속 노출. `listing_rights` 에는 고아 정리 RPC 가 있는데 사진엔 없었다.
+    `delete_sold` 와 같은 이유·같은 방식이다(2026-07-28 실사고의 사진판).
+
+    이번 크롤에서 **실제로 관측한 물건만** 대상으로 한다. 관측 안 한 물건까지 건드리면
+    '응답 파싱 실패'를 '법원이 뺐다'로 오판해 멀쩡한 사진을 지운다.
+    """
+    if not keys:
+        return 0, 0
+    url, key, _ = _cfg()
+    n = 0
+    for court, case_no, item_no, kept in keys:
+        try:
+            r = requests.delete(
+                _endpoint(url, PHOTOS_TABLE), headers=_headers(key),
+                params={"court": f"eq.{court}", "case_no": f"eq.{case_no}",
+                        "item_no": f"eq.{item_no}", "seq": f"gte.{kept}"}, timeout=15)
+            r.raise_for_status()
+            n += 1
+        except Exception as e:  # noqa: BLE001 — 한 건 실패가 나머지를 막지 않게
+            logger.warning("사진 클라우드 축소 실패(%s %s %s seq>=%s): %s",
+                           court, case_no, item_no, kept, e)
+    return n, len(keys)
+
+
 def delete_sold(keys: list[tuple[str, str, str]]) -> int:
     """낙찰 기록에서 제거된 물건을 **클라우드에서도** 지운다.
 

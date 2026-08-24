@@ -616,6 +616,14 @@ table.params{border-collapse:collapse;width:100%;font-size:var(--t-data);backgro
 .dphoto-track{display:flex;overflow-x:auto;scroll-snap-type:x mandatory;aspect-ratio:4/3;scrollbar-width:none;-webkit-overflow-scrolling:touch}
 .dphoto-track::-webkit-scrollbar{display:none}
 .dphoto-track img{width:100%;height:100%;object-fit:cover;flex:0 0 100%;scroll-snap-align:center;display:block}
+/* 사진 원본이 사라졌을 때 깨진 아이콘 대신 사실을 말한다 — 사진은 R2가 유일 사본이라
+   파손 시 사용자가 '사진 없는 물건'으로 오해하지 않게 한다(2026-08-05 리뷰). */
+.dphoto-track img.broken{display:none}
+.dphoto-track.has-broken::after{content:'일부 사진을 불러오지 못했습니다';flex:0 0 100%;display:flex;align-items:center;justify-content:center;color:var(--ink-500);font-size:13px;background:var(--surface-sunken)}
+/* 라이트박스(확대 모달)도 같은 폴백 — 클래스만 붙이고 규칙이 없으면 죽은 코드다
+   (2026-08-05 세트2 재감사: 캐러셀엔 CSS 를 줬는데 모달엔 안 줬다). */
+.lb.lb-broken img{display:none}
+.lb.lb-broken::after{content:'이 사진을 불러오지 못했습니다';color:#fff;font-size:14px;position:absolute;top:50%;left:0;right:0;text-align:center;transform:translateY(-50%)}
 .dphoto .cnt{position:absolute;top:10px;right:12px;background:rgba(13,21,36,.62);color:#fff;font-size:11px;font-weight:600;padding:3px 9px;border-radius:var(--r-pill);letter-spacing:.02em}
 /* (2026-07-27 QA) 진행중/낙찰결과 뷰 탭 — "낙찰 탭이 안 보인다" → 빠른진입 칩에서 탭으로 승격 */
 .viewtabs{display:flex;gap:8px;margin:18px 0 0;border-bottom:2px solid var(--hairline)}

@@ -40,7 +40,7 @@ import requests
 
 ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT))
-from src import photo_store, store_rest  # noqa: E402
+from src import photo_store, store, store_rest  # noqa: E402
 
 logger = logging.getLogger(__name__)
 
@@ -138,7 +138,7 @@ def _update_local(conn: sqlite3.Connection, pairs: list[tuple[str, str]]) -> int
 def _local_counts(db: str) -> tuple[int, int]:
     """(로컬 사진 행, 아직 supabase URL 인 행). 로컬을 안 세면 '100% 완료'가 거짓이 된다."""
     try:
-        c = sqlite3.connect(db)
+        c = store.connect(db)
         try:
             t = c.execute("SELECT COUNT(*) FROM listing_photos").fetchone()[0]
             s = c.execute("SELECT COUNT(*) FROM listing_photos "
@@ -160,28 +160,44 @@ def _reachable_sample(n: int) -> tuple[int, list[str]]:
     if n <= 0:
         return 0, []
     url, key, _ = store_rest._cfg()
-    r = requests.get(store_rest._endpoint(url, store_rest.PHOTOS_TABLE),
-                     headers=store_rest._headers(key), timeout=30,
-                     params={"select": "photo_url", "limit": max(n * 40, 400)})
-    r.raise_for_status()
-    urls = [row["photo_url"] for row in r.json() if row.get("photo_url")]
+    ep = store_rest._endpoint(url, store_rest.PHOTOS_TABLE)
+    # ⚠ `order` 없이 앞쪽 몇 백 행만 받아 그 안에서 뽑으면 **테이블의 고정된 좁은 창**만
+    # 영원히 검사한다(PostgREST 는 정렬을 보장하지 않는다). 유일 사본의 상시 감시가 대부분
+    # 구간을 한 번도 안 보게 된다 — 2026-08-05 재감사 지적. 전체 범위에서 offset 을 흩뿌린다.
+    total = _cloud_total()[0]
+    if not total:
+        return 0, []
+    offsets = random.sample(range(total), min(n, total))
+    urls = []
+    for off in offsets:
+        r = requests.get(ep, headers=store_rest._headers(key), timeout=30,
+                         params={"select": "photo_url", "order": "court,case_no,item_no,seq",
+                                 "limit": 1, "offset": off})
+        r.raise_for_status()
+        rows = r.json()
+        if rows and rows[0].get("photo_url"):
+            urls.append(rows[0]["photo_url"])
     if not urls:
         return 0, []
-    picks = random.sample(urls, min(n, len(urls)))
+    picks = urls
     # DB 값을 그대로 때리는 건 _move_one 과 같은 신뢰 경계다 — 일관되게 접두사를 검증한다.
     # 우리 R2 공개 도메인이 아닌 값은 요청하지 않고 그 자체를 '실패'로 센다.
     pub = os.environ.get("R2_PUBLIC_BASE", "").strip().rstrip("/") + "/"
     s = photo_store.session()
-    bad = []
-    for u in picks:
+
+    def _ok(u: str) -> bool:
         if len(pub) < 2 or not u.startswith(pub):
-            bad.append(u)
-            continue
+            return False
         try:
-            if s.head(u, timeout=20).status_code != 200:
-                bad.append(u)
+            return s.head(u, timeout=20).status_code == 200
         except Exception:  # noqa: BLE001 — 네트워크 실패도 '도달 불가'로 센다
-            bad.append(u)
+            return False
+
+    # 이 결과가 일일 작업의 종료코드로 승격되므로, 순간적인 네트워크 흔들림 한 번에 전체가
+    # 실패로 기록되면 안 된다. **두 번 연속 실패**한 것만 진짜 도달 불가로 센다
+    # (조용히 봐주는 게 아니라, 판정을 한 번 더 확인하는 것).
+    bad = [u for u in picks if not _ok(u)]
+    bad = [u for u in bad if not _ok(u)]
     return len(picks), bad
 
 
@@ -193,7 +209,7 @@ def _sync_local_from_cloud(db: str) -> int:
     크롤이 돌면 로컬 전량 미러가 클라우드를 되돌린다 — 그래서 문자열이 아니라 PK로 맞춘다.
     """
     url, key, _ = store_rest._cfg()
-    conn = sqlite3.connect(db)
+    conn = store.connect(db)
     conn.row_factory = sqlite3.Row
     try:
         rows = conn.execute(
@@ -281,21 +297,23 @@ def main(argv=None) -> int:
         return 0
     print(f"[*] 이전 대상 {total:,}장 · 동시 {args.workers}", flush=True)
 
-    conn = sqlite3.connect(args.db)
+    conn = store.connect(args.db)
     conn.row_factory = sqlite3.Row
-    done = fail = local_n = 0
-    CH = args.batch                              # 배치마다 DB 반영 + 정지신호 확인
     # 스레드풀은 루프 밖에서 한 번만 만든다 — 배치마다 재생성하면 워커 수만큼 스레드를 매번 띄운다.
     ex = ThreadPoolExecutor(max_workers=args.workers)
     try:
-        return _run(args, rows, total, conn, ex, CH, done, fail, local_n)
+        return _run(args, rows, total, conn, ex)
     finally:
         # 예외·Ctrl+C 로 빠져나가도 SQLite 잠금과 스레드가 남지 않게 한다(리뷰 지적).
         ex.shutdown(wait=False, cancel_futures=True)
         conn.close()
 
 
-def _run(args, rows, total, conn, ex, CH, done, fail, local_n) -> int:
+def _run(args, rows, total, conn, ex) -> int:
+    # done/fail/local_n/CH는 이전엔 main()에서 만들어 인자로 넘겼지만, int는 불변이라
+    # 호출부로 값이 되돌아가지도 않는 무의미한 out-parameter였다(2026-08-05 정리) — 여기서 초기화한다.
+    done = fail = local_n = 0
+    CH = args.batch                              # 배치마다 DB 반영 + 정지신호 확인
     for start in range(0, total, CH):
         if Path(STOP).exists():
             print("[STOP] 중단 — 재실행하면 남은 것부터 이어간다")
@@ -338,7 +356,9 @@ def _run(args, rows, total, conn, ex, CH, done, fail, local_n) -> int:
         print(f"      ⚠ 로컬에 스테일 Supabase URL {lp:,}행 남음 — `--sync-local` 로 정리하라. "
               "안 하면 다음 크롤의 미러링이 클라우드를 되돌린다.")
     print("      원본 Supabase 버킷 삭제는 --check 가 클라우드·로컬 모두 0 인 것 + 화면 검증 후.")
-    return 0
+    # 실패가 있으면 비0 — 종전엔 전량 실패(자격증명 만료 등)에도 0 을 반환해, 종료코드로
+    # 게이팅하는 자동화가 "다 옮겼다"로 오판할 수 있었다(2026-08-05 재감사 S-1).
+    return 1 if fail else 0
 
 
 if __name__ == "__main__":

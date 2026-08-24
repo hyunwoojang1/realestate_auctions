@@ -82,7 +82,7 @@
 | **지수 백오프** | 429/5xx는 `2→4→8…`초(+지터). `Retry-After` 헤더가 오면 그 값(최소 60초) 존중. |
 | **차단 시 우회 금지** | 403·3xx 리다이렉트 감지 시 **즉시 전체 중단**(`CourtAuctionBlocked`/`NaverBlocked`). 헤더 바꿔 뚫지 않음. |
 | **조용한 차단(silent block) 감지** | 200인데 비-JSON/스키마 붕괴/HTML 챌린지면 "위장 차단"으로 보고 중단 — '데이터 없음'과 구분. |
-| **kill-switch 파일** | `COURTAUCTION_STOP` / `NAVER_STOP` / `PHOTO_MIGRATE_STOP` 파일이 존재하면 다음 요청 전 즉시 종료. 밤샘 루프의 `AGENT_STOP`과 의도적으로 분리. |
+| **kill-switch 파일** | `COURTAUCTION_STOP` / `NAVER_STOP` / `PHOTO_R2_STOP`(사진 R2 이전) 파일이 존재하면 다음 요청 전 즉시 종료. 밤샘 루프의 `AGENT_STOP`과 의도적으로 분리. |
 | **개인정보 미저장** | 파서 단계에서 성명 등 PII를 제거·마스킹하고 **불리언·금액·유형만** 남김(아래 PII 섹션). |
 | **부분 성공 보존** | 차단으로 중단돼도 그때까지 수집분은 저장하고, 다음 실행이 이어받음(resume). |
 
@@ -215,7 +215,12 @@ targets = scored_listings ⋈ raw_listings (court, case_no, item_no 복합키 �
 | 0 | 정상 | — |
 | 1 | data_gates FAIL — 로컬 저장은 유지, 클라우드 미러만 차단 | validate_data로 위반 확인 |
 | 2 | 차단/일일상한 도달 중단(수집분은 저장됨) | 밴 의심 — 다음 사이클 `-SkipRights` 권장 |
-| 3 | 실패율 >50% 또는 (processed≥20에서) 드리프트율 >30% | 법원 스키마 변경 의심 — 파서 점검 |
+| 3 | 실패율 >50% · (processed≥20에서) 드리프트율 >30% · **추출된 사진이 있는데 저장 0장** | 법원 스키마 변경 / 썸네일러(Pillow)·오브젝트 스토리지 점검 |
+| 4 | **클라우드 미러링 실패** — 로컬은 갱신됐으나 **서빙 화면에 미반영** | Supabase REST·권한 확인 후 재실행 (Vercel 은 클라우드만 읽는다) |
+
+`run.py` 는 별도 계약: 4 = 낙찰 보존 실패, **5 = 클라우드 미러링 실패**.
+`refresh-daily.ps1` 은 이 코드들을 자기 `$code` 로 접어 작업 스케줄러에 그대로 노출한다
+(접지 않으면 승격이 무효가 된다 — 실제로 그런 적이 있다).
 
 CLI: `--limit`(기본 200) `--all` `--refresh` `--estimable`(사진 대상만, 이어받기) `--force` `--no-cloud`
 `--cap` `--min-interval` `--max-interval`.
@@ -484,13 +489,20 @@ sanity, 권리 JSON 무결성, 밴드 순서. 게이트 자체의 버그도 FAIL
 
 ```
 refresh-daily.ps1 -Live  (기본: Cash 10억, LiveMonths 24, MaxPages 120, RightsLimit 300, NaverStaleDays 14)
- ├─ 1. 네이버 증분  : crawl_naver (Phase A 신규 매칭) → crawl_naver --backfill-real --incremental
- │                    실패해도 채점을 막지 않음(신규 물건은 다음날 매칭 — 1일 지연 허용)
- ├─ 2. 권리 크롤    : crawl_rights --limit 300  ← run.py "앞"에 배선(같은 사이클에 권리 반영)
- │                    exit 2/3을 즉시 캡처해 로그 승격(뒤 run.py가 $LASTEXITCODE를 덮어쓰던 D3 수정)
- └─ 3. 목록·채점    : run.py --source courtauction --nationwide --live --live-months 24
-                      --cash 1000000000 --max-pages 120
-                      → 권리·네이버 배선 → 채점 → 적재(4중 안전장치) → 게이트 → Supabase 미러
+ ├─ 1. 목록·채점    : run.py --source courtauction --nationwide --live --live-months 24
+ │                    → 채점 → 적재(4중 안전장치) → 게이트 → Supabase 미러
+ │                    exit 4=낙찰 보존 실패 · 5=클라우드 미러 실패 → $code 로 접힘
+ ├─ 2. 권리 크롤    : crawl_rights --limit 300   (**사진 업로드가 여기서 일어난다**)
+ │                    exit 2=차단 · 3=실패율/사진 0장 · 4=미러 실패 → 4 는 $code 로 접힘
+ ├─ 3. 임차인 크롤  : crawl_rights --tenants-backfill
+ ├─ 4. 네이버 증분  : crawl_naver Phase A(신규 매칭) → Phase B(증분 실거래)
+ │                    실패해도 채점을 막지 않음(1일 지연 허용)
+ ├─ 5. 재채점       : run.py --from-cache  (오늘 보강분을 같은 날 등급·미러에 반영)
+ └─ ★ 사진 도달성   : migrate_photos_to_r2 --check --sample 40
+                      R2 가 사진의 유일 서빙 경로 → 매일 표본 HEAD 200 확인.
+                      2회 연속 실패한 것만 실패로 세고, 비0이면 $code=6 + 알림 우선순위 high
+                      (5는 run.py 클라우드 미러 실패가 이미 쓴다 — 겹치면 원인을 오귀인한다).
+                      -FromCache(네트워크 0 계약) 모드에서는 실행하지 않는다.
 로그: evidence\refresh-YYYYMMDD-HHmmss.log   (PS5.1 함정: stderr 병합 금지 구간 처리 내장)
 ```
 
@@ -501,8 +513,9 @@ refresh-daily.ps1 -Live  (기본: Cash 10억, LiveMonths 24, MaxPages 120, Right
 > 데이터셋 재구성) 회피를 위해 사용자 승인 하에 내려둠. 재활성은 사용자 결정.
 
 **kill-switch 총람**: `COURTAUCTION_STOP`(법원경매 전체) · `NAVER_STOP`(네이버) ·
-`PHOTO_MIGRATE_STOP`(사진 이전) — 프로젝트 루트에 빈 파일 생성 시 다음 요청 전 즉시 안전 중단,
-부분 수집분은 저장 유지.
+`PHOTO_R2_STOP`(사진 R2 이전 = `deploy/migrate_photos_to_r2.py`) — 프로젝트 루트에 빈 파일 생성 시
+다음 요청 전 즉시 안전 중단, 부분 수집분은 저장 유지.
+(구 `PHOTO_MIGRATE_STOP` 은 레거시 `migrate_photos_to_storage.py` 전용 — 현행 도구는 안 멈춘다.)
 
 ---
 
@@ -936,7 +949,9 @@ python run.py --source courtauction --from-cache
 # 재크롤 없이 캐시 물건을 라이브 시세로 재채점
 python run.py --source courtauction --from-cache --live --live-months 24
 
-# 권리·사진 배치 크롤 (예산 500/일 영속, exit 0/1/2/3 계약)
+# 권리·사진 배치 크롤 (예산 500/일 영속, exit 0/1/2/3/4 계약)
+#   0=정상 · 1=품질게이트 FAIL · 2=차단/상한 중단 · 3=실패율·드리프트 과다
+#   4=클라우드 미러링 실패(로컬은 갱신됐으나 **서빙 화면 미반영**) — refresh-daily.ps1 이 소비
 PYTHONUTF8=1 .venv\Scripts\python -m deploy.crawl_rights --db auction.db --limit 300
 
 # 네이버 매칭·실거래 백필
@@ -1015,7 +1030,7 @@ auction-arbitrage/
 │   ├── store.py / store_rest.py   # SQLite 7테이블(복합PK·고아정리) / Supabase REST 미러
 │   └── web.py / serve.py          # Flask 서빙
 ├── deploy/
-│   ├── crawl_rights.py            # ★ 권리·사진·임차인 배치 크롤(backlog·C6·H4·exit 0/1/2/3)
+│   ├── crawl_rights.py            # ★ 권리·사진·임차인 배치 크롤(backlog·C6·H4·exit 0/1/2/3/4)
 │   ├── crawl_naver.py             # ★ 네이버 Phase A/B 배치(우선순위 큐·이어받기·증분)
 │   ├── enrich_building.py         # 건축물대장 배치(병렬4·건물 dedup)
 │   └── probe_detail.py            # 라이브 1콜 정찰 도구(추측 파서 금지 원칙)

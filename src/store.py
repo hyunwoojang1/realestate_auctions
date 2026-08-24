@@ -943,34 +943,84 @@ def estimable_keys(conn: sqlite3.Connection) -> set[tuple[str, str, str]]:
     return {(r["court"], r["case_no"], str(r["item_no"] or "")) for r in cur.fetchall()}
 
 
-def save_photos(conn: sqlite3.Connection, court: str, case_no: str, item_no: str,
-                thumbs: list[str], fetched_at: str = "") -> int:
-    """물건 사진 썸네일 저장 — 해당 물건 기존 사진 전량 교체(stale 방지). 반환=저장 장수."""
+def _replace_photo_rows(conn: sqlite3.Connection, court: str, case_no: str, item_no: str,
+                        insert_sql: str, rows: list[tuple]) -> int:
+    """물건별 사진 전량 교체(DELETE 후 INSERT) 공통 골격 — stale 방지. 반환=저장 장수.
+
+    save_photos(base64)와 save_photo_urls(URL)는 이 DELETE+INSERT 골격만 같고 INSERT 대상
+    컬럼이 다를 뿐이다(thumb_b64 단독 vs photo_url+thumb_b64=''). 골격만 여기로 뺀다.
+    """
     key = (court, case_no, str(item_no or ""))
     with conn:
         conn.execute(
             "DELETE FROM listing_photos WHERE court=? AND case_no=? AND item_no=?", key)
-        conn.executemany(
-            "INSERT INTO listing_photos (court,case_no,item_no,seq,thumb_b64,fetched_at) "
-            "VALUES (?,?,?,?,?,?)",
-            [(*key, i, t, fetched_at) for i, t in enumerate(thumbs) if t],
-        )
-    return len([t for t in thumbs if t])
+        conn.executemany(insert_sql, rows)
+    return len(rows)
+
+
+def save_photos(conn: sqlite3.Connection, court: str, case_no: str, item_no: str,
+                thumbs: list[str], fetched_at: str = "") -> int:
+    """물건 사진 썸네일 저장 — 해당 물건 기존 사진 전량 교체(stale 방지). 반환=저장 장수."""
+    key = (court, case_no, str(item_no or ""))
+    rows = [(*key, i, t, fetched_at) for i, t in enumerate(thumbs) if t]
+    return _replace_photo_rows(
+        conn, court, case_no, item_no,
+        "INSERT INTO listing_photos (court,case_no,item_no,seq,thumb_b64,fetched_at) "
+        "VALUES (?,?,?,?,?,?)",
+        rows)
 
 
 def save_photo_urls(conn: sqlite3.Connection, court: str, case_no: str, item_no: str,
                     urls: list[str], fetched_at: str = "") -> int:
     """Storage 업로드 후 공개 URL 저장 — 물건별 전량 교체(stale 방지). 반환=저장 장수."""
     key = (court, case_no, str(item_no or ""))
-    with conn:
-        conn.execute("DELETE FROM listing_photos WHERE court=? AND case_no=? AND item_no=?", key)
-        conn.executemany(
-            # thumb_b64='' 명시 — 기존 DB가 옛 스키마(thumb_b64 NOT NULL·기본값 없음)로 생성됐으면
-            # Storage 모드 insert가 NOT NULL 위반으로 깨진다(2026-07-16 백필 실패 재현). 열 순서 명시로 회피.
-            "INSERT INTO listing_photos (court,case_no,item_no,seq,photo_url,thumb_b64,fetched_at) "
-            "VALUES (?,?,?,?,?,'',?)",
-            [(*key, i, u, fetched_at) for i, u in enumerate(urls) if u])
-    return sum(1 for u in urls if u)
+    rows = [(*key, i, u, fetched_at) for i, u in enumerate(urls) if u]
+    return _replace_photo_rows(
+        conn, court, case_no, item_no,
+        # thumb_b64='' 명시 — 기존 DB가 옛 스키마(thumb_b64 NOT NULL·기본값 없음)로 생성됐으면
+        # Storage 모드 insert가 NOT NULL 위반으로 깨진다(2026-07-16 백필 실패 재현). 열 순서 명시로 회피.
+        "INSERT INTO listing_photos (court,case_no,item_no,seq,photo_url,thumb_b64,fetched_at) "
+        "VALUES (?,?,?,?,?,'',?)",
+        rows)
+
+
+_PHOTO_UPSERT_SQL = (
+    "INSERT INTO listing_photos (court,case_no,item_no,seq,photo_url,thumb_b64,fetched_at) "
+    "VALUES (?,?,?,?,?,'',?) "
+    "ON CONFLICT(court,case_no,item_no,seq) DO UPDATE SET "
+    "photo_url=excluded.photo_url, thumb_b64='', fetched_at=excluded.fetched_at")
+
+
+def _photo_rows(key: tuple[str, str, str], pairs: list[tuple[int, str]],
+                fetched_at: str) -> list[tuple]:
+    return [(*key, s, u, fetched_at) for s, u in pairs if u]
+
+
+def persist_photo_urls(conn: sqlite3.Connection, court: str, case_no: str, item_no: str,
+                       pairs: list[tuple[int, str]], total: int, fetched_at: str = "") -> str:
+    """업로드 결과를 저장하고 어떤 방식이었는지 반환('replace' | 'merge' | 'skip').
+
+    되돌릴 수 없는 사고를 막는 분기라 호출부 if/elif 로 흩어두지 않고 **테스트 가능한 한 곳**에
+    모은다(2026-08-05 재감사 권고). 세 경우:
+      전량 성공 → 전량 교체(법원이 사진을 뺀 경우의 축소도 반영된다)
+      부분 성공 → 성공한 seq 만 제자리 갱신(실패 seq 의 기존 사진 보존)
+      전량 실패 → 아무것도 하지 않음(기존 사진 보존)
+    """
+    if total and len(pairs) == total:
+        save_photo_urls(conn, court, case_no, item_no, [u for _, u in pairs], fetched_at)
+        return "replace"
+    if pairs:
+        # 갱신과 삭제를 **한 트랜잭션**으로 묶는다. 나눠 커밋하면 그 사이에 프로세스가 죽었을 때
+        # 법원이 뺀 옛 사진이 남는다(2026-08-05 재감사 P-1).
+        # `total`(=이번에 추출된 사진 수)은 업로드 성공 여부와 무관하게 확실히 관측된 값이므로,
+        # 그보다 큰 seq 는 법원이 뺀 사진이다.
+        key = (court, case_no, str(item_no or ""))
+        with conn:
+            conn.executemany(_PHOTO_UPSERT_SQL, _photo_rows(key, pairs, fetched_at))
+            conn.execute("DELETE FROM listing_photos WHERE court=? AND case_no=? AND item_no=? "
+                         "AND seq >= ?", (*key, total))
+        return "merge"
+    return "skip"
 
 
 def load_photos(conn: sqlite3.Connection, court: str, case_no: str,

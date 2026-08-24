@@ -8,3 +8,8 @@ pyproj>=3.6
 rapidfuzz>=3.0
 # playwright(107MB)는 crawl_naver 전용(lazy import) — Vercel 함수 225MB 한도 초과 방지 위해 제외(2026-07-16).
 # 로컬 크롤 시에만: pip install "playwright>=1.40" && playwright install chromium
+# Pillow 는 **크롤 전용**(사진 썸네일 리사이즈, src/photo.py). 서빙엔 불필요해서 여기 안 넣는다
+# — playwright 와 같은 이유(Vercel 함수 225MB 한도). 크롤 머신에서만:
+#   pip install "pillow>=10.0"
+# ⚠ 없으면 thumbnail_jpeg() 가 None 을 반환해 사진이 0장이 된다. crawl_rights 가 이를
+#   '추출>0인데 저장 0장' 으로 감지해 exit 3 을 낸다(조용히 넘어가지 않는다).

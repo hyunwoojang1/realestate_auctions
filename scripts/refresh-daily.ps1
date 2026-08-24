@@ -173,6 +173,17 @@ try {
         $rescoreCode = $LASTEXITCODE
         if ($code -eq 0 -and $rescoreCode -ne 0) { $code = $rescoreCode }  # 미완 사이클을 가시화
     }
+    # --- [사진 도달성] R2가 사진의 유일 사본이다(2026-08-05 Supabase 원본 삭제).
+    #     깨져도 알려줄 장치가 --check(수동) 뿐이라, 매일 자동으로 표본 확인한다.
+    #     실패해도 갱신 자체는 성공으로 두되(사진은 부수 기능) 알림 우선순위를 올린다.
+    # -FromCache 는 "네트워크 호출 0" 이 계약이다(이 파일 상단 문서) — 오프라인 검증에서
+    # Supabase REST·R2 를 때리면 그 계약이 깨진다(2026-08-05 재감사 지적).
+    if (-not $FromCache) {
+        "--- [사진] R2 도달성 점검 ---" | Tee-Object -FilePath $LogPath -Append
+        & $Python "-m" "deploy.migrate_photos_to_r2" "--check" "--sample" "40" 2>&1 |
+            Tee-Object -FilePath $LogPath -Append
+        $photoCode = $LASTEXITCODE
+    }
 } finally {
     Pop-Location
     $ErrorActionPreference = $prevEAP
@@ -186,12 +197,34 @@ try {
 $rightsNote = ""
 if (-not $SkipRights -and (Test-Path variable:rightsCode)) { $rightsNote = " rights_exit=$rightsCode" }
 if ((Test-Path variable:tenantsCode)) { $rightsNote += " tenants_exit=$tenantsCode" }
+$photoNote = ""
+if ((Test-Path variable:photoCode) -and $photoCode -ne 0) { $photoNote = " PHOTO_CHECK_FAIL($photoCode)" }
+
+# crawl_rights 의 exit 4 = 클라우드 미러링 실패 = **로컬은 갱신됐는데 서빙(Vercel)에는 반영 안 됨**.
+# 종전엔 이 코드를 $rightsCode 에 받아놓고 $code 에 접지 않아, 프로세스는 0으로 끝나고
+# 작업 스케줄러엔 성공으로 기록됐다(알림 정규식도 [23] 이라 4를 놓쳤다) — 일부러 만든 안전장치가
+# 통째로 무효였다(2026-08-05 재감사). 4만 접는다: 2(차단)·3(실패율)은 종전대로 알림 상향까지만
+# 하고 프로세스 실패로 승격하지 않는다(안티밴 정상 중단을 실패로 기록하면 워치독이 시끄러워진다).
+foreach ($v in @("rightsCode", "tenantsCode")) {
+    if ((Test-Path "variable:$v") -and ((Get-Variable $v -ValueOnly) -eq 4) -and $code -eq 0) {
+        $code = 4
+    }
+}
+# 사진 도달성 점검(--check) 실패도 접는다. R2 가 사진의 사실상 유일 서빙 경로라, 여기서 실패하면
+# 화면에 사진이 안 뜨는 상태다. 종전엔 알림 우선순위만 올리고 $code 는 0 이라 작업 스케줄러의
+# LastTaskResult 는 성공으로 남았다 — 푸시를 놓치면 아무 데도 안 남는다(2026-08-05 재감사 S-3).
+# 표본은 2회 연속 실패한 것만 세므로 일시적 네트워크 흔들림으로는 발동하지 않는다.
+# ⚠ 5 는 run.py 가 '클라우드 미러 실패'로 이미 쓴다 — 겹치면 워치독이 원인을 오귀인한다
+# (2026-08-05 세트2 재감사). 사진 도달성 실패는 6.
+if ((Test-Path variable:photoCode) -and $photoCode -ne 0 -and $code -eq 0) { $code = 6 }
+
 $prio = "min"
 if ($code -ne 0) { $prio = "urgent" }
-elseif ($rightsNote -match "exit=[23]") { $prio = "high" }
+elseif ($photoNote) { $prio = "high" }
+elseif ($rightsNote -match "exit=[234]") { $prio = "high" }
 & powershell.exe -NoProfile -ExecutionPolicy Bypass -File (Join-Path $RepoRoot "scripts\notify.ps1") `
     -Title "[auction] daily refresh exit=$code" `
-    -Message "mode=$mode$rightsNote db=$(Split-Path $DbPath -Leaf) log=$(Split-Path $LogPath -Leaf)" `
+    -Message "mode=$mode$rightsNote$photoNote db=$(Split-Path $DbPath -Leaf) log=$(Split-Path $LogPath -Leaf)" `
     -Priority $prio | Out-Null
 
 exit $code

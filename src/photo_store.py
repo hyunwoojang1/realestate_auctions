@@ -91,17 +91,30 @@ def enabled() -> bool:
 
 
 def split_stale_rows(rows: list[dict]) -> tuple[list[dict], list[dict]]:
-    """사진 미러 payload 를 (올릴 것, 스테일) 로 가른다.
+    """사진 미러 payload 를 (올릴 것, 막을 것) 으로 가르고, 올릴 것에서 base64 를 벗긴다.
 
-    로컬 listing_photos 전량을 PK 기준으로 클라우드에 덮어쓰는 미러가 있는데, 로컬에 옛 Supabase
-    Storage URL 이 한 행이라도 남아 있으면 이미 R2 로 옮긴 클라우드 행을 죽은 URL 로 되돌린다
-    (원본 버킷을 지운 뒤엔 복구 불가 = 사진 깨짐). 되돌릴 수 없는 사고를 막는 가드라 호출부
-    인라인이 아니라 **테스트 가능한 순수 함수**로 뽑아 둔다(2026-08-05 리뷰 권고).
+    로컬 listing_photos 전량을 PK 기준으로 클라우드에 **덮어쓰는** 미러가 있다. 클라우드는
+    upsert-only(삭제 없음)라 잘못된 행을 올리면 조용히 그 자리를 오염시킨다. 세 종류를 막는다:
+
+    1) 옛 Supabase Storage URL — 이미 R2 로 옮긴 클라우드 행을 죽은 URL 로 되돌린다.
+       원본 버킷은 이미 삭제됐으므로 복구 불가(=사진 깨짐).
+    2) `photo_url` 이 빈 행 — 덮어쓰면 클라우드의 멀쩡한 R2 URL 이 빈 값이 된다(사진 사라짐).
+       `AUCTION_ALLOW_BASE64_PHOTOS=1` 로 base64 만 저장된 행이 정확히 이 모양이다.
+    3) `thumb_b64` 값 자체 — 클라우드 테이블에 `thumb_b64` 컬럼이 실재해서, 그대로 올리면
+       **base64 blob 이 Supabase Postgres 에 쌓인다.** 그게 이번 이전의 발단이 된 DB 용량
+       초과 사고를 클라우드에서 그대로 재현하는 경로다. 올리는 행은 항상 빈 문자열로 덮는다.
+
+    (1)만 막던 종전 구현의 구멍을 2026-08-05 리뷰(신규 에이전트)가 잡아냈다. 되돌릴 수 없는
+    사고를 막는 가드라 호출부 인라인이 아니라 테스트 가능한 순수 함수로 둔다.
     """
-    clean, stale = [], []
+    clean, blocked = [], []
     for r in rows:
-        (stale if "supabase.co/storage" in (r.get("photo_url") or "") else clean).append(r)
-    return clean, stale
+        url = r.get("photo_url") or ""
+        if "supabase.co/storage" in url or not url:
+            blocked.append(r)
+            continue
+        clean.append({**r, "thumb_b64": ""} if r.get("thumb_b64") else r)
+    return clean, blocked
 
 
 def object_path(court: str, case_no: str, item_no: str, seq: int) -> str:
@@ -270,6 +283,18 @@ def ensure_bucket() -> bool:
     return ok
 
 
+def _upload_result(r, path: str, log_prefix: str) -> str | None:
+    """업로드 응답 판정 공통부: 200/201 이면 공개 URL, 아니면 실패 로그 후 None.
+
+    r2/supabase 는 요청을 보내는 방식이 다르지만(R2 는 예외를 잡아 None 으로 강등하고,
+    Supabase 는 그대로 전파 — 호출부에서 유지) 응답 판정 로직 자체는 동일해 여기로 묶는다.
+    """
+    if r.status_code in (200, 201):
+        return public_url(path)
+    logger.warning("%s 실패 HTTP %s %s", log_prefix, r.status_code, r.text[:120])
+    return None
+
+
 def upload_bytes(jpeg: bytes, path: str) -> str | None:
     """지정 경로에 JPEG 업로드하고 공개 URL 반환. 실패 시 None. (이전 스크립트가 재사용)"""
     if not jpeg or not enabled():
@@ -280,20 +305,14 @@ def upload_bytes(jpeg: bytes, path: str) -> str | None:
         except Exception as e:  # noqa: BLE001
             logger.warning("R2 업로드 예외 %s", type(e).__name__)
             return None
-        if r.status_code in (200, 201):
-            return public_url(path)
-        logger.warning("R2 업로드 실패 HTTP %s %s", r.status_code, r.text[:120])
-        return None
+        return _upload_result(r, path, "R2 업로드")
 
     url, key, bucket = _supabase_cfg()
     r = session().post(f"{url}/storage/v1/object/{bucket}/{path}",
                        headers={"apikey": key, "Authorization": f"Bearer {key}",
                                 "Content-Type": "image/jpeg", "x-upsert": "true"},
                        data=jpeg, timeout=30)
-    if r.status_code in (200, 201):
-        return public_url(path)
-    logger.warning("사진 업로드 실패 HTTP %s %s", r.status_code, r.text[:120])
-    return None
+    return _upload_result(r, path, "사진 업로드")
 
 
 def upload_photo(jpeg: bytes, court: str, case_no: str, item_no: str, seq: int) -> str | None:

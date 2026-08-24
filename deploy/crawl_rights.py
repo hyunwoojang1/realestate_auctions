@@ -32,8 +32,30 @@ from src.courtauction_detail import (
     normalize,
     parse_curst_survey,
 )
+from src.mirror_report import MirrorReporter
 
 _KST = timezone(timedelta(hours=9))
+
+
+def final_exit_code(exit_code: int, mirror_fail: int) -> int:
+    """로컬은 성공했는데 클라우드 미러가 실패했으면 4로 승격 — 서빙엔 반영 안 된 상태다.
+
+    이미 비0(차단 2·실패율 3)이면 그 원인을 덮지 않는다.
+    ⚠ 이 코드를 실제로 소비하는 건 `scripts/refresh-daily.ps1` 이다. 거기서 `$code` 에 접지
+    않으면 승격이 통째로 무효가 된다 — 2026-08-05 재감사에서 실제로 무효였음이 드러났다.
+    """
+    return 4 if (mirror_fail and exit_code == 0) else exit_code
+
+
+# (2026-08-05 재감사) rights/photos/tenants/survey 4개 미러 블록이 "성공 시 건수 로그,
+# 실패 시 mirror_fail += 1" try/except 골격을 각자 복붙해 왔다 — 그중 한 곳(tenants)은
+# 실제로 이 증가를 빠뜨려 실패가 exit code(final_exit_code 참조)로 승격되지 않은 사고가
+# 있었다. 증가를 한 클래스 안에 한 번만 두면 호출부가 그걸 잊을 수 있는 지점 자체가
+# 없어진다 — `run.py` 에도 같은 패턴이 있어 공용 모듈(`src/mirror_report.py`)로 옮겼다.
+# `_MirrorReporter` 이름은 기존 호출부·테스트(`tests/test_crawl_safety_fixes.py`) 호환용 별칭.
+_MirrorReporter = MirrorReporter
+
+
 # 물건당 저장 사진 수 상한 — 히어로 스와이프용. Supabase 공유티어(500MB) 용량 때문에 무제한은
 # 지양(전물건 전사진=1GB+). 대부분 물건이 이 이하이므로 사실상 '거의 전부'. 환경변수로 조정.
 PHOTO_CAP = int(os.environ.get("AUCTION_PHOTO_CAP", "12"))
@@ -306,8 +328,11 @@ def main(argv=None) -> int:
     # AUCTION_CRAWL_TENANTS=1 일 때만 켠다(대항력 실판정 원천. 크롤 완전 휴지기·소량부터 검증).
     crawl_tenants = os.environ.get("AUCTION_CRAWL_TENANTS") == "1" or args.tenants_backfill
     ok, fail, skipped_empty, photo_n, tenant_n = 0, 0, 0, 0, 0
-    photo_fail = 0        # 업로드 실패 장수(부분 실패 포함) — 요약·경고용
+    photo_fail = 0        # 업로드·썸네일 실패 장수(부분 실패 포함) — 요약·경고용
     photo_skipped = 0     # 스토리지 불가로 저장 자체를 건너뛴 장수(base64 적재 봉쇄분)
+    photo_extracted = 0   # 법원 응답에서 추출된 원본 사진 수 — '없는 물건' vs '파이프라인 사망' 구분
+    photo_vanished = 0    # 저장분은 있는데 이번 응답엔 0장인 물건 수(지우진 않고 보고만)
+    photo_kept: dict = {}  # (court,case_no,item_no) -> 이번에 관측한 사진 장수(클라우드 축소용)
     mismatch = 0          # (C6) 응답 사건번호 불일치로 스킵한 건(오사건 저장 차단)
     drift = 0             # (H4) 응답 스키마 드리프트(필드명 변경) 감지 건 — 침묵실패 조기경보
     blocked = False       # (C5) 차단/상한 신호로 중단됐는지 — exit code 승격용
@@ -427,17 +452,47 @@ def main(argv=None) -> int:
                 # 전체를 크래시시키던 것 — 사진은 부수 기능이라 실패해도 권리 크롤은 계속돼야 한다.
                 # 권리(batch)는 이미 append됐으므로 사진만 건너뛴다.
                 try:
-                    jpegs = [j for r in extract_photos(dma, cap=PHOTO_CAP)
-                             if (j := photo.thumbnail_jpeg(r))]
+                    raw_photos = extract_photos(dma, cap=PHOTO_CAP)
+                    jpegs = [j for r in raw_photos if (j := photo.thumbnail_jpeg(r))]
+                    # 원본은 있는데 썸네일이 0장 = 썸네일러가 죽은 것(Pillow 미설치 등).
+                    # 종전엔 이 경우 세 카운터가 모두 0이라 "사진 없는 물건"과 구분되지 않았고,
+                    # 아래 exit 3 게이트도 발동하지 않았다(2026-08-05 재감사 M-2).
+                    # ⚠ 실패 계수는 아래 pairs 경로가 `total_photos - len(pairs)` 로 일괄
+                    # 처리한다 — 여기서 또 세면 이중 계상된다(스토리지 불가 경로만 여기서 센다).
+                    photo_extracted += len(raw_photos)
+                    if raw_photos and not jpegs and not _use_storage:
+                        photo_fail += len(raw_photos)
+                    if not raw_photos and store.load_photos(conn, *key):
+                        # 저장된 사진은 있는데 이번 응답엔 0장 — "법원이 뺐다"와 "파싱 실패"를
+                        # 구분할 신호가 없어 **지우지 않는다**(미탐<오거부). 다만 종전엔 카운터도
+                        # 로그도 없어 완전 무음이었다 → 세어서 요약에 드러낸다(2026-08-05 세트2).
+                        photo_vanished += 1
                     if jpegs and _use_storage:
-                        urls = [u for s, j in enumerate(jpegs)
-                                if (u := photo_store.upload_photo(j, *key, s))]
-                        if urls:
-                            store.save_photo_urls(conn, *key, urls, fetched_at=now)
-                            photo_n += len(urls)
-                        # 부분 실패도 센다 — 종전엔 성공 장수만 세서 "업로드가 절반씩 실패 중"인
-                        # 상황이 요약·exit code 어디에도 안 나타났다(침묵실패).
-                        photo_fail += len(jpegs) - len(urls)
+                        # seq 는 **법원 응답의 원본 인덱스**여야 한다(raw_photos 기준).
+                        # 종전엔 썸네일 실패분이 빠진 jpegs 를 enumerate 해서, 2번째 썸네일이
+                        # 실패하면 뒤 사진들의 seq 가 통째로 앞으로 밀렸다 → ①sha1 키가 달라져
+                        # R2 에 중복 업로드+고아 ②total 이 줄어 로컬·클라우드에서 **법원이 아직
+                        # 게시 중인 사진이 삭제**됐다. 업로드 실패는 앞서 고쳤는데 썸네일 실패
+                        # 단계에 같은 결함이 남아 있었다(2026-08-05 세트3 재감사).
+                        pairs = [(s, u) for s, r in enumerate(raw_photos)
+                                 if (j := photo.thumbnail_jpeg(r))
+                                 and (u := photo_store.upload_photo(j, *key, s))]
+                        total_photos = len(raw_photos)
+                        # 전량교체 / 부분갱신 / 무변경 판정은 store.persist_photo_urls 한 곳에.
+                        mode = store.persist_photo_urls(conn, *key, pairs, total_photos,
+                                                        fetched_at=now)
+                        photo_n += len(pairs)
+                        # 클라우드는 upsert-only 라 스스로 줄지 못한다 — 이번에 관측한 장수를
+                        # 기록해 뒀다가 미러 단계에서 seq >= 관측장수 인 클라우드 행을 지운다.
+                        # ⚠ **skip(전량 실패)일 때는 기록하지 않는다.** 그 경우 로컬은 일부러
+                        # 손대지 않는데(기존 사진 보존), 클라우드만 줄이면 로컬 8행 / 클라우드
+                        # 3행으로 갈라져 **프로덕션에서 멀쩡한 사진 5장이 사라진다**.
+                        # 2026-08-05 세트3 재감사에서 발각 — 세트2 의 클라우드 축소가 만든 결함.
+                        if mode != "skip":
+                            photo_kept[key] = total_photos
+                        # 썸네일 실패·업로드 실패를 **둘 다** 센다 — 종전엔 성공 장수만 세서
+                        # 부분 실패가 요약·exit code 어디에도 안 나타났다(침묵실패).
+                        photo_fail += total_photos - len(pairs)
                     elif jpegs and _allow_b64:
                         import base64 as _b64  # noqa: PLC0415
                         thumbs = [_b64.b64encode(j).decode("ascii") for j in jpegs]
@@ -464,7 +519,7 @@ def main(argv=None) -> int:
 
     total = conn.execute("SELECT COUNT(*) FROM listing_rights").fetchone()[0]
     photos_total = conn.execute("SELECT COUNT(*) FROM listing_photos").fetchone()[0]
-    print(f"[+] listing_rights 총 {total}건 · 사진 이번 {photo_n}장(누적 {photos_total}장)")
+    print(f"[+] listing_rights 총 {total}건 · 사진 이번 {photo_n}장(추출 {photo_extracted}장·누적 {photos_total}장)")
     if crawl_tenants:
         tenants_total = conn.execute("SELECT COUNT(*) FROM listing_tenants").fetchone()[0]
         print(f"[+] 임차인(대항력 후보) 이번 {tenant_n}명 · listing_tenants 누적 {tenants_total}행")
@@ -476,6 +531,10 @@ def main(argv=None) -> int:
     if photo_fail:
         print(f"[!] 사진 업로드 실패 {photo_fail}장(backend={_backend or '미설정'}) — "
               "오브젝트 스토리지 상태를 확인하라.", file=sys.stderr)
+    if photo_vanished:
+        print(f"[!] 사진 {photo_vanished}건: 저장분은 있는데 이번 응답엔 0장 — 법원이 뺐는지 파싱이"
+              " 실패했는지 구분할 신호가 없어 **지우지 않았다**. 반복되면 파서를 점검하라.",
+              file=sys.stderr)
     if photo_skipped:
         print(f"[!] 사진 {photo_skipped}장을 저장하지 않고 건너뛰었다 — 오브젝트 스토리지 사용 불가. "
               "DB base64 적재는 의도적으로 봉쇄했다(무료티어 DB 한도 재발 방지). "
@@ -497,11 +556,13 @@ def main(argv=None) -> int:
         print(f"[!] (H4) 스키마 드리프트율 과다({drift}/{processed}) — 파서-응답 불일치. "
               f"비정상 종료로 알림(파서 점검 필요).", file=sys.stderr)
         exit_code = 3
-    elif (photo_fail + photo_skipped) and photo_n == 0 and (photo_fail + photo_skipped) >= 5:
-        # 사진 대상이 있었는데 **한 장도** 저장되지 않았다 = 스토리지 경로가 통째로 죽은 것.
-        # 권리 지표만 보면 정상이라 exit 0 으로 끝나던 침묵실패를 여기서 잡는다.
-        print(f"[!] 사진이 한 장도 저장되지 않았다(실패 {photo_fail}·생략 {photo_skipped}) — "
-              "오브젝트 스토리지 경로 점검 필요. 비정상 종료로 알림.", file=sys.stderr)
+    elif photo_extracted and photo_n == 0:
+        # 법원이 사진을 준 물건이 있었는데 **한 장도** 저장되지 않았다 = 파이프라인이 통째로 죽은 것.
+        # 종전엔 `(실패+생략) >= 5` 하한이 있어 소량 배치의 전멸을 못 잡았고, 썸네일러가 죽으면
+        # 세 카운터가 모두 0 이라 아예 발동하지 않았다(2026-08-05 재감사 M-2·S-4).
+        print(f"[!] 추출 {photo_extracted}장 중 저장 0장(실패 {photo_fail}·생략 {photo_skipped}) — "
+              "썸네일러(Pillow)·오브젝트 스토리지 경로 점검 필요. 비정상 종료로 알림.",
+              file=sys.stderr)
         exit_code = 3
 
     if args.no_cloud or not store_rest.enabled():
@@ -512,6 +573,7 @@ def main(argv=None) -> int:
         conn.close()
         return exit_code
 
+    mirror = _MirrorReporter()   # 클라우드 미러 실패 건수 — exit code 로 승격(Vercel 이 읽는 건 클라우드다)
     if store_rest.enabled():
         # 품질 게이트: 전 배치 PASS 여야 서빙 반영(틀린 권리 요지가 조용히 상세 페이지에
         # 노출되는 것을 차단). FAIL 이면 로컬엔 남기되 미러는 건너뛴다.
@@ -523,47 +585,71 @@ def main(argv=None) -> int:
                   file=sys.stderr)
             conn.close()
             return 1
-        try:
-            rows = [dict(r) for r in conn.execute("SELECT * FROM listing_rights")]
-            n = store_rest.upsert_rights(rows)
-            print(f"[+] Supabase 권리 미러링 {n}건")
-        except Exception as e:  # noqa: BLE001 — 클라우드 실패는 로컬 결과를 깨지 않음
-            print(f"[!] Supabase 권리 미러링 실패(로컬은 저장됨): {e}", file=sys.stderr)
-        try:
+
+        # 사진과 동일하게 센다 — 권리 요지는 안전에 더 중요한데 종전엔 사진만 exit code 로
+        # 승격돼 있었다(2026-08-05 재감사에서 비일관성 지적).
+        mirror.upsert(
+            "Supabase 권리 미러링", "건",
+            lambda: store_rest.upsert_rights(
+                [dict(r) for r in conn.execute("SELECT * FROM listing_rights")]),
+            fail_suffix="(로컬은 저장됨)",
+        )
+
+        def _mirror_photos():
             # 이 미러는 로컬 listing_photos **전량**을 PK 기준 덮어쓰기로 올린다. 로컬에 옛
             # Supabase Storage URL 이 한 행이라도 남아 있으면, 이미 R2 로 옮겨둔 클라우드 행을
             # 죽은 URL 로 되돌린다(원본 버킷을 지운 뒤엔 복구 불가 = 사진 깨짐). 로컬이 클라우드보다
             # 항상 최신이라는 보장이 없으므로(실측: 로컬 18,535행 < 클라우드 37,850행)
             # **스테일 URL 은 아예 올리지 않는다.** 2026-08-05 R2 이전 리뷰에서 발견.
-            prows, stale = photo_store.split_stale_rows(
+            prows, stale_rows = photo_store.split_stale_rows(
                 [dict(r) for r in conn.execute("SELECT * FROM listing_photos")])
-            if stale:
-                print(f"[!] 사진 미러링에서 스테일 Supabase URL {len(stale)}행 제외 — "
-                      "로컬이 R2 이전을 되돌리는 것을 봉쇄. "
+            if stale_rows:
+                print(f"[!] 사진 미러링에서 {len(stale_rows)}행 제외(스테일 Supabase URL 또는 URL 없음) — "
+                      "로컬이 R2 이전을 되돌리거나 클라우드 URL 을 비우는 것을 봉쇄. "
                       "`python -m deploy.migrate_photos_to_r2 --sync-local` 로 정리하라.",
                       file=sys.stderr)
-            pn = store_rest.upsert_photos(prows)
-            print(f"[+] 사진 미러링 {pn}장")
-        except Exception as e:  # noqa: BLE001 — 사진 테이블 미배포/실패는 조용히 skip
-            print(f"[!] 사진 미러링 skip(테이블 미배포?): {e}", file=sys.stderr)
+            return store_rest.upsert_photos(prows)
+
+        # 다만 **조용히 넘기지 않는다**: Vercel 이 읽는 건 클라우드라, 미러가 통째로 실패하면
+        # 로컬은 멀쩡한데 화면엔 이번 크롤분이 하나도 안 나온다. exit code 로 승격한다.
+        mirror.upsert("사진 미러링", "장", _mirror_photos)
+        # 클라우드에서 '법원이 뺀 사진' 제거 — upsert 로는 줄일 수 없다(2026-08-05 세트2 재감사).
+        if photo_kept:
+            def _shrink_photos() -> int:
+                done, tried = store_rest.delete_photos_beyond_seq(
+                    [(c, cn, i, kept) for (c, cn, i), kept in photo_kept.items()])
+                if done < tried:
+                    # 부분 실패를 성공과 구분해서 드러낸다 — delete_sold 호출부와 같은 방식.
+                    # 안 그러면 "축소 1건" 로그가 "2건 중 1건 실패"와 똑같이 보인다
+                    # (2026-08-05 세트3 재감사).
+                    raise RuntimeError(f"클라우드 축소 누락 {tried - done}/{tried}건 — "
+                                       "법원이 뺀 사진이 서빙에 남아 있다")
+                return done
+            mirror.upsert("사진 클라우드 축소", "건", _shrink_photos)
+
         if crawl_tenants:
             # 현황조사서 크롤 시에만 임차인 미러(대항력 여지 원천). 테이블 미배포면 graceful skip.
-            try:
-                trows = [dict(r) for r in conn.execute("SELECT * FROM listing_tenants")]
-                tn = store_rest.upsert_tenants(trows)
-                print(f"[+] Supabase 임차인 미러링 {tn}행")
-            except Exception as e:  # noqa: BLE001 — 임차인 테이블 미배포/실패는 조용히 skip
-                print(f"[!] Supabase 임차인 미러링 skip(테이블 미배포?): {e}", file=sys.stderr)
+            # 사진·권리와 같은 취급. 같은 미러 블록인데 여기만 exit code 에서 빠져 있었다
+            # (2026-08-05 재감사: "같은 패턴이 주변부로 안 번졌다").
+            mirror.upsert(
+                "Supabase 임차인 미러링", "행",
+                lambda: store_rest.upsert_tenants(
+                    [dict(r) for r in conn.execute("SELECT * FROM listing_tenants")]),
+            )
             # (2026-07-25 V6) 점유관계 요지 미러 — 상세 신설 섹션의 클라우드 서빙 동등성.
             # 로컬은 curst 원본에서 즉석 파싱하지만 Vercel 은 이 테이블만 읽는다.
-            try:
-                svrows = store.survey_rows(conn)
-                sn = store_rest.upsert_survey(svrows)
-                print(f"[+] Supabase 점유관계 미러링 {sn}건")
-            except Exception as e:  # noqa: BLE001 — 미배포/실패는 조용히 skip(로컬 서빙 무영향)
-                print(f"[!] Supabase 점유관계 미러링 skip(테이블 미배포?): {e}", file=sys.stderr)
+            # ⚠ 이전엔 이 블록의 실패 주석이 "로컬 서빙 무영향"이라 적혀 있어 위 문장과 모순됐다 —
+            # 클라우드에서만 섹션이 사라지는 침묵실패였다(2026-08-05 재감사로 정정).
+            mirror.upsert(
+                "Supabase 점유관계 미러링", "건",
+                lambda: store_rest.upsert_survey(store.survey_rows(conn)),
+            )
     conn.close()
-    return exit_code
+    final = final_exit_code(exit_code, mirror.fail_count)
+    if final == 4:
+        print(f"[!] 클라우드 미러링 실패 {mirror.fail_count}건 — 로컬은 갱신됐지만 **서빙 화면에는"
+              " 이번 크롤이 반영되지 않았다.** 비정상 종료(4)로 알린다.", file=sys.stderr)
+    return final
 
 
 if __name__ == "__main__":

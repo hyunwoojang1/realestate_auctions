@@ -22,7 +22,7 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parent
 sys.path.insert(0, str(ROOT))
 
-from src import pipeline, query, report, store  # noqa: E402
+from src import mirror_report, pipeline, query, report, store  # noqa: E402
 
 EVID = ROOT / "evidence"
 
@@ -82,7 +82,23 @@ def _collect_sold_snapshot(conn, new_scored) -> list[dict]:
     return out
 
 
+def _exit_code(sold_preserve_failed: bool, mirror_fail: int) -> int:
+    """종료코드 계약 한 곳 — 0 정상 / 4 낙찰 보존 실패 / 5 클라우드 미러 실패.
+
+    **출력 모드(--json 여부)와 무관**해야 한다. 종전엔 --json 분기가 4만 보고 먼저 반환해
+    미러 실패가 조용히 0 으로 나갔다(2026-08-05 세트2 재감사). 순수함수로 뽑아 테스트로 못 박는다.
+    낙찰 보존 실패가 더 무겁다 — 미러는 재실행으로 복구되지만 종결 물건 소실은 그렇지 않다.
+    """
+    if sold_preserve_failed:
+        return 4
+    return 5 if mirror_fail else 0
+
+
 def main(argv=None) -> int:
+    # 클라우드 미러 실패 누계(.fail_count, 아래 미러 블록에서 증가) → exit 5. 카운터 증가를
+    # 잊는 사고(2026-08-05, deploy/crawl_rights.py tenants 미러 누락)가 재발하지 않도록
+    # 공용 리포터(src/mirror_report.py)를 쓴다 — crawl_rights.py 와 동일 클래스.
+    mirror = mirror_report.MirrorReporter()
     ap = argparse.ArgumentParser(description="경매 최저가 vs 실거래 시세 차익 큐레이션 PoC")
     ap.add_argument("--live", action="store_true", help="국토부 라이브 API 사용(MOLIT_API_KEY 필요)")
     ap.add_argument("--ym", help="조회 연월 YYYYMM (라이브 전용)")
@@ -343,17 +359,22 @@ def main(argv=None) -> int:
     if use_live and not args.no_cloud:
         from src import store_rest  # noqa: PLC0415
         if store_rest.enabled():
+            # 클라우드 미러 실패 건수 — 종료코드로 승격한다. 서빙(Vercel)이 읽는 건 클라우드라,
+            # 로컬만 갱신되고 미러가 죽으면 화면은 옛 데이터 그대로인데 exit 0 이 나가던 구멍
+            # (2026-08-05 재감사). --json 모드에서 로그조차 안 남던 것도 stderr 로 통일했다.
             # (2026-07-24) sale_time(매각 개시시각 maeHh1) 파생 주입 후 미러 — Vercel 은
             # raw_listings 가 없어 스스로 파생 불가. 이게 빠지면 프로덕션 bidding_closed 가
             # 10:00 폴백 가정으로만 동작한다. scored 는 채점 직후 객체라 sale_time="" 상태.
             sale_times = store._sale_time_map(conn)
             for s in scored:
                 s.sale_time = sale_times.get((s.court, s.case_no, s.item_no), "")
-            try:
+
+            def _mirror_scored():
                 if full_snapshot:
-                    cn = store_rest.replace_all(scored)
-                else:
-                    cn = store_rest.upsert(scored)
+                    return store_rest.replace_all(scored)
+                return store_rest.upsert(scored)
+
+            def _after_scored_mirror(cn) -> None:
                 if not args.json:
                     print(f"  ☁ Supabase 미러링: {cn}건 "
                           f"({'전량교체' if full_snapshot else '병합'})")
@@ -361,50 +382,74 @@ def main(argv=None) -> int:
                 # 미러하면 로컬에서 지운 물건이 클라우드에 남아 프로덕션에서 홈(진행 중)과
                 # /sold(낙찰 종결)에 동시 노출된다(실측: 서울남부 2024타경6219 물건2).
                 if _revived:
-                    try:
-                        dn = store_rest.delete_sold(_revived)
+                    def _on_revived_deleted(dn) -> None:
                         if not args.json:
                             print(f"  ↩ 낙찰 부활 클라우드 삭제: {dn}/{len(_revived)}건")
-                        if dn < len(_revived) and not args.json:
-                            print(f"  ⚠ 클라우드 삭제 누락 {len(_revived) - dn}건 — "
-                                  f"다음 새로고침까지 양쪽 동시 노출됨", file=sys.stderr)
-                    except Exception as e:  # noqa: BLE001 — 삭제 실패는 비차단(로그로 남긴다)
-                        print(f"  ⚠ 낙찰 부활 클라우드 삭제 실패: {e}", file=sys.stderr)
+                            if dn < len(_revived):
+                                print(f"  ⚠ 클라우드 삭제 누락 {len(_revived) - dn}건 — "
+                                      f"다음 새로고침까지 양쪽 동시 노출됨", file=sys.stderr)
+
+                    mirror.run(  # 삭제 실패는 비차단(로그로 남긴다)
+                        lambda: store_rest.delete_sold(_revived),
+                        on_success=_on_revived_deleted,
+                        on_fail=lambda e: print(
+                            f"  ⚠ 낙찰 부활 클라우드 삭제 실패: {e}", file=sys.stderr),
+                    )
                 # (C2 2026-07-27) 낙찰(종결) 보존분 미러 — 클라우드 /sold·상세 낙찰모드 원천.
                 if sold_rows:
-                    try:
-                        sn = store_rest.upsert_sold(sold_rows)
+                    def _on_sold_mirrored(sn) -> None:
                         if not args.json:
                             print(f"  🏁 낙찰 보존 미러: {sn}건")
-                    except Exception as e:  # noqa: BLE001 — 미러 실패는 비차단
-                        if not args.json:
-                            print(f"  ⚠ 낙찰 미러 skip: {e}")
+
+                    mirror.run(  # 미러 실패는 비차단
+                        lambda: store_rest.upsert_sold(sold_rows),
+                        on_success=_on_sold_mirrored,
+                        on_fail=lambda e: print(f"  ⚠ 낙찰 미러 실패: {e}", file=sys.stderr),
+                    )
                 # 클라우드 고아 권리 정리(scored 전량교체 후 rights 동기화). RPC 함수
                 # (supabase_rights.sql prune_auction_orphan_rights) 미배포면 조용히 skip.
                 if full_snapshot:
-                    try:
-                        pr = store_rest.prune_rights()
+                    def _on_pruned(pr) -> None:
                         if pr and not args.json:
                             print(f"  🧹 클라우드 고아 권리 {pr}건 정리")
-                    except Exception as e:  # noqa: BLE001
-                        if not args.json:
-                            print(f"  ⚠ 클라우드 고아 정리 skip(RPC 미배포?): {e}")
+
+                    mirror.run(
+                        store_rest.prune_rights,
+                        on_success=_on_pruned,
+                        on_fail=lambda e: print(
+                            f"  ⚠ 클라우드 고아 정리 skip(RPC 미배포?): {e}", file=sys.stderr),
+                        count_failure=False,  # RPC 미배포는 흔한 정상 상태
+                    )
                 # (감사 2026-07-20 H1) naver KB시세/호가 미러 — 종전 upsert_naver 호출자가 없어
                 # 로컬만 갱신되고 프로덕션(Vercel)의 KB시세 계층이 정체됐다(로컬 4754 vs 클라우드 2351).
                 # scored 발행과 같은 지점에서 매 새로고침마다 함께 밀어 로컬↔클라우드 시세를 일치시킨다.
                 # 병합 upsert라 full/merge 양쪽에서 안전. 실패해도 로컬·scored 미러는 안 깨진다.
-                try:
+                def _mirror_naver():
                     naver_rows = store.load_all_naver(conn)
-                    if naver_rows:
-                        nn = store_rest.upsert_naver(naver_rows)
-                        if not args.json:
-                            print(f"  ☁ Supabase naver 시세 미러링: {nn}건")
-                except Exception as e:  # noqa: BLE001 — naver 미러 실패는 scored 미러를 안 깬다
-                    if not args.json:
-                        print(f"  ⚠ naver 시세 미러 skip(테이블 미배포?): {e}")
-            except Exception as e:  # noqa: BLE001 — 클라우드 실패는 로컬 새로고침을 깨지 않음
-                if not args.json:
-                    print(f"  ⚠ Supabase 미러링 실패(로컬은 정상 적재됨): {e}")
+                    if not naver_rows:
+                        return None
+                    return store_rest.upsert_naver(naver_rows)
+
+                def _on_naver_mirrored(nn) -> None:
+                    if nn is not None and not args.json:
+                        print(f"  ☁ Supabase naver 시세 미러링: {nn}건")
+
+                mirror.run(  # naver 미러 실패는 scored 미러를 안 깬다
+                    _mirror_naver,
+                    on_success=_on_naver_mirrored,
+                    on_fail=lambda e: print(f"  ⚠ naver 시세 미러 실패: {e}", file=sys.stderr),
+                )
+
+            # ⚠ --json 가드 안에 두면 자동화 모드에서 로그조차 안 남는다(2026-08-05 재감사).
+            # 로컬은 정상이므로 크래시시키진 않되, 종료코드로 반드시 드러낸다. 아래 네 미러
+            # 하위 블록(부활 삭제·낙찰 보존·고아 정리·naver)은 이 1차 미러가 성공했을 때만
+            # 시도한다 — 클라우드 상태가 반쯤 어긋난 채로 계속 밀어붙이지 않기 위해서다.
+            mirror.run(
+                _mirror_scored,
+                on_success=_after_scored_mirror,
+                on_fail=lambda e: print(
+                    f"  ⚠ Supabase 미러링 실패(로컬은 정상 적재됨): {e}", file=sys.stderr),
+            )
 
     view = query.sort_items(
         query.apply_filters(scored, args.min_score, args.ptype, args.region,
@@ -414,7 +459,10 @@ def main(argv=None) -> int:
 
     if args.json:
         print(report.to_json(view))
-        return 4 if sold_preserve_failed else 0
+        # ⚠ 종료코드 계약은 **출력 모드와 무관**해야 한다. 종전엔 여기서 낙찰 보존 실패(4)만 보고
+        # 곧장 반환해, `--json --live` 로 돌리면 클라우드 미러가 통째로 실패해도 exit 0 이었다
+        # (2026-08-05 세트2 재감사). 고쳤다고 기록해둔 승격이 한쪽 경로에만 걸려 있던 사고다.
+        return _exit_code(sold_preserve_failed, mirror.fail_count)
 
     print(report.to_console(view))
     print(f"\n저장(전체): {n}건 · 표시(필터 후): {len(view)}건 → {db_path}")
@@ -427,8 +475,10 @@ def main(argv=None) -> int:
     if sold_preserve_failed:
         print("  ⛔ 낙찰 보존이 실패한 채 끝났다 — 오늘 종결된 물건이 소실됐을 수 있다. "
               "exit 4 로 알린다.", file=sys.stderr)
-        return 4
-    return 0
+    elif mirror.fail_count:
+        print(f"  ⛔ 클라우드 미러링 {mirror.fail_count}건 실패 — 로컬은 갱신됐지만 **서빙 화면에는"
+              " 반영되지 않았다.** exit 5 로 알린다.", file=sys.stderr)
+    return _exit_code(sold_preserve_failed, mirror.fail_count)
 
 
 def _load_naver_real_map(db_path: str) -> dict:

@@ -148,21 +148,26 @@ def main() -> int:
 
     print(f"[+] 완료: 적재 {ok}건 · 미확인/실패 {fail}건 (API {len(uniq)}회)")
 
-    # Supabase 미러(테이블 있으면). 없거나 실패해도 로컬은 유지.
+    # Supabase 미러(테이블 있으면). 없거나 실패해도 로컬은 유지하되 **종료코드로는 드러낸다** —
+    # 서빙(Vercel)이 읽는 건 클라우드라, 미러가 죽으면 로컬만 최신이고 화면은 옛 데이터다.
+    # crawl_rights·run.py 는 MirrorReporter 로 전환됐는데 여기만 인라인 try/except 로 남아
+    # exit 0 이었다(2026-08-05 세트3 재감사: "미전환 마지막 호출부").
+    from src.mirror_report import MirrorReporter  # noqa: PLC0415
+    mirror = MirrorReporter()
     if not args.no_cloud:
-        try:
-            from src import store_rest  # noqa: PLC0415
-            if store_rest.enabled() and hasattr(store_rest, "upsert_building"):
-                rows = store.load_all_building(conn)
-                n = store_rest.upsert_building(rows)
-                print(f"[+] Supabase 건축물대장 미러링 {n}건")
-            elif store_rest.enabled():
-                print("[!] store_rest.upsert_building 미구현 — 로컬만 갱신(서빙은 로컬 폴백).",
-                      file=sys.stderr)
-        except Exception as e:  # noqa: BLE001
-            print(f"[!] Supabase 미러 skip: {e}", file=sys.stderr)
+        from src import store_rest  # noqa: PLC0415
+        if store_rest.enabled() and hasattr(store_rest, "upsert_building"):
+            mirror.upsert("Supabase 건축물대장 미러링", "건",
+                          lambda: store_rest.upsert_building(store.load_all_building(conn)))
+        elif store_rest.enabled():
+            print("[!] store_rest.upsert_building 미구현 — 로컬만 갱신(서빙은 로컬 폴백).",
+                  file=sys.stderr)
 
     conn.close()
+    if mirror.fail_count:
+        print(f"[!] 클라우드 미러링 {mirror.fail_count}건 실패 — 로컬은 갱신됐지만 서빙 화면에는"
+              " 반영되지 않았다. 비정상 종료(4)로 알린다.", file=sys.stderr)
+        return 4
     return 0
 
 

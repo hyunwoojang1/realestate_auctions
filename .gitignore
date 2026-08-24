@@ -25,6 +25,8 @@ data/courtauction_full_cache.json
 COURTAUCTION_STOP
 AGENT_STOP
 RIGHTS_STOP
+PHOTO_R2_STOP
+PHOTO_MIGRATE_STOP
 STEER.md
 
 # SQLite WAL/SHM 임시파일

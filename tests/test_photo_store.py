@@ -150,11 +150,34 @@ R2_PHOTO = "https://pub-abc.r2.dev/a.jpg"
 
 def test_split_stale_rows_blocks_supabase_urls():
     """되돌릴 수 없는 사고(버킷 삭제 후 사진 깨짐)를 막는 가드 — 회귀 감지 대상."""
-    rows = [{"photo_url": R2_PHOTO, "seq": 0}, {"photo_url": SB_PHOTO, "seq": 1},
-            {"photo_url": "", "seq": 2}, {"photo_url": None, "seq": 3}]
-    clean, stale = photo_store.split_stale_rows(rows)
-    assert [r["seq"] for r in stale] == [1], "스테일 supabase URL 이 미러로 새어나간다"
-    assert [r["seq"] for r in clean] == [0, 2, 3]
+    rows = [{"photo_url": R2_PHOTO, "seq": 0}, {"photo_url": SB_PHOTO, "seq": 1}]
+    clean, blocked = photo_store.split_stale_rows(rows)
+    assert [r["seq"] for r in blocked] == [1], "스테일 supabase URL 이 미러로 새어나간다"
+    assert [r["seq"] for r in clean] == [0]
+
+
+def test_split_stale_rows_blocks_empty_url():
+    """URL 이 빈 행을 올리면 클라우드의 멀쩡한 R2 URL 이 빈 값으로 덮인다(사진 사라짐)."""
+    rows = [{"photo_url": R2_PHOTO, "seq": 0}, {"photo_url": "", "seq": 1},
+            {"photo_url": None, "seq": 2}]
+    clean, blocked = photo_store.split_stale_rows(rows)
+    assert [r["seq"] for r in blocked] == [1, 2]
+    assert [r["seq"] for r in clean] == [0]
+
+
+def test_split_stale_rows_strips_base64_from_mirror():
+    """클라우드 테이블에 thumb_b64 컬럼이 실재한다 — 그대로 올리면 DB 용량 사고가 재현된다.
+
+    AUCTION_ALLOW_BASE64_PHOTOS=1 로 만들어진 행이 미러를 타고 Supabase Postgres 로
+    흘러가는 경로를 막는다(2026-08-05 리뷰에서 발견된 CRITICAL).
+    """
+    rows = [{"photo_url": R2_PHOTO, "seq": 0, "thumb_b64": "AAAA" * 5000},
+            {"photo_url": "", "seq": 1, "thumb_b64": "BBBB" * 5000}]
+    clean, blocked = photo_store.split_stale_rows(rows)
+    assert [r["seq"] for r in blocked] == [1], "base64 전용 행(URL 없음)은 미러 대상이 아니다"
+    assert clean[0]["thumb_b64"] == "", "base64 가 클라우드로 실려 나간다"
+    assert clean[0]["photo_url"] == R2_PHOTO
+    assert rows[0]["thumb_b64"] != "", "입력 dict 를 파괴적으로 수정하면 호출부가 오염된다"
 
 
 def test_split_stale_rows_keeps_everything_when_clean():
@@ -242,3 +265,33 @@ def test_configure_pool_after_session_is_ignored_not_silently_wrong(monkeypatch,
         photo_store.configure_pool(99)
     assert s.get_adapter("https://example.com")._pool_maxsize == 20
     assert any("configure_pool" in r.message for r in caplog.records)
+
+
+# ------------------------------------------------------------------ 썸네일러 계약
+
+def test_thumbnail_jpeg_returns_none_on_bad_input():
+    """`exit 3` 게이트가 "실패 시 None" 계약에 통째로 의존하는데 테스트가 없었다(세트3 지적).
+
+    Pillow 는 크롤 전용이라 CI 에 없을 수 있다 — 없으면 skip 한다(그 자체도 계약의 일부:
+    Pillow 가 없으면 None 을 돌려주고 조용히 죽지 않는다).
+    """
+    from src import photo
+    assert photo.thumbnail_jpeg("") is None
+    assert photo.thumbnail_jpeg("!!!not-base64!!!") is None
+    import base64
+    assert photo.thumbnail_jpeg(base64.b64encode(b"not an image").decode()) is None
+
+
+def test_thumbnail_jpeg_roundtrip_when_pillow_available():
+    pytest.importorskip("PIL", reason="Pillow 는 크롤 전용(Vercel 225MB 한도로 서빙에서 제외)")
+    import base64
+    import io
+
+    from PIL import Image
+
+    from src import photo
+    buf = io.BytesIO()
+    Image.new("RGB", (1600, 1200), (10, 20, 30)).save(buf, format="JPEG")
+    out = photo.thumbnail_jpeg(base64.b64encode(buf.getvalue()).decode())
+    assert out and out[:2] == b"\xff\xd8", "JPEG 매직바이트가 아니다"
+    assert Image.open(io.BytesIO(out)).width == photo.THUMB_MAX_W, "가로 상한이 적용되지 않았다"

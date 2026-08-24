@@ -58,7 +58,7 @@ def main(argv=None) -> int:
     ).fetchall()
     total = len(rows)
     print(f"[*] 이전 대상 {total}장", flush=True)
-    done = fail = 0
+    done = fail = cloud_fail = 0
     cloud_batch = []
     for i, r in enumerate(rows, 1):
         if Path(STOP).exists():
@@ -86,6 +86,9 @@ def main(argv=None) -> int:
                 try:
                     store_rest.upsert_photos(cloud_batch)
                 except Exception as e:  # noqa: BLE001
+                    # 종전엔 마지막 배치만 cloud_fail 에 세서, 중간 배치가 전량 실패해도
+                    # exit 0 이었다(2026-08-05 세트2 재감사). 비대칭 제거.
+                    cloud_fail += len(cloud_batch)
                     print(f"  클라우드 미러 경고: {str(e)[:60]}", flush=True)
                 cloud_batch = []
             pct = 100 * i // total
@@ -94,10 +97,14 @@ def main(argv=None) -> int:
     if cloud and cloud_batch:
         try:
             store_rest.upsert_photos(cloud_batch)
-        except Exception:  # noqa: BLE001
-            pass
-    print(f"[완료] 이전 {done}장·실패 {fail}. thumb_b64 정리는 VACUUM 별도.", flush=True)
-    return 0
+        except Exception as e:  # noqa: BLE001 — 로컬 이전은 이미 끝났으므로 크래시시키지 않는다
+            # 루프 중간의 같은 실패는 로그를 남기는데 마지막 잔여 배치만 완전 무음이었다
+            # (2026-08-05 재감사). 마지막 <=99건이 조용히 클라우드에 안 올라가던 구멍.
+            cloud_fail += len(cloud_batch)
+            print(f"  클라우드 미러 경고(마지막 배치 {cloud_fail}건): {str(e)[:60]}", flush=True)
+    print(f"[완료] 이전 {done}장·실패 {fail}·클라우드미러실패 {cloud_fail}장. "
+          "thumb_b64 정리는 VACUUM 별도.", flush=True)
+    return 1 if (fail or cloud_fail) else 0
 
 
 if __name__ == "__main__":

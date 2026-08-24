@@ -422,7 +422,7 @@
     <div class="dphoto">
       {% if photos|length > 1 %}<span class="cnt">📷 {{ photos|length }}</span>{% endif %}
       <div class="dphoto-track">
-        {% for p in photos %}<img src="{{ p }}" alt="물건 사진 {{ loop.index }}" width="800" height="600" decoding="async" loading="{{ 'eager' if loop.first else 'lazy' }}">{% endfor %}
+        {% for p in photos %}<img src="{{ p }}" alt="물건 사진 {{ loop.index }}" width="800" height="600" decoding="async" loading="{{ 'eager' if loop.first else 'lazy' }}" onerror="this.closest('.dphoto-track').classList.add('has-broken');this.classList.add('broken')">{% endfor %}
       </div>
       {% if photos|length > 1 %}
       <button type="button" class="dphoto-nav prev" aria-label="이전 사진" hidden>‹</button>
@@ -973,7 +973,10 @@
       '<img alt="">';
     document.body.appendChild(lb);
     var lbImg=lb.querySelector('img'), lbCnt=lb.querySelector('.lb-cnt'), cur=0, opener=null;
-    function show(i){ cur=(i+imgs.length)%imgs.length; lbImg.src=imgs[cur].src; lbImg.alt=imgs[cur].alt||'';
+    // 캐러셀과 동일하게 파손을 사실대로 알린다 — 모달에만 깨진 아이콘이 뜨던 구멍(2026-08-05).
+    lbImg.onerror=function(){ lbImg.alt='이 사진을 불러오지 못했습니다'; lb.classList.add('lb-broken'); };
+    function show(i){ cur=(i+imgs.length)%imgs.length; lb.classList.remove('lb-broken');
+      lbImg.src=imgs[cur].src; lbImg.alt=imgs[cur].alt||'';
       if(lbCnt) lbCnt.textContent=(cur+1)+' / '+imgs.length; }
     function open(i){ opener=document.activeElement; show(i); lb.hidden=false; lb.classList.add('on');
       document.body.style.overflow='hidden'; lb.querySelector('.lb-x').focus(); }
