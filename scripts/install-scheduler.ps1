@@ -52,7 +52,10 @@ $trigger   = New-ScheduledTaskTrigger -Daily -At $Time
 # 7/28 완주 실측이 3시간 20분(네이버 포함)이었는데 한계가 2h 라 7/29·7/31 이 통째로
 # 강제종료됐다(LastTaskResult=267014 = SCHED_S_TASK_TERMINATED). 한계에 걸리면 Windows 가
 # 프로세스를 죽일 뿐 아무것도 보고하지 않아 **조용한 실패**가 된다. 5h 는 완주 실측의 1.5배.
+# 배터리 옵션(2026-08-24 감사 H-5): 기본값은 '배터리면 시작 안 함'이라 노트북이 새벽에
+# 전원 미연결이면 크롤이 조용히 결번된다(실사고 유형). warm-ping/watchdog 설치 스크립트와 동일하게 허용.
 $settings  = New-ScheduledTaskSettingsSet -StartWhenAvailable -RunOnlyIfNetworkAvailable `
+                -AllowStartIfOnBatteries -DontStopIfGoingOnBatteries `
                 -MultipleInstances IgnoreNew -ExecutionTimeLimit (New-TimeSpan -Hours 5)
 # 등록 전에 비활성으로 만든다 → Register 시점부터 Disabled. 등록↔Disable 사이 발화 레이스 원천 제거.
 $settings.Enabled = $false

@@ -1,5 +1,25 @@
 # versions.md — auction-arbitrage 루프 작업 로그 (append-only, 최신순)
 
+## 2026-08-24 18:35 KST — 🗓 스케줄러 4종 새 경로 재등록 + DailyRefresh 배터리 옵션 (감사 H-5)
+
+**배경**: 폴더 정리로 레포가 `장현우\auction-arbitrage` → `장현우\개인-프로젝트\경매\...` 로
+이동, 작업 스케줄러 4개가 전부 옛 경로를 바라봐 WarmPing·Watchdog 이 0xFFFD0000 으로
+실패 중이었고 새벽 크롤·클라우드 미러가 8/17부터 결번(프로덕션 data_stale).
+
+**무엇**:
+- `scripts/install-scheduler.ps1` — `-AllowStartIfOnBatteries -DontStopIfGoingOnBatteries`
+  추가(감사 H-5: 노트북 전원 미연결 새벽에 크롤이 조용히 결번되는 원인). warm-ping/
+  watchdog 설치 스크립트에는 이미 있었고 DailyRefresh 만 빠져 있었다.
+- 재등록: WarmPing·Watchdog 은 각 설치 스크립트 재실행, DailyRefresh 는 스크립트 재실행
+  후 Enable(기존 운영 작업의 경로 이전이므로 약관 게이트 재통과 불필요), RightsCrawl-Once 는
+  설치 스크립트가 없어 Set-ScheduledTask 로 액션만 교체(트리거·설정 보존).
+
+**증거**: 4/4 새 경로·Ready·배터리 허용 전수 확인(옛 경로 잔존 0/4). WarmPing·Watchdog
+즉시 실행 → LastTaskResult **0x0** (종전 0xFFFD0000 해소). WarmPing 은 자체 스케줄
+(18:31:31)로도 발화 확인.
+
+**다음**: 내일 05:30 DailyRefresh 완주 여부 확인(완주 시 프로덕션 data_stale 해소 예상).
+
 ## 2026-08-24 19:20 KST — 🧹 배포 위생: 의존성 핀 + deploy.ps1 stash 폐기 + 스키마 드리프트 계약 (감사 H-2·H-4 등)
 
 **무엇**:
