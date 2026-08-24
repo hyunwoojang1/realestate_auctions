@@ -1,11 +1,15 @@
-requests>=2.31
-flask>=3.0
-waitress>=3.0
-pytest>=8.0
-pyproj>=3.6
+requests==2.34.2
+flask==3.1.3
+waitress==3.0.2
+pytest==9.1.1
+pyproj==3.7.2
+
+# (2026-08-24 감사 H-4) 하한(>=)만 있던 버전을 로컬 검증 버전으로 핀 고정 —
+# 코드 변경 0인데 다음 vercel 배포가 최신 메이저를 새로 설치해 프로덕션만 깨지는
+# 유형(재현 불가 장애)을 차단한다. 올릴 때는 로컬에서 테스트 통과 후 핀을 갱신.
 
 # 네이버 KB시세·호가 수집(crawl_naver) 전용
-rapidfuzz>=3.0
+rapidfuzz==3.14.5
 # playwright(107MB)는 crawl_naver 전용(lazy import) — Vercel 함수 225MB 한도 초과 방지 위해 제외(2026-07-16).
 # 로컬 크롤 시에만: pip install "playwright>=1.40" && playwright install chromium
 # Pillow 는 **크롤 전용**(사진 썸네일 리사이즈, src/photo.py). 서빙엔 불필요해서 여기 안 넣는다

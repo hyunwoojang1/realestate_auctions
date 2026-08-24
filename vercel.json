@@ -3,7 +3,8 @@
   "regions": ["icn1"],
   "functions": {
     "api/index.py": {
-      "includeFiles": "{templates,data,static}/**"
+      "includeFiles": "{templates,data,static}/**",
+      "maxDuration": 60
     }
   },
   "rewrites": [

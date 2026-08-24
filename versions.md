@@ -1,5 +1,26 @@
 # versions.md — auction-arbitrage 루프 작업 로그 (append-only, 최신순)
 
+## 2026-08-24 19:20 KST — 🧹 배포 위생: 의존성 핀 + deploy.ps1 stash 폐기 + 스키마 드리프트 계약 (감사 H-2·H-4 등)
+
+**무엇**:
+- `requirements.txt` — `>=` 하한만 있던 6개 패키지를 로컬 검증 버전으로 `==` 핀 고정
+  (requests 2.34.2 / flask 3.1.3 / waitress 3.0.2 / pytest 9.1.1 / pyproj 3.7.2 /
+  rapidfuzz 3.14.5). 코드 변경 0인데 다음 배포가 최신 메이저를 새로 설치해 프로덕션만
+  깨지는 재현불가 장애 유형 차단.
+- `scripts/deploy.ps1` — 위험한 'stash 이동 후 복원' 방식 전체 삭제(72줄→16줄),
+  `deploy_prod.sh`(깨끗한 git worktree 배포) 위임 래퍼로 교체. molit_trades.db 214MB 를
+  실제로 잃었던 경로(CLAUDE.md §0.6) 자체를 제거 — 가드 추가보다 경로 제거.
+- `vercel.json` — api/index.py `maxDuration: 60` 명시(콜드 전량 로드가 기본 한도를 넘던
+  위험 제거).
+- `tests/test_store_schema_drift.py` 신설 — store(SQLite DDL) ↔ store_rest(미러
+  _COLS/_payload) 컬럼 동형 계약 4케이스(누락·역방향 고아·dataclass 커버리지·클라우드
+  전용 예외 sale_time 명시). rights_verified 왕복 리셋 유형(audit-t8) 재발을 커밋
+  게이트로 봉쇄.
+
+**증거**: 신규 테스트 4/4 passed(로컬). 이 커밋의 pre-commit 게이트가 전체 pytest 재검증.
+
+**다음**: 11단계 — Vercel env `AUCTION_ADMIN_KEY` 추가 → push → deploy_prod.sh → 프로덕션 검증.
+
 ## 2026-08-24 18:50 KST — ⚡ API 워밍 배선 + 인덱스 3종 + 고아 정리 2종 (성능·DB 감사 HIGH)
 
 **무엇**:
