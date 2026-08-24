@@ -62,6 +62,15 @@
   </div>
 </header>
 <main class="wrap" id="main">
+{# 데이터 신선도 배너(2026-08-24 침묵실패 감사) — 아래 SW 'rendered-at' 표식은 캐시된
+   화면의 나이를 재고, 이 배너는 **데이터 자체의 나이**(마지막 수집 시각)를 잰다. 크롤이
+   며칠 조용히 실패하면 화면은 매번 새로 렌더돼도 데이터는 낡는다 — 그때 이 배너만 잡는다. #}
+{% if data_age_hours is defined and data_age_hours is not none and data_age_hours > data_stale_hours %}
+<div class="data-stale-banner" role="alert">
+  ⚠️ 데이터 기준: <strong>{{ (data_age_hours / 24) | round(1) }}일 전</strong> 수집분입니다.
+  새벽 자동 수집이 며칠째 실패했을 수 있습니다 — 입찰 판단 전 최신 여부를 확인하세요.
+</div>
+{% endif %}
 {% block content %}{% endblock %}
 </main>
 <script>

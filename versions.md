@@ -1,5 +1,28 @@
 # versions.md — auction-arbitrage 루프 작업 로그 (append-only, 최신순)
 
+## 2026-08-24 18:20 KST — 🕐 데이터 신선도 정직화 — '어제 데이터가 오늘처럼' 차단 (침묵실패 감사 CRITICAL)
+
+**배경**: 크롤이 며칠 조용히 실패해도(파서 드리프트·커버리지 플로어 반복·국토부 장애)
+run.py 는 의도적으로 직전 스냅샷을 보존하는데, 그 데이터가 **언제** 수집됐는지를 화면·API
+어디도 노출하지 않았다. rendered_at 은 렌더 시각이라 매 요청 '지금'이 된다. 또 샘플 폴백
+중에도 /health 가 200 ok 라 배포 검증(deploy_prod.sh)이 가짜 데이터 서빙을 통과시켰다(H-3).
+
+**무엇**:
+- `store.last_fetched()`(SQLite MAX(fetched_at)) + `store_rest.last_refreshed()`(scored
+  최신 refreshed_at, TTL 캐시) — 두 저장계층의 '데이터 기준 시각' 원천.
+- `web.data_freshness()` — (수집시각, 나이h). 조회 실패는 (None,None)='미상'으로 구분
+  (실패를 0시간으로 보고하면 그게 또 침묵실패). `STALE_HOURS=36`(watchdog 임계와 동일).
+- `/health` 확장 — data_asof/data_age_hours/data_stale 노출. **백엔드가 구성돼 있는데 샘플
+  폴백이면 status=degraded + 503**(순수 로컬 데모 sample(no-db)는 종전대로 200).
+- 전 페이지 배너(base.html + base.css) — 36h 초과 시 "데이터 기준: N일 전 수집분" 경고.
+  SW 의 rendered-at 표식(화면 나이)과 상보 — 이 배너는 **데이터 나이**를 잰다.
+
+**증거**: `tests/test_freshness.py` 9 passed — 시각 파싱(SQLite naive/KST ISO 동치),
+SQLite 신선도 계산, 미상 처리, /health ok·degraded 503·stale 플래그, 배너 발현/비발현.
+test_web/test_admin_guard 40 passed(회귀 0). ruff 클린.
+
+**다음**: 침묵실패 카나리(목록 필드 비율 게이트·미등재 코드 경고·국토부 실패율).
+
 ## 2026-08-24 18:05 KST — 🔐 워치리스트 인증 + /find 라이브 제한 + rate limit (보안감사 CRITICAL)
 
 **배경**: 2026-08-24 보안감사 — ①워치리스트(운영자 입찰 관심 = 금전 직결 정보)가 공개

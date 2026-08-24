@@ -124,6 +124,56 @@ def _scored():
     return _enrich_naver(pipeline.run())
 
 
+# ── 데이터 신선도 (2026-08-24 침묵실패 감사 CRITICAL) ─────────────────────────
+# 크롤이 며칠 조용히 실패해도(부분 파서 드리프트, 커버리지 플로어 반복 발동, 국토부 장애)
+# 화면·API 는 '오늘 데이터'처럼 보였다 — rendered_at 은 렌더 시각이라 데이터 나이의 근거가
+# 못 된다. 여기서 실제 수집 시각을 계산해 전 화면 배너·/health 에 노출한다.
+STALE_HOURS = 36.0   # watchdog.ps1 의 신선도 임계와 동일값 — 두 감시가 같은 기준을 봐야 한다
+
+
+def _parse_ts(ts: str):
+    """'2026-08-24 12:52:35'(SQLite, naive 로컬) / KST ISO(store_rest) 둘 다 aware 로."""
+    import datetime as _dt  # noqa: PLC0415
+    s = ts.strip().replace("Z", "+00:00")
+    if " " in s and "T" not in s:
+        s = s.replace(" ", "T", 1)
+    d = _dt.datetime.fromisoformat(s)
+    if d.tzinfo is None:
+        d = d.replace(tzinfo=_dt.datetime.now().astimezone().tzinfo)
+    return d
+
+
+def data_freshness() -> tuple[str | None, float | None]:
+    """(수집시각 ISO, 나이(시간)) — 백엔드 미구성/조회 실패는 (None, None) = '미상'.
+
+    '미상'과 '신선'을 구분해 반환하는 게 핵심이다 — 실패를 0시간으로 보고하면
+    그게 또 하나의 침묵실패가 된다.
+    """
+    import datetime as _dt  # noqa: PLC0415
+    ts = None
+    try:
+        db_path = os.environ.get(DB_ENV)
+        if db_path:
+            conn = store.connect(db_path)
+            try:
+                ts = store.last_fetched(conn)
+            finally:
+                conn.close()
+        elif store_rest.enabled():
+            ts = store_rest.last_refreshed()
+    except Exception as e:  # noqa: BLE001 — 신선도 조회 실패가 페이지를 죽이면 안 됨
+        logger.warning("데이터 신선도 조회 실패(미상 처리): %s", e)
+        return None, None
+    if not ts:
+        return None, None
+    try:
+        age_h = (_dt.datetime.now(_dt.UTC) - _parse_ts(ts)).total_seconds() / 3600.0
+    except ValueError:
+        logger.warning("데이터 신선도 시각 파싱 실패(미상 처리): %r", ts)
+        return None, None
+    return ts, max(age_h, 0.0)
+
+
 # 권리 로드 최근 실패 기록(모듈 수준) — /health 노출 + fail-closed 게이트용(적대감사 F7).
 # Supabase 스키마 드리프트(400) 등으로 배지가 '전멸'하면 종전엔 경고 로그 한 줄뿐이었고,
 # 히어로의 clean-배지 게이트가 `if not badges: return True` 로 통째로 우회됐다.
@@ -433,6 +483,14 @@ def create_app() -> Flask:
             if len(_rl_hits) > 10_000:   # 악의적 IP 스푸핑으로 딕셔너리가 무한 성장하는 것 방지
                 _rl_hits.clear()
         return None
+
+    @app.context_processor
+    def _inject_freshness():
+        # 전 템플릿에 데이터 나이 노출(2026-08-24 침묵실패 감사) — base.html 이 36h 초과 시
+        # 배너를 띄운다. 조회 실패는 (None, None)='미상' 이라 배너가 조용히 빠질 수 있는데,
+        # 그 경우도 /health 의 data_asof=null 로는 잡힌다(완전 침묵은 아님).
+        asof, age_h = data_freshness()
+        return {"data_asof": asof, "data_age_hours": age_h, "data_stale_hours": STALE_HOURS}
 
     # ── PWA(홈 화면 앱) — iOS Safari '홈 화면에 추가' 시 standalone 앱으로 열리게. ──
     # Vercel rewrite 가 모든 경로를 Flask 로 보내므로 정적 폴더 대신 명시 라우트로 서빙한다.
@@ -752,7 +810,20 @@ def create_app() -> Flask:
         rights = "ok"
         if _rights_last_error["at"] and _time.time() - _rights_last_error["at"] < 900:
             rights = f"failed: {_rights_last_error['msg']}"
-        return {"status": "ok", "data_source": src, "rights_source": rights}
+        # (2026-08-24 감사 H-3) 백엔드가 구성돼 있는데 샘플 폴백 중이면 = 프로덕션이 가짜
+        # 데이터를 서빙 중 — 503 degraded 로 배포 검증·워치독이 잡게 한다. 백엔드 자체가
+        # 없는 순수 로컬 데모(sample(no-db))는 정상 상태이므로 종전대로 200 ok.
+        asof, age_h = data_freshness()
+        backend_expected = bool(os.environ.get(DB_ENV)) or store_rest.enabled()
+        degraded = src.startswith("sample") and backend_expected
+        body = {
+            "status": "degraded" if degraded else "ok",
+            "data_source": src, "rights_source": rights,
+            "data_asof": asof,
+            "data_age_hours": round(age_h, 1) if age_h is not None else None,
+            "data_stale": bool(age_h is not None and age_h > STALE_HOURS),
+        }
+        return (body, 503) if degraded else body
 
     @app.get("/api/listings")
     def listings():

@@ -1102,3 +1102,14 @@ def _parse_comps(raw: str | None) -> list[list]:
 def has_rows(conn: sqlite3.Connection) -> bool:
     cur = conn.execute("SELECT 1 FROM scored_listings LIMIT 1")
     return cur.fetchone() is not None
+
+
+def last_fetched(conn: sqlite3.Connection) -> str | None:
+    """가장 최근 수집 시각(raw_listings.fetched_at 최댓값) — '데이터 기준 N시간 전' 표시용.
+
+    (2026-08-24 침묵실패 감사) 크롤이 며칠 조용히 실패해도 화면은 '오늘 데이터'처럼 보였다 —
+    rendered_at(렌더 시각)은 매 요청 갱신되므로 데이터 나이의 근거가 못 된다. 이 값이 근거다.
+    """
+    cur = conn.execute("SELECT MAX(fetched_at) FROM raw_listings")
+    row = cur.fetchone()
+    return row[0] if row and row[0] else None

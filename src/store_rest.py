@@ -192,6 +192,30 @@ def _now_iso() -> str:
     return datetime.now(_KST).isoformat()
 
 
+_fresh_cache: dict = {"at": 0.0, "val": None}
+
+
+def last_refreshed(use_cache: bool = True) -> str | None:
+    """scored 테이블 최신 refreshed_at(KST ISO) — '데이터 기준 N시간 전' 표시용.
+
+    (2026-08-24 침묵실패 감사) 클라우드 서빙에서 데이터 나이를 노출하는 유일한 원천.
+    TTL 캐시(_CACHE_TTL 공유) — 매 요청 REST 왕복을 막는다. 실패는 None(호출부가 '미상' 처리).
+    """
+    if use_cache and _fresh_cache["val"] is not None and (time.time() - _fresh_cache["at"] < _CACHE_TTL):
+        return _fresh_cache["val"]
+    url, key, table = _cfg()
+    r = requests.get(
+        _endpoint(url, table), headers=_headers(key),
+        params={"select": "refreshed_at", "order": "refreshed_at.desc.nullslast", "limit": "1"},
+        timeout=15)
+    r.raise_for_status()
+    rows = r.json()
+    val = rows[0].get("refreshed_at") if rows else None
+    _fresh_cache["at"] = time.time()
+    _fresh_cache["val"] = val
+    return val
+
+
 def has_rows() -> bool:
     """테이블에 1건 이상 있는지(count=exact content-range 헤더로 판정)."""
     url, key, table = _cfg()
