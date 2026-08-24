@@ -95,6 +95,20 @@ $prevEAP = $ErrorActionPreference
 $ErrorActionPreference = "Continue"
 Push-Location $RepoRoot
 try {
+    # --- [0/5] 크롤 전 백업 (2026-08-24 감사 C-1: 자동 백업 부재 → 도입) ---
+    #     pre-refresh 스냅샷(3개 보존)은 나쁜 크롤의 되돌림점. 일요일엔 주간 오프사이트
+    #     (D: 전체 zip + R2 auction.db zip)까지. 백업 실패해도 크롤은 계속한다 —
+    #     경매 리스트는 하루 놓치면 낙찰 diff 가 복구 불가라(위 7/31 사고 참조) 크롤이 우선.
+    #     대신 실패를 $backupCode 로 접어 알림(high)에 노출한다.
+    "--- [0/5] 크롤 전 백업 스냅샷 ---" | Tee-Object -FilePath $LogPath -Append
+    $backupArgs = @((Join-Path $RepoRoot "scripts\backup_db.py"), "--db", $DbPath, "--pre-refresh", "--daily")
+    if ((Get-Date).DayOfWeek -eq [DayOfWeek]::Sunday) { $backupArgs += "--weekly" }
+    & $Python @backupArgs 2>&1 | Tee-Object -FilePath $LogPath -Append
+    $backupCode = $LASTEXITCODE
+    if ($backupCode -ne 0) {
+        "[!] 백업 실패(exit $backupCode) — 크롤은 계속하지만 백업 경로 점검 필요." | Tee-Object -FilePath $LogPath -Append
+    }
+
     # ══ 증분 파이프라인(2026-07-23 재배선): 발견 → 보강 → 재채점 ══
     # 법원엔 '변경 피드' API가 없어 증분은 diff 로 만든다: [1] 리스트 전량 스윕(싸다)이 신규·소멸을
     # 발견하고, [2][3] 상세 보강(비싸다)은 diff 가 고른 신규+변경만, [4] 재채점이 같은 날 반영한다.
@@ -199,6 +213,8 @@ if (-not $SkipRights -and (Test-Path variable:rightsCode)) { $rightsNote = " rig
 if ((Test-Path variable:tenantsCode)) { $rightsNote += " tenants_exit=$tenantsCode" }
 $photoNote = ""
 if ((Test-Path variable:photoCode) -and $photoCode -ne 0) { $photoNote = " PHOTO_CHECK_FAIL($photoCode)" }
+$backupNote = ""
+if ((Test-Path variable:backupCode) -and $backupCode -ne 0) { $backupNote = " BACKUP_FAIL($backupCode)" }
 
 # crawl_rights 의 exit 4 = 클라우드 미러링 실패 = **로컬은 갱신됐는데 서빙(Vercel)에는 반영 안 됨**.
 # 종전엔 이 코드를 $rightsCode 에 받아놓고 $code 에 접지 않아, 프로세스는 0으로 끝나고
@@ -220,11 +236,11 @@ if ((Test-Path variable:photoCode) -and $photoCode -ne 0 -and $code -eq 0) { $co
 
 $prio = "min"
 if ($code -ne 0) { $prio = "urgent" }
-elseif ($photoNote) { $prio = "high" }
+elseif ($photoNote -or $backupNote) { $prio = "high" }
 elseif ($rightsNote -match "exit=[234]") { $prio = "high" }
 & powershell.exe -NoProfile -ExecutionPolicy Bypass -File (Join-Path $RepoRoot "scripts\notify.ps1") `
     -Title "[auction] daily refresh exit=$code" `
-    -Message "mode=$mode$rightsNote$photoNote db=$(Split-Path $DbPath -Leaf) log=$(Split-Path $LogPath -Leaf)" `
+    -Message "mode=$mode$rightsNote$photoNote$backupNote db=$(Split-Path $DbPath -Leaf) log=$(Split-Path $LogPath -Leaf)" `
     -Priority $prio | Out-Null
 
 exit $code

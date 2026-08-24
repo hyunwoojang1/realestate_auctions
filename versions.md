@@ -1,5 +1,32 @@
 # versions.md — auction-arbitrage 루프 작업 로그 (append-only, 최신순)
 
+## 2026-08-24 17:50 KST — 💾 자동 백업 3계층 도입 + R2 SigV4 슬래시 경로 버그 수정 (감사 C-1)
+
+**배경**: 2026-08-24 6관점 감사에서 CRITICAL C-1 — 자동 백업 전무, 최신 사본 27일 전·같은
+디스크, 워치독 스스로 "laptop is the only copy". 낙찰 diff 는 하루 놓치면 재수집 불가.
+
+**무엇**:
+- `scripts/backup_db.py` 신설 — ①pre-refresh(크롤 직전 되돌림점, 3개 보존) ②daily(7개)
+  ③weekly(로컬 + D: 전체 zip 4개 + R2 `backups/` 고정 슬롯 4개 순환). 전부 프로젝트 폴더
+  **바깥**(`~/backups/`, `D:\backups\`) — 오늘 폴더 이동 사고 클래스와 격리. sqlite3 backup
+  API 라 크롤·서빙 잠금과 충돌 없음. exit 0/1(로컬 실패)/2(오프사이트만 실패).
+- `refresh-daily.ps1` [0/5] 단계로 배선 — 매일 pre-refresh+daily, 일요일 weekly. 실패해도
+  크롤은 계속(리스트 크롤이 우선 — 7/31 사고 참조)하되 BACKUP_FAIL(n) 알림 high.
+- `photo_store.upload_blob()` 신설(R2 전용 범용 업로드) + **`_r2_request` 잠복 버그 수정**:
+  경로를 통째로 quote 해 `/`→`%2F` 가 되면 Cloudflare 정규화로 SignatureDoesNotMatch(403).
+  사진 키는 sha1 평면이라 안 밟혔고, `backups/` 프리픽스에서 첫 발현. 세그먼트별 인코딩으로
+  수정(사진 경로는 동작 불변).
+- `.env` 의 `SUPABASE_ACCESS_TOKEN`(Management API, 6주 방치) 제거 — 감사 HIGH. ⚠️ 대시보드
+  revoke 는 운영자 수동 필요.
+
+**증거**: 실전 실행 — pre/daily/weekly 스냅샷 3개(각 501MB) + `D:\backups\...\auction-full-
+20260824-1746.zip`(154MB) + R2 `backups/auction-weekly-slot3.zip`(100MB, HTTP 200) 전부 생성
+확인. 슬래시 경로 PUT 200·실험 오브젝트 DELETE 204 정리. `tests/test_backup_db.py` 6 passed
+(스냅샷 무결성·보존정책·슬롯 순환). ruff 클린.
+
+**다음**: 감사 우선 조치 계속(보안 차단→신선도→카나리→성능→배포). 스케줄러 경로+배터리
+옵션은 폴더 정리 완료 후 일괄.
+
 ## 2026-08-13 16:41 KST — 🔇 워치독 매일 헛알림 제거 + 8/7 수정 6일치 실측 확인
 
 ### ① 8/7 네이버 수정 결과 — **6일 연속 완주**(실측)

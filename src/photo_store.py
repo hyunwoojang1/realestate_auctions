@@ -236,7 +236,11 @@ def _r2_request(method: str, path: str, payload: bytes = b"", content_type: str 
     """R2 S3 API 호출(path-style: /{bucket}/{key}). 반환=requests.Response."""
     acct, akid, skey, bucket, _ = _r2_cfg()
     host = f"{acct}.r2.cloudflarestorage.com"
-    segs = [bucket] + ([path] if path else [])
+    # 경로는 "/" 로 쪼개 **세그먼트별로** 인코딩한다(SigV4 스펙). 통째로 quote 하면 "/" 가
+    # %2F 가 되는데 Cloudflare 가 이를 "/" 로 정규화해 서명을 다시 계산하므로 403
+    # SignatureDoesNotMatch 가 난다(2026-08-24 백업 도입 때 실측 — 사진 키는 sha1 평면이라
+    # "/" 가 없어서 그동안 안 밟혔던 버그).
+    segs = [bucket] + (path.split("/") if path else [])
     canonical_uri = "/" + "/".join(quote(s, safe="") for s in segs)
     headers = sigv4_headers(method, host, canonical_uri, payload, akid, skey, content_type)
     return session().request(method, f"https://{host}{canonical_uri}",
@@ -318,3 +322,21 @@ def upload_bytes(jpeg: bytes, path: str) -> str | None:
 def upload_photo(jpeg: bytes, court: str, case_no: str, item_no: str, seq: int) -> str | None:
     """JPEG 바이트를 업로드하고 공개 URL 반환. 실패 시 None. (크롤러 호출부 — 시그니처 불변)"""
     return upload_bytes(jpeg, object_path(court, case_no, item_no, seq))
+
+
+def upload_blob(data: bytes, path: str,
+                content_type: str = "application/octet-stream") -> str | None:
+    """임의 바이트 업로드(DB 백업 zip 등) — R2 백엔드 전용. 성공 시 공개 URL, 실패 시 None.
+
+    Supabase storage 폴백을 태우지 않는 이유: 무료 1GB 한도가 사진용으로도 빠듯해
+    (2026-08-05 R2 전환 사유) 수백 MB 백업이 들어가면 사진 업로드까지 같이 죽는다.
+    (2026-08-24 감사 C-1 백업 자동화에서 도입 — scripts/backup_db.py 가 호출)
+    """
+    if not data or not _r2_ready():
+        return None
+    try:
+        r = _r2_request("PUT", path, payload=data, content_type=content_type)
+    except Exception as e:  # noqa: BLE001
+        logger.warning("R2 blob 업로드 예외 %s", type(e).__name__)
+        return None
+    return _upload_result(r, path, "R2 blob 업로드")
