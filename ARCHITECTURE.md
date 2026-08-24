@@ -1,150 +1,133 @@
 # Architecture Overview
 
-이 문서는 에이전트/신규 참여자가 이 코드베이스를 빠르게 파악하기 위한 살아있는 문서다. 코드가 진화하면 이 문서도 갱신한다. (작성: 2026-07-07, 코드 기준: main `cf2f749`)
+이 문서는 에이전트/신규 참여자가 이 코드베이스를 빠르게 파악하기 위한 살아있는 문서다. 코드가 진화하면 이 문서도 갱신한다. (전면 재작성: 2026-08-24 — 구판(2026-07-07)은 "클라우드 없음·올로컬"이었으나 실제는 **로컬 수집 + 클라우드 서빙** 하이브리드가 된 지 오래라 전부 다시 썼다.)
 
-> ⚠️ 절대규칙: 이 레포의 어떤 파일이든 편집하면 턴 종료 전 `versions.md` 맨 위에 KST 타임스탬프 항목 1건 추가 (`CLAUDE.md` #0, 전역 PostToolUse 훅으로 강제). 자율 루프 운영 규칙은 `harness/LOOP.md`.
+> ⚠️ 절대규칙: 이 레포의 어떤 파일이든 편집하면 턴 종료 전 `versions.md` 맨 위에 KST 타임스탬프 항목 1건 추가 (`CLAUDE.md` #0). push했으면 같은 턴에 `bash scripts/deploy_prod.sh`로 배포까지(#0.5). 표본으로 전체를 단언하지 말 것(#0.7).
 
-## 1. Project Structure
+## 1. 한 장 요약 — 무엇이 어디서 도는가
+
+```
+[노트북 (수집·채점·원본 보관)]                     [클라우드 (서빙 전용)]
+                                                 
+ 매일 05:30 작업스케줄러                            Vercel (icn1, api/index.py = Flask)
+  └ refresh-daily.ps1                              │  ← 웹/폰이 보는 유일한 경로
+     ├ [0/5] 백업 3계층 (backup_db.py)             │  https://auction-arbitrage-
+     ├ [1/5] run.py 전국 크롤+채점                  │   hyunwoo-jang-s-projects.vercel.app
+     ├ [2/5] 권리 크롤 (crawl_rights)              │
+     ├ [3/5] 임차인 크롤                            ├─ Supabase Postgres (REST로만 접근)
+     ├ [4/5] 네이버 증분 (crawl_naver)             │   auction_scored_listings·rights·
+     └ [5/5] 재채점 + 사진 도달성 체크               │   tenants·survey·naver·building·sold
+                                                  │
+ auction.db (SQLite 481MB — 원본·이력 전량)  ──────┤   ↑ store_rest.py 가 크롤 후 미러
+ data/*.json 캐시 (molit·naver·좌표)              │   (품질 게이트 10종 all PASS 시에만)
+                                                  │
+                                                  └─ Cloudflare R2 — 물건사진 3.8만장
+                                                      (**유일 서빙 경로**, Supabase 원본 삭제됨)
+```
+
+**핵심 계약**: 클라우드는 로컬의 **미러**다. 진실은 항상 로컬 `auction.db`에 먼저 쓰이고,
+품질 게이트를 통과한 것만 Supabase로 나간다. 웹은 Supabase만 읽는다(Vercel엔 DB 파일이 없다).
+사진은 R2가 원본이자 서빙 경로다(2026-08 Supabase Storage에서 이전 완료, 원본 삭제).
+
+## 2. Project Structure
 
 ```
 auction-arbitrage/
-├── run.py                  # CLI 엔트리 — 차익 큐레이션 파이프라인 (콘솔/CSV/HTML/JSON)
-├── run_alerts.py           # 알림 실행
-├── run_backtest.py         # 백테스트 실행
-├── run_digest.py           # 다이제스트(상위 매물) 실행
-├── auction.db              # 프로덕션 SQLite (27.5MB, schema v5)
-├── src/                    # 애플리케이션 코드 30모듈
-│   # 크롤: courtauction_client.py(대법원) · courtauction_cache.py(diff) · courtauction_rights.py(권리 파서)
-│   # 시세: molit_client.py(apt/연립/오피스텔) · molit_extra_client.py(단독/상업/토지) · building_register_client.py(건축물대장, 미배선)
-│   # 엔진: score.py(차익 스코어) · matcher.py(시세 매칭·2선밴드) · tax.py(취득세) · config.py
-│   # 서빙: web.py(Flask) · serve.py(waitress) · store.py(SQLite) · pipeline.py(오케스트레이션)
-├── templates/              # Jinja2 10개 (목록/지도/상세/다이제스트/워치리스트/캘린더/통계/비교/방법론)
-├── tests/                  # pytest 33파일 366케이스 + fixtures/
-├── data/                   # JSON 캐시(gitignore)·설정(score_config.json)·샘플 fixture·backup/
-├── docs/                   # 리서치·감사리포트·remote-access + references/(지지옥션·탱크옥션·해외)
-├── harness/                # LOOP.md(사이클) · BACKLOG.md · QUESTIONS.md · STEER.md
-├── scripts/                # PowerShell 운영 (start/refresh-daily/install-scheduler/check-tunnel)
-├── .github/workflows/ci.yml
-├── versions.md             # append-only 작업로그 (KST, 최신순)
-├── info.md                 # 경매 스터디 로그 (10강 커리큘럼, untracked)
-└── requirements.txt · pyproject.toml · Dockerfile · .env(.example)
+├── run.py                  # CLI 엔트리 — 크롤→채점→적재→게이트→미러 파이프라인
+├── api/index.py            # Vercel 함수 엔트리 (src.web create_app 위임, maxDuration 60)
+├── auction.db              # 로컬 SQLite (481MB, WAL) — 원본·이력의 단일 진실
+├── src/                    # 46모듈
+│   # 크롤: courtauction_client(대법원)·courtauction_detail/fields/rights(상세·정규화·권리 파서)
+│   #       molit_client·molit_extra_client(국토부 6종)·naver_client(KB시세·호가)·building_info(대장)
+│   # 엔진: score(차익)·matcher(시세 매칭·2선밴드)·tax(취득세)·bidsim(입찰가 시뮬)·query(파생)
+│   # 적재: store(SQLite)·store_rest(Supabase REST 미러)·data_gates(게이트 10종)·photo_store(R2)
+│   # 서빙: web.py(Flask 1,872줄 — blueprint 분리 예정)·serve(waitress 로컬용)
+├── deploy/                 # 배치 크롤러 (crawl_rights·crawl_naver·migrate_photos_to_r2 등)
+├── templates/              # Jinja2 15개 (목록/지도/상세/낙찰/워치리스트/캘린더/통계/방법론…)
+├── tests/                  # pytest 84파일 ~1,196케이스 — pre-commit 게이트가 전체 실행
+├── scripts/                # 운영 PowerShell/bash — refresh-daily·deploy_prod.sh·backup_db.py·
+│                           #   watchdog·notify·install-scheduler·verify_claims(보고 검증)
+├── harness/                # LOOP.md·BACKLOG·QUESTIONS·STEER·DOC_SYNC_QUEUE·ALERTS.log·audit/
+├── docs/                   # 감사 리포트·QA·naver-incremental·tax 지식·references
+└── versions.md             # append-only 작업로그 (KST 최신순) — 규칙상 모든 편집이 남는다
 ```
 
-## 2. High-Level System Diagram
+## 3. 수집 파이프라인 (노트북)
 
-```
-[매일 05:30 작업스케줄러(AuctionArbitrage-DailyRefresh)]
-   └─> run.py --source courtauction --nationwide --cash --live
-         │
-         ├─ [대법원 courtauction.go.kr 크롤] ─ 17개 시도 샤딩, 밴회피(지터·일일상한·kill-switch)
-         │      └─> 캐시 diff (신규/변경/소멸) → data/courtauction_cache.json
-         ├─ [국토부 실거래 API 6종] ─ 시세 비교군 조회 (아파트·오피스텔만 추정 지원)
-         ├─ [차익 스코어 엔진] ─ (갭50+권리30+환금20)×신뢰계수, 2선밴드, 표본게이트
-         └─> [auction.db (SQLite)] ─ scored_listings(복합PK) + raw_listings(원본보존)
-                │
-                ▼
-[Flask 웹앱 (waitress :8000, 로컬 바인드)] ── /​ · /map · /property · /digest · /watchlist · /stats …
-                │
-                ▼
-[Tailscale Serve] ──> https://notebiz53.tail4271f6.ts.net (tailnet-only, 폰 접속용)
-                        ※ 운영 정보 — 레포 코드/문서에는 없음. docs/remote-access.md 참조.
-```
+- **매일 05:30** `AuctionArbitrage-DailyRefresh`(작업스케줄러) → `refresh-daily.ps1 -Live`.
+  0단계로 **백업 3계층**(pre-refresh 3슬롯·daily 7슬롯·주간 D:드라이브+R2 4슬롯)이 먼저 돈다.
+- **대법원 크롤**: 17개 시도 샤딩, 밴 회피(concurrency 1·지터·일일상한 500·403 즉시중단·
+  kill-switch `COURTAUCTION_STOP`). 캐시 diff로 신규/변경/소멸 판정.
+- **권리·임차인·사진**: `crawl_rights`(일 300 + stale 재보강 + 현황조사서 120) — 사진은 여기서
+  R2로 업로드. **낙찰 보존**: 소멸분 중 매각기일 경과분을 `sold_listings`로 스냅샷(exit 4 계약).
+- **시세**: 국토부 실거래 6종(1순위) + 네이버 KB시세·호가(폴백·확정 comps, 증분 갱신).
+- **적재 안전장치**: 전량교체 4중 가드(부분수집 강등·커버리지 플로어·0건 보존·고아 정리) →
+  **품질 게이트 10종** + 침묵실패 카나리(필드 정상비율·PII 미등재 경고·MOLIT 실패율) —
+  all PASS일 때만 Supabase 미러. 상세는 README 해당 절이 단일 출처.
 
-## 3. Core Components
+## 4. 서빙 (Vercel + Supabase + R2)
 
-### 3.1. Frontend
-- **Name**: 경매 차익 큐레이션 웹 UI
-- **Description**: 서버렌더 Jinja2. 매물 목록(차익 정렬)·지도(/map)·물건 상세·다이제스트·워치리스트·매각기일 캘린더·통계·비교·방법론 페이지. 모든 응답에 `X-Data-Source` 헤더로 데이터 출처(db/sample) 노출(침묵실패 방지).
-- **Technologies**: Flask 3 + Jinja2, Leaflet+OSM(지도), Pretendard 폰트
-- **Deployment**: 로컬 waitress → Tailscale Serve로 폰 노출
+- **Vercel**: `api/index.py`가 Flask 앱 전체를 서빙(리전 icn1, maxDuration 60). 배포는
+  **CLI 전용** — GitHub 자동배포 없음. `scripts/deploy_prod.sh`가 지정 커밋의 깨끗한 git
+  worktree에서 `vercel deploy --prod` 실행 후 `/health` 확인(구 stash 방식은 데이터 소실
+  사고로 2026-08-24 폐기, deploy.ps1은 위임 래퍼만 남음).
+- **Supabase**(프로젝트 ref `trajmfklbyarbkiljogj`): Postgres를 REST(PostgREST)로만 접근.
+  `store_rest.py`가 미러 쓰기·서빙 읽기 모두 담당. 컬럼 집합은 `store._COLS` 단일 출처
+  (드리프트는 `tests/test_store_schema_drift.py` 계약이 커밋 게이트에서 잡는다).
+- **R2**: 물건사진 37,850장+ 의 원본이자 유일 서빙 경로. `photo_store._r2_request`(SigV4).
+  백업 zip도 `backups/` 경로로 R2에 올라간다.
+- **신선도 정직화**: `/health`가 `data_asof`·`data_age_hours`·`data_stale`(>36h) 노출, 전
+  페이지 36h 배너. 클라우드 구성인데 샘플 폴백이면 **503 degraded**(조용한 낡은 데이터 금지).
+- **성능**: 콜드 완화용 `warm_caches()` 병렬 워밍(홈+API 계열), WarmPing 작업이 5분마다 핑.
+  서비스워커 v2(캐시 정직성 계약), SQLite 보조 인덱스 3종.
 
-### 3.2. Backend Services
+## 5. 보안
 
-#### 3.2.1. 수집 파이프라인 (run.py → src/pipeline.py)
-- **Description**: 대법원 실경매 전국 크롤(17개 시도 샤딩, doc_id 중복제거) → 캐시 diff → 국토부 시세 매칭 → 스코어 → DB 적재(`replace_all`).
-- **밴 회피 설계**: concurrency=1, 3~8초 지터, daily_cap=500, 403/비JSON 즉시중단(`CourtAuctionBlocked`), 카나리 요청, kill-switch 파일 `COURTAUCTION_STOP`.
-- **Technologies**: Python 3.11+(운영 3.12/3.14), requests
+- **인증**: 워치리스트 5라우트 + `/find` 라이브 조회는 `AUCTION_ADMIN_KEY` 가드 —
+  `/admin/login?key=…` 1회 방문으로 1년 쿠키(`aak`). 클라우드에서 키 미설정이면 **fail-closed**.
+- **Rate limit**: 비운영자 120req/60s (`AUCTION_RL_MAX`/`AUCTION_RL_WIN`).
+- **PII 3층 방어**: 키 제거(sanitize_row)·자유텍스트 성명 마스킹(적재 전)·현황조사서 미접근.
+  커밋 게이트에 PII 잔여 스캔 포함. 상세·사고 연대기는 README PII 절.
+- **Secrets**: `.env` (MOLIT/VWORLD/SUPABASE_URL·SECRET_KEY/R2_* 5종/AUCTION_ADMIN_KEY/
+  SUPABASE_ACCESS_TOKEN). 코드 하드코딩 없음. 에이전트의 `.env` 수정 금지(LOOP.md).
 
-#### 3.2.2. 차익 스코어 엔진 (src/score.py + matcher.py + tax.py)
-- **공식**: `score = (가격갭×0.50 + 권리×0.30 + 환금성×0.20) × 신뢰계수(0.6~1.0)`
-- **취득원가** = 최저입찰가 + 취득세(주택 누진·다주택 중과·비주택 4.6%). 명도비/수리비는 객관성 위해 제외.
-- **신뢰 장치(T1~T5)**: 복합PK(court+case_no+item_no) · 아파트/오피스텔 한정 추정 · 비교군 scope(같은단지 같은면적만 추천 인정) · 2선 밴드(보수 차익 `profit_low`가 추천 기준) · 표본 게이트(basis<3 밴드 금지, <5 추천 제외)
-- **하드게이트**: 인수금액비율>0.30 또는 유치권 → 권리 0점 + 상한 25점 + "위험"
-- **등급**: 차익 유력(80+)·양호(60~79)·관심·주의·위험·차익없음·시세추정불가·미지원유형·권리미확인
+## 6. 운영 자동화 (하네스)
 
-#### 3.2.3. 웹 서버 (src/web.py)
-- **Routes**: `/`, `/health`, `/api/listings(.geojson)`, `/api/listings/<case_no>`(다물건 시 300), `/map`, `/property/<case_no>`, `/digest`, `/watchlist`, `/calendar`, `/stats`, `/compare`, `/methodology`, `/export.csv`
-- **Deployment**: `python -m src.serve` (waitress, 기본 127.0.0.1:8000; `start.ps1 -BindAll`로만 0.0.0.0)
-
-## 4. Data Stores
-
-### 4.1. auction.db (SQLite, WAL, SCHEMA_VERSION=5)
-- **scored_listings**: PK `(court, case_no, item_no)`, 29컬럼 — 3점수·gap_rate·grade·market_scope·band_low/high·profit_low/high·sample_basis 등. 실측 3,751행. v1→v5 자동 마이그레이션.
-- **raw_listings**: PK uid, 원본 raw_json 보존(PII 제거본). 실측 6,320행.
-
-### 4.2. JSON 캐시/설정 (data/, gitignore)
-- `courtauction_cache.json`(1.4MB diff 스냅샷) · `courtauction_full_cache.json`(19MB dry-run 재생용) · `coords_cache.json`(KATEC→WGS84) · `watchlist.json` · `backtest_outcomes.json`
-- **코드수정 없는 튜닝**: `data/score_config.json`(ScoreConfig 오버라이드), `sample_config.json`
-
-### 4.3. 운영 문서(사실상 데이터)
-- `versions.md`(append-only 작업로그) · `info.md`(경매 스터디) · `harness/BACKLOG.md`·`QUESTIONS.md` · `evidence/`(로컬 산출물, gitignore)
-
-## 5. External Integrations / APIs
-
-| 통합 | 방식 | env |
+| 장치 | 무엇 | 실패 시 |
 |---|---|---|
-| 대법원 courtauction.go.kr | POST JSON 크롤 (세션워밍+위장헤더, 준법: 차단 시 우회금지) | 키 불필요 |
-| 국토부 실거래 6종 (apt/연립/오피스텔/단독/상업/토지) | apis.data.go.kr GET XML, serviceKey 로그 마스킹 | `MOLIT_API_KEY` |
-| 건축HUB 건축물대장 표제부 | 클라이언트만 존재, **파이프라인 미배선** | `MOLIT_API_KEY` 공유 |
-| V-World | ⚠️ `.env`에 키만 존재, **코드 사용처 0건** (용도지역/지오코더 계획) | `VWORLD_API_KEY` |
-| 지도 타일 | Leaflet+OSM, 좌표변환은 pyproj 로컬(외부호출 0) | 없음 |
-| Tailscale / Cloudflare Tunnel | 원격 노출 (docs/remote-access.md) | 없음 |
+| pre-commit 게이트 | scratch/DB 차단→문서 드리프트→ruff→PII 스캔→**전체 pytest** (~40초) | 커밋 차단 |
+| DOC_SYNC_QUEUE | 크롤러/판정 코드가 문서 없이 커밋되면 자동 적재 — 세션이 소비 | 큐에 적체 |
+| Watchdog (30분) | DailyRefresh 정체·크롤 ABORT·서빙 다운·push 밀림 감시 | ntfy 푸시 |
+| notify.ps1 | 파이프라인 종료·게이트 FAIL 알림 (ntfy + harness/ALERTS.log) | — |
+| 백업 3계층 | pre-refresh 3·daily 7·weekly D:+R2 4슬롯 (`backup_db.py`) | 알림 |
+| verify_claims.py | "고쳤다" 보고 전 모집단 전수 검증(--prod 지원) — CLAUDE.md §0.7 | 보고 금지 |
 
-## 6. Deployment & Infrastructure
+스케줄러 4작업(DailyRefresh 05:30·WarmPing 5분·Watchdog 30분·RightsCrawl-Once 수동)은
+2026-08-24 폴더 이전(`장현우\개인-프로젝트\경매\`)으로 전부 재등록, 배터리 옵션 포함.
 
-- **인프라**: 클라우드 없음 — 노트북 올-로컬 운영 (상시 ON 전제)
-- **서빙**: waitress :8000 (로컬 바인드) → Tailscale Serve → `https://notebiz53.tail4271f6.ts.net` (tailnet-only 비공개, hyunwoojang1@github 개인 tailnet)
-- **스케줄러**: Windows 작업 `AuctionArbitrage-DailyRefresh` — 매일 05:30 `refresh-daily.ps1 -Live` (전량 새로고침 = 스키마 v5 게이트가 구 데이터를 치유하는 경로). 설치 스크립트는 Disabled로 등록하나 **현재 활성(Ready) 확인됨** (2026-07-07).
-- **Docker**: `Dockerfile`(python:3.12-slim) 존재하나 주 운영경로 아님
-- **CI**: GitHub Actions `ci.yml` — push/PR to main 시 ruff + pytest (Python 3.12)
-- **Monitoring**: `/health` + `evidence/refresh-*.log` (tee)
+## 7. 알려진 부채 (다음 대수술 후보)
 
-## 7. Security Considerations
+- `web.py` 1,872줄 단일 파일 → blueprint 분리 (감사 코드품질 CRITICAL)
+- `store.py`/`store_rest.py` 이중화 → Protocol 통합 (현재는 `_COLS` 단일 출처 + 드리프트
+  계약 테스트로 봉합)
+- PII 마스킹이 사후 패치 누적 구조 (현재는 카나리로 미등재 패턴 조기 발견만)
+- 알림 채널이 ntfy 단일 (2차 채널 없음)
 
-- **Authentication**: **웹 UI 인증 없음** — tailnet 경계(사설 VPN)로만 보호. Cloudflare 공개 URL 사용 시 접근제한 필수(docs 경고).
-- **Secrets**: `.env` 평문(MOLIT/VWORLD 키) — `.gitignore`·`.dockerignore` 제외 확인됨, 커밋 이력 없음. 코드 하드코딩 없음. LOOP.md 절대금지: 에이전트의 `.env` 수정 금지.
-- **크롤 준법**: 공공누리 제4유형 전제, PII 미저장(`sanitize_row`), 차단 시 즉시중단·우회금지, 유료사이트 크롤 금지(LOOP.md).
-- **웹 방어**: open redirect 방어(same-host referrer), debug 기본 off(waitress), `X-Data-Source` 출처 투명성.
+## 8. Project Identification
 
-## 8. Development & Testing Environment
-
-- **Local**: `pip install -r requirements.txt` → `python run.py --source sample`(오프라인) 또는 `--source courtauction --live`(실크롤, 절제 규칙 준수) → `python -m src.serve`
-- **Testing**: pytest **366케이스**/33파일 — 크롤러·molit 파싱·스코어·밴드·게이트·store·web·세금·백테스트 등. CI에서 자동 실행.
-- **Quality**: ruff (line-length 110, E/W/F/I/B/UP)
-- **자율 루프**: `harness/LOOP.md` 사이클(레퍼런스 탐색→모방구현→감사→조이기), Default-FAIL 증거 게이트, `AGENT_STOP`/`COURTAUCTION_STOP` kill-switch, STEER.md 개입 채널. 전국크롤+상세크롤 동시 실행 금지.
-
-## 9. Future Considerations / Roadmap
-
-- **권리분석 라이브 배선**: `courtauction_rights.py` 파서는 완성·테스트 통과이나 물건상세 3문서 라이브 페처 미연결 → 현재 실크롤 물건 전부 "권리미확인" 보수강등. 최우선 보강 후보.
-- **V-World 통합**(키만 있음) · **건축물대장 배선**(노후도/위반건축물 → 스코어 반영)
-- **신뢰계수 다월보정** · **호가 데이터 수급**(QUESTIONS.md Q2 미해결 — 실거래는 후행지표)
-- **DB 레거시 행 치유**: 과거 적재분 2,521행이 신 게이트 미적용(market_scope='') — 05:30 전량 새로고침 발효로 해소 설계.
-- **이용약관 확인**(운영자 몫) · 알림(`run_alerts.py`) 실발송 경로 검증
-
-## 10. Project Identification
-
-- **Project Name**: auction-arbitrage — 부동산 경매 차익 큐레이션 ("시세 > 최저입찰가" 갭 자동 발굴, 초보자 아파트 경매 1차 필터)
-- **Repository**: https://github.com/hyunwoojang1/realestate_auctions (git push는 운영자만 — LOOP.md)
+- **Project Name**: auction-arbitrage — 부동산 경매 차익 큐레이션 ("시세 > 최저입찰가" 갭 자동 발굴)
+- **Repository**: https://github.com/hyunwoojang1/realestate_auctions
+- **Production**: https://auction-arbitrage-hyunwoo-jang-s-projects.vercel.app
+  (⚠️ 무접미사 `auction-arbitrage.vercel.app`은 **남의 앱**)
 - **Primary Contact**: 장현우 (개인 프로젝트)
-- **Date of Last Update**: 2026-07-07
+- **Date of Last Update**: 2026-08-24
 
-## 11. Glossary / Acronyms
+## 9. Glossary
 
-- **최저가/최저입찰가**: 해당 회차 입찰 하한. 유찰 시 저감.
-- **감정가**: 법원 감정평가액. **buffer**: 현금상한 대비 감정가 검색 여유율.
-- **2선 밴드**: 시세 추정을 단일값이 아닌 band_low(트림 최저 평단가)~band_high(중앙값)로 제시. 보수 차익 `profit_low = band_low − 취득원가`.
-- **표본 게이트(basis)**: 최근성 필터+이상치 트림 후 실사용 비교 거래 건수. 3 미만 밴드 금지, 5 미만 추천 제외.
-- **하드게이트**: 인수금액비율>30% 또는 유치권 → 점수 상한 25 + "위험".
-- **복합 PK**: `court+case_no+item_no` — 한 사건 여러 물건 대응.
-- **KATEC**: 대법원 좌표계. pyproj로 WGS84 변환(coords_cache.json).
-- **dry-run 캐시**: `*.dryrun.json` 분리 경로 — 프로덕션 캐시 미오염 원칙.
+- **2선 밴드**: 시세를 band_low(트림 최저)~band_high(중앙값) 두 선으로 제시. 추천 기준은 보수
+  차익 `profit_low = band_low − 취득원가 − 인수금액`.
+- **표본 게이트(basis)**: 최근성+트림 후 실사용 비교 거래 수. 3 미만 밴드 금지, 5 미만 추천 제외.
+- **복합 PK**: `(court, case_no, item_no)` — 사건번호는 법원별 독립 채번, 한 사건 여러 물건.
+- **미러**: 로컬 SQLite → Supabase 단방향 복제. 게이트 FAIL이면 로컬만 갱신되고 클라우드는 동결.
+- **KATEC**: 대법원 좌표계. pyproj 로컬 변환(coords_cache.json) — 외부 호출 0.
+- **dry-run 격리**: 비라이브 산출물은 `*.dryrun.db/json` 분리, 클라우드 금지.

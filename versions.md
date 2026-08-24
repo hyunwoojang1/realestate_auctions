@@ -1,5 +1,25 @@
 # versions.md — auction-arbitrage 루프 작업 로그 (append-only, 최신순)
 
+## 2026-08-24 19:55 KST — 📚 문서 부채 청산: DOC_SYNC_QUEUE 12건 소화 + ARCHITECTURE.md 전면 재작성
+
+**무엇**:
+- DOC_SYNC_QUEUE 적체 12건(7/23~8/24) 전부 처리 — 해당 커밋 메시지·diff 근거로 README 갱신:
+  §2 P-14 해소표현 정규식 / 재매각 절에 U-01 입찰보증금 비율 / 일일 새로고침에 증분 3축
+  (stale 재보강·tenant 영속 마커) / 적재 안전장치에 게이트 10종+침묵실패 카나리 4종 /
+  PII 절에 법인 전체단어 판정+7/26 연대기 / 서빙 절에 점유관계 미러·상세 V6 /
+  **'낙찰 결과(sold_listings)' 섹션 신설**(보존 exit4·신뢰출처만 시세 정책·재채점 도구·
+  7/31 침묵 중단 사고·청크 안전판). 낡은 'DailyRefresh Disabled(7/22)' 주석을 현행으로 정정.
+- ARCHITECTURE.md **전면 재작성** — 구판(7/07)은 "클라우드 없음·올로컬·Tailscale 서빙·테스트
+  366케이스"였으나 실제는 로컬 수집 + **Vercel/Supabase/R2** 서빙 하이브리드. 실측 기준으로
+  재작성(테스트 84파일 ~1,196케이스·web.py 1,872줄·auction.db 481MB·src 46모듈), 운영
+  하네스 표·알려진 부채(blueprint 분리 등) 명시.
+- DOC_SYNC_QUEUE 청소(규칙: 처리 10건 초과 시) — 일괄 처리 기록 1건으로 압축.
+
+**증거**: 각 주제는 커밋 121b0bd·ef58422·f9bd3c7·1a35e31·26be7c0·fb37aa5·e36cff5·9ce2900·
+cf8a8cc·0825815·94b9d2b 의 메시지·본문 대조. 수치는 이 세션 실측(wc·ls·du).
+
+**다음**: web.py blueprint 분리(감사 코드품질 CRITICAL).
+
 ## 2026-08-24 18:35 KST — 🗓 스케줄러 4종 새 경로 재등록 + DailyRefresh 배터리 옵션 (감사 H-5)
 
 **배경**: 폴더 정리로 레포가 `장현우\auction-arbitrage` → `장현우\개인-프로젝트\경매\...` 로
