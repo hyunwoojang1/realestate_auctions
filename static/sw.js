@@ -22,7 +22,10 @@
      - F4 재검증 실패 통지(failed) + rendered-at 메타는 비교 전 제거(가변 필드 오탐 방지).
      - 쿼리 페이지엔 알림 미전송(개입 범위와 1:1) · base.css 옛 버전 엔트리 청소.
    버전을 올리면 activate 에서 옛 캐시가 전부 삭제된다(v1 의 동결 캐시 포함). */
-const VERSION = 'v5';   /* v4: Web Push 핸들러 · v5(2026-08-25): 낙찰결과 개편 캐시 강제 갱신 */
+const VERSION = 'v6';   /* v6(2026-08-25): 네트워크 우선 전환 — "배포했는데 폰은 옛 화면" 해소.
+   종전 SWR(캐시 먼저)은 콜드 58초 시절의 방어였는데, WarmPing(5분)+병렬 워밍 도입 후
+   웜 응답이 0.3~0.6초라 전제가 바뀌었다. 이제 서버를 먼저 기다리고(3초 한도),
+   늦을 때만(콜드·오프라인) 캐시로 폴백한다 — 배포·데이터 갱신이 즉시 보인다. */
 const NAV_CACHE = 'nav-' + VERSION;
 const ASSET_CACHE = 'asset-' + VERSION;
 
@@ -73,7 +76,7 @@ self.addEventListener('fetch', function (e) {
   }
 
   if (req.mode === 'navigate' && NAV_PATHS.indexOf(url.pathname) !== -1 && !url.search) {
-    e.respondWith(staleWhileRevalidate(e, req, url.pathname));
+    e.respondWith(networkFirst(e, req, url.pathname));
   }
   /* 그 외는 개입하지 않는다 — 브라우저 기본 네트워크 동작. */
 });
@@ -109,33 +112,36 @@ function stripVolatile(t) {
   return t.replace(/<meta name="rendered-at"[^>]*>/, '');
 }
 
-function staleWhileRevalidate(event, req, pathname) {
+/* 네트워크 우선 + 캐시 폴백(v6). 웜 서버(0.3~0.6초 실측)면 항상 최신을 서빙하고,
+   NET_TIMEOUT_MS 안에 응답이 없으면(콜드 부팅·오프라인) 캐시본으로 즉시 폴백한다.
+   폴백 서빙 시에만 기존 정직성 계약이 그대로 작동한다: rendered-at 표식('저장된 화면
+   N분 전') + 백그라운드 완료 시 '새 데이터 도착' 필(nav-fresh) / 실패 통지(F4).
+   샘플 폴백 미캐시(F2)·비교 전 clone(F1) 로직은 종전과 동일. */
+var NET_TIMEOUT_MS = 3000;
+
+function networkFirst(event, req, pathname) {
   return caches.open(NAV_CACHE).then(function (cache) {
     return cache.match(req).then(function (cached) {
-      /* (F1) 비교용 텍스트를 respondWith 가 body 를 소진하기 **전에** 떠 둔다.
-         종전엔 fetch 완료 후 cached.clone() → 이미 소진된 body 라 TypeError →
-         빈 catch 가 삼켜 cache.put·알림이 영원히 실행되지 않았다(캐시 영구 동결). */
       var cachedText = cached ? cached.clone().text() : Promise.resolve(null);
+      var servedCache = false;   // true = 이 요청을 캐시본으로 응답했다(늦은 갱신은 필로 알림)
 
       var refresh = fetch(req).then(function (res) {
         var type = res.headers.get('content-type') || '';
         if (!res.ok || type.indexOf('text/html') === -1) {
-          if (cached) notifySamePath(pathname, { failed: true });
+          if (cached && servedCache) notifySamePath(pathname, { failed: true });
           return res;
         }
-        /* (F2) DB 장애 시 서버는 500이 아니라 **샘플 데이터 200** 으로 폴백한다
-           (X-Data-Source: sample*). 캐시에 넣으면 합성 매물이 다음 실행의 첫 화면이 되고
-           라이브 캐시본을 덮어쓴다 — 서빙만 하고 캐시 오염은 금지. */
         var src = res.headers.get('X-Data-Source') || '';
         if (src.indexOf('sample') === 0) {
-          if (cached) notifySamePath(pathname, { failed: true });
+          if (cached && servedCache) notifySamePath(pathname, { failed: true });
           return res;
         }
         var freshCopy = res.clone();
         return Promise.all([cachedText, res.clone().text()]).then(function (bodies) {
-          /* (F1) put 은 비교 결과와 무관하게 무조건 — 갱신이 우선, 알림은 부차. */
           return cache.put(req, freshCopy).then(function () {
-            if (bodies[0] !== null) {
+            /* 필 알림은 캐시본을 이미 보여준 경우에만 — 방금 최신을 직접 서빙했다면
+               "새 데이터 도착"은 오탐이다. */
+            if (servedCache && bodies[0] !== null) {
               var changed = stripVolatile(bodies[0]) !== stripVolatile(bodies[1]);
               notifySamePath(pathname, { changed: changed });
             }
@@ -144,16 +150,28 @@ function staleWhileRevalidate(event, req, pathname) {
         });
       });
 
-      if (cached) {
-        /* 캐시본 즉시 반환 — 재검증은 백그라운드. 실패(오프라인·콜드 타임아웃·네트워크 예외)도
-           침묵시키지 않는다(F4) — 페이지가 '미검증 캐시본' 상태를 표시할 수 있게. */
-        event.waitUntil(refresh.catch(function () {
+      if (!cached) return refresh;   // 첫 방문 — 네트워크뿐(실패는 브라우저 기본 오류)
+
+      return new Promise(function (resolve) {
+        var timer = setTimeout(function () {
+          servedCache = true;
+          event.waitUntil(refresh.catch(function () {
+            notifySamePath(pathname, { failed: true });
+          }));
+          resolve(cached);
+        }, NET_TIMEOUT_MS);
+        refresh.then(function (res) {
+          if (servedCache) return;      // 이미 캐시로 응답 — refresh 내부가 필 알림 처리
+          clearTimeout(timer);
+          resolve(res);
+        }, function () {
+          if (servedCache) return;
+          clearTimeout(timer);
+          servedCache = true;           // 네트워크 실패(오프라인) → 캐시 폴백
           notifySamePath(pathname, { failed: true });
-        }));
-        return cached;
-      }
-      /* 첫 방문(캐시 없음) — 네트워크. 실패 시 브라우저 기본 오류. */
-      return refresh;
+          resolve(cached);
+        });
+      });
     });
   });
 }

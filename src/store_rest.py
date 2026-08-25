@@ -551,6 +551,9 @@ def fetch_survey(court: str, case_no: str, item_no: str = "") -> dict | None:
 # 낙찰(종결) 스냅샷 미러 — (C1 2026-07-27) 상세/목록의 클라우드 서빙 원천.
 SOLD_TABLE = os.environ.get("SUPABASE_SOLD_TABLE", "auction_sold_listings")
 
+# fetch_sold TTL 캐시(2026-08-25) — 인스턴스 단위, _CACHE_TTL 공유.
+_sold_cache: dict = {"rows": None, "at": 0.0}
+
 
 def upsert_sold(rows: list[dict]) -> int:
     """sold_listings 행 병합 미러 — 테이블 미배포면 호출측 graceful skip."""
@@ -633,12 +636,20 @@ def fetch_sold(limit: int = 200) -> list[dict]:
     `sold_price.desc.nullslast` 선행 정렬은 로컬(load_sold)과도 의미가 달랐고 타이브레이커도
     없어 함께 정리한다 — 표시 순서는 어차피 web 계층(query.sort_sold)이 정한다.
     """
+    # (2026-08-25 성능) TTL 캐시 — scored·rights·naver 는 전부 캐시가 있는데 sold 만
+    # 나중에 추가되며 빠져, /sold 가 **매 요청 17k행 전량**을 다시 읽었다(웜인데 3.5초
+    # 실측 — 홈 0.3초의 12배). 같은 _CACHE_TTL(기본 600초) 공유.
+    if (_sold_cache["rows"] is not None
+            and (time.time() - _sold_cache["at"] < _CACHE_TTL)):
+        rows = _sold_cache["rows"]
+        return rows[:limit] if limit and len(rows) > limit else rows
     try:
         url, key, _ = _cfg()
         rows = _fetch_pages(url, key, SOLD_TABLE, {
             "select": "*",
             "order": "sale_date.desc,court.asc,case_no.asc,item_no.asc",
         }, timeout=15, label=SOLD_TABLE)
+        _sold_cache.update(rows=rows, at=time.time())
         return rows[:limit] if limit and len(rows) > limit else rows
     except Exception:  # noqa: BLE001 — 미배포/실패 = 섹션 미표시
         return []

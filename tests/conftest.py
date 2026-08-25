@@ -22,3 +22,7 @@ _BACKEND_ENVS = ("AUCTION_DB", "SUPABASE_URL", "SUPABASE_SECRET_KEY", "SUPABASE_
 def _no_live_backends(monkeypatch):
     for k in _BACKEND_ENVS:
         monkeypatch.delenv(k, raising=False)
+    # (2026-08-25) fetch_sold TTL 캐시는 env 확인 **전에** 히트한다 — 한 테스트가 채운
+    # 캐시가 다음 테스트로 새지 않게 매 테스트 초기화(모듈 전역이라 monkeypatch 밖).
+    from src import store_rest  # noqa: PLC0415
+    store_rest._sold_cache.update(rows=None, at=0.0)

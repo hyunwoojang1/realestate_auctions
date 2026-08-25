@@ -30,7 +30,9 @@ def test_sw_route_serves_javascript_nocache():
     # no-cache 여야 VERSION 올림(옛 캐시 청소)이 지체 없이 전파된다.
     assert "no-cache" in r.headers.get("Cache-Control", "")
     body = r.get_data(as_text=True)
-    assert "NAV_PATHS" in body and "staleWhileRevalidate" in body
+    # (2026-08-25 v6) staleWhileRevalidate → networkFirst 전환: 웜 서버(0.3~0.6초)면
+    # 최신을 직접 서빙, 콜드·오프라인만 캐시 폴백 — "배포했는데 폰은 옛 화면" 구조 해소.
+    assert "NAV_PATHS" in body and "networkFirst" in body
 
 
 def test_base_css_immutable_only_for_current_hash():
