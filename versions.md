@@ -1,5 +1,21 @@
 # versions.md — auction-arbitrage 루프 작업 로그 (append-only, 최신순)
 
+## 2026-08-25 12:50 KST — 🛠 오늘 크롤 미완주 원인 수정 — DailyRefresh 콘솔 창 노출 제거
+
+**무엇**: 오늘 새벽 크롤이 안 돌았다. 전말(이벤트 로그·백업 잔여물로 확정) —
+① 05:30 노트북 잠자기(전원 이벤트: 12:10 깨어남) → 발화 불가
+② 12:16 StartWhenAvailable 지연 발화 → **콘솔 창이 화면에 뜸**(DailyRefresh 만
+   -WindowStyle Hidden 부재) → 창 닫힘과 함께 0xC000013A(콘솔 종료)로 [0/5] 백업
+   도중 사망, 부분 백업(44MB/501MB)+journal 잔류
+- `install-scheduler.ps1` argLine 에 `-WindowStyle Hidden` 추가(warm-ping/watchdog 은
+  원래 Hidden) 후 재등록·활성화. 부분 백업 2파일 삭제(정상본 8/24 501MB 보존 확인).
+- 12:49 수동 재발화(Start-ScheduledTask) — 완주 예상 ~16시, ntfy 종료 알림 확인 예정.
+
+**증거**: Get-EventLog(Kernel-Power 12:10 wake), 스케줄러 LastTaskResult 0xC000013A,
+refresh-20260825-121652.log 가 [0/5]에서 끊김, pre-refresh 슬롯 부분 파일 실측.
+
+**다음**: 오늘 재실행 완주 확인 → 프로덕션 data_stale 해소·낙찰가 [1.5/5] 첫 자동 수집 검증.
+
 ## 2026-08-24 22:10 KST — 💰 실낙찰가 수집 경로 발견·구현 — "법원 비공개"는 틀린 단정이었다 (정정)
 
 **배경**: 실낙찰가 보유 409/17,865(2.3%)를 "정상 낙찰가는 법원 비공개(구조적 한계)"로

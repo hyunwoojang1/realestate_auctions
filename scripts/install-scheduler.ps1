@@ -44,7 +44,10 @@ if (-not (Test-Path $RefreshPs)) { throw "refresh-daily.ps1 없음: $RefreshPs" 
 $PwshExe = (Get-Process -Id $PID).Path
 if (-not $PwshExe) { $PwshExe = "powershell.exe" }
 
-$argLine = "-NoProfile -ExecutionPolicy Bypass -File `"$RefreshPs`" -Live -Cash $Cash"
+# -WindowStyle Hidden(2026-08-25 실사고): StartWhenAvailable 로 낮에 지연 발화하면 콘솔 창이
+# 화면에 뜨고, 사용자가 그 창을 닫는 순간 크롤 전체가 0xC000013A 로 죽는다 — 오늘 [0/5] 백업
+# 중 그렇게 죽어 부분 백업까지 남겼다. warm-ping/watchdog 은 처음부터 Hidden 이었다.
+$argLine = "-NoProfile -ExecutionPolicy Bypass -WindowStyle Hidden -File `"$RefreshPs`" -Live -Cash $Cash"
 
 $action    = New-ScheduledTaskAction -Execute $PwshExe -Argument $argLine -WorkingDirectory $RepoRoot
 $trigger   = New-ScheduledTaskTrigger -Daily -At $Time
