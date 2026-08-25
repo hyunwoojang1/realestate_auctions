@@ -55,6 +55,31 @@ def test_empty_inputs_are_not_share():
     assert is_partial_share(None, None) is False
 
 
+# ── 2026-08-25 미러 차단 실사고(2025타경56099 푸르뫼금강에스쁘아) — 미탐 2변형 ──
+
+def test_reversed_order_share_fraction():
+    """어순 반대 '지분 2분의 1 전부' — 기존 정규식은 분수→지분 순서만 봐서 미탐.
+    이 한 건이 게이트 FAIL → 8/17부터 클라우드 미러 전체 차단(프로덕션 7일 stale)."""
+    assert is_partial_share("갑구10번 공유자 [성명] 지분 2분의 1 전부", "") is True
+
+
+def test_reversed_order_coowner_share_of():
+    """'공유자지분 중 100분의 15' 계열(전수 실측 4,463건 전부 진성) — 어순반대 포괄."""
+    assert is_partial_share("공유자지분 중 100분의 15 [성명] 지분", "") is True
+
+
+def test_note_share_sale_keyword():
+    """비고의 명시적 '지분매각'(실측 4,958건 전부 진성) — 게이트 백업 키워드와 채점
+    검출이 갈라져 있던 불일치 봉합. 게이트만 알고 검출은 모르면 미러가 볼모가 된다."""
+    assert is_partial_share("", "지분매각, 공유자 [성명]신고 제한있음(우선매수신청을 한 …)") is True
+
+
+def test_all_owners_still_whole_even_with_fraction_absent():
+    """'전원' 우선 규칙 유지 — maejibun 이 온전을 명시하면 비고 '지분매각'(다물건 타목록
+    지칭, 전수 모순 1건 실측)보다 신뢰한다."""
+    assert is_partial_share("공유자 전원의 지분 전부", "- 일괄매각, 목록2,3 지분매각") is False
+
+
 def test_decimal_fraction_with_share_word():
     """소수 비율 + 지분 결합('3분의 1.5 지분')도 부분 지분."""
     assert is_partial_share("3분의 1.5 지분", "") is True

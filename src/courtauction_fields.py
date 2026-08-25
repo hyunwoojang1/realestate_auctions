@@ -565,17 +565,30 @@ def parse_row(raw: dict) -> CourtAuctionRecord:
 #   · 대지권 비율("500분의 21.7849")               → '지분' 결합 없음 — 자연 제외
 #   · 비고의 '공유자 우선매수' 문구                 → 공유자 존재 = 부분 지분 보조 신호
 _SHARE_FRACTION_RE = re.compile(r"(?:\d+\s*분의\s*[\d.]+|\d+\s*/\s*\d+)[^\n]{0,20}?지분")
+# (2026-08-25 실사고 — 2025타경56099 푸르뫼금강에스쁘아) 어순 반대 표기 "지분 2분의 1 전부"를
+# 위 정규식(분수→지분 순서만)이 미탐 → 1/2 지분에 온전가 시세가 붙었고, 게이트(같은 함수 +
+# 비고 백업)가 그걸 잡아 **8/17부터 클라우드 미러 전체가 차단**됐다(프로덕션 7일 stale).
+# 실측 경계: 전수 63,428행에서 어순반대 4,463건 전부 진성 지분, '전원' 충돌 0건.
+_SHARE_FRACTION_REV_RE = re.compile(r"지분[^\n]{0,20}?\d+\s*분의\s*[\d.]+")
 _COOWNER_PREEMPT_RE = re.compile(r"공유자.{0,10}우선\s*매수")
+# 비고의 명시적 '지분매각' — 법원이 직접 선언한 최강 신호(실측 4,958건 전부 진성).
+# 게이트의 백업 키워드('지분' in 비고)와 채점 검출이 갈라져 있던 불일치를 좁힌다.
+_SHARE_SALE_NOTE_KW = "지분매각"
 
 
 def is_partial_share(maejibun: str | None, note: str | None) -> bool:
     """이 매각이 온전 소유권이 아닌 '부분 지분'인가 — maejibun 우선, 비고 공유자문구 보조."""
     mj = maejibun or ""
     if "전원" in mj:
-        return False          # '공유자 전원의 지분 전부' = 100% 온전 매각
-    if _SHARE_FRACTION_RE.search(mj):
+        # '공유자 전원의 지분 전부' = 100% 온전 매각. 비고에 '지분매각'이 같이 있는 다물건
+        # 모순 사례가 전수 1건 있는데(비고가 다른 목록을 지칭), maejibun 명시를 신뢰한다.
+        return False
+    if _SHARE_FRACTION_RE.search(mj) or _SHARE_FRACTION_REV_RE.search(mj):
         return True
-    return bool(_COOWNER_PREEMPT_RE.search(note or ""))
+    nt = note or ""
+    if _SHARE_SALE_NOTE_KW in nt:
+        return True
+    return bool(_COOWNER_PREEMPT_RE.search(nt))
 
 
 def to_auction_listing(rec: CourtAuctionRecord) -> AuctionListing:
