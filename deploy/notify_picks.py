@@ -131,8 +131,10 @@ def send_webpush(title: str, message: str, click: str) -> int:
     sent = 0
     for sub in subs:
         try:
+            # pywebpush 의 vapid_private_key 는 파일 경로 또는 **raw base64url** 문자열 —
+            # PEM 문자열을 주면 ASN.1 파싱 실패(2026-08-25 실측). private_raw 를 쓴다.
             webpush(subscription_info=sub, data=payload,
-                    vapid_private_key=vap["private_pem"],
+                    vapid_private_key=vap.get("private_raw") or vap["private_pem"],
                     vapid_claims={"sub": vap.get("sub", "mailto:ops@example.com")})
             sent += 1
         except WebPushException as e:
