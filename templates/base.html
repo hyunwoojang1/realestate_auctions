@@ -58,6 +58,9 @@
         {% if data_source == 'db' %}<span class="src live">라이브 DB</span>
         {% else %}<span class="src sample">샘플 데이터</span>{% endif %}
       {% endif %}
+      {# PWA Web Push(2026-08-25) — iOS 는 홈 화면 앱(standalone)에서만 푸시 지원.
+         JS 가 지원 확인 후 hidden 해제. 권한 요청은 반드시 탭(사용자 제스처)에서. #}
+      <button id="pushBtn" class="src" hidden type="button">🔔 알림 받기</button>
     </nav>
   </div>
 </header>
@@ -92,6 +95,55 @@
    ③ 재검증 실패(오프라인·콜드 타임아웃)는 '갱신 확인 실패'로 명시 — 침묵 스테일 금지.
    미지원 브라우저는 아무 변화 없음(점진적 향상). #}
 <button id="swFresh" class="sw-fresh" hidden type="button"></button>
+<script>
+/* PWA Web Push 구독(2026-08-25) — iOS 16.4+ 홈 화면 앱 자체 알림.
+   지원 조건: SW+PushManager+Notification API + standalone(홈 화면 설치) 모드.
+   권한 요청은 반드시 버튼 탭(사용자 제스처) 안에서 — iOS 하드 요건. */
+(function(){
+  var btn = document.getElementById('pushBtn');
+  if (!btn || !('serviceWorker' in navigator) || !('PushManager' in window)
+      || !('Notification' in window)) return;
+  var standalone = (window.matchMedia && matchMedia('(display-mode: standalone)').matches)
+                   || window.navigator.standalone === true;
+  if (!standalone) return;
+  btn.hidden = false;
+  var PUB = '{{ vapid_public_key }}';
+  function b64ToU8(s){
+    var pad = '='.repeat((4 - s.length % 4) % 4);
+    var raw = atob((s + pad).replace(/-/g, '+').replace(/_/g, '/'));
+    var a = new Uint8Array(raw.length);
+    for (var i = 0; i < raw.length; i++) a[i] = raw.charCodeAt(i);
+    return a;
+  }
+  function setOn(on){ btn.textContent = on ? '🔔 알림 켜짐' : '🔔 알림 받기'; btn.dataset.on = on ? '1' : ''; }
+  navigator.serviceWorker.ready.then(function(reg){ return reg.pushManager.getSubscription(); })
+    .then(function(sub){ setOn(!!sub); }).catch(function(){});
+  btn.addEventListener('click', function(){
+    navigator.serviceWorker.ready.then(function(reg){
+      if (btn.dataset.on) {   // 켜짐 상태에서 탭 = 해제
+        return reg.pushManager.getSubscription().then(function(sub){
+          if (!sub) { setOn(false); return; }
+          var ep = sub.endpoint;
+          return sub.unsubscribe().then(function(){
+            fetch('/api/push/unsubscribe', {method: 'POST',
+              headers: {'Content-Type': 'application/json'}, body: JSON.stringify({endpoint: ep})});
+            setOn(false);
+          });
+        });
+      }
+      return Notification.requestPermission().then(function(perm){
+        if (perm !== 'granted') { btn.textContent = '🔕 알림 차단됨'; return; }
+        return reg.pushManager.subscribe({userVisibleOnly: true, applicationServerKey: b64ToU8(PUB)})
+          .then(function(sub){
+            return fetch('/api/push/subscribe', {method: 'POST',
+              headers: {'Content-Type': 'application/json'}, body: JSON.stringify(sub.toJSON())});
+          })
+          .then(function(r){ if (r && r.ok) setOn(true); else btn.textContent = '⚠ 구독 실패'; });
+      });
+    }).catch(function(){ btn.textContent = '⚠ 구독 실패'; });
+  });
+})();
+</script>
 <script>
 (function(){
   if (!('serviceWorker' in navigator)) return;

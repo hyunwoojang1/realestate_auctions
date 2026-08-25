@@ -1,5 +1,29 @@
 # versions.md — auction-arbitrage 루프 작업 로그 (append-only, 최신순)
 
+## 2026-08-25 18:00 KST — 📱 PWA 자체 푸시(Web Push) — ntfy 없이 홈 화면 앱이 직접 알림
+
+**배경**: 사용자 — "ntfy가 뭔데, 그냥 PWA 자체 푸시로 하면 안 되나". iOS 16.4+ 는
+홈 화면 설치 PWA 의 Web Push 를 지원한다 — 별도 앱 없이 지금 쓰는 앱이 알림을 받는다.
+
+**무엇**:
+- VAPID 키쌍 생성 — 공개키는 `src/push_subs.py` 상수(비밀 아님), 개인키는
+  `harness/vapid.json`(gitignore, 발송이 로컬이라 서버 배포 불필요).
+- 구독 저장 = **Supabase Storage 버킷 `push-subs`**(구독 1건=오브젝트 1개) — 새 테이블
+  DDL 은 Management 토큰 필요(현재 없음)인데 Storage 는 기배포 서비스 키로 끝난다
+  (사용자 개입 0). 왕복 검증 완료(save→list→delete).
+- `/api/push/subscribe·unsubscribe`(views/push.py) — 표준 필드만 저장, 실패 503(침묵 금지).
+- base.html: standalone 에서만 노출되는 '🔔 알림 받기' 버튼(+구독/해제 JS, 권한 요청은
+  탭 제스처 안 — iOS 하드 요건). sw.js **v4**: push·notificationclick 핸들러
+  (iOS: push 마다 showNotification 필수 — 침묵 3회면 구독 강제 해지).
+- notify_picks: ntfy 발송 뒤 **웹푸시 병행 발송**(pywebpush, 로컬 크롤 전용 의존성 —
+  playwright/Pillow 와 같은 계열), 410/404 만료 구독 자동 정리.
+
+**증거**: tests/test_push_subs.py 7케이스(검증 경계·클린 필드 저장·503 계약·SW v4
+핸들러·버튼 주입) + Storage 실왕복. 부팅 스모크 38라우트(+2). ruff 클린.
+
+**남은 것**: 사용자가 폰 홈 화면 앱에서 '🔔 알림 받기' 1회 탭(권한은 브라우저가 물음)
+→ 이후 매일 추천 푸시가 앱 자체 알림으로 도착. 탭 완료 연락 오면 테스트 발송.
+
 ## 2026-08-25 14:15 KST — 🔤 refresh-daily 로그 표기 버그 3곳 — PS 한글 변수명 파싱
 
 **무엇**: `"상위 $RightsLimit건"` 류 보간 3곳([2/5]·[3/5]·[4/5])이 PowerShell 에서

@@ -60,3 +60,4 @@ harness/ALERTS.log
 harness/watchdog_state.json
 harness/WATCHDOG_LAST.txt
 harness/notify.json
+harness/vapid.json

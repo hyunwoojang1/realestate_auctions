@@ -111,6 +111,42 @@ def compose(picks: list, today: dt.date) -> tuple[str, str, str]:
     return title, message, click
 
 
+def send_webpush(title: str, message: str, click: str) -> int:
+    """PWA Web Push(2026-08-25) — 홈 화면 앱 자체 알림. 반환 = 성공 발송 수.
+
+    구독은 Supabase Storage(push_subs), 개인키는 harness/vapid.json(gitignore).
+    410 Gone/404 = 만료 구독 → 저장소에서 삭제(다음 발송부터 제외). 실패 비차단.
+    """
+    try:
+        vap = json.loads((ROOT / "harness" / "vapid.json").read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError):
+        return 0   # 키 미구성 = 웹푸시 미사용(ntfy 만)
+    from pywebpush import WebPushException, webpush  # noqa: PLC0415
+
+    from src import push_subs  # noqa: PLC0415
+    subs = push_subs.list_subs()
+    if not subs:
+        return 0
+    payload = json.dumps({"title": title, "body": message, "url": click}, ensure_ascii=False)
+    sent = 0
+    for sub in subs:
+        try:
+            webpush(subscription_info=sub, data=payload,
+                    vapid_private_key=vap["private_pem"],
+                    vapid_claims={"sub": vap.get("sub", "mailto:ops@example.com")})
+            sent += 1
+        except WebPushException as e:
+            code = getattr(getattr(e, "response", None), "status_code", None)
+            if code in (404, 410):   # 구독 만료 — 정리
+                push_subs.delete_sub(sub.get("endpoint") or "")
+                print(f"[notify_picks] 만료 구독 정리({code})")
+            else:
+                print(f"[notify_picks] webpush 실패(무시): {e}", file=sys.stderr)
+        except Exception as e:  # noqa: BLE001 — 발송 실패가 파이프라인을 막으면 안 된다
+            print(f"[notify_picks] webpush 오류(무시): {e}", file=sys.stderr)
+    return sent
+
+
 def send_ntfy(title: str, message: str, click: str) -> bool:
     """ntfy JSON publish(+클릭 URL). 미구성·실패는 False(로그만) — 파이프라인 비차단."""
     import requests  # noqa: PLC0415
@@ -143,6 +179,9 @@ def main() -> int:
     args = ap.parse_args()
 
     import os  # noqa: PLC0415
+
+    from deploy.migrate_to_supabase import _load_env  # noqa: PLC0415 — 웹푸시(push_subs)가 SUPABASE 키 필요
+    _load_env()
     os.environ["AUCTION_DB"] = args.db   # web 헬퍼(_scored·_rights_badges)가 이 DB를 읽게
     from src import query, web  # noqa: PLC0415
     scored = web._scored()
@@ -158,13 +197,15 @@ def main() -> int:
     if args.dry_run:
         return 0
     ok = send_ntfy(title, message, click)
-    if ok:
+    wp = send_webpush(title, message, click)
+    print(f"발송 — ntfy: {'성공' if ok else '실패/미구성'} · 웹푸시(홈 화면 앱): {wp}대")
+    if ok or wp:
         sent = _load_sent()   # force 모드여도 발송 기록은 남긴다(다음 정기 발송 중복 방지)
         today = dt.date.today().isoformat()
         for s in picks:
             sent[s.uid] = today
         _save_sent(sent)
-        print(f"푸시 발송 완료({len(picks)}건) + 이력 기록")
+        print(f"추천 {len(picks)}건 발송 이력 기록")
     return 0
 
 

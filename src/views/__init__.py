@@ -10,6 +10,7 @@
   detail          /property/<case_no>
   watchlist_pages /watchlist·/api/watchlist* (운영자 전용)
   pages           /map·/digest·/calendar·/stats·/compare·/guide·/methodology
+  push            /api/push/* (PWA Web Push 구독 — iOS 홈 화면 앱 자체 알림)
 
 설계 계약:
   - 공유 헬퍼(_scored·_rights_badges·_filtered…)는 web 모듈에 남고, 뷰는 반드시
@@ -32,8 +33,9 @@ def register_views(app: Flask) -> None:
         find,
         home,
         pages,
+        push,
         sold,
         watchlist_pages,
     )
-    for mod in (auth, assets, home, core_api, sold, find, detail, watchlist_pages, pages):
+    for mod in (auth, assets, home, core_api, sold, find, detail, watchlist_pages, pages, push):
         app.register_blueprint(mod.bp)

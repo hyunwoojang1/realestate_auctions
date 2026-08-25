@@ -494,7 +494,11 @@ def create_app() -> Flask:
         logger.error("data/dealsim_rules.json 없음 — 딜 시뮬 존 비활성(배포 번들 확인 필요)")
         app.jinja_env.globals["dealsim_rules_json"] = "null"
 
-    # ── 라우트 전부 — views/ blueprint 9종 등록 ──
+    # PWA Web Push(2026-08-25) — 구독 JS(base.html)가 쓰는 VAPID 공개키(비밀 아님).
+    from . import push_subs  # noqa: PLC0415
+    app.jinja_env.globals["vapid_public_key"] = push_subs.VAPID_PUBLIC_KEY
+
+    # ── 라우트 전부 — views/ blueprint 10종 등록 ──
     from .views import register_views  # noqa: PLC0415
     register_views(app)
 

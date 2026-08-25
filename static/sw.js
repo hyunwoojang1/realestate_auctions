@@ -22,7 +22,7 @@
      - F4 재검증 실패 통지(failed) + rendered-at 메타는 비교 전 제거(가변 필드 오탐 방지).
      - 쿼리 페이지엔 알림 미전송(개입 범위와 1:1) · base.css 옛 버전 엔트리 청소.
    버전을 올리면 activate 에서 옛 캐시가 전부 삭제된다(v1 의 동결 캐시 포함). */
-const VERSION = 'v3';
+const VERSION = 'v4';   /* v4(2026-08-25): Web Push 핸들러 추가 */
 const NAV_CACHE = 'nav-' + VERSION;
 const ASSET_CACHE = 'asset-' + VERSION;
 
@@ -172,3 +172,32 @@ function notifySamePath(pathname, extra) {
     });
   });
 }
+
+
+/* ── Web Push (2026-08-25, iOS 16.4+ 홈 화면 앱 자체 알림) ──
+   페이로드: {title, body, url} — 발송자는 deploy/notify_picks.py(pywebpush).
+   iOS 요건: push 이벤트마다 반드시 showNotification (침묵 푸시 3회면 구독 강제 해지). */
+self.addEventListener('push', function (e) {
+  var d = {};
+  try { d = e.data ? e.data.json() : {}; } catch (err) { /* 텍스트 페이로드 폴백 */
+    try { d = { body: e.data.text() }; } catch (err2) { /* 빈 푸시 */ }
+  }
+  e.waitUntil(self.registration.showNotification(d.title || '경매 알림', {
+    body: d.body || '',
+    icon: '/icon-192.png',
+    badge: '/icon-192.png',
+    data: { url: d.url || '/' },
+  }));
+});
+
+self.addEventListener('notificationclick', function (e) {
+  e.notification.close();
+  var url = (e.notification.data && e.notification.data.url) || '/';
+  e.waitUntil(self.clients.matchAll({ type: 'window', includeUncontrolled: true })
+    .then(function (cs) {
+      for (var i = 0; i < cs.length; i++) {
+        if ('focus' in cs[i]) { cs[i].navigate(url); return cs[i].focus(); }
+      }
+      return self.clients.openWindow(url);
+    }));
+});
