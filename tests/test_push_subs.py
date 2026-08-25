@@ -60,8 +60,10 @@ def test_unsubscribe_contract(monkeypatch):
 
 
 def test_sw_has_push_handlers_and_new_version():
+    import re
     sw = open("static/sw.js", encoding="utf-8").read()
-    assert "'v4'" in sw                      # 핸들러 추가 = 캐시 세대 교체(구 SW 대체)
+    ver = int(re.search(r"const VERSION = 'v(\d+)'", sw).group(1))
+    assert ver >= 4                          # v4=push 핸들러 도입 세대 이상(캐시 세대 교체 보장)
     assert "addEventListener('push'" in sw
     assert "addEventListener('notificationclick'" in sw
     assert "showNotification" in sw          # iOS: push 마다 표시 필수(침묵 3회 = 강제 해지)

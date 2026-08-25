@@ -22,7 +22,7 @@
      - F4 재검증 실패 통지(failed) + rendered-at 메타는 비교 전 제거(가변 필드 오탐 방지).
      - 쿼리 페이지엔 알림 미전송(개입 범위와 1:1) · base.css 옛 버전 엔트리 청소.
    버전을 올리면 activate 에서 옛 캐시가 전부 삭제된다(v1 의 동결 캐시 포함). */
-const VERSION = 'v4';   /* v4(2026-08-25): Web Push 핸들러 추가 */
+const VERSION = 'v5';   /* v4: Web Push 핸들러 · v5(2026-08-25): 낙찰결과 개편 캐시 강제 갱신 */
 const NAV_CACHE = 'nav-' + VERSION;
 const ASSET_CACHE = 'asset-' + VERSION;
 
