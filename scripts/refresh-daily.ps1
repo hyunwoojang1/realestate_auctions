@@ -138,7 +138,8 @@ try {
     #     상위 N건(보수차익 우선), 일일캡·킬스위치(COURTAUCTION_STOP)는 CourtAuctionClient가 관리.
     #     실패해도 재채점을 막지 않는다. -SkipRights 로 건너뜀(안티밴 사고 시).
     if (-not $SkipRights) {
-        "--- [2/5] 권리 크롤(신규+재보강, 상위 $RightsLimit건) ---" | Tee-Object -FilePath $LogPath -Append
+        # ${} 필수: `$RightsLimit건` 은 PS 가 '한글 포함 변수명'으로 파싱해 빈 문자열이 된다(표시 버그).
+        "--- [2/5] 권리 크롤(신규+재보강, 상위 ${RightsLimit}건) ---" | Tee-Object -FilePath $LogPath -Append
         & $Python -m deploy.crawl_rights --db $DbPath --limit $RightsLimit --cap $DetailCap 2>&1 | Tee-Object -FilePath $LogPath -Append
         # (D3 2026-07-22) 권리크롤 종료코드를 **같은 블록에서 즉시** 캡처 — 종전엔 뒤이은 run.py가
         # $LASTEXITCODE를 덮어써 차단(2)·드리프트/실패(3) 승격이 무시됐다(안티밴·침묵실패 방어 무력).
@@ -157,7 +158,7 @@ try {
     #     권리미확인. tenant_checks 마커로 미시도 물건만(빈 결과도 기록 → 매일 재크롤 안 함).
     #     요청예산은 BUDGET_FILE 로 [2]와 합산 관리(-cap $DetailCap).
     if (-not $SkipRights -and -not $SkipTenants) {
-        "--- [3/5] 현황조사서 백필(상위 $TenantsLimit건, 물건당 2요청) ---" | Tee-Object -FilePath $LogPath -Append
+        "--- [3/5] 현황조사서 백필(상위 ${TenantsLimit}건, 물건당 2요청) ---" | Tee-Object -FilePath $LogPath -Append
         & $Python -m deploy.crawl_rights --db $DbPath --tenants-backfill --limit $TenantsLimit --cap $DetailCap 2>&1 | Tee-Object -FilePath $LogPath -Append
         $tenantsCode = $LASTEXITCODE
         if ($tenantsCode -eq 2) {
@@ -177,7 +178,7 @@ try {
     if (-not $SkipNaver) {
         "--- [4/5] 네이버 Phase A(신규 매칭) ---" | Tee-Object -FilePath $LogPath -Append
         & $Python -m deploy.crawl_naver --db $DbPath 2>&1 | Tee-Object -FilePath $LogPath -Append
-        "--- [4/5] 네이버 Phase B(증분 실거래 >$NaverStaleDays일) ---" | Tee-Object -FilePath $LogPath -Append
+        "--- [4/5] 네이버 Phase B(증분 실거래 >${NaverStaleDays}일) ---" | Tee-Object -FilePath $LogPath -Append
         & $Python -m deploy.crawl_naver --backfill-real --incremental --stale-days $NaverStaleDays 2>&1 | Tee-Object -FilePath $LogPath -Append
     } else {
         "--- [4/5] 네이버 증분 건너뜀(-SkipNaver) ---" | Tee-Object -FilePath $LogPath -Append
