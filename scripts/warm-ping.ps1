@@ -18,18 +18,23 @@ if (-not (Test-Path $LogDir)) { New-Item -ItemType Directory -Force $LogDir | Ou
 $Log = Join-Path $LogDir "warm-ping.log"
 
 $stamp = Get-Date -Format "yyyy-MM-dd HH:mm:ss"
-try {
-  $sw = [System.Diagnostics.Stopwatch]::StartNew()
-  $r = Invoke-WebRequest -Uri $Url -UseBasicParsing -TimeoutSec 90
-  $sw.Stop()
-  $secs = [math]::Round($sw.Elapsed.TotalSeconds, 2)
-  # A slow response means we hit a cold instance - worth seeing in the log to judge whether
-  # the 5-minute interval is actually keeping it warm.
-  $tag = if ($secs -gt 5) { "COLD" } else { "warm" }
-  Add-Content -Path $Log -Value "$stamp  $tag  $($r.StatusCode)  ${secs}s" -Encoding utf8
-}
-catch {
-  Add-Content -Path $Log -Value "$stamp  FAIL  $($_.Exception.Message)" -Encoding utf8
+# (2026-08-25) /sold 추가 - fetch_sold TTL 캐시(17k행) 는 홈 워밍으로는 안 채워진다.
+# SW v6(네트워크 우선, 3초 한도)에서 /sold 첫 요청이 7초(캐시 채움 실측)면 매번 캐시
+# 폴백으로 빠지므로, 여기서 미리 데워 사용자가 그 첫 요청을 만나지 않게 한다.
+foreach ($path in @("/", "/sold")) {
+  try {
+    $sw = [System.Diagnostics.Stopwatch]::StartNew()
+    $r = Invoke-WebRequest -Uri ($Url.TrimEnd('/') + $path) -UseBasicParsing -TimeoutSec 90
+    $sw.Stop()
+    $secs = [math]::Round($sw.Elapsed.TotalSeconds, 2)
+    # A slow response means we hit a cold instance - worth seeing in the log to judge whether
+    # the 5-minute interval is actually keeping it warm.
+    $tag = if ($secs -gt 5) { "COLD" } else { "warm" }
+    Add-Content -Path $Log -Value "$stamp  $tag  $($r.StatusCode)  ${secs}s  $path" -Encoding utf8
+  }
+  catch {
+    Add-Content -Path $Log -Value "$stamp  FAIL  $path  $($_.Exception.Message)" -Encoding utf8
+  }
 }
 
 # Keep the log from growing without bound (one line per 5 min = ~105k lines/year).
