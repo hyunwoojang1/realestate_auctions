@@ -195,6 +195,12 @@ try {
         & $Python @rescoreArgs 2>&1 | Tee-Object -FilePath $LogPath -Append
         $rescoreCode = $LASTEXITCODE
         if ($code -eq 0 -and $rescoreCode -ne 0) { $code = $rescoreCode }  # 미완 사이클을 가시화
+
+        # --- [추천 푸시] 오늘 최종 등급 기준 신규 추천 물건을 ntfy 로 발송(2026-08-25 신설).
+        #     재채점 뒤여야 그날 보강(권리·시세)이 반영된 등급으로 뽑힌다. 기발송 물건은
+        #     30일간 재발송 안 함(중복 알림 = 알림 끄게 만드는 지름길). 실패는 비차단.
+        "--- [추천 푸시] 신규 추천 물건 알림 ---" | Tee-Object -FilePath $LogPath -Append
+        & $Python -m deploy.notify_picks --db $DbPath 2>&1 | Tee-Object -FilePath $LogPath -Append
     }
     # --- [사진 도달성] R2가 사진의 유일 사본이다(2026-08-05 Supabase 원본 삭제).
     #     깨져도 알려줄 장치가 --check(수동) 뿐이라, 매일 자동으로 표본 확인한다.
