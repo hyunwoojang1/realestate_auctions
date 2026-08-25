@@ -17,3 +17,4 @@
   94b9d2b(게이트 10종+침묵실패 카나리→적재 안전장치). 부수 정정: DailyRefresh 'Disabled' 낡은
   상태 주석을 현행(활성·새 경로·배터리 옵션)으로 갱신. 그 이전 처리분 4건은 규칙(>10 청소)에
   따라 삭제.
+- [x] 2026-08-25 13:19 KST | code-without-docs commit | files: src/courtauction_fields.py — 처리(14:1x): README §6 부분 지분 경계표에 어순반대·'지분매각' 2행 추가 + 미러 볼모 사고 경고 박스.
