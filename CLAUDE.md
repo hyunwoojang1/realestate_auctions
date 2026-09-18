@@ -97,9 +97,17 @@ exit code: 0=OK/10=사전검수FAIL/20=사후검수FAIL/30=푸시·배포실패/
 
 ## Supabase 스키마/DDL — 에이전트가 직접 실행 (클립보드 금지)
 
-이 프로젝트가 쓰는 Supabase(프로젝트 ref **`trajmfklbyarbkiljogj`**, "Finance AI") 스키마 변경(DDL)이나 임의 SQL은 **에이전트가 Management API로 직접 실행한다.** DDL을 사용자에게 "클립보드에 넣고 대시보드에서 실행" 넘기지 말 것. (사용자 지시 2026-07-13)
+이 프로젝트가 쓰는 Supabase는 **프로젝트 ref `jwhlmvuotxhwwenlltcv`** (조직 `auction-arbitrage`, Seoul,
+2026-09-18 이전). 스키마 변경(DDL)이나 임의 SQL은 **에이전트가 Management API로 직접 실행한다.**
+DDL을 사용자에게 "클립보드에 넣고 대시보드에서 실행" 넘기지 말 것. (사용자 지시 2026-07-13)
 
-- 토큰: `.env`의 `SUPABASE_ACCESS_TOKEN` (`sbp_...`)
-- 엔드포인트: `POST https://api.supabase.com/v1/projects/trajmfklbyarbkiljogj/database/query`
-- 예: `curl -sS -X POST -H "Authorization: Bearer $SUPABASE_ACCESS_TOKEN" -H "Content-Type: application/json" -d '{"query":"<SQL>"}' https://api.supabase.com/v1/projects/trajmfklbyarbkiljogj/database/query`
+⚠️ **구 프로젝트 `trajmfklbyarbkiljogj`("Finance AI", econ 공유)는 2026-09 스토리지 쿼터 초과
+(1.93GB/1GB)로 paused.** 경매 데이터는 로컬 auction.db 원본에서 새 프로젝트로 전량 재적재 완료.
+Finance AI 는 다음 결제주기 리셋 후 대시보드 Resume 가능(2027-10-23까지) — econ-dashboard 복구 시
+스토리지 잔여물 정리 필수(안 하면 재차 제한).
+
+- 토큰: `.env`의 `SUPABASE_ACCESS_TOKEN` (`sbp_...`) — 보안정책상 평시 비어 있음. 필요 시
+  대시보드에서 **scoped 토큰(auction-arbitrage 프로젝트 한정, 7일 만료)** 발급 → 사용 → 즉시 revoke.
+- 엔드포인트: `POST https://api.supabase.com/v1/projects/jwhlmvuotxhwwenlltcv/database/query`
+- 예: `curl -sS -X POST -H "Authorization: Bearer $SUPABASE_ACCESS_TOKEN" -H "Content-Type: application/json" -d '{"query":"<SQL>"}' https://api.supabase.com/v1/projects/jwhlmvuotxhwwenlltcv/database/query`
 - 결과 JSON 배열 반환. DDL 동일 엔드포인트. ⚠️ 파괴적 변경은 사용자 확인 후.

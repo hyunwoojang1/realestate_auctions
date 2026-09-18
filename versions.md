@@ -1,5 +1,37 @@
 # versions.md — auction-arbitrage 루프 작업 로그 (append-only, 최신순)
 
+## 2026-09-18 12:05 KST — 🚑 Supabase paused 사고 복구: 새 프로젝트 이전 + 프로덕션 정상화
+
+**무엇**: 구 Supabase "Finance AI"(`trajmfklbyarbkiljogj`)가 **Storage Size 초과(기간평균
+1.93GB/1GB)** 로 402 제한(9/16)→paused(9/18)돼 프로덕션이 샘플 fixture 폴백 중이었다.
+무료 Resume 은 "restriction 해제 전 불가"로 공식 거부됨(실측). → 새 무료 조직
+`auction-arbitrage`(slug `rspizwzsnfnaadrhoboz`)·새 프로젝트 `jwhlmvuotxhwwenlltcv`(Seoul)를
+만들어 **로컬 auction.db 원본에서 전량 재적재**하고 Vercel env(`SUPABASE_URL`/`SECRET_KEY`)
+교체 후 재배포. 스키마는 deploy/*.sql + 코드 역산 DDL(building/tenants/sold 3종 신설,
+scored 에 `burden_amount_unknown` ADD — 구 클라우드의 애드혹 드리프트 재현).
+
+**게이트 이슈 1건 수정**: 동부지원 2025타경5912(1303750분의 4531 지분)가 '관심 73.6점·차익
+3,872만'으로 채점돼 지분게이트 FAIL → `share_sale`/'시세추정불가' 패턴으로 교정 후 전 게이트 PASS.
+(의문점: 일일 재채점이 왜 못 잡았나 — is_partial_share 라이브 경로의 maejibun 누락 의심, 후속 조사 필요.)
+
+**증거**(전수, 분모 포함):
+| 테이블 | 로컬 → 클라우드 실측 |
+|---|---|
+| scored | 11,933 → 11,933 |
+| rights | 15,729 → 15,729 |
+| photos | 47,427 → 47,427 (스테일 0) |
+| naver | 10,942 → 10,942 |
+| building/tenants/survey/sold | 7,931/13,153/4,146/30,617 모두 일치 |
+
+프로덕션: `/health` `{"status":"ok","data_source":"db","rights_source":"ok"}` ·
+`verify_claims.py --prod` 로컬↔클라우드 대조 전 항목 ✓ · 홈 11,933건 실데이터 서빙 실측.
+
+**평가자**: verify_claims --prod + data_gates 전 게이트 PASS + 클라우드 count(*) 전수 대조.
+**커밋**: (이 항목과 CLAUDE.md ref 갱신 커밋)
+**다음**: ① 구 Finance AI 는 다음 결제주기 리셋 후 Resume + 스토리지 잔여물(왜 1.93GB 남았는지)
+정리 — econ-dashboard 는 그때까지 다운. ② 지분 검출 라이브 경로 사각 조사. ③ 임시 scoped 토큰은
+사용 직후 revoke 완료(실측 401), Vercel env 는 새 sb_secret 로 교체됨.
+
 ## 2026-08-25 19:55 KST — ⚡ "배포와 폰 화면의 괴리" 구조 해소 — SW 네트워크 우선(v6) + /sold 12배 가속
 
 **배경**: 사용자 — 캐시가 '2차 배포'처럼 작동한다, 배포하면 바로 보이게 하자.
