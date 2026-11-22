@@ -70,6 +70,7 @@ def index():
     budget = request.args.get("budget", "")
     area = request.args.get("area", "")
     fails = request.args.get("fails", "")
+    liq = request.args.get("liq", "")   # 실거래 유동성 프리셋(N개월 M건+, 단타용)
     sort = request.args.get("sort", "score")   # 홈 기본 = 점수 높은순(사용자 2026-07-16)
     if sort not in query.SORT_KEYS:
         sort = "score"
@@ -85,7 +86,10 @@ def index():
     except ValueError:
         fails = ""
         min_fails = None
-    has_filter = bool(q or region or ptype or budget or area or fails
+    liquidity = query.liquidity_bounds(liq)
+    if liquidity is None:
+        liq = ""
+    has_filter = bool(q or region or ptype or budget or area or fails or liq
                       or chip_clean or chip_soon or chip_high)
 
     # 예산(최저입찰가) — '8plus'=8억 이상, 그 외 숫자=상한(억).
@@ -111,7 +115,7 @@ def index():
     items = query.apply_filters(base, property_type=ptype or None, region=region or None,
                                 max_bid=max_bid, min_bid=min_bid,
                                 min_area=min_area, max_area=max_area, min_fails=min_fails,
-                                q=q or None)
+                                q=q or None, liquidity=liquidity, today=today)
     if chip_clean:
         items = [s for s in items if _clean(s)]
     if chip_soon:
@@ -182,7 +186,7 @@ def index():
          "href": _toggle("region", "서울")},
     ]
     filters = {"q": q, "region": region, "type": ptype, "budget": budget, "sort": sort,
-               "area": area, "fails": fails,
+               "area": area, "fails": fails, "liq": liq,
                "clean": chip_clean, "soon": chip_soon, "high": chip_high}
     # 페이지네이션(2026-07-16) — 전체 정렬 후 슬라이스. 정렬·필터·카운트는 전체 기준, 렌더만 페이지.
     PAGE_SIZE = 60
@@ -201,6 +205,7 @@ def index():
         return "/?" + urlencode(a)
     return render_template(
         "listings.html", items=items, count=total, filters=filters, chips=chips,
+        liq_presets=query.LIQUIDITY_PRESETS,
         page=page, total_pages=total_pages, page_url=_page_url,
         mode=mode, coverage=coverage, all_mode=all_mode,
         hero=hero, legacy_only=legacy_only, badges=badges, resales=web._resale_map(),

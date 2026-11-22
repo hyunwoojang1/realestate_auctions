@@ -205,3 +205,44 @@ def test_to_json_is_valid_and_complete():
     data = json.loads(report.to_json(items))
     assert isinstance(data, list) and len(data) == len(items)
     assert "arb_score" in data[0] and "grade" in data[0]
+
+
+# ---- 실거래 유동성 필터(N개월 내 M건+, 단타용 — 사용자 2026-11-22) ----
+_TODAY = dt.date(2026, 11, 22)
+_COMPLEX = "same_complex_same_area"
+
+
+def test_liquidity_bounds_parses_presets_and_rejects_unknown():
+    assert query.liquidity_bounds("6m3") == (6, 3)
+    assert query.liquidity_bounds("12m12") == (12, 12)
+    assert query.liquidity_bounds("") is None
+    assert query.liquidity_bounds(None) is None
+    assert query.liquidity_bounds("7m99") is None      # 프리셋 외 값은 무필터
+
+
+def test_recent_trade_count_counts_only_window_months():
+    s = _sl(market_scope=_COMPLEX,
+            market_comps=[["202610", 1], ["202608", 1], ["202605", 1], ["202505", 1]])
+    # 기준월(11월)에서 3개월 전 = 2026-08 이상 → 202610·202608 = 2건
+    assert query.recent_trade_count(s, 3, _TODAY) == 2
+    assert query.recent_trade_count(s, 6, _TODAY) == 3   # 202605 포함
+    assert query.recent_trade_count(s, 12, _TODAY) == 3  # 202505 는 창 밖(12개월 전=202511)
+
+
+def test_recent_trade_count_excludes_other_complex_scopes():
+    # 동 단위 폴백 비교군은 다른 단지 거래 → 이 단지의 유동성으로 세지 않는다.
+    s = _sl(market_scope="same_dong_fallback", market_comps=[["202610", 1]] * 9)
+    assert query.recent_trade_count(s, 6, _TODAY) == 0
+    near = _sl(market_scope="same_complex_near_area", market_comps=[["202610", 1]])
+    assert query.recent_trade_count(near, 6, _TODAY) == 1
+
+
+def test_apply_filters_liquidity():
+    busy = _sl(case_no="busy", market_scope=_COMPLEX,
+               market_comps=[["202610", 1], ["202609", 1], ["202607", 1]])
+    quiet = _sl(case_no="quiet", market_scope=_COMPLEX, market_comps=[["202610", 1]])
+    stale = _sl(case_no="stale", market_scope=_COMPLEX, market_comps=[["202401", 1]] * 5)
+    out = query.apply_filters([busy, quiet, stale], liquidity=(6, 3), today=_TODAY)
+    assert [s.case_no for s in out] == ["busy"]
+    out = query.apply_filters([busy, quiet, stale], liquidity=(3, 1), today=_TODAY)
+    assert {s.case_no for s in out} == {"busy", "quiet"}

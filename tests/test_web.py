@@ -314,3 +314,16 @@ def test_property_detail_renders_for_db_listing_not_in_samples(tmp_path, monkeyp
     assert r.status_code == 200
     body = r.get_data(as_text=True)
     assert "라이브단지" in body
+
+
+def test_index_liquidity_filter(monkeypatch):
+    # 실거래 유동성(같은 단지 N개월 M건+) — 샘플 단지는 12개월 7건씩.
+    _freeze_now(monkeypatch)
+    c = _client()
+    body = c.get("/?liq=12m6").get_data(as_text=True)
+    assert "상계주공" in body
+    assert 'value="12m6" selected' in body          # 선택값 유지
+    body = c.get("/?liq=12m12").get_data(as_text=True)
+    assert "상계주공" not in body                    # 7건 < 12건 → 제외
+    r = c.get("/?liq=99m1")                          # 프리셋 밖 값 → 무필터, 500 없음
+    assert r.status_code == 200 and "상계주공" in r.get_data(as_text=True)

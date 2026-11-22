@@ -37,6 +37,40 @@ def area_bounds(bracket: str | None) -> tuple[float | None, float | None]:
     return AREA_BRACKETS.get(bracket or "", (None, None))
 
 
+# 실거래 유동성 프리셋(단타용 — 사용자 2026-11-22): 키 → (최근 N개월, 최소 M건).
+# 라벨 순서 = 화면 셀렉트 순서. 프리셋 밖 값은 무필터(임의 조합으로 URL 조작해도 500 없음).
+LIQUIDITY_PRESETS = {
+    "3m1": (3, 1, "3개월 1건+"),
+    "6m3": (6, 3, "6개월 3건+"),
+    "12m6": (12, 6, "12개월 6건+"),
+    "12m12": (12, 12, "12개월 12건+"),
+}
+# 같은 단지 비교군만 유동성으로 센다. 동 단위 폴백은 다른 단지 거래라 이 물건을
+# 되팔 수 있는지와 무관하다(가격 추정 신뢰 범위와 같은 기준 — store.SOLD_TRUSTED_SCOPES).
+_LIQUIDITY_SCOPES = ("same_complex_same_area", "same_complex_near_area")
+
+
+def liquidity_bounds(key: str | None) -> tuple[int, int] | None:
+    """유동성 프리셋 키 → (개월, 최소건수). 알 수 없는 키·빈값은 None."""
+    p = LIQUIDITY_PRESETS.get(key or "")
+    return (p[0], p[1]) if p else None
+
+
+def recent_trade_count(s: ScoredListing, months: int, today: _dt.date | None = None) -> int:
+    """기준월로부터 months 개월 전 달(포함) 이후의 같은 단지 매매 건수.
+
+    market_comps 는 [YYYYMM, 가격] 목록(이상치 트림 후 — 보수적으로 센다).
+    예) 오늘 2026-11, months=3 → 202608~202611. 국토부는 최근 달이 신고 지연으로 덜 차 있어
+    '이번 달'까지 열어 둔다.
+    """
+    if s.market_scope not in _LIQUIDITY_SCOPES:
+        return 0
+    today = today or _dt.date.today()
+    y, m = divmod(today.year * 12 + today.month - 1 - months, 12)
+    cutoff = f"{y}{m + 1:02d}"
+    return sum(1 for c in (s.market_comps or []) if str(c[0])[:6] >= cutoff)
+
+
 def is_evaluable(s: ScoredListing) -> bool:
     """이 도구가 시세를 추정한(=평가 가능한) 물건인가. 검색 우선 홈의 기본 노출 기준."""
     return s.est_market_price is not None
@@ -145,7 +179,9 @@ def apply_filters(items: list[ScoredListing], min_score: float | None = None,
                   max_bid: int | None = None, min_bid: int | None = None,
                   evaluable_only: bool = False,
                   min_area: float | None = None, max_area: float | None = None,
-                  min_fails: int | None = None, q: str | None = None) -> list[ScoredListing]:
+                  min_fails: int | None = None, q: str | None = None,
+                  liquidity: tuple[int, int] | None = None,
+                  today: _dt.date | None = None) -> list[ScoredListing]:
     """물건종류·지역·최소차익(원, 보수 기준)·예산(최저입찰가 상/하한)·평가가능·면적·유찰·이름 필터.
 
     burden_of: 물건 → 인수금액(원). 주어지면 최소차익 비교도 인수 차감 후 값으로
@@ -153,6 +189,7 @@ def apply_filters(items: list[ScoredListing], min_score: float | None = None,
     max_bid/min_bid: 예산 필터(최저입찰가 상한/하한, 원). evaluable_only: 시세 추정된 물건만.
     min_area/max_area: 전용면적(㎡) 하/상한. min_fails: 최소 유찰 횟수(가격 저감된 물건).
     q: 단지명·주소 텍스트 검색어('내가 본 그 아파트' 찾기).
+    liquidity: (N개월, M건) — 같은 단지 최근 N개월 실거래가 M건 이상인 물건만(단타 유동성).
     """
     out = items
     if q:
@@ -165,6 +202,9 @@ def apply_filters(items: list[ScoredListing], min_score: float | None = None,
         out = [s for s in out if s.area_m2 is not None and s.area_m2 < max_area]
     if min_fails is not None:
         out = [s for s in out if (s.fail_count or 0) >= min_fails]
+    if liquidity is not None:
+        months, min_n = liquidity
+        out = [s for s in out if recent_trade_count(s, months, today) >= min_n]
     if min_profit is not None:
         def _eff(s):
             p = decision_profit(s)

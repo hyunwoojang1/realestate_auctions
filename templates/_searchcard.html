@@ -18,7 +18,7 @@
     <form class="hs-name-row" method="get" action="{{ sc_action }}">
       {% if all_mode %}<input type="hidden" name="all" value="1">{% endif %}
       {# 활성 드롭다운 필터 보존 — 이름 검색을 지역·예산 등과 함께 좁힐 수 있게 #}
-      {% for k in ['region','budget','type','area','fails','sort'] %}
+      {% for k in ['region','budget','type','area','fails','liq','sort'] %}
         {% if filters[k] %}<input type="hidden" name="{{ k }}" value="{{ filters[k] }}">{% endif %}
       {% endfor %}
       <input id="q-search" type="search" name="q" value="{{ filters.q|default('') }}"
@@ -59,6 +59,12 @@
         {% for v, lab in [('1','1회+'),('2','2회+'),('3','3회+')] %}
         <option value="{{ v }}" {% if filters.fails == v %}selected{% endif %}>{{ lab }}</option>{% endfor %}
       </select></div>
+    {% if liq_presets %}<div class="hs-f"><label>실거래 (같은 단지)</label>
+      <select name="liq">
+        <option value="">전체</option>
+        {% for v, p in liq_presets.items() %}
+        <option value="{{ v }}" {% if filters.liq == v %}selected{% endif %}>{{ p[2] }}</option>{% endfor %}
+      </select></div>{% endif %}
     <button type="submit" class="hs-go">{{ sc_submit|default('조건에 맞는 물건 찾기') }}</button>
   </form>
   {{ sc_quick|default('') }}

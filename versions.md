@@ -1,5 +1,25 @@
 # versions.md — auction-arbitrage 루프 작업 로그 (append-only, 최신순)
 
+## 2026-11-22 20:57 KST — 🔁 재가동 + 홈 필터 '실거래(같은 단지 N개월 M건+)' 신설
+
+**배경(사용자)**: 7주 휴면(마지막 크롤 9/30, 스케줄러 4종 Disabled) 후 재가동. 단타용으로
+"몇 개월에 몇 건 실거래가 있었나"를 중심 필터로 쓰겠다.
+
+**무엇**: `query.LIQUIDITY_PRESETS`(3m1·6m3·12m6·12m12) + `liquidity_bounds` + `recent_trade_count`
++ `apply_filters(liquidity=, today=)`. 홈 검색카드에 '실거래 (같은 단지)' 셀렉트(`liq` 파라미터,
+낙찰결과 페이지엔 미표시). 세는 대상 = `market_comps`(이상치 트림 후 [YYYYMM,가격]) 중 같은 단지
+scope(same_complex_same/near_area)만 — 동 폴백은 타단지 거래라 0건 처리. 창 = 기준월 N개월 전 달 이상.
+
+**점검 결과(재가동 전)**: 국토부 키 유효(강남 apt 202606~202611 라이브 응답). 지난 보고의
+"국토부 7~9월 누락 의심"은 **오판** — 최근 2개월은 설계상 비캐시(pipeline.py open_months).
+프로덕션 /health 503(Supabase jwhlmvuotxhwwenlltcv DNS NXDOMAIN — 사용자 Resume 후에도 미해결).
+
+**증거**: 신규 테스트 5건(query 4·web 1) RED→GREEN, 전체 **1221 passed·1 skipped**, ruff 클린.
+로컬 DB(9/30 기준) 실측: 평가가능 2,839건 중 3m1 896 · 6m3 839 · 12m6 902 · 12m12 477 —
+단 **미래 매각기일 0/2,839**(전부 만료)라 재크롤 후 재측정 필요.
+**평가자**: pytest 전체 + 실데이터 전수 카운트. **커밋**: (이 항목 커밋)
+**다음**: 전국 재크롤(진행 중) → Supabase 복구 확인 → 재적재 → push+배포 → verify_claims --prod.
+
 ## 2026-09-18 12:05 KST — 🚑 Supabase paused 사고 복구: 새 프로젝트 이전 + 프로덕션 정상화
 
 **무엇**: 구 Supabase "Finance AI"(`trajmfklbyarbkiljogj`)가 **Storage Size 초과(기간평균

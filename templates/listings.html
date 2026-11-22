@@ -107,7 +107,7 @@
     <span class="sub">· {% if filters.q %}단지명·주소 일치{% elif all_mode %}미지원·추정불가 포함{% elif mode == 'recommend' %}시세 추정된 전체{% else %}조건 결과{% endif %}</span></h2>
   <span class="cnt">{{ count }}건</span>
   <form class="sortbar" method="get" action="/">
-    {% for k in ['q','region','budget','type','area','fails','all','clean','soon','high'] %}{% if filters[k] %}<input type="hidden" name="{{ k }}" value="{{ filters[k] }}">{% endif %}{% endfor %}
+    {% for k in ['q','region','budget','type','area','fails','liq','all','clean','soon','high'] %}{% if filters[k] %}<input type="hidden" name="{{ k }}" value="{{ filters[k] }}">{% endif %}{% endfor %}
     <label class="srt-l" for="srt">정렬</label>
     <select id="srt" name="sort" onchange="this.form.submit()">
       <option value="score"{% if filters.sort == 'score' %} selected{% endif %}>점수 높은순</option>
