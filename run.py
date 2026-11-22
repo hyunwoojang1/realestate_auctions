@@ -36,11 +36,13 @@ _SOLD_SNAP_COLS = ["court", "case_no", "item_no", "apt_name", "address", "proper
                    "arb_score", "grade", "market_scope", "matched_trades", "confidence"]
 
 
-def _collect_sold_snapshot(conn, new_scored) -> list[dict]:
+def _collect_sold_snapshot(conn, new_scored, appraisal_max: int | None = None) -> list[dict]:
     """(C2 2026-07-27) 전량교체 직전 diff — 이번 스냅샷에서 사라질 '낙찰(종결) 추정' 물건 수집.
 
     포함: 이전 scored 에 있고 새 수집에 없으며 **매각기일이 지난** 물건.
     제외: 기일이 남았는데 사라진 물건(취하/연기/변경 가능 — 낙찰로 단정하지 않는다).
+    제외: appraisal_max(이번 수집의 서버측 감정가 상한)를 넘는 물건 — 범위를 좁혀서 '안 본'
+    것이지 사라진 게 아니다(2026-11-22 감정가 3억 범위 축소 때 가짜 낙찰 기록 방지).
     sold_price: 기일이력 'sold'(재매각 회차의 실낙찰가 maeAmt)가 있을 때만. 없으면 None(미공개)
     — 정상 낙찰가는 법원이 비공개(dspslAmt 항상 null 실측 2026-07-24)라 지어내지 않는다.
     """
@@ -57,6 +59,8 @@ def _collect_sold_snapshot(conn, new_scored) -> list[dict]:
     out: list[dict] = []
     for r in prev:
         if (r["court"], r["case_no"], r["item_no"]) in new_keys:
+            continue
+        if appraisal_max and (r["appraisal_price"] or 0) > appraisal_max:
             continue
         sd = r["sale_date"] or ""
         if not sd or sd > today:
@@ -315,7 +319,8 @@ def main(argv=None) -> int:
             _revived = store.drop_sold_revived(conn, scored)
             if _revived:
                 print(f"  ↩ 재매각 부활로 낙찰 기록에서 제외: {len(_revived)}건")
-            sold_rows = _collect_sold_snapshot(conn, scored)
+            _scope_max = int(args.cash * args.appraisal_buffer) if args.cash else None
+            sold_rows = _collect_sold_snapshot(conn, scored, appraisal_max=_scope_max)
             if sold_rows:
                 store.upsert_sold(conn, sold_rows)
                 _with_price = sum(1 for r in sold_rows if r.get("sold_price"))

@@ -31,7 +31,7 @@
 param(
     [string]$Time = "05:30",
     [string]$TaskName = "AuctionArbitrage-DailyRefresh",
-    [long]$Cash = 1000000000
+    [long]$Cash = 300000000   # 2026-11-22: 감정가 3억 이하(refresh-daily 기본 AppraisalBuffer 1.0과 짝)
 )
 
 $ErrorActionPreference = "Stop"

@@ -697,3 +697,18 @@ def test_drop_sold_revived_survives_sqlite_variable_limit(tmp_path):
     assert set(keys) == {("서울중앙지방법원", "2025타경1", "1"),
                          ("서울중앙지방법원", "2025타경2", "1")}
     assert store.load_sold(conn) == []
+
+
+def test_collect_sold_snapshot_ignores_rows_outside_crawl_scope(tmp_path):
+    """수집 범위(감정가 상한)를 좁히면 범위 밖 물건은 '사라진' 게 아니라 '안 본' 것이다.
+    낙찰로 기록하면 아직 진행 중인 고감정가 물건이 /sold 에 가짜 종결로 남는다(2026-11-22)."""
+    from run import _collect_sold_snapshot
+    conn = store.connect(str(tmp_path / "scope.db"))
+    big = _scored_obj("2025타경7", "2026-07-20")                  # 감정가 5억 — 범위 밖
+    small = _scored_obj("2025타경8", "2026-07-20")
+    small.appraisal_price = 250_000_000                            # 범위 안
+    store.replace_all(conn, [big, small])
+    rows = _collect_sold_snapshot(conn, [], appraisal_max=300_000_000)
+    assert [r["case_no"] for r in rows] == ["2025타경8"]
+    # 상한 미지정(종전 동작) = 전부 대상
+    assert len(_collect_sold_snapshot(conn, [])) == 2

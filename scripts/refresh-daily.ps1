@@ -19,6 +19,9 @@
 .PARAMETER Cash
   가용현금(원) 상한. 최저가<=현금 매물만.
 
+.PARAMETER AppraisalBuffer
+  서버측 감정가 상한 = Cash x 이 배수. 기본 1.0 = 감정가 <= Cash (사용자 2026-11-22: 감정가 3억 이하로 범위 축소).
+
 .PARAMETER Ym
   국토부 조회 연월 YYYYMM. 미지정 시 run.py 가 전월로 자동.
 
@@ -34,7 +37,8 @@
 param(
     [switch]$Live,
     [switch]$FromCache,
-    [long]$Cash = 1000000000,  # 사용자 결정(2026-07-20): 전국 · 현금 10억 상한(5억→상향)
+    [long]$Cash = 300000000,   # 사용자 결정(2026-11-22): 감정가 3억 이하로 축소(종전 2026-07-20 현금 10억 x 버퍼3 = 감정가 30억)
+    [double]$AppraisalBuffer = 1.0,  # 감정가 상한 = Cash x 배수. 1.0 = 감정가 <= Cash
     [int]$LiveMonths = 24,     # 국토부 실거래 수집창(개월). 캐시(molit_trades.db)로 닫힌 달은 1회만 호출(깊이↑=비용동일, 열린 2개월만 매번).
     [string]$Ym = "",
     [string]$DbPath = "",
@@ -72,7 +76,7 @@ $env:AUCTION_DB = $DbPath
 
 # --- run.py 인자 구성 ---
 $runArgs = @("run.py", "--source", "courtauction", "--db", $DbPath, "--cash", "$Cash",
-             "--max-pages", "$MaxPages")
+             "--appraisal-buffer", "$AppraisalBuffer", "--max-pages", "$MaxPages")
 
 # 물건 소스: 캐시(재크롤X) vs 전국 실크롤. --live/--ym는 국토부 시세라 둘 다에 적용(독립).
 if ($FromCache) { $runArgs += "--from-cache" } else { $runArgs += "--nationwide" }
@@ -190,7 +194,7 @@ try {
     if (-not $FromCache) {
         "--- [5/5] 재채점(--from-cache, 보강분 반영) ---" | Tee-Object -FilePath $LogPath -Append
         $rescoreArgs = @("run.py", "--source", "courtauction", "--db", $DbPath, "--cash", "$Cash",
-                         "--max-pages", "$MaxPages", "--from-cache")
+                         "--appraisal-buffer", "$AppraisalBuffer", "--max-pages", "$MaxPages", "--from-cache")
         if ($Live) { $rescoreArgs += @("--live", "--live-months", "$LiveMonths") }
         if ($Ym)   { $rescoreArgs += @("--ym", $Ym) }
         & $Python @rescoreArgs 2>&1 | Tee-Object -FilePath $LogPath -Append
