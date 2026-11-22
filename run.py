@@ -36,6 +36,24 @@ _SOLD_SNAP_COLS = ["court", "case_no", "item_no", "apt_name", "address", "proper
                    "arb_score", "grade", "market_scope", "matched_trades", "confidence"]
 
 
+def _coverage_prior(conn, appraisal_max: int | None = None, today: str | None = None) -> int:
+    """커버리지 플로어 분모 — 기존 scored 중 '이번에도 보여야 정상인' 물건 수.
+
+    - 이번 수집 범위(감정가 상한) 밖은 뺀다: 범위를 좁힌 실행이 '부실 크롤'로 오판된다.
+    - 매각기일이 이미 지난 물건도 뺀다: 사라지는 게 정상이다. 긴 휴면 뒤(2026-11-22, 7주)
+      재가동하면 기존 행 대부분이 만료라 정상 수집도 80% 미달로 병합 강등됐다.
+    기일 미상('')은 보수적으로 센다.
+    """
+    from datetime import date  # noqa: PLC0415
+    today = today or date.today().isoformat()
+    sql = "SELECT COUNT(*) FROM scored_listings WHERE (sale_date IS NULL OR sale_date = '' OR sale_date >= ?)"
+    params: list = [today]
+    if appraisal_max:
+        sql += " AND appraisal_price <= ?"
+        params.append(appraisal_max)
+    return conn.execute(sql, params).fetchone()[0]
+
+
 def _collect_sold_snapshot(conn, new_scored, appraisal_max: int | None = None) -> list[dict]:
     """(C2 2026-07-27) 전량교체 직전 diff — 이번 스냅샷에서 사라질 '낙찰(종결) 추정' 물건 수집.
 
@@ -286,7 +304,8 @@ def main(argv=None) -> int:
     _revived: list[tuple[str, str, str]] = []
     sold_preserve_failed = False   # 낙찰 보존 실패 → 종료코드 4(스케줄러 urgent 알림)
     if args.source == "courtauction" and use_live and full_snapshot and scored:
-        _prior = conn.execute("SELECT COUNT(*) FROM scored_listings").fetchone()[0]
+        _prior = _coverage_prior(
+            conn, int(args.cash * args.appraisal_buffer) if args.cash else None)
         _floor = float(os.environ.get("AUCTION_COVERAGE_FLOOR", "0.8"))
         if _prior and len(scored) < _prior * _floor:
             print(f"  ⛔ 커버리지 플로어 미달(수집 {len(scored)} < 기존 {_prior}×{_floor:.0%}) — "

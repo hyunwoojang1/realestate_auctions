@@ -712,3 +712,18 @@ def test_collect_sold_snapshot_ignores_rows_outside_crawl_scope(tmp_path):
     assert [r["case_no"] for r in rows] == ["2025타경8"]
     # 상한 미지정(종전 동작) = 전부 대상
     assert len(_collect_sold_snapshot(conn, [])) == 2
+
+
+def test_coverage_prior_counts_only_in_scope_rows(tmp_path):
+    """커버리지 플로어의 분모(기존 건수)는 이번 수집 범위 안만 센다 — 범위를 좁힌 첫 실행이
+    '부실 크롤'로 오판돼 전량교체가 병합으로 강등되던 문제(2026-11-22 실측: 8003 < 15931×80%)."""
+    from run import _coverage_prior
+    conn = store.connect(str(tmp_path / "cov.db"))
+    big = _scored_obj("2025타경7", "2026-07-20")                   # 감정가 5억
+    small = _scored_obj("2025타경8", "2026-07-20")
+    small.appraisal_price = 250_000_000
+    store.replace_all(conn, [big, small])
+    assert _coverage_prior(conn, 300_000_000, today="2026-07-01") == 1
+    assert _coverage_prior(conn, None, today="2026-07-01") == 2
+    # 기일 지난 물건은 사라지는 게 정상 — 분모에서 뺀다(7주 휴면 뒤 재가동 실측)
+    assert _coverage_prior(conn, None, today="2026-11-22") == 0

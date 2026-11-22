@@ -14,7 +14,7 @@ from __future__ import annotations
 
 import logging
 import re
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, replace
 
 from .models import AuctionListing
 
@@ -477,6 +477,23 @@ def _has_building(rec: CourtAuctionRecord) -> bool:
     return bool(rec.building_name or rec.building_detail or r.get("pjbBuldList"))
 
 
+def _carry_share_signal(winner: CourtAuctionRecord,
+                        siblings: list[CourtAuctionRecord]) -> CourtAuctionRecord:
+    """형제 목적물 행의 부분지분 표기(maejibun)를 병합 승자에게 옮긴다(새 객체, 원본 불변).
+
+    (2026-11-22 실사고 — 인천 2026타경501865) 지분 표기가 토지 목적물 행에만 있으면 건물행
+    승리 병합이 그 신호를 버려 온전가 시세가 붙고, 형제행을 보는 적재 게이트는 FAIL 해
+    클라우드 미러 전체가 막혔다. 채점과 게이트가 같은 물건 단위로 판정하도록 맞춘다.
+    """
+    if is_partial_share((winner.raw or {}).get("maejibun"), winner.note):
+        return winner
+    for s in siblings:
+        mj = (s.raw or {}).get("maejibun")
+        if is_partial_share(mj, None):
+            return replace(winner, raw={**(winner.raw or {}), "maejibun": mj})
+    return winner
+
+
 def merge_mokmul_rows(records: list[CourtAuctionRecord]) -> list[CourtAuctionRecord]:
     """같은 물건(court,case_no,item_no)의 목적물(mokmulSer)별 다중 행을 1행으로 병합.
 
@@ -503,7 +520,7 @@ def merge_mokmul_rows(records: list[CourtAuctionRecord]) -> list[CourtAuctionRec
             out.append(rows[0])
             continue
         rows.sort(key=lambda r: (not _has_building(r), r.doc_id))
-        out.append(rows[0])
+        out.append(_carry_share_signal(rows[0], rows[1:]))
     dropped = len(records) - len(out)
     if dropped:
         logger.info("목적물 다중 행 병합: %d행 → %d물건(건물행 우선, %d행 병합됨)",

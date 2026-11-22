@@ -396,3 +396,24 @@ def test_merge_mokmul_rows_prefers_building_row():
         assert len(merged) == 1
         assert merged[0].doc_id == "D1"          # 건물행 승리
         assert merged[0].property_type == "아파트"
+
+
+def test_merge_mokmul_rows_carries_share_signal_from_sibling_row():
+    """지분 신호가 건물행이 아닌 형제 토지행 maejibun 에만 있으면, 병합(건물행 승리)에서
+    지분 신호가 버려져 온전가 시세가 붙었다 — 게이트는 형제행을 보고 FAIL(2026-11-22
+    인천 2026타경501865: 오피스텔 건물행 + '공유자 973.4분의4.1176 … 지분 전부' 토지행 2개)."""
+    from src.courtauction_fields import merge_mokmul_rows, parse_row, to_auction_listing
+    base = {"srnSaNo": "2026타경501865", "jiwonNm": "인천지방법원", "maemulSer": "1",
+            "dspslUsgNm": "오피스텔", "sclsUtilCd": "20104", "gamevalAmt": "95000000",
+            "minmaePrice": "95000000", "yuchalCnt": "0", "maeGiil": "20261201",
+            "hjguDong": "구월동", "srchHjguSiguCd": "28170"}
+    bld = parse_row({**base, "docid": "D1", "buldList": "1층101호",
+                     "pjbBuldList": "철근콘크리트 25.93㎡", "areaList": "25.93㎡"})
+    land = parse_row({**base, "docid": "D2", "buldList": "", "jimokList": "대",
+                      "areaList": "973.4㎡",
+                      "maejibun": "공유자 973.4분의4.1176 갑구 순위번호 365번 지분 전부"})
+    for rows in ([bld, land], [land, bld]):
+        merged = merge_mokmul_rows(rows)
+        assert merged[0].doc_id == "D1"                              # 건물행 승리는 유지
+        assert "지분" in to_auction_listing(merged[0]).special_rights  # 지분 신호는 보존
+    assert bld.raw.get("maejibun") in (None, "")                      # 원본 행 불변

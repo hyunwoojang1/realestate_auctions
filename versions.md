@@ -1,5 +1,23 @@
 # versions.md — auction-arbitrage 루프 작업 로그 (append-only, 최신순)
 
+## 2026-11-22 21:47 KST — 🛡 재가동 1단계 게이트 FAIL 2종 원인 수정 + Supabase 재개
+
+**상황**: 감정가 3억 크롤 1단계 결과 → 품질 게이트 FAIL로 클라우드 미러 차단(로컬 적재만).
+- ① 만료 15,125건: 커버리지 플로어가 `수집 8,003 < 기존 15,931×80%`로 전량교체를 병합 강등.
+  실측: 범위(≤3억) 안 기존 18,196건 중 **10,193건이 이미 기일 경과**(7주 휴면), 기일 남은 건 정확히 8,003.
+  → `run._coverage_prior(appraisal_max, today)`: 분모 = 범위 안 + 기일 미경과(기일 미상은 셈).
+- ② 지분 2건(인천 2026타경501865): 원본 3행(오피스텔 건물행 + 토지 지분행 2) 중 지분 표기가
+  토지행 maejibun 에만 → `merge_mokmul_rows` 건물행 승리가 신호를 버려 시세 매칭, 게이트는 형제행을 보고 FAIL
+  (9/18 "지분 검출 라이브 경로 사각"과 같은 계열). → `_carry_share_signal`: 형제행 지분 maejibun 을 승자에 이식(새 객체).
+
+**Supabase**: 사용자 Resume 후에도 대시보드 실측 'paused' → 대시보드에서 Resume 실행(21:2x), 21:35 DNS 복구·REST 200.
+단 **클라우드 테이블 비어 있음**(scored 0 · rights 0 · photos 0 · naver_prices 0 · sold 2,025) — 크롤은 미러 전이라 무관.
+로컬 auction.db(quick_check ok)에서 전량 재적재 필요.
+
+**증거**: 신규 테스트 2건 RED→GREEN, 전체 **1224 passed·1 skipped**, ruff 클린. 게이트 실행 결과는 위 수치.
+**평가자**: pytest + validate_data 실측. **커밋**: (이 항목 커밋)
+**다음**: 5단계 재채점(수정 코드 적용) → validate_data 전 PASS 확인 → migrate_to_supabase 전량 → 배포 → verify_claims --prod.
+
 ## 2026-11-22 21:11 KST — 🎯 수집 범위 축소: 감정가 30억 → 3억 이하 + 가짜 낙찰 기록 방지
 
 **배경(사용자)**: 스코프를 좁게 — 감정가 낮은 것, 최대 3억. 종전 실효 범위는 현금 10억 × 감정가버퍼 3
