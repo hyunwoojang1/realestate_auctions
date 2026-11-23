@@ -311,3 +311,20 @@ def test_rights_loader_orders_by_unique_key(monkeypatch):
     monkeypatch.setattr(store_rest.requests, "get", fake_get)
     store_rest.load_all_rights(use_cache=False)
     assert seen["params"]["order"] == "court.asc,case_no.asc,item_no.asc"
+
+
+def test_upsert_failure_carries_postgrest_body(monkeypatch):
+    """(2026-11-23) 미러 400 이 본문 없이 'Bad Request' 한 줄로만 남아 원인 특정 불가였다 → 본문 동봉."""
+    import requests as real_requests
+
+    class ErrResp:
+        status_code = 400
+        text = '{"code":"PGRST204","message":"Could not find the \'x\' column"}'
+
+        def raise_for_status(self):
+            raise real_requests.HTTPError("400 Client Error: Bad Request")
+
+    monkeypatch.setattr(store_rest.requests, "post", lambda *a, **k: ErrResp())
+    with pytest.raises(real_requests.HTTPError) as ei:
+        store_rest.upsert([_sl()])
+    assert "PGRST204" in str(ei.value)

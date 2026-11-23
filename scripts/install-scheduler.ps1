@@ -47,7 +47,9 @@ if (-not $PwshExe) { $PwshExe = "powershell.exe" }
 # -WindowStyle Hidden(2026-08-25 실사고): StartWhenAvailable 로 낮에 지연 발화하면 콘솔 창이
 # 화면에 뜨고, 사용자가 그 창을 닫는 순간 크롤 전체가 0xC000013A 로 죽는다 — 오늘 [0/5] 백업
 # 중 그렇게 죽어 부분 백업까지 남겼다. warm-ping/watchdog 은 처음부터 Hidden 이었다.
-$argLine = "-NoProfile -ExecutionPolicy Bypass -WindowStyle Hidden -File `"$RefreshPs`" -Live -Cash $Cash"
+# -SkipNaver(2026-11-24): 네이버 Phase A 가 감정가 3억 범위에서도 6,488쌍을 하루 4% 속도로 돌다
+# 브라우저 크래시로 [5/5] 재채점까지 막았다. 대책 전까지 일일 갱신에서 제외(보조 시세).
+$argLine = "-NoProfile -ExecutionPolicy Bypass -WindowStyle Hidden -File `"$RefreshPs`" -Live -Cash $Cash -SkipNaver"
 
 $action    = New-ScheduledTaskAction -Execute $PwshExe -Argument $argLine -WorkingDirectory $RepoRoot
 $trigger   = New-ScheduledTaskTrigger -Daily -At $Time

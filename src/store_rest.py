@@ -305,6 +305,20 @@ def _chunks(seq: list, n: int):
         yield seq[i:i + n]
 
 
+def _raise_with_body(r) -> None:
+    """raise_for_status + PostgREST 응답 본문(앞 500자)을 예외 메시지에 싣는다.
+
+    (2026-11-23) 재가동 첫 전량교체가 `400 Bad Request` 한 줄만 남기고 실패했는데, 같은 데이터로
+    재시도하자 성공해 원인을 끝내 특정하지 못했다 — 본문(PostgREST code·message·details)이
+    없었기 때문. 재발 시 원인이 로그에 남도록 미러 쓰기 경로에서 본문을 함께 올린다.
+    """
+    try:
+        r.raise_for_status()
+    except _requests_mod.HTTPError as e:
+        body = (getattr(r, "text", "") or "")[:500]
+        raise _requests_mod.HTTPError(f"{e} — body: {body}", response=r) from e
+
+
 def _post_upsert(url: str, key: str, table: str, rows: list[dict]) -> int:
     n = 0
     for chunk in _chunks(rows, _WRITE_CHUNK):
@@ -317,7 +331,7 @@ def _post_upsert(url: str, key: str, table: str, rows: list[dict]) -> int:
             json=chunk,
             timeout=60,
         )
-        r.raise_for_status()
+        _raise_with_body(r)
         n += len(chunk)
     return n
 
@@ -729,6 +743,6 @@ def replace_all(items: Iterable[ScoredListing]) -> int:
         params={"or": f"(refreshed_at.lt.{stamp},refreshed_at.is.null)"},
         timeout=60,
     )
-    r.raise_for_status()
+    _raise_with_body(r)
     invalidate()
     return n

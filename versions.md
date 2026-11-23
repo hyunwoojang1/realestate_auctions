@@ -1,5 +1,15 @@
 # versions.md — auction-arbitrage 루프 작업 로그 (append-only, 최신순)
 
+## 2026-11-24 08:09 KST — 🔎 미러 실패 본문 로깅 + 정기 갱신 재가동(-SkipNaver)
+
+**무엇**: ① `store_rest._raise_with_body` — 미러 쓰기(_post_upsert·replace_all 만료삭제) 실패 시 PostgREST 응답
+본문(500자)을 예외에 동봉. 11-23 전량교체 400이 본문 없이 남아 원인 미확정이었던 구멍. ② install-scheduler.ps1
+기본 인자에 `-SkipNaver` 고정(재설치해도 유지). ③ 스케줄러 작업 재가동: DailyRefresh(`-Live -Cash 300000000
+-SkipNaver`, 다음 11-25 05:30)·WarmPing·Watchdog = Ready. RightsCrawl-Once(7월 1회성)는 Disabled 유지.
+**증거**: tests/test_store_rest.py 신규 `test_upsert_failure_carries_postgrest_body` 포함 20 passed. 프로덕션 실측:
+사진 — 시세평가 물건 423/1,087(로컬 기준), R2 HEAD 표본 40/40, 상세 표본 5/5 사진 렌더(표본임).
+**다음**: Vercel CLI 재로그인 후 배포(실거래 필터 UI 미배포 상태). 네이버 Phase A 대책.
+
 ## 2026-11-23 22:37 KST — ☁ 재가동 크롤 마무리 + Supabase 전량 재적재
 
 **무엇**: 11-22 21:09 스케줄러 크롤이 [4/5] 네이버 Phase A(6,488쌍) 4%(280)에서 Playwright `Target crashed`로
