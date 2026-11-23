@@ -18,3 +18,4 @@
   상태 주석을 현행(활성·새 경로·배터리 옵션)으로 갱신. 그 이전 처리분 4건은 규칙(>10 청소)에
   따라 삭제.
 - [x] 2026-08-25 13:19 KST | code-without-docs commit | files: src/courtauction_fields.py — 처리(14:1x): README §6 부분 지분 경계표에 어순반대·'지분매각' 2행 추가 + 미러 볼모 사고 경고 박스.
+- [x] 2026-11-22 21:48 KST | code-without-docs commit | files: src/courtauction_fields.py — 처리(11-23 22:37): README 목적물 다중 행 병합 항목에 형제행 지분 신호 이식(_carry_share_signal) 추가.

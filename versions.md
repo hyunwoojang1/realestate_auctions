@@ -1,5 +1,27 @@
 # versions.md — auction-arbitrage 루프 작업 로그 (append-only, 최신순)
 
+## 2026-11-23 22:37 KST — ☁ 재가동 크롤 마무리 + Supabase 전량 재적재
+
+**무엇**: 11-22 21:09 스케줄러 크롤이 [4/5] 네이버 Phase A(6,488쌍) 4%(280)에서 Playwright `Target crashed`로
+종료(작업 결과 0xC000013A, PC 메모리 부족 동반) → [5/5] 미실행. 네이버는 보조 시세라 건너뛰고 재채점을
+수동 실행(`run.py --from-cache --live --cash 3억 --appraisal-buffer 1.0`). 게이트 10/10 PASS, 재매각 부활
+3,124건을 낙찰 기록에서 제외(로컬 sold 40,564 → 37,440 — 21:50 보존분 중 실제 재진행 물건).
+scored 클라우드 전량교체가 400(재현 불가 — 같은 데이터 수동 replace_all 성공)으로 실패해 후속 미러
+(naver·sold·고아정리)도 미실행 → scratch 스크립트로 보조 테이블 수동 적재.
+**증거**: 클라우드 실측 scored 8,003(=로컬) · rights 1,198(라이브 물건분, 고아 15,546 정리) · photos 56,565 ·
+tenants 303 · naver 12,479 · sold 37,440(=로컬; 라이브와 겹치던 구 클라우드 26건 삭제) · survey 245 · building 7,473.
+README 목적물 병합 항목에 `_carry_share_signal` 반영(DOC_SYNC 큐 처리).
+**다음**: 배포·프로덕션 검증. 400 원인 미확정 — 다음 크롤에서 재발 시 응답 본문 로깅 필요. 네이버 Phase A 속도(하루 4%) 대책.
+
+## 2026-11-22 21:50 KST — 🧹 만료 물건 일괄 삭제(사용자 지시) — 낙찰 기록 보존 후
+
+**무엇**: 로컬 auction.db scored_listings 에서 매각기일 < 오늘 인 행 **15,125건 삭제**(23,128 → 8,003).
+삭제 전 감정가 ≤3억 만료분 10,193건을 파이프라인과 같은 `_collect_sold_snapshot(appraisal_max=3억)`으로
+sold_listings 에 보존(30,371 → 40,564, 실낙찰가 보유 35). 3억 초과 만료 4,932건은 범위 밖이라 종결 여부
+불명 → 보존 없이 삭제. 백업: `~/backups/auction-arbitrage/pre-refresh/auction-20261122-2109.db`.
+**증거**: quick_check ok · validate_data **전 게이트 PASS**(만료 0, 지분 0, 전체 8,003건).
+**커밋**: 데이터 작업(코드 무변경) — 다음 커밋에 이 항목 포함.
+
 ## 2026-11-22 21:47 KST — 🛡 재가동 1단계 게이트 FAIL 2종 원인 수정 + Supabase 재개
 
 **상황**: 감정가 3억 크롤 1단계 결과 → 품질 게이트 FAIL로 클라우드 미러 차단(로컬 적재만).
